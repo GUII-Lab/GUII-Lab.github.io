@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>The GPT</title>
+<style>
+body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:#fdfdfd;color:#222;margin:0;padding:2rem;line-height:1.6}
+h1{font-size:2rem;margin-bottom:.5rem}
+h2{display:flex;align-items:center;font-size:1.3rem;margin-top:2rem;margin-bottom:.4rem}
+.icon{width:24px;height:24px;border-radius:4px;margin-right:.5rem;background:linear-gradient(135deg,#4facfe,#00f2fe)}
+.icon.cat-input{background:linear-gradient(135deg,#ff9a9e,#fad0c4)}
+.icon.cat-npc{background:linear-gradient(135deg,#f6d365,#fda085)}
+.icon.cat-prog{background:linear-gradient(135deg,#a18cd1,#fbc2eb)}
+.icon.cat-style{background:linear-gradient(135deg,#84fab0,#8fd3f4)}
+.icon.cat-learn{background:linear-gradient(135deg,#cfd9df,#e2ebf0)}
+section{max-width:920px;margin:auto}
+ul{margin:.3rem 0 .8rem 1.5rem;padding:0}
+li{margin-bottom:1rem}
+code{background:#f4f4f4;padding:.15rem .4rem;border-radius:3px;display:inline-block}
+.instructions{background:#eef9ff;border-left:4px solid #4facfe;padding:1rem;margin-bottom:2rem}
+.desc{font-size:.9rem;color:#444;margin-bottom:.4rem}
+.detail{font-size:.85rem;color:#555;margin-top:.25rem}
+/* Phase Design Styles */
+        .phase-box {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .phase-number {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .checklist {
+            list-style: none;
+        }
+
+        .checklist li {
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checklist input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+</style>
+</head>
+<body>
+<section>
+<h1>The GPT: Gamified Prompt Taxonomy</h1>
+<div class="instructions">
+<p style="max-width:900px;margin:0 auto 1.5rem;padding:0 1.5rem;">Critical thinking thrives when students actively question, iterate, and apply knowledge—not when answers appear instantly. Large Language Models are powerful tutors, yet default Q&amp;A patterns risk turning learners passive. Embedding rigorous inquiry inside playful, game‑inspired frames sparks the curiosity and persistence that critical reasoning demands.</p>
+<p style="max-width:900px;margin:0 auto 2rem;padding:0 1.5rem;">Gamified prompts weave narrative roles, feedback loops, rewards, and progressive challenges into Socratic LLM conversations. They create a <em>magic circle</em> of purposeful play where students solve meaningful problems, receive just‑in‑time scaffolding, and stay emotionally invested while exercising deep reasoning skills.</p>
+
+<p style="max-width:900px;margin:0 auto 1.5rem;padding:0 1.5rem;">Creating playful learning experiences can feel daunting—especially for educators who aren’t game designers. A <strong>taxonomy</strong> functions like a parts catalog: it breaks an overwhelming design space into clear, reusable elements. By mapping narrative, feedback, and reward mechanics side‑by‑side, this taxonomy helps you:</p>
+<ul style="margin-left:1.5rem;list-style:disc;">
+<li>Translate proven game principles into concise prompt language.</li>
+<li>Mix‑and‑match mechanics to fit specific learning objectives.</li>
+<li>Communicate designs with colleagues through a shared vocabulary.</li>
+<li>Avoid “cute but empty” gamification by aligning every element to pedagogy.</li>
+</ul>
+<p>With a common framework, instructors can focus on creativity and learning goals—letting the taxonomy handle the structural heavy lifting.</p>
+
+
+
+<p>This guide breaks common game mechanics into reusable prompt ingredients. Each element lists examples, <em>how to deploy it</em>, and <em>why it helps</em> so you can choose the right mix for your lesson.</p>
+
+
+<p>Further if you would like to try and test your own Gamified Prompts, please visit: <a href="https://siddu1998.github.io/SCAI/StudyGamer.html">The Gamified Prompt Playground</a></p>
+<p>To look into the specifics of the taxonomy and details with regards to structures, please visit <a href="https://siddu1998.github.io/SCAI/prompt.html">Taxonomy Analysis</a></p>
+
+</div>
+
+
+<h2><span class="icon cat-gamestyle"></span>Game Elements</h2>
+<p class="desc">How the experience is framed, visualised, and played.</p>
+
+<ul>
+  <!-- 1. Narrative Framing -->
+  <li><strong>Narrative Framing</strong><br>
+    <code>"Choose your realm: Cyber-City Neon 🏙️ or the Ancient Ruins of Atlan 🏛️."</code><br>
+    <code>"A catastrophic data breach has rocked the empire – only <em>you</em>, the shadow hacker, can unmask the culprit."</code>
+    <div class="detail"><strong>How to use:</strong> Give players a vivid setting and immediate stakes (crime, mystery, quest) in the opening line; optionally let them pick the backdrop.<br>
+    <strong>Advantages:</strong> Anchors the learning in a memorable story world, boosts immersion, and provides a thematic scaffold for later tasks.</div>
+  </li>
+
+  <!-- 2. Role-play -->
+  <li><strong>Role-play</strong><br>
+    <code>"You are Dr. Quanta, rogue physicist chasing forbidden particles."</code><br>
+    <code>"Play as Captain Statistica, guardian of the Graph Galaxy 📈✨."</code>
+    <div class="detail"><strong>How to use:</strong> Assign a clear persona (name + title + mission) so learners adopt its viewpoint and language style.<br>
+    <strong>Advantages:</strong> Fosters identity, encourages creative responses, and lets you tailor content to the character’s expertise.</div>
+  </li>
+
+  <!-- 3. Game Structure & Ending Conditions -->
+  <li><strong>Game Structure &amp; Ending Conditions</strong><br>
+    <code>"Complete 10 riddles; each correct answer lights one Beacon of Truth 🕯️."</code><br>
+    <code>"✅ Win: decode all 5 encrypted files  ❌ Lose: timer hits 00:00 and the system locks down."</code>
+    <div class="detail"><strong>How to use:</strong> State the number of levels/questions and spell out explicit win / fail criteria (points, timer, collected items).<br>
+    <strong>Advantages:</strong> Sets clear goals, keeps pacing tight, and signals progress without extra UI.</div>
+  </li>
+
+  <!-- 4. Visual Aesthetics -->
+  <li><strong>Visual Aesthetics (Progress bars, Emojis, ASCII, GenAI Images)</strong><br>
+    <code>"📊 Progress: ███░░ 60% complete"</code><br>
+    <code>"ASCII map 10×10: @ = you, # = wall, F = finish"</code>
+    <div class="detail"><strong>How to use:</strong> Mix emojis, ASCII art, or generated images to signal location, status, or mood inside plain-text chats.<br>
+    <strong>Advantages:</strong> Gives instant visual feedback and spatial cues without complex front-end work.</div>
+  </li>
+
+  <!-- 5. Game Type -->
+  <li><strong>Game Type (Single-player / ARG / Multiplayer)</strong><br>
+    <code>"Collaborative mode: pair with a friend and co-solve hypotheses live."</code><br>
+    <code>"ARG quest: post a real-world photo of recycled art to unlock the next clue."</code>
+    <div class="detail"><strong>How to use:</strong> Specify whether play is solo, synchronous co-op, or augmented reality; include submission mechanics for photos, links, or live chat.<br>
+    <strong>Advantages:</strong> Lets designers match social dynamics to learning goals and makes the activity feel bigger than the chat window.</div>
+  </li>
+</ul>
+
+<!-- NPC -->
+<h2><span class="icon cat-npc"></span>Non‑Player Characters (NPC)</h2>
+<p class="desc">Virtual characters driving story and feedback.</p>
+<ul>
+<li><strong>NPC Creation</strong><br>
+<code>"Sir Vector, Guardian of Classical Castle, greets you."</code><br>
+<code>"Engineer Blaze reveals smoky secrets of the factory."</code>
+<div class="detail"><strong>How to use:</strong> Introduce an NPC’s name, role, and motivation in one line so learners instantly know their purpose.<br>
+<strong>Advantages:</strong> Gives prompts personality, anchors narrative stakes, and lets you segment content by character.</div></li>
+<li><strong>NPC Interaction</strong><br>
+<code>"Convince Dame Entropy to calibrate the furnace."</code><br>
+<code>"Ask Eco‑Oracle for a weather omen (cost: 5 Eco‑Coins)."</code>
+<div class="detail"><strong>How to use:</strong> Provide verbs (convince, barter, teach) and consequences for success or failure.<br>
+<strong>Advantages:</strong> Encourages dialogue practice, persuasion skills, and conditional branching without extra complexity.</div></li>
+</ul>
+
+<!-- Progression -->
+<h2><span class="icon cat-prog"></span>Progression Systems</h2>
+<p class="desc">Visible signals of effort, risk and reward.</p>
+<ul>
+<li><strong>Points / Score</strong><br>
+<code>"Gain 10 XP for each balanced chemical equation."</code><br>
+<code>"Climate Hero Score tallies at the journey’s end."</code>
+<div class="detail"><strong>How to use:</strong> State point values up front and occasionally echo totals.<br>
+<strong>Advantages:</strong> Quantifies progress, supports mastery‑based grading, and motivates through micro‑rewards.</div></li>
+
+<li><strong>Quests / Bosses</strong><br>
+<code>"Defeat Lord Cosinix by solving the unit‑circle duel."</code><br>
+<code>"Boss: Firewall Sentinel – crack the cipher in 3 tries."</code>
+<div class="detail"><strong>How to use:</strong> Break curriculum into themed quests; end each with a high‑stakes question or scenario.<br>
+<strong>Advantages:</strong> Creates momentum, natural assessment checkpoints, and memorable challenge moments.</div></li>
+
+<li><strong>Badges / Achievements</strong><br>
+<code>"🏅 Eco‑Visionary badge for zero‑waste choices."</code><br>
+<code>"🔬 ‘Data Detective’ unlocked after 5 flawless analyses."</code>
+<div class="detail"><strong>How to use:</strong> Define badge criteria; hand out emoji‑rich titles when met.<br>
+<strong>Advantages:</strong> Provides long‑term goals, social proof, and sharable accomplishments.</div></li>
+
+<li><strong>Health / Lives</strong><br>
+<code>"♥♥♥ — wrong answer costs one heart"</code><br>
+<code>"Logic Meter 80% → falls 10% on each mis‑step"</code>
+<div class="detail"><strong>How to use:</strong> Present current health every few turns; describe penalties for depletion.<br>
+<strong>Advantages:</strong> Adds tension, encourages accuracy, and naturally ends a session when lives hit zero.</div></li>
+
+<li><strong>Inventory / Resources</strong><br>
+<code>"Use 3 Solar Cells to power the rover."</code><br>
+<code>"Portfolio: $5 000 cash, 20 shares of TSLA."</code>
+<div class="detail"><strong>How to use:</strong> List starting items; allow trade‑offs or crafting during play.<br>
+<strong>Advantages:</strong> Fosters planning, teaches resource management, and personalizes playthroughs.</div></li>
+</ul>
+
+
+<!-- Input Modality -->
+<h2><span class="icon cat-input"></span>Input Modality</h2>
+<p class="desc">Ways learners contribute beyond plain chat.</p>
+<ul>
+<li><strong>Image Upload</strong><br>
+<code>"Upload a photo of a food label that claims 'zero sugar'."</code><br>
+<code>"Submit your Python file to patch the ship’s AI."</code><br>
+<code>"Post a selfie cleaning litter to earn 🌱 Eco‑XP."</code>
+<div class="detail"><strong>How to use:</strong> Clearly state the file or photo requirement and explain what will happen after upload (analysis, feedback, reward).<br>
+<strong>Advantages:</strong> Adds authenticity, captures real‑world artifacts, and supports multimodal assessment.</div></li>
+
+<li><strong>Choice‑Based Options</strong><br>
+<code>"📍 Choose: 1️⃣ Disappearing Forests 2️⃣ Sinking City 3️⃣ Burning Skies"</code><br>
+<code>"(A) Open door (B) Ask NPC (C) Inspect device"</code>
+<div class="detail"><strong>How to use:</strong> Offer 2‑4 options max, label them with emojis or numbers, and explain that each path affects story or scoring.<br>
+<strong>Advantages:</strong> Empowers agency, simplifies branching logic, and keeps conversations on‑rails.</div></li>
+
+<li><strong>Randomizer / Dice</strong><br>
+<code>"Type /roll to see if the gate creaks open."</code><br>
+<code>"🎲 Spin: 🍒|🍌|🍊 – Better luck next time!"</code>
+<div class="detail"><strong>How to use:</strong> Ask the learner to trigger the roll; then narrate outcome‑based consequences.<br>
+<strong>Advantages:</strong> Injects suspense, mirrors tabletop games, and models probabilistic thinking.</div></li>
+</ul>
+
+
+
+
+
+
+<!-- Learning -->
+<h2><span class="icon cat-learn"></span>Learning Design</h2>
+<p class="desc">Pedagogical glue that ensures growth, not just fun.</p>
+<ul>
+<li><strong>Learning Objective (Implicit and Explicit)</strong><br>
+<code>"Goal: master t‑tests and ANOVA before the final boss."</code><br>
+<code>"Mission: secure the data center by patching SQL injection."</code>
+<div class="detail"><strong>How to use:</strong> Declare objectives in story voice so players know what knowledge wins the game.<br>
+<strong>Advantages:</strong> Keeps prompts aligned with curriculum and transparent for assessment.</div></li>
+
+<li><strong>Scaffolding & Difficulty</strong><br>
+<code>"Hint tokens decrease each chapter."</code><br>
+<code>"Five ship systems – each harder than the last."</code>
+<div class="detail"><strong>How to use:</strong> Start with guided practice; gradually remove supports or raise stakes.<br>
+<strong>Advantages:</strong> Maintains achievable challenge, supports novice‑to‑expert progression.</div></li>
+
+<li><strong>Feedback & Hinting</strong><br>
+<code>"Incorrect – try again or type 'hint' for a clue."</code><br>
+<code>"Second wrong? Here’s the explanation and a mini‑review."</code>
+<div class="detail"><strong>How to use:</strong> Offer tiered assistance: first a nudge, then a detailed reveal. Make ‘hint’ a clear command.<br>
+<strong>Advantages:</strong> Reduces frustration, supports just‑in‑time learning, and keeps autonomy in learner hands.</div></li>
+
+<li><strong>Progress Check</strong><br>
+<code>"Quick quiz: 3 MCQs before the reactor restarts."</code><br>
+<code>"Earn a badge only after two consecutive correct runs."</code>
+<div class="detail"><strong>How to use:</strong> Insert short quizzes between levels; clarify consequences (unlock, badge, or replay).<br>
+<strong>Advantages:</strong> Provides formative assessment, reinforces retention, and signals readiness for harder tasks.</div></li>
+
+<li><strong>Metacognitive Reflection</strong><br>
+<code>"Why did you choose chi‑square here?"</code><br>
+<code>"Reflect: what strategy will you change next round?"</code>
+<div class="detail"><strong>How to use:</strong> Pose open questions after milestones; invite journaling or quick summaries.<br>
+<strong>Advantages:</strong> Strengthens self‑regulation, deepens conceptual grasp, and generates qualitative insight for the instructor.</div></li>
+</ul>
+
+
+<h2>Practical Implementation Guide</h2>
+
+        <h3>Phased Design Approach</h3>
+
+        <div class="phase-box">
+            <div class="phase-header">
+                <div class="phase-number">1</div>
+                <h4>Foundation Setting</h4>
+            </div>
+            <p>Define the core purpose and context of the experience.</p>
+            <ul class="checklist">
+                <li><input type="checkbox"> Define Learning Objectives (Explicit & Implicit)</li>
+                <!-- <li><input type="checkbox"> Establish Game Type</li> -->
+                <li><input type="checkbox"> Establish Content Boundaries</li>
+
+                <li><input type="checkbox"> Identify Target Player Role/Persona</li>
+                <li><input type="checkbox"> Create Initial Narrative Framing/Story Shell</li>
+                
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <div class="phase-header">
+                <div class="phase-number">2</div>
+                <h4>Core Learning Loop Design</h4>
+            </div>
+            <p>Detail how learners will engage with content and receive feedback.</p>
+            <ul class="checklist">
+                <li><input type="checkbox"> Design Challenges/Obstacle Types/Quests</li>
+                <li><input type="checkbox"> Create Practice Opportunities</li>
+                <li><input type="checkbox"> Develop Feedback and Hinting Styles</li>
+                <li><input type="checkbox"> Design Scaffolding Strategy</li>
+            </ul>
+        </div>
+
+        
+
+        <div class="phase-box">
+            <div class="phase-header">
+                <div class="phase-number">3</div>
+                <h4>Engagement and Progression</h4>
+            </div>
+            <p>Focus on motivation and sense of journey.</p>
+            <ul class="checklist">
+                <li><input type="checkbox"> Design NPC Presence & Interaction Styles</li>
+                <li><input type="checkbox"> Choose Input Modality</li>
+                <li><input type="checkbox"> Create Progression Mechanics</li>
+                <li><input type="checkbox"> Develop Reward System</li>
+                <li><input type="checkbox"> Plan Visual Elements</li>
+            </ul>
+        </div>
+
+        <div class="phase-box">
+            <div class="phase-header">
+                <div class="phase-number">4</div>
+                <h4>Meta-Considerations</h4>
+            </div>
+            <p>Address higher-level learning goals and refinement.</p>
+            <ul class="checklist">
+              
+                <li><input type="checkbox"> Add Metacognition/Reflection Prompts</li>
+                <li><input type="checkbox"> Ensure Choice & Consequence Depth</li>
+                <li><input type="checkbox"> Consider Resource Management</li>
+                <li><input type="checkbox"> Optimize Game Pacing/Flow Control</li>
+            </ul>
+        </div>
+
+       
+
+<footer style="margin-top:3rem;font-size:.8rem;color:#666">© 2025 Gamified Prompt Taxonomy — CC‑BY 4.0</footer>
+</section>
+</body>
+</html>
