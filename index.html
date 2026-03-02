@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GUII Lab - Tools & Software</title>
+    <meta name="description" content="Game User Interaction and Intelligence Lab - Research tools and software">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #ffffff;
+            line-height: 1.6;
+            color: #374151;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .title {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+
+        .description {
+            max-width: 700px;
+            margin: 0 auto;
+            color: #6b7280;
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .link {
+            color: #111827;
+            text-decoration: none;
+            font-weight: 600;
+            border-bottom: 2px solid #111827;
+        }
+
+        .link:hover {
+            color: #374151;
+            border-bottom-color: #374151;
+        }
+
+        .projects {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 2rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            border-color: #d1d5db;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-subtitle {
+            font-size: 1rem;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+
+        .card-description {
+            color: #6b7280;
+            line-height: 1.7;
+            margin-bottom: 1.5rem;
+        }
+
+        .tools-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            color: #6b7280;
+            font-size: 0.95rem;
+        }
+
+        .tools-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .tools-list li:last-child {
+            border-bottom: none;
+        }
+
+        .tools-list li::before {
+            content: "•";
+            margin-right: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
+            border-top: 1px solid #e5e7eb;
+            margin-top: 3rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 2rem 1rem;
+            }
+
+            .title {
+                font-size: 2.25rem;
+            }
+
+            .subtitle {
+                font-size: 1.1rem;
+            }
+
+            .projects {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">GUII Lab Tools</h1>
+            <p class="subtitle">Game User Interaction and Intelligence Lab</p>
+            <p class="description">
+                Research tools and software for games, AI, and education. 
+                <a href="https://guiilab.ucsc.edu/" target="_blank" class="link">Visit GUII Lab →</a>
+            </p>
+        </div>
+
+        <div class="projects">
+            <div class="card" onclick="window.location.href='SCAI/index.html'">
+                <h2 class="card-title">StudyCrafter AI</h2>
+                <p class="card-subtitle">AI-Powered Educational Chatbots</p>
+                <p class="card-description">
+                    Create, manage, and gamify intelligent chatbots for classroom learning.
+                </p>
+                <ul class="tools-list">
+                    <li>StudyCreator</li>
+                    <li>StudyHelper</li>
+                    <li>StudyGamer</li>
+                    <li>Workshop Playground</li>
+                    <li>Gamified Prompts Taxonomy</li>
+                    <li>Response Analytics</li>
+                </ul>
+            </div>
+
+            <div class="card" onclick="window.location.href='LEAI/feedback.html'">
+                <h2 class="card-title">Learning Experience AI</h2>
+                <p class="card-subtitle">Intelligent Feedback Systems</p>
+                <p class="card-description">
+                    AI-driven feedback systems for personalized learning experiences.
+                </p>
+                <ul class="tools-list">
+                    <li>Feedback Platform</li>
+                    <li>FeedbackGPT Creator</li>
+                    <li>Feedback Responses</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>UC Santa Cruz | <a href="https://guiilab.ucsc.edu/" target="_blank" class="link">guiilab.ucsc.edu</a></p>
+        </div>
+    </div>
+</body>
+</html>
