@@ -526,12 +526,7 @@
                 }
             });
 
-            // Fetch API key and GPT options
-            $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/getOAI/', function (data) {
-                localStorage.setItem('openaiKey', data.key);
-                console.log('Key set');
-            });
-
+            // Fetch GPT options
             $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/list_custom_gpts/', function (gpts) {
                 gpts.forEach(function (gpt) {
                     $('#gptSelection').append(new Option(gpt.name, gpt.id));
@@ -551,6 +546,11 @@
             $('#gptSelection').on('change', function () {
                 const selectedGptId = $(this).val();
                 if (!selectedGptId) return;
+
+                // Clear previous chat history and UI when switching GPTs
+                chatHistory = [];
+                $('#transcription').empty();
+                $('#transcription').append('<div class="anonymity-notice">The data collected will be anonymous, instructors will have no way to identify who wrote what. Type "STOP" to end the conversation.</div>');
 
                 $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/list_custom_gpts/', function (gpts) {
                     const selectedGpt = gpts.find(g => g.id == selectedGptId);
@@ -581,24 +581,29 @@
             });
 
             function generateIntroductoryMessage(instructions) {
+                const userText = instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat.";
+                
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: [{
-                            role: 'system',
-                            content: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
-                        }]
+                        user_text: userText
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let introMessage = aiResponse.choices[0].message.content.trim();
+                        let introMessage = aiResponse.response || aiResponse.content || aiResponse.trim();
+                        if (typeof introMessage !== 'string') {
+                            introMessage = JSON.stringify(aiResponse);
+                        }
+                        introMessage = introMessage.trim();
                         appendMessage('ai-message', introMessage);
-                        chatHistory.push({ role: 'system', content: introMessage });
+                        chatHistory.push({ role: 'assistant', content: introMessage });
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('Error generating intro message:', error);
+                        appendMessage('ai-message', 'Welcome! How can I help you today?');
                     }
                 });
             }
@@ -664,21 +669,60 @@
                     totalCharacterLength = chatHistory.slice(1).reduce((acc, msg) => acc + msg.content.length, 0);
                 }
 
+                // Extract system prompt (first message with role: 'system')
+                const systemMessage = chatHistory.find(msg => msg.role === 'system');
+                const systemPrompt = systemMessage ? systemMessage.content : null;
+
+                // Convert chatHistory to backend format
+                // Include system prompt as first message in chat_history with sent_by: "system"
+                const chatHistoryFormatted = [];
+                
+                // Add system prompt as first message if it exists
+                if (systemPrompt) {
+                    chatHistoryFormatted.push({
+                        sent_by: 'system',
+                        content: systemPrompt
+                    });
+                }
+                
+                // Add all other messages (user and assistant, excluding system role from chatHistory)
+                chatHistory
+                    .filter(msg => msg.role !== 'system')
+                    .forEach(msg => {
+                        chatHistoryFormatted.push({
+                            sent_by: msg.role === 'user' ? 'user' : 'assistant',
+                            content: msg.content
+                        });
+                    });
+
+                const requestData = {
+                    user_text: transcription
+                };
+
+                // Include chat_history for continuous conversation context (with system prompt as first message)
+                if (chatHistoryFormatted.length > 0) {
+                    requestData.chat_history = chatHistoryFormatted;
+                }
+
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
-                    data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: chatHistory
-                    }),
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
+                    data: JSON.stringify(requestData),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let responseText = aiResponse.choices[0].message.content.trim();
+                        let responseText = aiResponse.response || aiResponse.content || aiResponse;
+                        if (typeof responseText !== 'string') {
+                            responseText = JSON.stringify(aiResponse);
+                        }
+                        responseText = responseText.trim();
                         appendMessage('ai-message', responseText);
                         chatHistory.push({ role: 'assistant', content: responseText });
+                    },
+                    error: function (xhr, status, error) {
+                        console.error('Error getting AI response:', error, xhr.responseText);
+                        appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
                     }
                 });
             }
