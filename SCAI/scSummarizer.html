@@ -519,7 +519,6 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      let openaiKey = '';
       let allMessages = [];
       let currentGPT = '';
 
@@ -574,13 +573,7 @@
         `;
       }
 
-      // 1. Fetch the OpenAI key
-      $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/getOAI/', function(data) {
-        openaiKey = data.key;
-        console.log('OpenAI Key retrieved');
-      });
-
-      // 2. Fetch all messages from your backend
+      // Fetch all messages from your backend
       fetch('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/scList/')
         .then(resp => resp.json())
         .then(data => {
@@ -682,22 +675,17 @@ Summarize the following student feedback messages. Highlight key themes, strengt
 ${allTexts.join('\n')}
         `;
 
-        fetch('https://api.openai.com/v1/chat/completions', {
+        fetch('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiKey}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
+            user_text: prompt,
+            chat_history: [
               {
                 role: 'system',
                 content: 'You are an educational insights assistant. Provide a concise summary in Markdown format.'
-              },
-              {
-                role: 'user',
-                content: prompt
               }
             ]
           })
@@ -709,7 +697,7 @@ ${allTexts.join('\n')}
           return resp.json();
         })
         .then(data => {
-          const content = data.choices?.[0]?.message?.content || '';
+          const content = data.response || data.content || data || '';
           summarySection.innerHTML = marked.parse(content);
         })
         .catch(err => {
@@ -738,22 +726,17 @@ Provide actionable teaching improvement insights based on these student messages
 ${allTexts.join('\n')}
         `;
 
-        fetch('https://api.openai.com/v1/chat/completions', {
+        fetch('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiKey}`
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            model: 'gpt-3.5-turbo',
-            messages: [
+            user_text: prompt,
+            chat_history: [
               {
                 role: 'system',
                 content: 'You are an expert educational consultant. Provide improvement insights in clear Markdown format.'
-              },
-              {
-                role: 'user',
-                content: prompt
               }
             ]
           })
@@ -765,7 +748,7 @@ ${allTexts.join('\n')}
           return resp.json();
         })
         .then(data => {
-          const content = data.choices?.[0]?.message?.content || '';
+          const content = data.response || data.content || data || '';
           insightsSection.innerHTML = marked.parse(content);
         })
         .catch(err => {

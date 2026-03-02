@@ -648,22 +648,17 @@ instructionsTextarea.addEventListener("input", function () {
         ].join("\n\n");
 
         try {
-            const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            const response = await fetch("https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + localStorage.getItem("openaiKey")
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    model: "gpt-4o",
-                    messages: [
+                    user_text: promptParts,
+                    chat_history: [
                         {
                             role: "system",
                             content: "For the above details, generate a prompt I can feed an AI bot to behave according to the above constraints and rules. You are allowed to be creative and and elaborate to make sure the prompt behaves accordingly. Keep your responses under 7000 characters."
-                        },
-                        {
-                            role: "user",
-                            content: promptParts
                         }
                     ]
                 })
@@ -671,7 +666,7 @@ instructionsTextarea.addEventListener("input", function () {
 
             if (response.ok) {
                 const result = await response.json();
-                const aiGeneratedPrompt = result.choices[0].message.content.trim();
+                const aiGeneratedPrompt = (result.response || result.content || result).trim();
                 generatedPromptField.value = aiGeneratedPrompt;
                 generatedPromptField.style.height = "auto";
                 generatedPromptField.style.height = generatedPromptField.scrollHeight + "px";
@@ -848,20 +843,15 @@ const form = document.getElementById("customGPTForm");
             function generateIntroductoryMessage(instructions) {
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: [{
-                            role: 'system',
-                            content: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
-                        }]
+                        user_text: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let introMessage = aiResponse.choices[0].message.content.trim();
+                        let introMessage = (aiResponse.response || aiResponse.content || aiResponse).trim();
                         appendMessage('ai-message', introMessage);
                         chatHistory.push({ role: 'system', content: introMessage });
                     }
@@ -931,17 +921,16 @@ const form = document.getElementById("customGPTForm");
 
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: chatHistory
+                        user_text: transcription,
+                        chat_history: chatHistory.slice(0, -1)
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let responseText = aiResponse.choices[0].message.content.trim();
+                        let responseText = (aiResponse.response || aiResponse.content || aiResponse).trim();
                         appendMessage('ai-message', responseText);
                         chatHistory.push({ role: 'assistant', content: responseText });
                     }

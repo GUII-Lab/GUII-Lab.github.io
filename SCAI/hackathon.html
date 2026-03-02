@@ -818,20 +818,15 @@ const form = document.getElementById("customGPTForm");
             function generateIntroductoryMessage(instructions) {
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: [{
-                            role: 'system',
-                            content: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
-                        }]
+                        user_text: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let introMessage = aiResponse.choices[0].message.content.trim();
+                        let introMessage = (aiResponse.response || aiResponse.content || aiResponse).trim();
                         
                         // Append new introductory message as AI message
                         appendMessage('ai-message', introMessage);
@@ -855,18 +850,17 @@ const form = document.getElementById("customGPTForm");
 
                     $.ajax({
                         type: 'POST',
-                        url: 'https://api.openai.com/v1/chat/completions',
+                        url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                         data: JSON.stringify({
-                            model: "gpt-4o",
-                            messages: chatHistory
+                            user_text: message,
+                            chat_history: chatHistory.slice(0, -1)
                         }),
                         headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                            'Content-Type': 'application/json'
                         },
                         success: function (aiResponse) {
                             // Get the AI's response text
-                            let responseText = aiResponse.choices[0].message.content.trim();
+                            let responseText = (aiResponse.response || aiResponse.content || aiResponse).trim();
                             
                             // Display the AI's response immediately
                             appendMessage('ai-message', responseText);
@@ -884,8 +878,6 @@ const form = document.getElementById("customGPTForm");
                 }
 
         function analyzeForImageGeneration(userMessage, aiResponse) {
-            const openaiApiKey = localStorage.getItem('openaiKey');
-            
             // Create an analysis prompt to decide if an image would be helpful
             const analysisPrompt = [
                 {
@@ -908,20 +900,19 @@ const form = document.getElementById("customGPTForm");
             
             $.ajax({
                 type: 'POST',
-                url: 'https://api.openai.com/v1/chat/completions',
+                url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                 data: JSON.stringify({
-                    model: "gpt-4o",
-                    messages: analysisPrompt,
-                    response_format: { type: "json_object" }
+                    user_text: analysisPrompt[1].content,
+                    chat_history: [analysisPrompt[0]]
                 }),
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + openaiApiKey
+                    'Content-Type': 'application/json'
                 },
                 success: function (analysisResponse) {
                     try {
                         // Parse the JSON response
-                        const analysis = JSON.parse(analysisResponse.choices[0].message.content);
+                        const responseText = (analysisResponse.response || analysisResponse.content || analysisResponse).trim();
+                        const analysis = JSON.parse(responseText);
                         
                         // If an image would be helpful, generate it
                         if (analysis.generate && analysis.prompt) {

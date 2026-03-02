@@ -1047,11 +1047,6 @@ function revertInstructions(originalInstructions) {
 }
         // Generate gamified prompt using OpenAI API
 async function generateGamifiedPrompt(selectedElements, currentInstructions) {
-    const openaiApiKey = localStorage.getItem('openaiKey');
-    if (!openaiApiKey) {
-        throw new Error('OpenAI API Key not found. Please wait for the key to load.');
-    }
-
     // Create a more detailed prompt that emphasizes incorporating existing instructions
     const prompt = `You are an expert in gamification and educational design. Your task is to create a comprehensive gamified educational prompt that seamlessly blends existing instructions with new gamification elements.
 
@@ -1101,26 +1096,19 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
 
     Please create a detailed, engaging gamified educational prompt that transforms the learning experience into an adventure while maintaining educational rigor. The prompt should feel like a cohesive game where every element serves both fun and learning.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${openaiApiKey}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
+            user_text: prompt,
+            chat_history: [
                 {
                     role: 'system',
                     content: 'You are an expert educational game designer and prompt engineer. Create engaging, comprehensive gamified educational prompts that seamlessly blend existing educational content with game mechanics. Focus on creating cohesive experiences that use the Socratic method to develop critical thinking.'
-                },
-                {
-                    role: 'user',
-                    content: prompt
                 }
-            ],
-            max_tokens: 2500,
-            temperature: 0.8  // Slightly higher temperature for more creative responses
+            ]
         })
     });
 
@@ -1129,7 +1117,7 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
     }
 
     const data = await response.json();
-    return data.choices[0].message.content.trim();
+    return (data.response || data.content || data).trim();
 }
         // Show result message
         function showResult(message, type) {
@@ -1498,20 +1486,15 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
             function generateIntroductoryMessage(instructions) {
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: [{
-                            role: 'system',
-                            content: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
-                        }]
+                        user_text: instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat."
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
-                        let introMessage = aiResponse.choices[0].message.content.trim();
+                        let introMessage = (aiResponse.response || aiResponse.content || aiResponse).trim();
                         
                         // Append new introductory message as AI message
                         appendMessage('ai-message', introMessage);
@@ -1533,18 +1516,17 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
 
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: chatHistory
+                        user_text: message,
+                        chat_history: chatHistory.slice(0, -1)
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + localStorage.getItem('openaiKey')
+                        'Content-Type': 'application/json'
                     },
                     success: function (aiResponse) {
                         // Get the AI's response text
-                        let responseText = aiResponse.choices[0].message.content.trim();
+                        let responseText = (aiResponse.response || aiResponse.content || aiResponse).trim();
                         
                         // Display the AI's response immediately
                         appendMessage('ai-message', responseText);
@@ -1561,8 +1543,6 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
             }
 
             function analyzeForImageGeneration(userMessage, aiResponse) {
-                const openaiApiKey = localStorage.getItem('openaiKey');
-                
                 // Create an analysis prompt to decide if an image would be helpful
                 const analysisPrompt = [
                     {
@@ -1585,20 +1565,19 @@ async function generateGamifiedPrompt(selectedElements, currentInstructions) {
                 
                 $.ajax({
                     type: 'POST',
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
                     data: JSON.stringify({
-                        model: "gpt-4o",
-                        messages: analysisPrompt,
-                        response_format: { type: "json_object" }
+                        user_text: analysisPrompt[1].content,
+                        chat_history: [analysisPrompt[0]]
                     }),
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + openaiApiKey
+                        'Content-Type': 'application/json'
                     },
                     success: function (analysisResponse) {
                         try {
                             // Parse the JSON response
-                            const analysis = JSON.parse(analysisResponse.choices[0].message.content);
+                            const responseText = (analysisResponse.response || analysisResponse.content || analysisResponse).trim();
+                            const analysis = JSON.parse(responseText);
                             
                             // If an image would be helpful, generate it
                             if (analysis.generate && analysis.prompt) {
