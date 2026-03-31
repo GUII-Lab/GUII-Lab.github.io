@@ -406,51 +406,70 @@
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:8000/datapipeline/api'
+            : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
         let chatHistory = [];
+
+        function initGpt(gpt) {
+            window.sessionData.selectedGPT = gpt.name;
+            window.sessionData.selectedGPTId = gpt.id;
+            chatHistory = [{ role: 'system', content: gpt.instructions }];
+            $('#transcription').empty();
+            generateIntroductoryMessage(gpt.instructions);
+            $('#sendMessage').prop('disabled', false);
+        }
+
         $(document).ready(function () {
-            // Session data stored in memory instead of localStorage
             var uniqueID = 'id_' + Math.random().toString(36).substr(2, 9);
-            
-            window.sessionData = {
-                sessionID: uniqueID,
-                selectedGPT: ''
-            };
-            
-            $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/list_feedback_gpts/', function (gpts) {
-                gpts.forEach(function (gpt) {
-                    $('#gptSelection').append(new Option(gpt.name, gpt.id));
+            window.sessionData = { sessionID: uniqueID, selectedGPT: '', selectedGPTId: null };
+
+            // Check for ?id= URL param — direct link mode
+            const urlParams = new URLSearchParams(window.location.search);
+            const directId = urlParams.get('id');
+
+            if (directId) {
+                // Hide selector, load GPT directly by public_id
+                $('.select-wrapper').hide();
+                $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId }, function (gpt) {
+                    const label = gpt.survey_label || gpt.name;
+                    $('h2').text('💬 ' + label);
+                    initGpt(gpt);
+                }).fail(function () {
+                    $('#transcription').append('<p style="color:#c0392b;padding:20px">Survey not found. Please check your link.</p>');
                 });
-            });
+            } else {
+                // Dropdown mode
+                $.get(API + '/list_feedback_gpts/', function (gpts) {
+                    gpts.forEach(function (gpt) {
+                        const label = gpt.survey_label || gpt.name;
+                        $('#gptSelection').append(new Option(label, gpt.id));
+                    });
+                });
 
-            $('#gptSelection').on('change', function () {
-                // Clear previous state
-                $('#transcription').empty();
-                chatHistory = [];
-                
-                const selectedGptId = $(this).val();
-                if (!selectedGptId) {
-                    $('#sendMessage').prop('disabled', true);
-                    return;
-                }
-
-                $.get('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/list_feedback_gpts/', function (gpts) {
-                    const selectedGpt = gpts.find(g => g.id == selectedGptId);
-                    if (selectedGpt) {
-                        window.sessionData.selectedGPT = selectedGpt.name;
-                        chatHistory.push({ role: 'system', content: selectedGpt.instructions });
-                        generateIntroductoryMessage(selectedGpt.instructions + ": For the above instructions generate an introductory message, welcoming the student and setting the context of this session, keep it short and neat.");
-                        $('#sendMessage').prop('disabled', false);
+                $('#gptSelection').on('change', function () {
+                    $('#transcription').empty();
+                    chatHistory = [];
+                    const selectedGptId = $(this).val();
+                    if (!selectedGptId) {
+                        $('#sendMessage').prop('disabled', true);
+                        return;
                     }
+                    $.get(API + '/list_feedback_gpts/', function (gpts) {
+                        const gpt = gpts.find(g => g.id == selectedGptId);
+                        if (gpt) initGpt(gpt);
+                    });
                 });
-            });
+            }
         });
 
         function generateIntroductoryMessage(instructions) {
             $.ajax({
                 type: 'POST',
-                url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
+                url: API + '/openai-chat/',
                 data: JSON.stringify({
-                    user_text: instructions
+                    chat_history: [{ sent_by: 'system', content: instructions }],
+                    user_text: 'Begin the conversation. Greet the student briefly and ask your first question.'
                 }),
                 headers: {
                     'Content-Type': 'application/json'
@@ -477,11 +496,12 @@
                 student_id: window.sessionData.sessionID,
                 sent_by: sentBy,
                 content: content,
-                gpt_used: window.sessionData.selectedGPT
+                gpt_used: window.sessionData.selectedGPT,
+                gpt_id: window.sessionData.selectedGPTId
             };
             $.ajax({
                 type: 'POST',
-                url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/feedback_message_api/',
+                url: API + '/feedback_message_api/',
                 contentType: 'application/json',
                 data: JSON.stringify(data),
                 success: function (response) { console.log('Success:', response); },
@@ -579,7 +599,7 @@
 
             $.ajax({
                 type: 'POST',
-                url: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/openai-chat/',
+                url: API + '/openai-chat/',
                 data: JSON.stringify(requestData),
                 headers: {
                     'Content-Type': 'application/json'

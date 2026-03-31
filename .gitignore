@@ -1,0 +1,40 @@
+# AI assistant files
+CLAUDE.md
+.claude/
+.cursor/
+.github/copilot-instructions.md
+.playwright-mcp/
+.superpowers/
+superpowers/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node (in case of local tooling)
+node_modules/
+
+# Misc
+*.bak
+*.tmp
