@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEAI Prompt Designer</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --primary: #1e293b;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #1e293b;
+            --muted: #64748b;
+            --radius: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ===== LOGIN SCREEN ===== */
+        #login-screen {
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; padding: 24px;
+        }
+        .login-card {
+            background: white; border: 1px solid var(--border);
+            border-radius: 12px; padding: 40px; width: 100%; max-width: 420px;
+        }
+        .login-card h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; }
+        .login-card > p { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+
+        .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+        .small-label { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; font-weight: 500; }
+
+        label {
+            display: block; font-size: 0.85rem; font-weight: 500;
+            color: var(--muted); margin-bottom: 6px;
+        }
+
+        input, textarea, select {
+            width: 100%; padding: 10px 14px;
+            border: 1px solid var(--border); border-radius: 8px;
+            font-family: inherit; font-size: 0.9rem;
+            color: var(--text); background: white;
+            transition: border-color 0.2s; margin-bottom: 16px;
+        }
+        input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+        textarea { resize: vertical; min-height: 120px; }
+
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+            padding: 10px 20px; border: none; border-radius: 8px;
+            font-family: inherit; font-size: 0.9rem; font-weight: 500;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: white; width: 100%; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+        .btn-outline {
+            background: white; color: var(--accent);
+            border: 1px solid var(--accent);
+            font-size: 0.8rem; padding: 6px 12px; width: auto;
+        }
+        .btn-outline:hover { background: #eff6ff; }
+
+        .msg { font-size: 0.85rem; padding: 10px 14px; border-radius: 8px; margin-top: 12px; }
+        .msg-success { background: #d1fae5; color: #065f46; }
+        .msg-error { background: #fee2e2; color: #991b1b; }
+
+        /* ===== SIDEBAR ===== */
+        #app { display: none; min-height: 100vh; }
+
+        .sidebar {
+            width: 220px;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: width 0.2s ease;
+            overflow: hidden;
+            position: relative;
+            z-index: 100;
+        }
+
+        .sidebar.collapsed { width: 44px; }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 14px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+        .sidebar-logo {
+            font-size: 0.68rem; font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            color: rgba(255,255,255,0.45); white-space: nowrap;
+        }
+
+        .sidebar-course-id {
+            font-size: 0.82rem; font-weight: 500;
+            color: rgba(255,255,255,0.75);
+            margin-top: 2px; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis;
+            transition: opacity 0.15s;
+        }
+
+        .sidebar-toggle {
+            background: none; border: none; cursor: pointer;
+            color: rgba(255,255,255,0.35);
+            padding: 4px; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; transition: color 0.15s;
+        }
+        .sidebar-toggle:hover { color: rgba(255,255,255,0.7); }
+
+        .sidebar-nav {
+            flex: 1; padding: 8px 0;
+            display: flex; flex-direction: column;
+        }
+
+        .sidebar-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; margin: 2px 8px;
+            border-radius: 6px;
+            color: rgba(255,255,255,0.55);
+            text-decoration: none;
+            font-size: 0.85rem; font-weight: 500;
+            cursor: pointer; white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+            border: none; background: none;
+            font-family: inherit;
+            width: calc(100% - 16px);
+            text-align: left;
+        }
+        .sidebar-item:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85); }
+        .sidebar-item.active { background: rgba(59,130,246,0.2); color: #93c5fd; }
+        .sidebar-item svg { flex-shrink: 0; }
+
+        .sidebar-label { transition: opacity 0.15s; overflow: hidden; text-overflow: ellipsis; }
+
+        .sidebar-footer {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 8px 0; flex-shrink: 0;
+        }
+
+        /* Collapsed state */
+        .sidebar.collapsed .sidebar-label,
+        .sidebar.collapsed .sidebar-brand { opacity: 0; width: 0; pointer-events: none; }
+        .sidebar.collapsed .sidebar-item {
+            justify-content: center; gap: 0;
+            margin: 2px 4px; width: calc(100% - 8px); padding: 9px 0;
+        }
+        .sidebar.collapsed .sidebar-header { justify-content: center; padding: 16px 0 14px; }
+
+        /* ===== APP MAIN AREA ===== */
+        .app-main {
+            flex: 1; overflow-y: auto;
+            display: flex; flex-direction: column; min-width: 0;
+        }
+
+        /* ===== MOBILE TOPBAR ===== */
+        #mobile-topbar {
+            display: none;
+            background: var(--primary); color: white;
+            padding: 12px 16px;
+            align-items: center; gap: 12px;
+            flex-shrink: 0;
+        }
+
+        #hamburger-btn {
+            background: none; border: none; cursor: pointer;
+            color: rgba(255,255,255,0.7);
+            display: flex; align-items: center; padding: 4px;
+        }
+
+        .mobile-brand {
+            font-size: 0.85rem; font-weight: 700;
+            letter-spacing: 0.06em; text-transform: uppercase;
+            color: rgba(255,255,255,0.8);
+        }
+
+        /* ===== SCRIM ===== */
+        #sidebar-scrim {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.4);
+            z-index: 150;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            #app { flex-direction: column; }
+
+            .sidebar {
+                position: fixed;
+                top: 0; left: 0; bottom: 0;
+                z-index: 200;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                width: 220px !important;
+            }
+            .sidebar.mobile-open { transform: translateX(0); }
+
+            .sidebar .sidebar-label,
+            .sidebar .sidebar-brand {
+                opacity: 1 !important; width: auto !important; pointer-events: auto !important;
+            }
+            .sidebar .sidebar-item {
+                justify-content: flex-start !important; gap: 10px !important;
+                margin: 2px 8px !important; width: calc(100% - 16px) !important; padding: 9px 12px !important;
+            }
+            .sidebar .sidebar-header { justify-content: space-between !important; padding: 16px 14px 14px !important; }
+            .sidebar-toggle { display: none; }
+
+            #mobile-topbar { display: flex; }
+            #sidebar-scrim.visible { display: block; }
+
+            .layout { grid-template-columns: 1fr !important; }
+        }
+
+        /* ===== PAGE CONTENT ===== */
+        .page-content { padding: 32px 24px; }
+
+        .page-header { max-width: 960px; margin: 0 auto 32px; }
+        .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--primary); }
+        .page-header p { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
+
+        .layout {
+            max-width: 960px; margin: 0 auto;
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 24px; align-items: start;
+        }
+
+        .card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 28px; margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 1rem; font-weight: 600; margin-bottom: 20px;
+            color: var(--primary); display: flex; align-items: center; gap: 8px;
+        }
+
+        .step-badge {
+            background: var(--accent); color: white; border-radius: 50%;
+            width: 22px; height: 22px; font-size: 0.75rem;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; flex-shrink: 0;
+        }
+
+        .survey-list { display: flex; flex-direction: column; gap: 12px; }
+        .survey-item { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+        .survey-item-title { font-weight: 600; font-size: 0.9rem; }
+        .survey-item-meta { font-size: 0.8rem; color: var(--muted); margin-top: 2px; margin-bottom: 10px; }
+
+        .link-box {
+            display: flex; align-items: center; gap: 8px;
+            background: #f8fafc; border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px 10px;
+        }
+        .link-text {
+            flex: 1; font-size: 0.78rem; color: var(--muted);
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .copy-btn {
+            background: none; border: none; cursor: pointer;
+            color: var(--accent); font-size: 0.8rem; font-weight: 500;
+            padding: 2px 6px; border-radius: 4px; white-space: nowrap; font-family: inherit;
+        }
+        .copy-btn:hover { background: #eff6ff; }
+
+        .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 32px 0; }
+    </style>
+</head>
+<body>
+
+<!-- Login screen -->
+<div id="login-screen">
+    <div class="login-card">
+        <h1>LEAI Instructor Dashboard</h1>
+        <p>Create a new course or unlock an existing one to get started.</p>
+
+        <!-- Create new course -->
+        <label>Course ID <span style="color:var(--muted);font-weight:400">(e.g. cm150-sp26, no spaces)</span></label>
+        <input type="text" id="new-course-id" placeholder="cm150-sp26" />
+        <label>Course Name</label>
+        <input type="text" id="new-course-name" placeholder="Foundations of Computational Media" />
+        <label>Your Name</label>
+        <input type="text" id="new-instructor-name" placeholder="Prof. Jane Smith" />
+        <label>Dashboard Password</label>
+        <input type="password" id="new-password" placeholder="Set a password" />
+        <button class="btn btn-primary" id="create-course-btn">Create Course</button>
+        <div id="create-msg"></div>
+
+        <hr class="divider">
+        <p class="small-label">Already have a course?</p>
+        <label>Course ID</label>
+        <input type="text" id="existing-course-id" placeholder="cm150-sp26" />
+        <label>Password</label>
+        <input type="password" id="existing-password" placeholder="Your dashboard password" />
+        <button class="btn btn-primary" id="unlock-course-btn">Unlock Course</button>
+        <div id="unlock-msg"></div>
+    </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <span class="sidebar-logo">LEAI</span>
+                <span class="sidebar-course-id" id="sidebar-course-id"></span>
+            </div>
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="sidebar-nav">
+            <a href="PromptDesigner.html" class="sidebar-item" id="nav-prompt-designer" title="Prompt Designer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span class="sidebar-label">Prompt Designer</span>
+            </a>
+            <a href="FeedbackAnalyzer.html" class="sidebar-item" id="nav-feedback-analyzer" title="Feedback Analyzer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span class="sidebar-label">Feedback Analyzer</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <button class="sidebar-item" id="sidebar-signout" title="Sign Out">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span class="sidebar-label">Sign Out</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="app-main">
+        <div id="mobile-topbar">
+            <button id="hamburger-btn" aria-label="Open menu">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <span class="mobile-brand">LEAI</span>
+        </div>
+        <div id="sidebar-scrim"></div>
+
+        <div class="page-content">
+            <div class="page-header">
+                <h1>Prompt Designer</h1>
+                <p>Create weekly feedback surveys for your course</p>
+            </div>
+
+            <div class="layout">
+                <div>
+                    <!-- New Survey -->
+                    <div class="card" id="step2-card">
+                        <div class="card-title">
+                            <span class="step-badge">1</span>
+                            New Survey
+                        </div>
+                        <label>Week / Milestone</label>
+                        <input type="number" id="survey-week" placeholder="6" min="1" />
+                        <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
+                        <input type="text" id="survey-label" placeholder="Week 6 — Team Dynamics Check-in" />
+                        <label>System Prompt</label>
+                        <textarea id="survey-instructions" placeholder="You are a friendly feedback assistant for a graduate CM course. Ask the student about their experience with team collaboration this week..."></textarea>
+                        <button class="btn btn-primary" id="create-survey-btn">Create Survey &amp; Get Link</button>
+                        <div id="survey-msg"></div>
+                    </div>
+                </div>
+
+                <!-- Survey list -->
+                <div class="card" id="surveys-card">
+                    <div class="card-title" style="justify-content:space-between">
+                        <span style="display:flex;align-items:center;gap:8px">
+                            <span class="step-badge" style="background:var(--success)">2</span>
+                            Your Surveys
+                        </span>
+                        <button class="btn btn-outline" id="refresh-surveys-btn">Refresh</button>
+                    </div>
+                    <div id="survey-list-container">
+                        <div class="empty-state">No surveys yet.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:8000/datapipeline/api'
+        : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
+    const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
+
+    const SESSION_KEY = 'leai_session';
+    var activeCourse = null;
+
+    // ===== SESSION HELPERS =====
+    function getSession() {
+        try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
+    }
+    function saveSession(data) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); }
+    function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
+
+    function setMsg(elId, text, type) {
+        var el = document.getElementById(elId);
+        el.className = 'msg msg-' + type;
+        el.textContent = text;
+    }
+
+    // ===== SIDEBAR =====
+    function initSidebar() {
+        document.getElementById('sidebar-course-id').textContent = activeCourse.id;
+        document.getElementById('nav-prompt-designer').classList.add('active');
+
+        if (localStorage.getItem('leai_sidebar_collapsed') === 'true') {
+            document.getElementById('sidebar').classList.add('collapsed');
+        }
+
+        document.getElementById('sidebar-toggle').addEventListener('click', function () {
+            var sb = document.getElementById('sidebar');
+            sb.classList.toggle('collapsed');
+            localStorage.setItem('leai_sidebar_collapsed', sb.classList.contains('collapsed'));
+        });
+
+        document.getElementById('hamburger-btn').addEventListener('click', function () {
+            document.getElementById('sidebar').classList.toggle('mobile-open');
+            document.getElementById('sidebar-scrim').classList.toggle('visible');
+        });
+
+        document.getElementById('sidebar-scrim').addEventListener('click', function () {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('sidebar-scrim').classList.remove('visible');
+        });
+
+        document.getElementById('sidebar-signout').addEventListener('click', function () {
+            clearSession();
+            activeCourse = null;
+            document.getElementById('app').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'flex';
+            // Reset login form fields
+            document.getElementById('new-password').value = '';
+            document.getElementById('existing-password').value = '';
+            document.getElementById('create-msg').textContent = '';
+            document.getElementById('unlock-msg').textContent = '';
+        });
+    }
+
+    // ===== ENTER APP =====
+    function enterApp() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        initSidebar();
+        loadSurveys();
+    }
+
+    function lockCourse(courseId, courseName) {
+        activeCourse = { id: courseId, name: courseName };
+        saveSession({ courseId: courseId, courseName: courseName });
+        enterApp();
+    }
+
+    // ===== AUTO-LOGIN FROM SESSION =====
+    document.addEventListener('DOMContentLoaded', function () {
+        var stored = getSession();
+        if (stored && stored.courseId) {
+            activeCourse = { id: stored.courseId, name: stored.courseName };
+            enterApp();
+        }
+    });
+
+    // ===== CREATE COURSE =====
+    document.getElementById('create-course-btn').addEventListener('click', function () {
+        var courseId = document.getElementById('new-course-id').value.trim();
+        var courseName = document.getElementById('new-course-name').value.trim();
+        var instructorName = document.getElementById('new-instructor-name').value.trim();
+        var password = document.getElementById('new-password').value;
+        if (!courseId || !courseName || !instructorName || !password) {
+            setMsg('create-msg', 'Please fill in all fields.', 'error'); return;
+        }
+        if (!/^[a-z0-9-]+$/.test(courseId)) {
+            setMsg('create-msg', 'Course ID: lowercase letters, numbers, and hyphens only.', 'error'); return;
+        }
+        this.disabled = true;
+        fetch(API + '/create_course/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: courseId, course_name: courseName, instructor_name: instructorName, password: password })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) { setMsg('create-msg', data.error, 'error'); }
+            else { lockCourse(courseId, courseName); }
+        })
+        .catch(function () { setMsg('create-msg', 'Network error.', 'error'); })
+        .finally(function () { document.getElementById('create-course-btn').disabled = false; });
+    });
+
+    // ===== UNLOCK COURSE =====
+    document.getElementById('unlock-course-btn').addEventListener('click', function () {
+        var courseId = document.getElementById('existing-course-id').value.trim();
+        var password = document.getElementById('existing-password').value;
+        if (!courseId || !password) { setMsg('unlock-msg', 'Enter course ID and password.', 'error'); return; }
+        this.disabled = true;
+        fetch(API + '/verify_course_password/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: courseId, password: password })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.valid) { lockCourse(courseId, data.course_name); }
+            else { setMsg('unlock-msg', data.error || 'Incorrect password.', 'error'); }
+        })
+        .catch(function () { setMsg('unlock-msg', 'Network error.', 'error'); })
+        .finally(function () { document.getElementById('unlock-course-btn').disabled = false; });
+    });
+
+    // ===== CREATE SURVEY =====
+    document.getElementById('create-survey-btn').addEventListener('click', function () {
+        if (!activeCourse) return;
+        var week = document.getElementById('survey-week').value;
+        var label = document.getElementById('survey-label').value.trim();
+        var instructions = document.getElementById('survey-instructions').value.trim();
+        if (!label || !instructions) { setMsg('survey-msg', 'Label and prompt are required.', 'error'); return; }
+        this.disabled = true;
+        fetch(API + '/create_feedback_gpt/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_id: activeCourse.id,
+                name: activeCourse.id + ' \u2014 ' + label,
+                week_number: week ? parseInt(week, 10) : null,
+                survey_label: label,
+                instructions: instructions,
+                instructor_name: activeCourse.name,
+            })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) { setMsg('survey-msg', data.error, 'error'); }
+            else {
+                setMsg('survey-msg', 'Survey created!', 'success');
+                document.getElementById('survey-week').value = '';
+                document.getElementById('survey-label').value = '';
+                document.getElementById('survey-instructions').value = '';
+                loadSurveys();
+            }
+        })
+        .catch(function () { setMsg('survey-msg', 'Network error.', 'error'); })
+        .finally(function () { document.getElementById('create-survey-btn').disabled = false; });
+    });
+
+    document.getElementById('refresh-surveys-btn').addEventListener('click', loadSurveys);
+
+    // ===== LOAD SURVEYS =====
+    function loadSurveys() {
+        if (!activeCourse) return;
+        var container = document.getElementById('survey-list-container');
+        container.textContent = '';
+        var loading = document.createElement('div');
+        loading.className = 'empty-state';
+        loading.textContent = 'Loading\u2026';
+        container.appendChild(loading);
+
+        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+        .then(function (r) { return r.json(); })
+        .then(function (surveys) {
+            container.textContent = '';
+            if (!surveys.length) {
+                var empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No surveys yet. Create one to get started.';
+                container.appendChild(empty);
+                return;
+            }
+            var list = document.createElement('div');
+            list.className = 'survey-list';
+            surveys.forEach(function (s) {
+                var link = BASE_URL + '?id=' + (s.public_id || s.id);
+                var label = s.survey_label || s.name;
+                var weekLabel = s.week_number ? 'Week ' + s.week_number : '';
+
+                var item = document.createElement('div');
+                item.className = 'survey-item';
+
+                var title = document.createElement('div');
+                title.className = 'survey-item-title';
+                title.textContent = label;
+
+                var meta = document.createElement('div');
+                meta.className = 'survey-item-meta';
+                meta.textContent = weekLabel;
+
+                var linkBox = document.createElement('div');
+                linkBox.className = 'link-box';
+
+                var linkSpan = document.createElement('span');
+                linkSpan.className = 'link-text';
+                linkSpan.textContent = link;
+                linkSpan.title = link;
+
+                var copyBtn = document.createElement('button');
+                copyBtn.className = 'copy-btn';
+                copyBtn.textContent = 'Copy';
+                copyBtn.addEventListener('click', function () {
+                    navigator.clipboard.writeText(link).then(function () {
+                        copyBtn.textContent = 'Copied!';
+                        setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+                    });
+                });
+
+                linkBox.appendChild(linkSpan);
+                linkBox.appendChild(copyBtn);
+                item.appendChild(title);
+                item.appendChild(meta);
+                item.appendChild(linkBox);
+                list.appendChild(item);
+            });
+            container.appendChild(list);
+        })
+        .catch(function () {
+            container.textContent = '';
+            var err = document.createElement('div');
+            err.className = 'empty-state';
+            err.style.color = 'var(--danger)';
+            err.textContent = 'Failed to load surveys.';
+            container.appendChild(err);
+        });
+    }
+</script>
+</body>
+</html>
