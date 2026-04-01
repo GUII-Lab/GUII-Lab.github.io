@@ -39,8 +39,13 @@
             background: white; border: 1px solid var(--border);
             border-radius: 12px; padding: 40px; width: 100%; max-width: 400px;
         }
-        .login-card h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 6px; }
-        .login-card p { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+        .login-logo {
+            font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em;
+            text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
+        }
+        .login-card h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: 6px; }
+        .login-card p { color: var(--muted); font-size: 0.88rem; margin-bottom: 28px; line-height: 1.5; }
+        .login-help { font-size: 0.8rem; color: var(--muted); text-align: center; margin-top: 16px; }
 
         label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--muted); margin-bottom: 6px; }
         input {
@@ -257,9 +262,19 @@
         .stat-card {
             background: white; border: 1px solid var(--border); border-radius: var(--radius);
             padding: 20px; text-align: center;
+            cursor: default;
         }
         .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
         .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+        .stat-hint { font-size: 0.74rem; color: var(--border); margin-top: 6px; line-height: 1.4; }
+        .stat-card:hover .stat-hint { color: var(--muted); }
+
+        /* No-response badge */
+        .badge-no-data {
+            display: inline-block; font-size: 0.72rem; font-weight: 500;
+            color: var(--muted); background: #f1f5f9;
+            border-radius: 20px; padding: 2px 8px;
+        }
 
         /* Survey table */
         .table-card { background: white; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; }
@@ -296,7 +311,7 @@
         .friction-item {
             display: flex; align-items: flex-start; gap: 12px;
             background: white; border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 14px 16px;
+            border-radius: var(--radius); padding: 16px 18px;
         }
         .friction-badge {
             font-size: 0.72rem; font-weight: 600; padding: 3px 8px;
@@ -322,11 +337,17 @@
 
         .back-btn {
             background: none; border: none; cursor: pointer;
-            color: var(--accent); font-size: 0.88rem; font-weight: 500;
-            display: flex; align-items: center; gap: 4px;
-            font-family: inherit; margin-bottom: 20px; padding: 0;
+            color: var(--accent); font-size: 0.9rem; font-weight: 600;
+            display: flex; align-items: center; gap: 6px;
+            font-family: inherit; margin-bottom: 20px; padding: 6px 0;
         }
         .back-btn:hover { text-decoration: underline; }
+
+        .analysis-meta {
+            font-size: 0.78rem; color: var(--muted); margin-top: 4px;
+        }
+
+        .friction-desc { font-size: 0.9rem; line-height: 1.6; }
 
         .no-data { text-align: center; color: var(--muted); font-size: 0.88rem; padding: 40px 0; }
     </style>
@@ -336,6 +357,7 @@
 <!-- Login -->
 <div id="login-screen">
     <div class="login-card">
+        <div class="login-logo">LEAI</div>
         <h1>Feedback Analyzer</h1>
         <p>Enter your course ID and dashboard password to view results.</p>
         <label>Course ID</label>
@@ -344,6 +366,7 @@
         <input type="password" id="login-password" placeholder="Dashboard password" />
         <button class="btn btn-primary" id="login-btn">View Dashboard</button>
         <div id="login-msg"></div>
+        <p class="login-help">Need help? Contact your course administrator.</p>
     </div>
 </div>
 
@@ -415,7 +438,7 @@
                 <div class="table-card">
                     <div class="table-header">
                         <span>Surveys</span>
-                        <button class="btn btn-sm" id="analyze-course-btn">Analyze Entire Course</button>
+                        <button class="btn btn-sm" id="analyze-course-btn" title="Runs AI analysis across all surveys to find course-wide themes and friction points">Analyze Entire Course</button>
                     </div>
                     <table>
                         <thead>
@@ -446,7 +469,7 @@
 
             <!-- Survey detail tab -->
             <div class="tab-panel" id="tab-survey">
-                <button class="back-btn" id="back-to-overview">&#8592; All Surveys</button>
+                <button class="back-btn" id="back-to-overview">&#8592; Back to Course Overview</button>
                 <div id="survey-detail-header" style="margin-bottom:24px">
                     <h2 id="survey-detail-title" style="font-size:1.25rem;font-weight:700"></h2>
                     <p id="survey-detail-meta" style="color:var(--muted);font-size:0.85rem;margin-top:4px"></p>
@@ -455,7 +478,10 @@
                 <div class="analysis-section">
                     <div class="section-header">
                         <span class="section-title">Analysis</span>
-                        <button class="btn btn-sm" id="analyze-survey-btn">Run Analysis</button>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                            <button class="btn btn-sm" id="analyze-survey-btn">Run Analysis</button>
+                            <span class="analysis-meta" id="analysis-timestamp"></span>
+                        </div>
                     </div>
                     <div id="survey-analysis-output">
                         <div class="analysis-placeholder" style="background:none;border:none;padding:24px 0">
@@ -617,7 +643,11 @@
 
         var statsEl = document.getElementById('overview-stats');
         statsEl.textContent = '';
-        [[totalSurveys, 'Surveys'], [totalSessions, 'Total Responses'], [totalMessages, 'Total Messages']].forEach(function (pair) {
+        [
+            [totalSurveys,   'Surveys',         'Number of feedback surveys created for this course'],
+            [totalSessions,  'Total Responses',  'Students who submitted at least one message'],
+            [totalMessages,  'Total Messages',   'All chat turns across every student session']
+        ].forEach(function (pair) {
             var card = document.createElement('div');
             card.className = 'stat-card';
             var v = document.createElement('div');
@@ -626,8 +656,12 @@
             var l = document.createElement('div');
             l.className = 'stat-label';
             l.textContent = pair[1];
+            var h = document.createElement('div');
+            h.className = 'stat-hint';
+            h.textContent = pair[2];
             card.appendChild(v);
             card.appendChild(l);
+            card.appendChild(h);
             statsEl.appendChild(card);
         });
 
@@ -654,7 +688,14 @@
             tdLabel.textContent = s.survey_label || s.name;
 
             var tdCount = document.createElement('td');
-            tdCount.textContent = s.session_count;
+            if (s.session_count === 0) {
+                var badge = document.createElement('span');
+                badge.className = 'badge-no-data';
+                badge.textContent = 'No responses yet';
+                tdCount.appendChild(badge);
+            } else {
+                tdCount.textContent = s.session_count;
+            }
 
             var tdAction = document.createElement('td');
             var viewBtn = document.createElement('button');
@@ -747,6 +788,7 @@
         var analyzeBtn = document.getElementById('analyze-survey-btn');
         analyzeBtn.disabled = false;
         analyzeBtn.textContent = 'Run Analysis';
+        document.getElementById('analysis-timestamp').textContent = '';
 
         document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
         document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
@@ -779,7 +821,9 @@
 
         runAnalysis(studentMessages, 'survey-analysis-output', function () {
             btn.disabled = false;
-            btn.textContent = 'Re-analyze';
+            btn.textContent = 'Re-run Analysis';
+            var ts = document.getElementById('analysis-timestamp');
+            ts.textContent = 'Last analyzed: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         });
     });
 

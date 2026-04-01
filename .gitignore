@@ -38,3 +38,4 @@ node_modules/
 # Misc
 *.bak
 *.tmp
+.DS_Store
