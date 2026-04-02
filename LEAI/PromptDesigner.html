@@ -258,12 +258,12 @@
         /* ===== PAGE CONTENT ===== */
         .page-content { padding: 32px 24px; }
 
-        .page-header { max-width: 960px; margin: 0 auto 32px; }
+        .page-header { max-width: 1400px; margin: 0 auto 32px; }
         .page-header h1 { font-size: 1.75rem; font-weight: 700; color: var(--primary); }
         .page-header p { color: var(--muted); margin-top: 4px; font-size: 0.95rem; }
 
         .layout {
-            max-width: 960px; margin: 0 auto;
+            max-width: 1400px; margin: 0 auto;
             display: grid; grid-template-columns: 1fr 1fr;
             gap: 24px; align-items: start;
         }
@@ -278,16 +278,10 @@
             color: var(--primary); display: flex; align-items: center; gap: 8px;
         }
 
-        .step-badge {
-            background: var(--accent); color: white; border-radius: 50%;
-            width: 22px; height: 22px; font-size: 0.75rem;
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; flex-shrink: 0;
-        }
 
         .survey-list { display: flex; flex-direction: column; gap: 12px; }
         .survey-item { border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
-        .survey-item-title { font-weight: 600; font-size: 0.9rem; }
+        .survey-item-title { font-weight: 500; font-size: 0.9rem; }
         .survey-item-meta { font-size: 0.8rem; color: var(--muted); margin-top: 2px; margin-bottom: 10px; }
 
         .link-box {
@@ -300,9 +294,9 @@
             overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         .copy-btn {
-            background: none; border: none; cursor: pointer;
+            background: white; border: 1px solid var(--accent); cursor: pointer;
             color: var(--accent); font-size: 0.8rem; font-weight: 500;
-            padding: 2px 6px; border-radius: 4px; white-space: nowrap; font-family: inherit;
+            padding: 4px 10px; border-radius: 6px; white-space: nowrap; font-family: inherit;
         }
         .copy-btn:hover { background: #eff6ff; }
 
@@ -357,12 +351,13 @@
 
         /* ===== PROMPT GUIDE ===== */
         .guide-toggle {
-            background: none; border: none; cursor: pointer;
+            background: none; border: 1px solid var(--border); cursor: pointer;
             font-family: inherit; font-size: 0.82rem; font-weight: 500;
-            color: var(--accent); padding: 0; margin-top: 16px;
-            display: inline-block;
+            color: var(--muted); padding: 7px 12px; margin-top: 16px;
+            display: inline-flex; align-items: center; gap: 6px;
+            border-radius: 6px; transition: color 0.15s, background 0.15s;
         }
-        .guide-toggle:hover { text-decoration: underline; }
+        .guide-toggle:hover { color: var(--text); background: #f8fafc; }
 
         .guide-panel {
             display: none; margin-top: 12px;
@@ -510,11 +505,10 @@
                     <!-- New Survey -->
                     <div class="card" id="step2-card">
                         <div class="card-title">
-                            <span class="step-badge">1</span>
                             New Survey
                         </div>
-                        <label>Week / Milestone</label>
-                        <input type="number" id="survey-week" placeholder="6" min="1" />
+                        <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
+                        <input type="number" id="survey-week" placeholder="e.g. 6" min="1" />
                         <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
                         <input type="text" id="survey-label" placeholder="Week 6 — Team Dynamics Check-in" />
 
@@ -652,10 +646,7 @@ If the student responds that they have no more feedback to give, then please con
                 <!-- Survey list -->
                 <div class="card" id="surveys-card">
                     <div class="card-title" style="justify-content:space-between">
-                        <span style="display:flex;align-items:center;gap:8px">
-                            <span class="step-badge" style="background:var(--success)">2</span>
-                            Your Surveys
-                        </span>
+                        Your Surveys
                         <button class="btn btn-outline" id="refresh-surveys-btn">Refresh</button>
                     </div>
                     <div id="survey-list-container">
