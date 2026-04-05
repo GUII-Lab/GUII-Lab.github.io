@@ -1,0 +1,331 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+/* ===== STITCH DESIGN TOKENS ===== */
+:root {
+    --primary:          #006493;
+    --primary-dim:      #005881;
+    --on-primary:       #f3f8ff;
+
+    /* Surface hierarchy — tonal stacking, no borders for sectioning */
+    --surface:          #f8fafb;
+    --surface-low:      #f0f4f6;
+    --surface-mid:      #e8eff1;
+    --surface-high:     #e1eaec;
+    --surface-highest:  #d9e4e8;
+    --surface-card:     #ffffff;
+
+    --text:             #2a3437;
+    --text-variant:     #566164;
+    --muted:            #727d80;
+    --outline:          #a9b4b7;
+
+    /* Semantic */
+    --error:            #9f403d;
+    --success-text:     #2e7d32;
+    --warn-text:        #b45309;
+
+    /* Ghost border — only where accessibility requires an edge */
+    --border:           rgba(169, 180, 183, 0.25);
+
+    /* Radius — no pills */
+    --radius-xs:  2px;
+    --radius-sm:  4px;
+    --radius-md:  6px;
+    --radius-lg:  8px;
+
+    /* Ambient shadow — only for floating elements (modals, login card) */
+    --shadow-float: 0 12px 32px -4px rgba(22, 28, 31, 0.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.6;
+}
+
+/* ===== LOGIN SCREEN ===== */
+#login-screen {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 24px;
+    background: var(--surface);
+}
+.login-card {
+    background: var(--surface-card);
+    border-radius: var(--radius-md);
+    padding: 40px; width: 100%; max-width: 420px;
+    box-shadow: var(--shadow-float);
+}
+.login-logo {
+    font-size: 0.7rem; font-weight: 800; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--primary); margin-bottom: 10px;
+}
+.login-card h1 {
+    font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+    margin-bottom: 6px;
+}
+.login-card > p { color: var(--muted); font-size: 0.88rem; margin-bottom: 0; line-height: 1.6; }
+.login-help { font-size: 0.78rem; color: var(--muted); text-align: center; margin-top: 16px; }
+
+/* ===== FORM CONTROLS ===== */
+label {
+    display: block; font-size: 0.72rem; font-weight: 700;
+    color: var(--text-variant); margin-bottom: 6px;
+    text-transform: uppercase; letter-spacing: 0.07em;
+}
+input:not([type="checkbox"]):not([type="radio"]), textarea, select {
+    width: 100%; padding: 10px 14px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-md);
+    font-family: inherit; font-size: 0.9rem;
+    color: var(--text); background: var(--surface-card);
+    transition: border-color 0.15s, box-shadow 0.15s;
+    margin-bottom: 16px;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0, 100, 147, 0.12);
+}
+textarea { resize: vertical; min-height: 120px; }
+input[type="checkbox"], input[type="radio"] {
+    appearance: auto; -webkit-appearance: auto;
+    width: auto; height: auto;
+    padding: 0; border: revert; border-radius: revert;
+    margin-bottom: 0;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 10px 20px; border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+    letter-spacing: 0.04em;
+}
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+    color: var(--on-primary); width: 100%;
+}
+.btn-primary:hover  { background: var(--primary-dim); }
+.btn-primary:disabled { background: var(--surface-mid); color: var(--muted); cursor: not-allowed; }
+
+.btn-outline {
+    background: var(--surface-card); color: var(--primary);
+    border: 1px solid var(--primary);
+    font-size: 0.78rem; padding: 7px 14px; width: auto;
+    letter-spacing: 0.05em; text-transform: uppercase;
+}
+.btn-outline:hover { background: var(--surface-low); }
+
+.btn-sm {
+    padding: 6px 14px; font-size: 0.78rem; width: auto;
+    background: var(--primary); color: var(--on-primary);
+    text-transform: uppercase; letter-spacing: 0.05em;
+}
+.btn-sm:hover { background: var(--primary-dim); }
+.btn-sm:disabled { background: var(--surface-mid); color: var(--muted); cursor: not-allowed; }
+
+.btn-ghost {
+    background: var(--surface-mid); color: var(--text-variant);
+    border: none; width: auto; padding: 6px 14px; font-size: 0.82rem;
+    border-radius: var(--radius-sm);
+}
+.btn-ghost:hover { background: var(--surface-highest); color: var(--text); }
+
+/* ===== MESSAGES ===== */
+.msg { font-size: 0.85rem; padding: 10px 14px; border-radius: var(--radius-sm); margin-top: 12px; }
+.msg-success { background: #dcfce7; color: #166534; }
+.msg-error   { background: #fee2e2; color: var(--error); }
+
+/* ===== APP SHELL ===== */
+#app { display: none; min-height: 100vh; }
+
+/* ===== SIDEBAR ===== */
+/* Dark sidebar per Stitch institutional spec */
+.sidebar {
+    width: 220px; background: #2D3B45; color: white;
+    display: flex; flex-direction: column; flex-shrink: 0;
+    transition: width 0.2s ease; overflow: hidden;
+    position: relative; z-index: 100;
+}
+.sidebar.collapsed { width: 48px; }
+
+.sidebar-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 16px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+}
+.sidebar-brand { display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.sidebar-logo {
+    font-size: 1rem; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; color: #ffffff; white-space: nowrap;
+}
+.sidebar-course-id {
+    font-size: 0.68rem; font-weight: 600; color: rgba(255,255,255,0.45);
+    margin-top: 2px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; text-transform: uppercase; letter-spacing: 0.07em;
+    transition: opacity 0.15s;
+}
+.sidebar-toggle {
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.3); padding: 4px;
+    border-radius: var(--radius-xs);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: color 0.15s;
+}
+.sidebar-toggle:hover { color: rgba(255,255,255,0.65); }
+
+.sidebar-nav { flex: 1; padding: 8px 0; display: flex; flex-direction: column; }
+
+.sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; margin: 1px 0;
+    color: rgba(255,255,255,0.45); text-decoration: none;
+    font-size: 0.72rem; font-weight: 700; cursor: pointer;
+    white-space: nowrap; transition: background 0.12s, color 0.12s;
+    border: none; background: none; font-family: inherit;
+    width: 100%; text-align: left;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    border-left: 3px solid transparent;
+}
+.sidebar-item:hover  { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8); }
+/* Gold active indicator — Stitch tertiary-fixed-dim */
+.sidebar-item.active {
+    background: rgba(255,255,255,0.06); color: #ffffff;
+    border-left-color: #FABD2A;
+}
+.sidebar-item svg { flex-shrink: 0; }
+.sidebar-label { transition: opacity 0.15s; overflow: hidden; text-overflow: ellipsis; }
+
+.sidebar-footer { border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 0; flex-shrink: 0; }
+
+/* Collapsed state */
+.sidebar.collapsed .sidebar-label,
+.sidebar.collapsed .sidebar-brand { opacity: 0; width: 0; pointer-events: none; }
+.sidebar.collapsed .sidebar-item {
+    justify-content: center; gap: 0; padding: 10px 0;
+    border-left: none; margin: 1px 4px; width: calc(100% - 8px);
+}
+.sidebar.collapsed .sidebar-item.active {
+    border-left: none; border-bottom: 2px solid #FABD2A;
+}
+.sidebar.collapsed .sidebar-header { justify-content: center; padding: 20px 0 16px; }
+
+/* ===== APP MAIN ===== */
+.app-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+
+/* ===== MOBILE TOPBAR ===== */
+#mobile-topbar {
+    display: none; background: #2D3B45; color: white;
+    padding: 14px 16px; align-items: center; gap: 12px; flex-shrink: 0;
+}
+#hamburger-btn {
+    background: none; border: none; cursor: pointer;
+    color: rgba(255,255,255,0.65); display: flex; align-items: center; padding: 4px;
+}
+.mobile-brand {
+    font-size: 0.82rem; font-weight: 800; letter-spacing: 0.1em;
+    text-transform: uppercase; color: white;
+}
+#sidebar-scrim {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 150;
+}
+
+/* ===== RESPONSIVE SIDEBAR ===== */
+@media (max-width: 767px) {
+    #app { flex-direction: column; }
+    .sidebar {
+        position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+        transform: translateX(-100%); transition: transform 0.25s ease;
+        width: 220px !important;
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .sidebar .sidebar-label,
+    .sidebar .sidebar-brand { opacity: 1 !important; width: auto !important; pointer-events: auto !important; }
+    .sidebar .sidebar-item {
+        justify-content: flex-start !important; gap: 10px !important;
+        margin: 1px 0 !important; width: 100% !important; padding: 10px 16px !important;
+        border-left: 3px solid transparent !important;
+    }
+    .sidebar .sidebar-item.active { border-left-color: #FABD2A !important; }
+    .sidebar .sidebar-header { justify-content: space-between !important; padding: 20px 16px 16px !important; }
+    .sidebar-toggle { display: none; }
+    #mobile-topbar { display: flex; }
+    #sidebar-scrim.visible { display: block; }
+}
+@media (max-width: 767px) {
+    .mobile-hide { display: none !important; }
+    .app-main { overflow-x: hidden; }
+}
+
+/* ===== STATUS BADGES ===== */
+/* Stitch: max 4px radius, UPPERCASE, muted tones, no vivid green/red */
+.status-badge {
+    display: inline-flex; align-items: center;
+    font-size: 0.66rem; font-weight: 700; padding: 2px 8px;
+    border-radius: var(--radius-sm); white-space: nowrap;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    background: var(--surface-mid);
+}
+.status-open      { color: var(--success-text); }
+.status-closed    { color: var(--error); }
+.status-expired   { color: var(--warn-text); }
+.status-scheduled { color: #5b21b6; }
+
+/* ===== MODAL OVERLAY ===== */
+.modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.3); z-index: 500;
+    align-items: center; justify-content: center;
+}
+.modal-overlay.visible { display: flex; }
+.modal-box {
+    background: var(--surface-card);
+    border-radius: var(--radius-md);
+    padding: 28px; max-width: 480px; width: 90%;
+    box-shadow: var(--shadow-float);
+}
+.modal-box h3 {
+    font-size: 1rem; font-weight: 700; margin-bottom: 12px;
+    letter-spacing: -0.01em;
+}
+.modal-box p  { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-actions button { font-family: inherit; }
+
+/* ===== TAG CHIP INPUT ===== */
+.tag-input-container {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-md);
+    padding: 6px 10px; background: var(--surface-card);
+    min-height: 42px; cursor: text; margin-bottom: 16px;
+}
+.tag-input-container.focused {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(0, 100, 147, 0.12);
+}
+.tag-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--surface-low); color: var(--primary);
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-xs);
+    font-size: 0.72rem; font-weight: 700; padding: 2px 6px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+}
+.tag-chip-remove {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 0.9rem; padding: 0;
+    line-height: 1; font-family: inherit;
+}
+.tag-chip-input {
+    border: none; outline: none; font-family: inherit;
+    font-size: 0.88rem; flex: 1; min-width: 120px;
+    padding: 2px 0; margin: 0; width: auto;
+    background: transparent;
+}
