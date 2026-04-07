@@ -159,7 +159,7 @@ input[type="checkbox"], input[type="radio"] {
 .input-error { border-color: var(--error) !important; }
 
 /* ===== APP SHELL ===== */
-#app { display: none; min-height: 100vh; }
+#app { display: none; height: 100vh; overflow: hidden; }
 
 /* ===== SIDEBAR ===== */
 /* Dark sidebar per Stitch institutional spec */
