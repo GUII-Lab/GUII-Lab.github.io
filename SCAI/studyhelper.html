@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <link rel="icon" type="image/png" href="/favicon.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -741,7 +742,8 @@
                 .user-message { background-color: #c8e6c9; padding: 10px; border-radius: 10px; max-width: 80%; margin-bottom: 10px; word-wrap: break-word; margin-left: auto; }
                 .ai-message { background-color: #bbdefb; padding: 10px; border-radius: 10px; max-width: 80%; margin-bottom: 10px; word-wrap: break-word; }`;
 
-                var htmlContentWithCSS = `<html><head><style>${css}</style></head><body>${transcriptionContent}</body></html>`;
+                var htmlContentWithCSS = `<html><head>
+    <link rel="icon" type="image/png" href="/favicon.png"><style>${css}</style></head><body>${transcriptionContent}</body></html>`;
 
                 var blob = new Blob([htmlContentWithCSS], {
                     type: 'text/html'
