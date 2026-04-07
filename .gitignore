@@ -39,3 +39,5 @@ node_modules/
 *.bak
 *.tmp
 .DS_Store
+stitch/
+review-screenshots/
