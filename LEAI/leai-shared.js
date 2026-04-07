@@ -19,6 +19,33 @@ function setMsg(elId, text, type) {
     el.textContent = text;
 }
 
+function markFieldError(inputId, message) {
+    var el = document.getElementById(inputId);
+    if (!el) return;
+    el.classList.add('input-error');
+    var hint = document.getElementById(inputId + '-hint');
+    if (hint) {
+        hint.textContent = message;
+        hint.classList.remove('fading');
+        hint.classList.add('visible');
+        var timer = setTimeout(function () {
+            hint.classList.add('fading');
+            setTimeout(function () {
+                hint.classList.remove('visible', 'fading');
+                hint.textContent = '';
+            }, 400);
+        }, 3000);
+    }
+    el.addEventListener('input', function clearErr() {
+        el.classList.remove('input-error');
+        if (hint) {
+            clearTimeout(timer);
+            hint.classList.remove('visible', 'fading');
+            hint.textContent = '';
+        }
+    }, { once: true });
+}
+
 function clearMsg(elId) {
     var el = document.getElementById(elId);
     el.className = '';

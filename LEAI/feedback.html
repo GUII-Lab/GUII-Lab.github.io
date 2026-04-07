@@ -329,8 +329,10 @@
             ? 'http://localhost:8000/datapipeline/api'
             : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
         let chatHistory = [];
+        var gptConfig = null;
 
         function initGpt(gpt) {
+            gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
             chatHistory = [{ role: 'system', content: gpt.instructions }];
@@ -500,6 +502,7 @@
         var completionCodeShown = false;
         function showCompletionCode() {
             if (completionCodeShown) return;
+            if (!gptConfig || !gptConfig.canvas_integration) return;
             completionCodeShown = true;
             // Derive a short code from the session_id
             var sid = window.sessionData.sessionID;

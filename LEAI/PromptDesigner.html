@@ -323,7 +323,7 @@
                         </div>
                         <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
                         <input type="number" id="survey-week" placeholder="e.g. 6" min="1" />
-                        <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
+                        <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span><span class="field-hint" id="survey-label-hint"></span></label>
                         <input type="text" id="survey-label" placeholder="Week 6 — Team Dynamics Check-in" />
 
                         <!-- Tips at top -->
@@ -361,7 +361,7 @@ If the student responds that they have no more feedback to give, then please con
                                 <div class="builder-section-title">Bot Persona</div>
                                 <div class="builder-row">
                                     <div>
-                                        <label>Bot Name</label>
+                                        <label>Bot Name<span class="field-hint" id="b-bot-name-hint"></span></label>
                                         <input type="text" id="b-bot-name" placeholder="Freddie" />
                                         <p style="font-size:0.75rem;color:var(--muted);margin-top:-10px;margin-bottom:16px">Students see this name at the top of their chat.</p>
                                     </div>
@@ -449,15 +449,15 @@ If the student responds that they have no more feedback to give, then please con
                                     <label>Anonymity Mode</label>
                                     <select id="s-anonymity" style="margin-bottom:12px">
                                         <option value="anonymous">Anonymous</option>
-                                        <option value="pseudonymous">Pseudonymous (student enters ID)</option>
-                                        <option value="identified">Identified</option>
+                                        <!-- <option value="pseudonymous">Pseudonymous (student enters ID)</option> -->
+                                        <!-- <option value="identified">Identified</option> -->
                                     </select>
                                 </div>
                                 <div>
                                     <label>Session Type</label>
                                     <select id="s-survey-type" style="margin-bottom:12px">
                                         <option value="individual">Individual</option>
-                                        <option value="group">Group (shared session)</option>
+                                        <!-- <option value="group">Group (shared session)</option> -->
                                     </select>
                                 </div>
                             </div>
@@ -471,10 +471,19 @@ If the student responds that they have no more feedback to give, then please con
                                     <input type="datetime-local" id="s-expires-at" style="margin-bottom:12px" />
                                 </div>
                             </div>
-                            <label>Timing Category <span style="font-weight:400">(e.g. mid-semester, post-project)</span></label>
-                            <input type="text" id="s-timing" placeholder="mid-semester" style="margin-bottom:12px" />
-                            <label>Themes / Focus Areas <span style="font-weight:400">(press Enter to add)</span></label>
-                            <div id="s-themes-input"></div>
+                            <!-- Canvas Integration (hidden for now)
+                            <div style="margin-top:14px;padding:12px 14px;background:var(--surface-card);border-radius:6px;border:1px solid var(--surface-border)">
+                                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500;margin-bottom:0">
+                                    <input type="checkbox" id="s-canvas-integration" style="margin-top:3px;flex-shrink:0" />
+                                    <span>
+                                        Canvas Integration
+                                        <span style="display:block;font-weight:400;font-size:0.8rem;color:var(--muted);margin-top:2px">Show students a completion code after their first message, so they can paste it into a Canvas assignment for grading.</span>
+                                        <span id="s-canvas-anon-note" style="display:none;font-size:0.78rem;color:#b45309;margin-top:4px;display:block">Not available for anonymous surveys — switch to Pseudonymous or Identified to enable.</span>
+                                    </span>
+                                </label>
+                            </div>
+                            -->
+                            <input type="hidden" id="s-canvas-integration" value="" />
                         </div>
 
                         <div style="margin-top: 20px">
@@ -499,7 +508,7 @@ If the student responds that they have no more feedback to give, then please con
                         <div class="modal-box" style="max-width:520px">
                             <h3>Edit Survey</h3>
                             <input type="hidden" id="edit-survey-id" />
-                            <label>Survey Label</label>
+                            <label>Survey Label<span class="field-hint" id="edit-label-hint"></span></label>
                             <input type="text" id="edit-label" />
                             <label>Week Number</label>
                             <input type="number" id="edit-week" min="1" />
@@ -537,13 +546,8 @@ If the student responds that they have no more feedback to give, then please con
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
-    var themesTagInput = null;
 
     // ===== INIT TAG INPUT FOR THEMES =====
-    document.addEventListener('DOMContentLoaded', function () {
-        themesTagInput = initTagInput('s-themes-input', 'e.g. collaboration, pacing...');
-    });
-
     // ===== SETTINGS TOGGLE =====
     document.getElementById('settings-toggle').addEventListener('click', function () {
         var panel = document.getElementById('settings-panel');
@@ -551,6 +555,10 @@ If the student responds that they have no more feedback to give, then please con
         panel.style.display = isOpen ? 'none' : 'block';
         this.textContent = isOpen ? '\u25b6 Survey settings' : '\u25bc Survey settings';
     });
+
+    // ===== CANVAS INTEGRATION — hidden for now =====
+    // function updateCanvasIntegrationState() { ... }
+    // document.getElementById('s-anonymity').addEventListener('change', updateCanvasIntegrationState);
 
     // ===== ONBOARDING TEMPLATES =====
     var TEMPLATES = {
@@ -805,7 +813,7 @@ If the student responds that they have no more feedback to give, then please con
     document.getElementById('generate-prompt-btn').addEventListener('click', function () {
         var text = assemblePrompt();
         if (!text) {
-            setMsg('survey-msg', 'Fill in at least the bot persona or topics before previewing.', 'error');
+            markFieldError('b-bot-name', 'Fill in bot persona or topics first');
             return;
         }
         var existing = document.getElementById('survey-instructions').value.trim();
@@ -841,13 +849,15 @@ If the student responds that they have no more feedback to give, then please con
             var generated = assemblePrompt();
             if (generated) { instructions = generated; }
         }
-        if (!label || !instructions) { setMsg('survey-msg', 'Survey label is required. Also fill in the bot details or write a custom prompt.', 'error'); return; }
+        var hasError = false;
+        if (!label) { markFieldError('survey-label', 'Required'); hasError = true; }
+        if (!instructions) { markFieldError('b-bot-name', 'Fill in bot details or write a prompt'); hasError = true; }
+        if (hasError) return;
         var opensAt = document.getElementById('s-opens-at').value;
         var expiresAt = document.getElementById('s-expires-at').value;
         var anonymity = document.getElementById('s-anonymity').value;
         var surveyType = document.getElementById('s-survey-type').value;
-        var timingCat = document.getElementById('s-timing').value.trim();
-        var themes = themesTagInput ? themesTagInput.getTags() : [];
+        var canvasIntegration = false; // canvas integration hidden for now
 
         this.disabled = true;
         fetch(API + '/create_feedback_gpt/', {
@@ -864,8 +874,7 @@ If the student responds that they have no more feedback to give, then please con
                 expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
                 anonymity_mode: anonymity,
                 survey_type: surveyType,
-                timing_category: timingCat,
-                themes: themes,
+                canvas_integration: canvasIntegration,
             })
         })
         .then(function (r) { return r.json(); })
@@ -888,8 +897,6 @@ If the student responds that they have no more feedback to give, then please con
                 document.getElementById('s-expires-at').value = '';
                 document.getElementById('s-anonymity').value = 'anonymous';
                 document.getElementById('s-survey-type').value = 'individual';
-                document.getElementById('s-timing').value = '';
-                if (themesTagInput) themesTagInput.setTags([]);
                 loadSurveys();
             }
         })
@@ -1097,10 +1104,7 @@ If the student responds that they have no more feedback to give, then please con
         var opensAt = document.getElementById('edit-opens-at').value;
         var expiresAt = document.getElementById('edit-expires-at').value;
 
-        if (!label) {
-            document.getElementById('edit-msg').textContent = 'Survey label is required.';
-            return;
-        }
+        if (!label) { markFieldError('edit-label', 'Required'); return; }
 
         this.disabled = true;
         fetch(API + '/update_survey/', {

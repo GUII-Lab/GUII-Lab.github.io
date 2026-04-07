@@ -161,6 +161,48 @@
             text-transform: uppercase; letter-spacing: 0.05em;
         }
         .no-data { text-align: center; color: var(--muted); font-size: 0.88rem; padding: 40px 0; }
+
+        /* Student response cards */
+        .student-card {
+            border: 1px solid var(--surface-border); border-radius: var(--radius-sm);
+            margin-bottom: 10px; overflow: hidden;
+        }
+        .student-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 16px; cursor: pointer; background: var(--surface-card);
+            user-select: none; gap: 12px;
+        }
+        .student-card-header:hover { background: var(--surface-mid); }
+        .student-card-label {
+            font-weight: 600; font-size: 0.85rem; color: var(--text); flex: 1;
+        }
+        .student-card-meta {
+            font-size: 0.75rem; color: var(--muted); white-space: nowrap;
+        }
+        .student-card-chevron {
+            font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; flex-shrink: 0;
+        }
+        .student-card.open .student-card-chevron { transform: rotate(180deg); }
+        .student-card-body {
+            display: none; padding: 16px; border-top: 1px solid var(--surface-border);
+            background: var(--surface-bg);
+        }
+        .student-card.open .student-card-body { display: block; }
+        .convo-msg {
+            display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start;
+        }
+        .convo-msg-label {
+            font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; white-space: nowrap; padding-top: 3px; min-width: 60px;
+        }
+        .convo-msg-label.student { color: var(--primary); }
+        .convo-msg-label.ai { color: var(--muted); }
+        .convo-msg-bubble {
+            font-size: 0.85rem; line-height: 1.55; color: var(--text);
+            background: var(--surface-card); border-radius: 6px; padding: 8px 12px;
+            flex: 1; border: 1px solid var(--surface-border);
+        }
+        .convo-msg-bubble.ai { background: none; border-color: transparent; color: var(--muted); }
     </style>
 </head>
 <body>
@@ -318,8 +360,8 @@
                     </div>
                 </div>
 
-                <!-- Verify Completion Codes -->
-                <div class="analysis-section" style="margin-top:20px">
+                <!-- Verify Completion Codes — only shown when canvas_integration is enabled -->
+                <div class="analysis-section" id="verify-codes-section" style="margin-top:20px;display:none">
                     <div class="section-header">
                         <span class="section-title">Verify Completion Codes</span>
                         <span style="font-size:0.68rem;color:var(--muted)">Check which codes from Canvas submissions are valid for this survey</span>
@@ -330,6 +372,15 @@
                         <button class="btn btn-outline" id="verify-codes-btn" style="margin-top:0">Verify Codes</button>
                         <div id="verify-codes-output" style="margin-top:16px"></div>
                     </div>
+                </div>
+
+                <!-- Student Responses -->
+                <div class="analysis-section" id="student-responses-section" style="margin-top:20px">
+                    <div class="section-header">
+                        <span class="section-title">Student Responses</span>
+                        <button class="btn btn-outline btn-sm" id="expand-all-btn" style="font-size:0.72rem;padding:4px 12px">Expand All</button>
+                    </div>
+                    <div id="student-responses-list"></div>
                 </div>
             </div>
         </div>
@@ -601,21 +652,48 @@
         });
 
         var output = document.getElementById('survey-analysis-output');
-        output.textContent = '';
-        var placeholder = document.createElement('div');
-        placeholder.className = 'analysis-placeholder';
-        placeholder.style.cssText = 'background:none;border:none;padding:24px 0';
-        placeholder.textContent = 'Click \u201cRun Analysis\u201d to generate themes and insights.';
-        output.appendChild(placeholder);
-
         var analyzeBtn = document.getElementById('analyze-survey-btn');
+        var tsEl = document.getElementById('analysis-timestamp');
+        output.textContent = '';
         analyzeBtn.disabled = false;
-        analyzeBtn.textContent = 'Run Analysis';
-        document.getElementById('analysis-timestamp').textContent = '';
+        tsEl.textContent = '';
 
+        function showPlaceholder() {
+            var placeholder = document.createElement('div');
+            placeholder.className = 'analysis-placeholder';
+            placeholder.style.cssText = 'background:none;border:none;padding:24px 0';
+            placeholder.textContent = 'Click \u201cRun Analysis\u201d to generate themes and insights.';
+            output.appendChild(placeholder);
+            analyzeBtn.textContent = 'Run Analysis';
+        }
+
+        var analysisKey = surveyData.gpt_id ? 'leai_analysis_' + surveyData.gpt_id : null;
+        var cached = analysisKey ? localStorage.getItem(analysisKey) : null;
+        if (cached) {
+            try {
+                var cachedObj = JSON.parse(cached);
+                renderAnalysis(output, cachedObj.data);
+                analyzeBtn.textContent = 'Re-run Analysis';
+                if (cachedObj.timestamp) {
+                    var d = new Date(cachedObj.timestamp);
+                    tsEl.textContent = 'Last analyzed: ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                }
+            } catch (e) {
+                localStorage.removeItem(analysisKey);
+                showPlaceholder();
+            }
+        } else {
+            showPlaceholder();
+        }
+
+        // Show/hide verify codes section based on canvas_integration flag
+        document.getElementById('verify-codes-section').style.display = surveyData.canvas_integration ? 'block' : 'none';
         document.getElementById('verify-codes-input').value = '';
         var verifyOut = document.getElementById('verify-codes-output');
         while (verifyOut.firstChild) verifyOut.removeChild(verifyOut.firstChild);
+
+        // Render student conversation history
+        renderStudentResponses(surveyData);
 
         document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
         document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
@@ -623,6 +701,98 @@
         document.getElementById('survey-tab-btn').classList.add('active');
         document.getElementById('tab-survey').classList.add('active');
     }
+
+    // ===== STUDENT RESPONSES =====
+    function renderStudentResponses(surveyData) {
+        var list = document.getElementById('student-responses-list');
+        list.textContent = '';
+        document.getElementById('expand-all-btn').textContent = 'Expand All';
+
+        var entries = Object.entries(surveyData.sessions);
+        if (!entries.length) {
+            var empty = document.createElement('p');
+            empty.className = 'no-data';
+            empty.textContent = 'No responses yet.';
+            list.appendChild(empty);
+            return;
+        }
+
+        entries.forEach(function (entry, idx) {
+            var msgs = entry[1];
+            var studentMsgs = msgs.filter(function (m) { return m.sent_by === 'user-message'; });
+
+            var card = document.createElement('div');
+            card.className = 'student-card';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'student-card-header';
+
+            var label = document.createElement('span');
+            label.className = 'student-card-label';
+            label.textContent = 'Anonymous Student ' + (idx + 1);
+
+            var meta = document.createElement('span');
+            meta.className = 'student-card-meta';
+            meta.textContent = studentMsgs.length + ' message' + (studentMsgs.length !== 1 ? 's' : '');
+
+            var chevron = document.createElement('span');
+            chevron.className = 'student-card-chevron';
+            chevron.textContent = '\u25bc';
+
+            header.appendChild(label);
+            header.appendChild(meta);
+            header.appendChild(chevron);
+
+            // Body — conversation thread
+            var body = document.createElement('div');
+            body.className = 'student-card-body';
+
+            if (!msgs.length) {
+                var noMsg = document.createElement('p');
+                noMsg.style.cssText = 'color:var(--muted);font-size:0.85rem;margin:0';
+                noMsg.textContent = 'No messages recorded.';
+                body.appendChild(noMsg);
+            } else {
+                msgs.forEach(function (m) {
+                    var isStudent = m.sent_by === 'user-message';
+                    var row = document.createElement('div');
+                    row.className = 'convo-msg';
+
+                    var lbl = document.createElement('span');
+                    lbl.className = 'convo-msg-label ' + (isStudent ? 'student' : 'ai');
+                    lbl.textContent = isStudent ? 'Student' : 'AI';
+
+                    var bubble = document.createElement('div');
+                    bubble.className = 'convo-msg-bubble' + (isStudent ? '' : ' ai');
+                    bubble.textContent = m.content;
+
+                    row.appendChild(lbl);
+                    row.appendChild(bubble);
+                    body.appendChild(row);
+                });
+            }
+
+            header.addEventListener('click', function () {
+                card.classList.toggle('open');
+            });
+
+            card.appendChild(header);
+            card.appendChild(body);
+            list.appendChild(card);
+        });
+    }
+
+    // ===== EXPAND ALL =====
+    document.getElementById('expand-all-btn').addEventListener('click', function () {
+        var cards = document.querySelectorAll('.student-card');
+        var allOpen = Array.from(cards).every(function (c) { return c.classList.contains('open'); });
+        cards.forEach(function (c) {
+            if (allOpen) { c.classList.remove('open'); }
+            else { c.classList.add('open'); }
+        });
+        this.textContent = allOpen ? 'Expand All' : 'Collapse All';
+    });
 
     // ===== COMPLETION CODE HELPERS =====
     function sessionToCode(sessionId) {
@@ -731,11 +901,16 @@
             return;
         }
 
-        runAnalysis(studentMessages, 'survey-analysis-output', function () {
+        var cacheKey = activeSurveyData.gpt_id ? 'leai_analysis_' + activeSurveyData.gpt_id : null;
+        runAnalysis(studentMessages, 'survey-analysis-output', function (parsed) {
             btn.disabled = false;
             btn.textContent = 'Re-run Analysis';
+            var now = new Date();
             var ts = document.getElementById('analysis-timestamp');
-            ts.textContent = 'Last analyzed: ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            ts.textContent = 'Last analyzed: ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            if (parsed && cacheKey) {
+                localStorage.setItem(cacheKey, JSON.stringify({ data: parsed, timestamp: now.toISOString() }));
+            }
         });
     });
 
@@ -777,7 +952,7 @@
                 return;
             }
             renderAnalysis(outputEl, parsed);
-            if (onDone) onDone();
+            if (onDone) onDone(parsed);
         })
         .catch(function () {
             outputEl.textContent = '';

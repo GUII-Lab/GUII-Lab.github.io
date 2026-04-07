@@ -204,13 +204,15 @@
     <div class="sidebar-section">Feedback Analyzer</div>
     <a href="#analyzer-login">Logging In to Analyzer</a>
     <a href="#reading-results">Reading Results</a>
+    <a href="#survey-detail">Survey Detail View</a>
+    <a href="#student-responses">Student Responses</a>
+    <a href="#ai-analysis">AI Analysis</a>
     <a href="#export-csv">Exporting to CSV</a>
 
     <div class="sidebar-section">Student Experience</div>
     <a href="#student-chat">The Chat Interface</a>
     <a href="#inactive-states">Closed &amp; Expired Surveys</a>
     <a href="#anonymity-modes">Anonymity Options</a>
-    <a href="#completion-code">Canvas Completion Codes</a>
 
     <div class="sidebar-section">Reference</div>
     <a href="#faq">Common Questions</a>
@@ -239,12 +241,14 @@
         <a href="#edit-survey" class="toc-link">8. Editing a Survey</a>
         <a href="#duplicate-survey" class="toc-link">9. Duplicating a Survey</a>
         <a href="#reading-results" class="toc-link">10. Reading Results</a>
-        <a href="#export-csv" class="toc-link">11. Exporting to CSV</a>
-        <a href="#student-chat" class="toc-link">12. The Student Chat Interface</a>
-        <a href="#inactive-states" class="toc-link">13. Closed &amp; Expired Surveys</a>
-        <a href="#anonymity-modes" class="toc-link">14. Anonymity Options</a>
-        <a href="#completion-code" class="toc-link">15. Canvas Completion Codes</a>
-        <a href="#faq" class="toc-link">16. Common Questions</a>
+        <a href="#survey-detail" class="toc-link">11. Survey Detail View</a>
+        <a href="#student-responses" class="toc-link">12. Student Responses</a>
+        <a href="#ai-analysis" class="toc-link">13. AI Analysis</a>
+        <a href="#export-csv" class="toc-link">14. Exporting to CSV</a>
+        <a href="#student-chat" class="toc-link">15. The Student Chat Interface</a>
+        <a href="#inactive-states" class="toc-link">16. Closed &amp; Expired Surveys</a>
+        <a href="#anonymity-modes" class="toc-link">17. Anonymity Options</a>
+        <a href="#faq" class="toc-link">18. Common Questions</a>
       </div>
     </div>
 
@@ -394,12 +398,10 @@
 
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Anonymity Mode</strong><p>Choose how students identify themselves:<br>
-      &nbsp;• <em>Anonymous</em> — no identity collected at all<br>
-      &nbsp;• <em>Pseudonymous</em> — students pick a private alias only they know<br>
-      &nbsp;• <em>Identified</em> — students enter their real name or student ID</p></div></div>
+      &nbsp;• <em>Anonymous</em> — no identity collected; sessions appear as "Anonymous Student 1, 2…" in the analyzer<br>
+      &nbsp;• <em>Identified</em> — students enter their real name or student ID before chatting</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Session Type</strong><p>Choose <em>Individual</em> (each student gets their own conversation) or <em>Group</em> (a team shares one conversation by entering a shared group code).</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Opens At / Expires At</strong><p>Set a date range for when the survey is active. Students who visit before the open date, or after the expiry date, will see a polite message instead of the chat.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Themes (optional)</strong><p>Type short topic tags (e.g., <em>teamwork</em>, <em>pacing</em>) to help organize your surveys. Press <kbd>Enter</kbd> after each tag.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Opens At / Expires At</strong><p>Set a date range for when the survey is active. Students who visit before the open date, or after the expiry date, will see a polite message instead of the chat. Leave blank to use the default expiry of 14 days from creation.</p></div></div>
     </div>
 
     <div class="screenshot-wrap">
@@ -546,6 +548,50 @@
       <p><strong>What is "Avg. Turns"?</strong> Each time a student sends a message and the AI replies, that counts as one turn. An average of 1 means most students sent one message and left. An average of 5 means students had a richer back-and-forth dialogue.</p>
     </div>
 
+    <h3 class="sub-heading" id="survey-detail">Survey Detail View</h3>
+
+    <p>Click <strong>View →</strong> on any survey row to open the Survey Detail tab. This view gives you everything about one survey in one place: participation stats, AI-generated analysis, and the full conversation history from every student.</p>
+
+    <h3 class="sub-heading" id="student-responses">Reading Student Responses</h3>
+
+    <p>The <strong>Student Responses</strong> section appears at the bottom of the Survey Detail view. Each student's conversation is shown as a collapsible card. Sessions from anonymous surveys appear as "Anonymous Student 1", "Anonymous Student 2", and so on.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>When you first open a survey's detail view, all student cards are collapsed — you see the student label and their message count. This gives you a quick sense of participation before diving in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a card to expand</strong><p>Click any card header to reveal that student's full conversation. Student messages are highlighted in blue; AI replies appear in a lighter style so the distinction is clear at a glance.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the <strong>Expand All</strong> button (top-right of the section) to open every conversation at once for a full read-through. The button changes to <strong>Collapse All</strong> so you can tidy up just as quickly.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-student-responses-collapsed.png" alt="Student Responses section showing three collapsed cards with message counts">
+      <div class="caption">The Student Responses section in its default collapsed state. Each card shows the student number and how many messages they sent. Click any card — or Expand All — to read the full conversation.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-student-responses-expanded.png" alt="Student Responses section with all conversations expanded showing student and AI messages">
+      <div class="caption">After clicking Expand All, every conversation thread opens. Student messages appear in blue; AI replies are shown in a lighter style. The full back-and-forth is visible without leaving the page.</div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Looking for a specific theme?</strong> Use your browser's Find (Cmd+F / Ctrl+F) while all cards are expanded to search across all student messages at once.</p>
+    </div>
+
+    <h3 class="sub-heading" id="ai-analysis">AI Analysis</h3>
+
+    <p>Each survey detail view includes an AI-generated analysis that summarizes recurring themes and friction points from student conversations. The analysis is generated on demand and <strong>persists between sessions</strong> — once run, it reloads automatically the next time you open that survey's detail view.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Run Analysis</strong><p>In the Analysis section, click the <strong>Run Analysis</strong> button. The AI reads all student messages from this survey and returns a structured summary in a few seconds.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Review themes and friction points</strong><p>The analysis identifies 3–6 recurring themes (with supporting student quotes) and 1–3 friction points ranked by urgency. High-urgency items are ones the AI flagged as needing attention before the next class.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Re-run if needed</strong><p>After new responses come in, click <strong>Re-run Analysis</strong> to refresh. The timestamp below the button shows when the last analysis was run.</p></div></div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Note</span>
+      <p><strong>Analysis is saved automatically.</strong> The results are stored in your browser so you don't need to re-run every visit. The analysis persists until you explicitly click Re-run Analysis or clear your browser data.</p>
+    </div>
+
     <h3 class="sub-heading" id="export-csv">Exporting Responses to a Spreadsheet</h3>
 
     <p>You can download all student conversations for a survey as a CSV file, which opens in Excel, Google Sheets, or Numbers.</p>
@@ -553,29 +599,14 @@
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Find the survey row</strong><p>Locate the survey you want to export in the table.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Export CSV</strong><p>Click the <strong>Export CSV</strong> button in the Actions column. Your browser will automatically download a file named something like <code>survey_3_responses.csv</code>.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open in your spreadsheet app</strong><p>Double-click the downloaded file to open it in Excel or Google Sheets. Each row is one message in a student conversation. The first column, <strong>completion_code</strong>, contains the 6-character code for that student's session — use VLOOKUP to match codes students submitted in Canvas.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open in your spreadsheet app</strong><p>Double-click the downloaded file to open it in Excel or Google Sheets. Each row is one message in a student conversation, with columns for session ID, sender (student or AI), message content, and timestamp.</p></div></div>
     </div>
 
     <div class="screenshot-wrap">
       <img src="guide-assets/test-f13-f14-analyzer2.png" alt="Feedback Analyzer table with Export CSV buttons visible">
-      <div class="caption">Each row in the survey table has an Export CSV button. Click it to download that survey's conversations, including a completion_code column for Canvas verification.</div>
+      <div class="caption">Each row in the survey table has an Export CSV button. Click it to download that survey's full conversation data as a spreadsheet.</div>
     </div>
 
-    <h3 class="sub-heading" id="verify-codes">Verifying Completion Codes</h3>
-
-    <p>Instead of manually cross-referencing a spreadsheet, you can paste completion codes directly into the Feedback Analyzer and get instant VALID / NOT FOUND results.</p>
-
-    <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open the survey detail</strong><p>Click <strong>View →</strong> on any survey row to open the Survey Detail tab.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scroll to Verify Completion Codes</strong><p>Below the Analysis section, find the <strong>Verify Completion Codes</strong> panel.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Paste codes</strong><p>Copy the codes students submitted in Canvas (from a Canvas assignment export or spreadsheet) and paste them into the text box — one per line or comma-separated.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Verify Codes</strong><p>Each code is immediately checked against this survey's sessions. VALID codes show the session ID and how many messages that student sent. NOT FOUND codes did not match any session in this survey.</p></div></div>
-    </div>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/analyzer-verify-codes.png" alt="Verify Completion Codes panel showing VALID and NOT FOUND results">
-      <div class="caption">The Verify Completion Codes panel. Paste codes from your Canvas gradebook — each one is matched against actual student sessions instantly. The summary line tells you how many matched out of the total.</div>
-    </div>
 
     <!-- ═══════════════ STUDENT EXPERIENCE ═══════════════ -->
     <hr class="divider">
@@ -624,13 +655,11 @@
 
     <p>Depending on the Anonymity Mode you chose when creating the survey, students may be asked to identify themselves before the chat starts.</p>
 
-    <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Pseudonymous Mode</h4>
-    <p>Before entering the chat, students are asked to enter any alias they want — a nickname, a made-up word, anything. This lets them stay anonymous while still having a consistent identity across sessions.</p>
+    <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Anonymous Mode (default)</h4>
+    <p>Students jump straight into the chat with no identification step. In the Feedback Analyzer, their sessions appear as "Anonymous Student 1", "Anonymous Student 2", and so on in the order they responded.</p>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/test-f9-pseudonymous.png" alt="Student pre-chat screen asking for a pseudonym">
-      <div class="caption">In Pseudonymous mode, students choose their own alias before chatting. You can see the alias in the data, but you don't know which student it belongs to.</div>
-    </div>
+    <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Identified Mode</h4>
+    <p>Before entering the chat, students are asked to enter their name or student ID. This lets you match responses to specific students in the Feedback Analyzer and in CSV exports.</p>
 
     <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Group Session Mode</h4>
     <p>In Group mode, each team shares a conversation. Before entering, students are asked to type their group's code (which you distribute to teams). All members of the same team will see the same conversation.</p>
@@ -640,32 +669,6 @@
       <div class="caption">In Group mode, students enter the code you gave their team. All members with the same code join the same conversation thread.</div>
     </div>
 
-    <h3 class="sub-heading" id="completion-code">Canvas Completion Codes</h3>
-
-    <p>To help students prove they participated, LEAI automatically generates a unique completion code for each student after they send their first message. Students copy this code and submit it in Canvas (or wherever you direct them) to receive participation credit.</p>
-
-    <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Student sends a message</strong><p>As soon as the student sends their first message, a green bar appears at the bottom of the chat.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Completion code appears</strong><p>The bar shows a 6-character code unique to that student, e.g. <code>0NWCx4</code>. The message reads: "Your completion code: [code] — Submit this in Canvas to record your participation."</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Student submits the code in Canvas</strong><p>Direct students to copy this code and paste it into a Canvas text-entry assignment or quiz.</p></div></div>
-    </div>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/test-f16-completion-code.png" alt="Completion code bar appearing after first student message">
-      <div class="caption">The green completion code bar appears the moment a student sends their first message. The code is unique to each student session.</div>
-    </div>
-
-    <div class="callout info">
-      <span class="callout-label">Note</span>
-      <p><strong>How to use this in Canvas:</strong> Create a Text Entry assignment in Canvas called "Week X Feedback Check-in." In the instructions, paste the survey link and tell students to submit their completion code. You can then verify codes against the CSV export.</p>
-    </div>
-
-    <p style="margin-top:16px;font-weight:600">Canvas-ready assignment description (copy and paste):</p>
-    <div style="background:#f0f4f6;border:1px solid #d9e4e8;border-radius:6px;padding:16px 20px;font-size:0.88rem;line-height:1.7;white-space:pre-wrap;font-family:inherit;margin-top:8px;margin-bottom:24px">Complete the AI feedback check-in using the link below. The survey takes about 5 minutes. When you finish, a <strong>completion code</strong> will appear at the bottom of the screen — copy that code and paste it into the text box below to record your participation.
-
-Survey link: [paste your survey link here]
-
-If the link does not load, make sure the survey is open (check with your instructor) and that you are using a recent version of Chrome, Firefox, or Safari.</div>
 
     <!-- ═══════════════ FAQ ═══════════════ -->
     <hr class="divider">
@@ -706,6 +709,16 @@ If the link does not load, make sure the survey is open (check with your instruc
       <div class="faq-a">It means most students sent one message and the AI replied once. This often indicates students answered very briefly. You might adjust your prompt to ask a more open-ended question, or tell students in class that you're looking for a few exchanges.</div>
     </div>
 
+    <div class="faq-item">
+      <div class="faq-q">I ran the AI analysis, then refreshed the page and it's gone. What happened?</div>
+      <div class="faq-a">Analysis results are saved automatically in your browser when you run them. They will reload the next time you open that survey's detail view — as long as you're using the same browser and haven't cleared browser data. If the results are missing, just click Run Analysis again.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">How do I read individual student responses?</div>
+      <div class="faq-a">Open the Survey Detail view (click View → on any survey row). Scroll to the Student Responses section at the bottom. Each card represents one student's session. Click a card to expand it and read the full conversation. Use Expand All to open every conversation at once.</div>
+    </div>
+
     <!-- ═══════════════ GLOSSARY ═══════════════ -->
     <hr class="divider">
     <h2 class="section-heading" id="glossary">Glossary</h2>
@@ -739,12 +752,8 @@ If the link does not load, make sure the survey is open (check with your instruc
           <td style="padding:10px 14px;color:#475569;">A student who submitted at least one message (counted once per survey)</td>
         </tr>
         <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Pseudonymous</td>
-          <td style="padding:10px 14px;color:#475569;">Using a self-chosen alias instead of a real name — private but consistent</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Completion code</td>
-          <td style="padding:10px 14px;color:#475569;">A short code generated for each student after their first message, used to verify participation in Canvas</td>
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">AI Analysis</td>
+          <td style="padding:10px 14px;color:#475569;">An AI-generated summary of themes and friction points from student conversations, available in the Survey Detail view</td>
         </tr>
         <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
           <td style="padding:10px 14px;font-weight:600;color:#0f172a;">CSV</td>
