@@ -227,8 +227,8 @@
 
         <!-- New Course form -->
         <div id="newcourse-form" class="login-form">
-            <label>Course ID <span style="color:var(--muted);font-weight:400">(e.g. cm150-sp26, no spaces)</span></label>
-            <input type="text" id="new-course-id" placeholder="cm150-sp26" />
+            <label>Course ID <span style="color:var(--muted);font-weight:400">(lowercase, e.g. cm150-sp26)</span></label>
+            <input type="text" id="new-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
             <label>Course Name</label>
             <input type="text" id="new-course-name" placeholder="Foundations of Computational Media" />
             <label>Your Name</label>
