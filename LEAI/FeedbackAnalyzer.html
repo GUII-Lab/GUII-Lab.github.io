@@ -411,7 +411,12 @@
                 saveSession(session);
                 enterApp();
             } else {
-                showLoginMsg(data.error || 'Incorrect password.');
+                var loginErr = data.error || '';
+                var loginMsg = (loginErr === 'Invalid password' || loginErr === 'Incorrect password.')
+                    ? 'Incorrect password. Please try again.'
+                    : (loginErr === 'Course not found' ? 'Course ID not found. Double-check or create a new course.'
+                    : 'Sign-in failed. Please check your Course ID and password.');
+                showLoginMsg(loginMsg);
             }
         })
         .catch(function () { showLoginMsg('Network error.'); })

@@ -671,7 +671,13 @@ If the student responds that they have no more feedback to give, then please con
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data.error) { setMsg('create-msg', data.error, 'error'); }
+            if (data.error) {
+                var createErr = data.error;
+                var createMsg = (createErr === 'Course ID already exists' || createErr.indexOf('already') !== -1)
+                    ? 'That Course ID is already taken. Please choose a different one.'
+                    : 'Could not create course. Please try again.';
+                setMsg('create-msg', createMsg, 'error');
+            }
             else { lockCourse(courseId, courseName); }
         })
         .catch(function () { setMsg('create-msg', 'Network error.', 'error'); })
@@ -692,7 +698,14 @@ If the student responds that they have no more feedback to give, then please con
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.valid) { lockCourse(courseId, data.course_name); }
-            else { setMsg('unlock-msg', data.error || 'Incorrect password.', 'error'); }
+            else {
+                var errMsg = data.error || '';
+                var userMsg = (errMsg === 'Invalid password' || errMsg === 'Incorrect password.')
+                    ? 'Incorrect password. Please try again.'
+                    : (errMsg === 'Course not found' ? 'Course ID not found. Double-check or create a new course.'
+                    : 'Sign-in failed. Please check your Course ID and password.');
+                setMsg('unlock-msg', userMsg, 'error');
+            }
         })
         .catch(function () { setMsg('unlock-msg', 'Network error.', 'error'); })
         .finally(function () { document.getElementById('unlock-course-btn').disabled = false; });
@@ -879,7 +892,7 @@ If the student responds that they have no more feedback to give, then please con
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data.error) { setMsg('survey-msg', data.error, 'error'); }
+            if (data.error) { setMsg('survey-msg', 'Could not create survey. Please try again.', 'error'); }
             else {
                 setMsg('survey-msg', 'Survey created!', 'success');
                 document.getElementById('survey-week').value = '';
@@ -1122,7 +1135,7 @@ If the student responds that they have no more feedback to give, then please con
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.error) {
-                document.getElementById('edit-msg').textContent = data.error;
+                document.getElementById('edit-msg').textContent = 'Could not save changes. Please try again.';
             } else {
                 document.getElementById('edit-modal').classList.remove('visible');
                 loadSurveys();
