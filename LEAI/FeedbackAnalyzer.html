@@ -216,7 +216,7 @@
         <p>Enter your course ID and dashboard password to view results.</p>
         <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide →</a></p>
         <label style="margin-top:14px">Course ID</label>
-        <input type="text" id="login-course-id" placeholder="cm150-sp26" />
+        <input type="text" id="login-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
         <label>Password</label>
         <input type="password" id="login-password" placeholder="Dashboard password" />
         <button class="btn btn-primary" id="login-btn">View Dashboard</button>
