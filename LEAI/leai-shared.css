@@ -219,6 +219,14 @@ input[type="checkbox"], input[type="radio"] {
 .sidebar-label { transition: opacity 0.15s; overflow: hidden; text-overflow: ellipsis; }
 
 .sidebar-footer { border-top: 1px solid rgba(255,255,255,0.06); padding: 8px 0; flex-shrink: 0; }
+.sidebar-version {
+    font-size: 0.66rem; color: rgba(255,255,255,0.35);
+    padding: 6px 18px 4px; letter-spacing: 0.03em;
+    text-transform: uppercase; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: opacity 0.15s;
+}
+.sidebar.collapsed .sidebar-version { opacity: 0; height: 0; padding: 0; pointer-events: none; }
 
 /* Collapsed state */
 .sidebar.collapsed .sidebar-label,

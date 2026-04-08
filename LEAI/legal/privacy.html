@@ -101,6 +101,11 @@
             font-size: 0.85rem; color: var(--text-variant); text-decoration: none;
         }
         .back-link:hover { color: var(--primary); }
+        .doc-version {
+            margin-top: 24px; padding-top: 16px;
+            font-size: 0.68rem; color: var(--muted);
+            letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600;
+        }
         @media (max-width: 640px) {
             header { padding: 14px 20px; }
             main { padding: 32px 20px 64px; }
@@ -125,8 +130,10 @@
             <p>Loading&hellip;</p>
         </article>
         <a href="javascript:history.length>1?history.back():window.close()" class="back-link">&larr; Back</a>
+        <div class="doc-version" data-leai-version></div>
     </main>
 
+    <script src="../leai-version.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script>

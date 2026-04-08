@@ -1,6 +1,6 @@
 # LEAI Privacy Policy
 
-*Last updated: April 2026*
+*Version v0.2.0 · Last updated April 7, 2026*
 
 Your privacy matters. This page explains, in plain language, what LEAI collects, what it does not collect, who can see it, and what happens to it.
 

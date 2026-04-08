@@ -1,6 +1,6 @@
 # LEAI Terms of Use
 
-*Last updated: April 2026*
+*Version v0.2.0 · Last updated April 7, 2026*
 
 Welcome to the **LEAI Feedback Collector**, a tool developed by the Game User Interaction and Intelligence (GUII) Lab at UC Santa Cruz. By participating in a feedback session, you agree to the terms below. Please read them before you continue.
 

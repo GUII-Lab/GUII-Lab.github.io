@@ -7,6 +7,10 @@ scaffolder and as a recovery option if the docx files are lost or corrupted.
 After editing the docx, run regenerate-md-from-docx.sh to refresh the .md
 files that the live HTML pages render.
 
+The version and updated-on date below must stay in lockstep with the
+matching constants in LEAI/leai-version.js so every surface shows the
+same value.
+
 Usage:
     uv run --with python-docx \\
         LEAI/legal/scripts/build_docx.py
@@ -16,6 +20,9 @@ from pathlib import Path
 
 from docx import Document
 from docx.shared import Pt
+
+LEAI_VERSION = "v0.2.0"
+LEAI_UPDATED_HUMAN = "April 7, 2026"
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +79,7 @@ def build_privacy_policy(out_path: Path) -> None:
     normalize_styles(doc)
 
     doc.add_heading("LEAI Privacy Policy", level=1)
-    add_intro_italic(doc, "Last updated: April 2026")
+    add_intro_italic(doc, f"Version {LEAI_VERSION} \u00b7 Last updated {LEAI_UPDATED_HUMAN}")
 
     add_para(
         doc,
@@ -312,7 +319,7 @@ def build_terms_of_use(out_path: Path) -> None:
     normalize_styles(doc)
 
     doc.add_heading("LEAI Terms of Use", level=1)
-    add_intro_italic(doc, "Last updated: April 2026")
+    add_intro_italic(doc, f"Version {LEAI_VERSION} \u00b7 Last updated {LEAI_UPDATED_HUMAN}")
 
     add_para(
         doc,

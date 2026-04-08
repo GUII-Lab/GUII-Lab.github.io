@@ -164,6 +164,12 @@
         /* Spacer so last message clears sticky footer */
         .chat-spacer { height: 180px; flex-shrink: 0; }
 
+        .chat-footer-version {
+            font-size: 0.66rem; color: var(--muted);
+            letter-spacing: 0.04em; text-transform: uppercase;
+            font-weight: 600; text-align: center; margin-top: 8px;
+        }
+
         /* ===== CHAT FOOTER ===== */
         .chat-footer {
             background: rgba(255,255,255,0.9);
@@ -502,6 +508,7 @@
                 <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
                 <button id="sendMessage" disabled>Send</button>
             </div>
+            <div class="chat-footer-version" data-leai-version></div>
         </div>
     </footer>
 </div>
@@ -550,6 +557,7 @@
 </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="leai-version.js"></script>
     <script>
         const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:8000/datapipeline/api'

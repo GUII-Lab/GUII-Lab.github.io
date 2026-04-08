@@ -281,6 +281,7 @@
             </a>
         </div>
         <div class="sidebar-footer">
+            <div class="sidebar-version" data-leai-version></div>
             <button class="sidebar-item" id="sidebar-signout" title="Sign Out">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -537,6 +538,7 @@ If the student responds that they have no more feedback to give, then please con
 </div>
 
 <script src="leai-shared.js"></script>
+<script src="leai-version.js"></script>
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
