@@ -212,6 +212,7 @@
 
     <div class="sidebar-section">Student Experience</div>
     <a href="#student-chat">The Chat Interface</a>
+    <a href="#consent-flow">Consent &amp; Anonymity Notice</a>
     <a href="#inactive-states">Closed &amp; Expired Surveys</a>
     <a href="#anonymity-modes">Anonymity Options</a>
 
@@ -247,9 +248,10 @@
         <a href="#ai-analysis" class="toc-link">13. AI Analysis</a>
         <a href="#export-csv" class="toc-link">14. Exporting to CSV</a>
         <a href="#student-chat" class="toc-link">15. The Student Chat Interface</a>
-        <a href="#inactive-states" class="toc-link">16. Closed &amp; Expired Surveys</a>
-        <a href="#anonymity-modes" class="toc-link">17. Anonymity Options</a>
-        <a href="#faq" class="toc-link">18. Common Questions</a>
+        <a href="#consent-flow" class="toc-link">16. Consent &amp; Anonymity Notice</a>
+        <a href="#inactive-states" class="toc-link">17. Closed &amp; Expired Surveys</a>
+        <a href="#anonymity-modes" class="toc-link">18. Anonymity Options</a>
+        <a href="#faq" class="toc-link">19. Common Questions</a>
       </div>
     </div>
 
@@ -401,7 +403,6 @@
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Anonymity Mode</strong><p>Choose how students identify themselves:<br>
       &nbsp;• <em>Anonymous</em> — no identity collected; sessions appear as "Anonymous Student 1, 2…" in the analyzer<br>
       &nbsp;• <em>Identified</em> — students enter their real name or student ID before chatting</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Session Type</strong><p>Choose <em>Individual</em> (each student gets their own conversation) or <em>Group</em> (a team shares one conversation by entering a shared group code).</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Opens At / Expires At</strong><p>Set a date range for when the survey is active. Students who visit before the open date, or after the expiry date, will see a polite message instead of the chat. Leave blank to use the default expiry of 14 days from creation.</p></div></div>
     </div>
 
@@ -619,9 +620,40 @@
 
     <p>The student sees a minimal chat window. The AI opens with a greeting question based on your prompt. Students type their response and press <strong>Send</strong>. The conversation continues naturally for a few turns.</p>
 
+    <p>The header of the chat page surfaces the survey's actual privacy posture at all times. In <em>Anonymous</em> mode (the default) a green <strong>ANONYMOUS</strong> badge sits next to the survey title and the subtitle reads "Your responses are anonymous." If you create the survey in <em>Identified</em> mode, the badge switches to an amber variant labelled <strong>IDENTIFIED</strong> and the subtitle changes to "Linked to the identifier you enter," so students see at a glance that the session is no longer anonymous. Two small buttons &mdash; <strong>Terms</strong> and <strong>Privacy</strong> &mdash; in the top-right let students open the legal documents in a new tab at any point during the session.</p>
+
     <div class="screenshot-wrap">
-      <img src="guide-assets/test-f16-chat-loaded.png" alt="Student chat interface with AI greeting visible">
-      <div class="caption">The student chat page. The AI opens with a friendly question. Students type in the box at the bottom and press Send.</div>
+      <img src="guide-assets/feedback-header-anonymity.png" alt="Student chat interface showing the ANONYMOUS badge in the header, the Your responses are anonymous subtitle, the Terms Privacy button, and messages labeled ANONYMIZED STUDENT">
+      <div class="caption">The updated student chat page. Note the <strong>ANONYMOUS</strong> badge next to the title, the subtitle underneath, the <strong>Terms &middot; Privacy</strong> link at the top-right, and the <strong>ANONYMIZED STUDENT</strong> label on each student message.</div>
+    </div>
+
+    <h3 class="sub-heading" id="consent-flow">Consent &amp; Anonymity Notice</h3>
+
+    <p>The first time a student opens a feedback link in a browser session, they are shown a small <strong>consent dialog</strong> before the chat begins. This is how LEAI records informed consent in a way that meets industry best practice for a research-adjacent tool &mdash; without being scary or bureaucratic.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/feedback-consent-modal.png" alt="The consent dialog students see on first load, showing an anonymity intro, a required checkbox with Terms of Use and Privacy Policy links, and an optional research consent checkbox">
+      <div class="caption">The consent dialog. Students must check the required box (which contains inline links to the Terms of Use and Privacy Policy, opening in a new tab) to continue. The optional research consent box is separate.</div>
+    </div>
+
+    <p><strong>What the dialog says, in plain terms:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.6;">
+      <li>LEAI is a mid-course feedback tool that is <strong>anonymous by default</strong>. In Anonymous mode, no name, email, student ID, or login is collected &mdash; only a random session code. In <em>Identified</em> mode the dialog automatically rewrites itself to tell the student that the identifier they enter will be stored alongside their messages, so the consent they give matches what will actually happen.</li>
+      <li>The purpose is to help <em>improve the course while it's still running</em>, not to wait for end-of-quarter evaluations when it is too late to help current students.</li>
+      <li>In Anonymous mode, responses are aggregated and cannot be traced back to individuals. In Identified mode, the student's identifier is stored with their messages and visible to you in the Feedback Analyzer. Participation is voluntary in every mode and does not affect grades.</li>
+      <li>There are two checkboxes. The first (<strong>required</strong>) records agreement to the Terms of Use and Privacy Policy &mdash; the document names are inline links that open the full text in a new browser tab. The second (<strong>optional</strong>) records research consent for that session: it is now persisted to the backend as a per-message flag, so any future GUII Lab research analysis can be restricted to messages where the student opted in.</li>
+    </ul>
+
+    <p>The Terms of Use and the Privacy Policy live as their own standalone pages (<code>LEAI/legal/terms.html</code> and <code>LEAI/legal/privacy.html</code>). The canonical source of each document is the corresponding Word file (<code>LEAI-Terms-of-Use.docx</code> and <code>LEAI-Privacy-Policy.docx</code>) in the same folder &mdash; edit those when the policy needs to change. After editing, run <code>LEAI/legal/scripts/regenerate-md-from-docx.sh</code> to refresh the matching <code>terms.md</code> / <code>privacy.md</code> files that the live HTML pages render. The edits then appear on the hosted pages with no code change.</p>
+
+    <div class="callout info">
+      <span class="callout-label">How often will students see this?</span>
+      <p>The consent dialog appears <strong>once per browser session</strong>. If a student refreshes the page or follows a new survey link in the same tab, the dialog is skipped. Closing the tab and returning later is treated as a fresh session, so the dialog reappears &mdash; and the research consent checkbox resets, by design, so the student can freshly choose each time.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">What if a student wants to re-read the docs during the chat?</span>
+      <p>The <strong>Terms</strong> and <strong>Privacy</strong> buttons in the top-right of the header open the respective documents in a new browser tab at any point during the conversation. The full text of each document is a real page &mdash; students (and instructors) can bookmark it, share it, or even print it.</p>
     </div>
 
     <h3 class="sub-heading" id="bad-link">What If a Student Opens the Wrong Link?</h3>
@@ -662,12 +694,9 @@
     <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Identified Mode</h4>
     <p>Before entering the chat, students are asked to enter their name or student ID. This lets you match responses to specific students in the Feedback Analyzer and in CSV exports.</p>
 
-    <h4 style="font-size:15px;font-weight:600;color:#374151;margin:20px 0 8px;">Group Session Mode</h4>
-    <p>In Group mode, each team shares a conversation. Before entering, students are asked to type their group's code (which you distribute to teams). All members of the same team will see the same conversation.</p>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/test-f10-group-code.png" alt="Student pre-chat screen asking for a group code">
-      <div class="caption">In Group mode, students enter the code you gave their team. All members with the same code join the same conversation thread.</div>
+    <div class="callout info">
+      <span class="callout-label">Group sessions</span>
+      <p>The earlier <em>Group</em> session type has been removed pending a redesign &mdash; LEAI currently supports individual conversations only. A reworked group/team-retrospective mode is on the roadmap for a future release.</p>
     </div>
 
 

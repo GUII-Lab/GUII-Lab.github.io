@@ -251,13 +251,246 @@
         #download-btn { display: none; }
         .download-section { display: none; }
 
+        /* ===== HEADER ANONYMITY BADGE / SUBTITLE / TERMS LINK ===== */
+        .chat-header-title-block { display: flex; flex-direction: column; min-width: 0; }
+        .chat-header-subtitle {
+            font-size: 0.68rem; font-weight: 500; color: var(--muted);
+            letter-spacing: 0.01em; margin-top: 1px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .anon-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: rgba(22,101,52,0.08);
+            color: #166534;
+            border: 1px solid rgba(22,101,52,0.25);
+            border-radius: 999px;
+            padding: 3px 10px 3px 8px;
+            font-size: 0.62rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin-left: 10px; flex-shrink: 0;
+        }
+        /* Amber variant — used when the survey is NOT fully anonymous so
+           students see at a glance that this session is identified, group,
+           or carries a Canvas-credit identity bridge. */
+        .anon-badge.mode-attention {
+            background: rgba(146,64,14,0.08);
+            color: #92400e;
+            border-color: rgba(146,64,14,0.30);
+        }
+        .anon-badge .material-symbols-outlined {
+            font-size: 13px; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20;
+        }
+        .chat-header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .terms-link {
+            background: transparent; border: 1px solid rgba(169,180,183,0.45);
+            color: var(--text-variant); font-family: inherit;
+            font-size: 0.72rem; font-weight: 600;
+            padding: 6px 12px; border-radius: var(--radius-sm);
+            cursor: pointer; transition: all 0.15s;
+            display: inline-flex; align-items: center; gap: 6px;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .terms-link:hover { border-color: var(--primary); color: var(--primary); }
+        .terms-link .material-symbols-outlined { font-size: 16px; }
+        .terms-link-icon { display: none; }
+
+        /* ===== CONSENT MODAL =====
+           Layout strategy: the overlay itself is the scroll container.
+           The card has NO max-height so on short viewports (mobile landscape,
+           small phones) the Continue button is always reachable by scrolling
+           the overlay. Margin-auto + align-items: flex-start centers the card
+           when there is extra space, but safely overflows to the top edge
+           instead of clipping equally on both sides (which would hide the
+           header or footer with align-items: center). */
+        #consent-modal {
+            display: none; position: fixed; inset: 0; z-index: 100;
+            background: rgba(22,28,31,0.55);
+            align-items: flex-start; justify-content: center;
+            padding: 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        }
+        .consent-modal-card {
+            background: var(--surface-card);
+            border-radius: 8px;
+            box-shadow: var(--shadow-float);
+            width: 100%; max-width: 640px;
+            margin: auto 0; /* vertically center when space allows, overflow-safe */
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .consent-modal-header {
+            padding: 24px 28px 16px;
+            border-bottom: 1px solid rgba(169,180,183,0.2);
+            flex-shrink: 0;
+        }
+        .consent-modal-header h3 {
+            font-size: 1.15rem; font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em; margin-bottom: 6px;
+        }
+        .consent-modal-intro {
+            font-size: 0.85rem; color: var(--text-variant);
+            line-height: 1.55;
+        }
+        .consent-modal-intro strong { color: #166534; }
+        .consent-tabs {
+            display: flex; gap: 0;
+            padding: 0 28px;
+            border-bottom: 1px solid rgba(169,180,183,0.2);
+            flex-shrink: 0;
+        }
+        .consent-tab {
+            background: transparent; border: none; cursor: pointer;
+            padding: 12px 4px; margin-right: 24px;
+            font-family: inherit; font-size: 0.78rem; font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.08em;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+        }
+        .consent-tab:hover { color: var(--text-variant); }
+        .consent-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+        .consent-content {
+            padding: 20px 28px;
+            /* On desktop, cap the content area so the card's header, checkboxes,
+               and action button stay in view. On mobile (<=767px) the cap is
+               removed and the overlay scrolls instead — see media query below. */
+            max-height: 48vh;
+            overflow-y: auto;
+        }
+        .consent-content::-webkit-scrollbar { width: 6px; }
+        .consent-content::-webkit-scrollbar-track { background: transparent; }
+        .consent-content::-webkit-scrollbar-thumb { background: var(--surface-mid); border-radius: 3px; }
+
+        /* Parsed markdown spacing — explicit to counter default browser sparseness */
+        .md-content { font-size: 0.88rem; color: var(--text); line-height: 1.6; }
+        .md-content h1 {
+            font-size: 1.2rem; font-weight: 700; color: var(--text);
+            letter-spacing: -0.01em;
+            margin: 0 0 6px 0;
+        }
+        .md-content h1 + p em,
+        .md-content h1 + p {
+            font-size: 0.78rem; color: var(--muted); margin-bottom: 14px;
+        }
+        .md-content h2 {
+            font-size: 0.95rem; font-weight: 700; color: var(--text);
+            letter-spacing: -0.005em;
+            margin: 20px 0 8px 0;
+            padding-top: 4px;
+        }
+        .md-content h3 {
+            font-size: 0.88rem; font-weight: 700; color: var(--text);
+            margin: 16px 0 6px 0;
+        }
+        .md-content p {
+            margin: 0 0 10px 0;
+            line-height: 1.6;
+        }
+        .md-content ul, .md-content ol {
+            margin: 0 0 10px 0;
+            padding-left: 22px;
+        }
+        .md-content ul { list-style: disc outside; }
+        .md-content ol { list-style: decimal outside; }
+        .md-content li {
+            margin-bottom: 4px;
+            line-height: 1.55;
+        }
+        .md-content li p { margin-bottom: 4px; }
+        .md-content strong { font-weight: 700; color: var(--text); }
+        .md-content em { color: var(--text-variant); font-style: italic; }
+        .md-content hr { border: none; border-top: 1px solid rgba(169,180,183,0.25); margin: 16px 0; }
+        .md-content a { color: var(--primary); text-decoration: underline; }
+
+        .consent-checkboxes {
+            padding: 16px 28px 8px;
+            border-top: 1px solid rgba(169,180,183,0.2);
+            display: flex; flex-direction: column; gap: 10px;
+            flex-shrink: 0;
+            background: var(--surface);
+        }
+        .consent-checkbox {
+            display: flex; align-items: flex-start; gap: 10px;
+            cursor: pointer;
+            font-size: 0.8rem; color: var(--text);
+            line-height: 1.5;
+        }
+        .consent-checkbox input[type="checkbox"] {
+            margin-top: 2px;
+            width: 16px; height: 16px;
+            accent-color: var(--primary);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .consent-checkbox strong { font-weight: 700; }
+        .consent-checkbox a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .consent-checkbox a:hover { color: var(--primary-dim); }
+        .consent-checkbox-note {
+            display: block; font-size: 0.72rem; color: var(--muted); margin-top: 2px;
+        }
+        .consent-actions {
+            padding: 12px 28px 20px;
+            background: var(--surface);
+            display: flex; justify-content: flex-end; gap: 10px;
+            flex-shrink: 0;
+        }
+        .consent-actions button {
+            padding: 10px 24px;
+            background: var(--primary); color: white;
+            border: none; border-radius: var(--radius-sm);
+            font-family: inherit; font-size: 0.78rem; font-weight: 700;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.07em;
+            transition: background 0.15s;
+        }
+        .consent-actions button:hover:not(:disabled) { background: var(--primary-dim); }
+        .consent-actions button:disabled {
+            background: var(--surface-mid); color: var(--muted); cursor: not-allowed;
+        }
+
         /* ===== RESPONSIVE ===== */
+        @media (max-width: 767px) {
+            .chat-header-subtitle { display: none; }
+            /* On mobile/tablet, don't cap the content — let the overlay scroll
+               the whole card so the Continue button is always reachable. */
+            .consent-content { max-height: none; overflow-y: visible; }
+            #consent-modal { padding: 12px; }
+        }
         @media (max-width: 479px) {
-            .chat-header { padding: 10px 14px; }
+            .chat-header { padding: 10px 14px; gap: 8px; }
             h2 { font-size: 0.82rem; }
             .select-wrapper select { min-width: 120px; font-size: 0.78rem; padding: 6px 22px 6px 10px; }
             .msg-student-body { max-width: 100%; }
             .chat-spacer { height: 100px; }
+            .anon-badge { font-size: 0.56rem; padding: 2px 8px 2px 6px; margin-left: 6px; }
+            .anon-badge .material-symbols-outlined { font-size: 11px; }
+            .terms-link { padding: 6px 8px; }
+            .terms-link-full { display: none; }
+            .terms-link-icon { display: inline-flex; }
+            .consent-modal-card { max-height: 94vh; max-height: 94dvh; }
+            .consent-modal-header { padding: 18px 20px 12px; }
+            .consent-modal-header h3 { font-size: 1.02rem; }
+            .consent-modal-intro { font-size: 0.8rem; }
+            .consent-tabs { padding: 0 20px; }
+            .consent-tab { font-size: 0.72rem; margin-right: 18px; }
+            .consent-content { padding: 16px 20px; }
+            .md-content { font-size: 0.84rem; }
+            .md-content h1 { font-size: 1.05rem; }
+            .md-content h2 { font-size: 0.9rem; }
+            .consent-checkboxes { padding: 14px 20px 6px; }
+            .consent-checkbox { font-size: 0.76rem; }
+            .consent-actions { padding: 10px 20px 16px; }
+            .consent-actions button { padding: 10px 18px; font-size: 0.74rem; }
+        }
+        @media (max-width: 360px) {
+            .msg-student-label-full { display: none; }
+            .msg-student-label-short { display: inline !important; }
         }
     </style>
 </head>
@@ -269,7 +502,23 @@
         <div class="chat-header-left">
             <span class="chat-header-logo">LEAI</span>
             <span class="chat-header-sep">|</span>
-            <h2 id="chat-title">Loading...</h2>
+            <div class="chat-header-title-block">
+                <h2 id="chat-title">Loading...</h2>
+                <div class="chat-header-subtitle" id="chat-header-subtitle">Your responses are anonymous</div>
+            </div>
+            <span id="anon-badge" class="anon-badge" title="Your responses are fully anonymous">
+                <span class="material-symbols-outlined">lock</span>ANONYMOUS
+            </span>
+        </div>
+        <div class="chat-header-right">
+            <a class="terms-link" href="legal/terms.html" target="_blank" rel="noopener noreferrer" title="View Terms of Use">
+                <span class="terms-link-full">Terms</span>
+                <span class="terms-link-icon material-symbols-outlined">description</span>
+            </a>
+            <a class="terms-link" href="legal/privacy.html" target="_blank" rel="noopener noreferrer" title="View Privacy Policy">
+                <span class="terms-link-full">Privacy</span>
+                <span class="terms-link-icon material-symbols-outlined">shield</span>
+            </a>
         </div>
     </header>
 
@@ -319,6 +568,44 @@
     </footer>
 </div>
 
+<!-- Consent modal -->
+<div id="consent-modal" role="dialog" aria-modal="true" aria-labelledby="consent-modal-title">
+    <div class="consent-modal-card">
+        <div class="consent-modal-header">
+            <h3 id="consent-modal-title">Before you begin</h3>
+            <p class="consent-modal-intro" id="consent-modal-intro">
+                LEAI is an <strong>anonymous</strong> mid-course feedback tool. Your responses help your
+                instructor improve your experience <em>while the course is still running</em> &mdash; not
+                at the end of the quarter.
+            </p>
+        </div>
+        <div class="consent-checkboxes" id="consent-checkboxes">
+            <label class="consent-checkbox">
+                <input type="checkbox" id="consent-required">
+                <span id="consent-required-text">
+                    I have read and agree to the
+                    <a href="legal/terms.html" target="_blank" rel="noopener noreferrer">Terms of Use</a>
+                    and
+                    <a href="legal/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+                    I understand my feedback is <strong>fully anonymous</strong> and will be used by my
+                    instructor to improve the course while it is running.
+                </span>
+            </label>
+            <label class="consent-checkbox">
+                <input type="checkbox" id="consent-research">
+                <span>
+                    <em>(Optional)</em> I also consent to my anonymous responses being analyzed by the
+                    GUII Lab for research to improve this tool in the future.
+                    <span class="consent-checkbox-note">You can change your choice each time you start a new feedback session.</span>
+                </span>
+            </label>
+        </div>
+        <div class="consent-actions">
+            <button type="button" id="consent-continue-btn" disabled>Continue</button>
+        </div>
+    </div>
+</div>
+
 <!-- Hidden: kept for JS compatibility (download transcript feature) -->
 <div class="download-section">
     <button id="download-btn">Download Transcript</button>
@@ -329,8 +616,188 @@
         const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
             ? 'http://localhost:8000/datapipeline/api'
             : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
+
+        // ===== CONSENT =====
+        // Terms & Privacy live as standalone pages in LEAI/legal/.
+        // The modal just shows the anonymity intro + two checkboxes, with
+        // inline links to those pages opening in a new tab.
+        let consentPendingCb = null;
+        function showConsentModal(onAccept) {
+            consentPendingCb = onAccept || null;
+            const modal = document.getElementById('consent-modal');
+            document.getElementById('consent-required').checked = false;
+            document.getElementById('consent-research').checked = false;
+            document.getElementById('consent-continue-btn').disabled = true;
+            modal.style.display = 'flex';
+        }
+
+        function hideConsentModal() {
+            document.getElementById('consent-modal').style.display = 'none';
+            consentPendingCb = null;
+        }
+
+        function hasSessionConsent() {
+            try { return !!sessionStorage.getItem('leai_consent_v1'); } catch (e) { return false; }
+        }
+
+        function storeSessionConsent(research) {
+            try {
+                sessionStorage.setItem('leai_consent_v1', JSON.stringify({
+                    research: !!research,
+                    timestamp: new Date().toISOString()
+                }));
+            } catch (e) {}
+        }
+
+        function getResearchConsent() {
+            try {
+                const v = sessionStorage.getItem('leai_consent_v1');
+                if (!v) return false;
+                return !!JSON.parse(v).research;
+            } catch (e) { return false; }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('consent-required').addEventListener('change', function () {
+                document.getElementById('consent-continue-btn').disabled = !this.checked;
+            });
+            document.getElementById('consent-continue-btn').addEventListener('click', function () {
+                if (!document.getElementById('consent-required').checked) return;
+                const research = document.getElementById('consent-research').checked;
+                storeSessionConsent(research);
+                const cb = consentPendingCb;
+                hideConsentModal();
+                if (cb) cb();
+            });
+        });
         let chatHistory = [];
         var gptConfig = null;
+
+        // Tiny DOM builders so updateLegalCopy() can rewrite the consent
+        // modal and badge without ever assigning innerHTML (matches the
+        // existing convention in this file — see the comment near
+        // appendDiscussionLedger).
+        function _legalClear(el) {
+            while (el.firstChild) el.removeChild(el.firstChild);
+        }
+        function _legalText(t) { return document.createTextNode(t); }
+        function _legalStrong(t) {
+            var s = document.createElement('strong');
+            s.textContent = t;
+            return s;
+        }
+        function _legalEm(t) {
+            var e = document.createElement('em');
+            e.textContent = t;
+            return e;
+        }
+        function _legalLink(href, text) {
+            var a = document.createElement('a');
+            a.setAttribute('href', href);
+            a.setAttribute('target', '_blank');
+            a.setAttribute('rel', 'noopener noreferrer');
+            a.textContent = text;
+            return a;
+        }
+
+        // Rewrites the anonymity badge, header subtitle, consent intro, and
+        // required-checkbox text to match the survey's actual mode. The
+        // unconditional "ANONYMOUS / fully anonymous" wording in the static
+        // markup only applies when anonymity_mode === 'anonymous' and
+        // canvas_integration === false; in any other configuration we have
+        // to be honest with the student about what is being collected.
+        function updateLegalCopy(gpt) {
+            if (!gpt) return;
+            var mode = gpt.anonymity_mode || 'anonymous';
+            var canvas = !!gpt.canvas_integration;
+            var nonAnonymous = (mode !== 'anonymous') || canvas;
+
+            // ----- Anonymity badge -----
+            var badge = document.getElementById('anon-badge');
+            if (badge) {
+                var label, icon, title;
+                if (mode === 'identified') {
+                    label = 'IDENTIFIED';
+                    icon = 'person';
+                    title = 'Your responses are linked to the identifier you enter and visible to your instructor.';
+                } else if (mode === 'pseudonymous') {
+                    label = 'PSEUDONYMOUS';
+                    icon = 'badge';
+                    title = 'Your responses are linked to the pseudonym you enter and visible to your instructor.';
+                } else {
+                    label = 'ANONYMOUS';
+                    icon = 'lock';
+                    title = 'Your responses are anonymous. Your instructor cannot tell which submission came from which student.';
+                }
+                if (canvas) {
+                    label += ' \u00B7 CANVAS CREDIT';
+                    title += ' If you submit the completion code shown after this session into Canvas, your Canvas account becomes linked to this conversation in your instructor\u2019s records.';
+                }
+                _legalClear(badge);
+                var iconSpan = document.createElement('span');
+                iconSpan.className = 'material-symbols-outlined';
+                iconSpan.textContent = icon;
+                badge.appendChild(iconSpan);
+                badge.appendChild(_legalText(label));
+                badge.setAttribute('title', title);
+                badge.classList.toggle('mode-attention', nonAnonymous);
+            }
+
+            // ----- Header subtitle -----
+            var subtitle = document.getElementById('chat-header-subtitle');
+            if (subtitle) {
+                if (mode === 'identified') {
+                    subtitle.textContent = 'Linked to the identifier you enter';
+                } else if (mode === 'pseudonymous') {
+                    subtitle.textContent = 'Linked to the pseudonym you enter';
+                } else if (canvas) {
+                    subtitle.textContent = 'Anonymous \u2014 completion code links you to Canvas';
+                } else {
+                    subtitle.textContent = 'Your responses are anonymous';
+                }
+            }
+
+            // ----- Consent modal: intro paragraph -----
+            var intro = document.getElementById('consent-modal-intro');
+            if (intro) {
+                _legalClear(intro);
+                if (mode === 'identified' || mode === 'pseudonymous') {
+                    intro.appendChild(_legalText('LEAI is a mid-course feedback tool. This survey uses '));
+                    intro.appendChild(_legalStrong((mode === 'identified' ? 'identified' : 'pseudonymous') + ' mode'));
+                    intro.appendChild(_legalText(' \u2014 you will be asked to enter an identifier before the chat begins, and the messages you send will be linked to that identifier in your instructor\u2019s records.'));
+                } else {
+                    intro.appendChild(_legalText('LEAI is an '));
+                    intro.appendChild(_legalStrong('anonymous'));
+                    intro.appendChild(_legalText(' mid-course feedback tool. Your responses help your instructor improve your experience '));
+                    intro.appendChild(_legalEm('while the course is still running'));
+                    intro.appendChild(_legalText(' \u2014 not at the end of the quarter.'));
+                }
+                if (canvas) {
+                    intro.appendChild(_legalText(' If you choose to submit the completion code shown after the session into Canvas, your Canvas account will be linked to this conversation in your instructor\u2019s records.'));
+                }
+            }
+
+            // ----- Consent modal: required-checkbox label -----
+            var requiredText = document.getElementById('consent-required-text');
+            if (requiredText) {
+                _legalClear(requiredText);
+                requiredText.appendChild(_legalText('I have read and agree to the '));
+                requiredText.appendChild(_legalLink('legal/terms.html', 'Terms of Use'));
+                requiredText.appendChild(_legalText(' and '));
+                requiredText.appendChild(_legalLink('legal/privacy.html', 'Privacy Policy'));
+                requiredText.appendChild(_legalText('.'));
+                if (mode === 'identified' || mode === 'pseudonymous') {
+                    requiredText.appendChild(_legalText(' I understand the identifier I enter will be stored alongside my messages and visible to my instructor.'));
+                } else {
+                    requiredText.appendChild(_legalText(' I understand my feedback is '));
+                    requiredText.appendChild(_legalStrong('anonymous'));
+                    requiredText.appendChild(_legalText(' and will be used by my instructor to improve the course while it is running.'));
+                }
+                if (canvas) {
+                    requiredText.appendChild(_legalText(' I understand that if I submit the completion code into Canvas, my Canvas account will be linked to this session in my instructor\u2019s records.'));
+                }
+            }
+        }
 
         function initGpt(gpt) {
             gptConfig = gpt;
@@ -362,19 +829,10 @@
 
         function showPreChat(gpt) {
             pendingGpt = gpt;
-            var isGroup = gpt.survey_type === 'group';
-
-            if (isGroup) {
-                document.getElementById('pre-chat-icon').textContent = '👥';
-                document.getElementById('pre-chat-title').textContent = 'Join your group';
-                document.getElementById('pre-chat-msg').textContent = 'Enter your group code to start the shared feedback session.';
-                document.getElementById('pre-chat-input').placeholder = 'Group code (e.g. TEAM-A)';
-            } else {
-                document.getElementById('pre-chat-icon').textContent = '👤';
-                document.getElementById('pre-chat-title').textContent = 'Identify yourself';
-                document.getElementById('pre-chat-msg').textContent = 'Enter an identifier so your instructor can match your feedback across sessions. This will not be shared publicly.';
-                document.getElementById('pre-chat-input').placeholder = 'Student ID or nickname';
-            }
+            document.getElementById('pre-chat-icon').textContent = '👤';
+            document.getElementById('pre-chat-title').textContent = 'Identify yourself';
+            document.getElementById('pre-chat-msg').textContent = 'Enter an identifier so your instructor can match your feedback across sessions. This will not be shared publicly.';
+            document.getElementById('pre-chat-input').placeholder = 'Student ID or nickname';
 
             document.getElementById('pre-chat-screen').style.display = 'flex';
             document.querySelector('.main-content').style.display = 'none';
@@ -392,20 +850,9 @@
             document.getElementById('pre-chat-screen').style.display = 'none';
             document.querySelector('.main-content').style.display = '';
 
-            if (gpt.survey_type === 'group') {
-                // Resolve shared session_id from group code
-                fetch(API + '/get_group_session/?group_code=' + encodeURIComponent(val) + '&survey_id=' + gpt.id)
-                .then(function (r) { return r.json(); })
-                .then(function (data) {
-                    window.sessionData.sessionID = data.session_id;
-                    initGpt(gpt);
-                })
-                .catch(function () { initGpt(gpt); });
-            } else {
-                // Pseudonymous: prefix sessionID with identifier
-                window.sessionData.sessionID = val + '_' + window.sessionData.sessionID;
-                initGpt(gpt);
-            }
+            // Pseudonymous: prefix sessionID with identifier
+            window.sessionData.sessionID = val + '_' + window.sessionData.sessionID;
+            initGpt(gpt);
         });
 
         document.getElementById('pre-chat-input').addEventListener('keydown', function (e) {
@@ -423,11 +870,22 @@
                     return;
                 }
 
-                var needsPreChat = (gpt.survey_type === 'group') || (gpt.anonymity_mode === 'pseudonymous');
-                if (needsPreChat) {
-                    showPreChat(gpt);
+                // Rewrite the anonymity badge / consent modal copy to match
+                // this survey's actual mode BEFORE the consent modal opens.
+                updateLegalCopy(gpt);
+
+                var proceedAfterConsent = function () {
+                    if (gpt.anonymity_mode === 'pseudonymous') {
+                        showPreChat(gpt);
+                    } else {
+                        initGpt(gpt);
+                    }
+                };
+
+                if (hasSessionConsent()) {
+                    proceedAfterConsent();
                 } else {
-                    initGpt(gpt);
+                    showConsentModal(proceedAfterConsent);
                 }
             }).fail(function () {
                 var errP = document.createElement('p');
@@ -488,7 +946,8 @@
                 sent_by: sentBy,
                 content: content,
                 gpt_used: window.sessionData.selectedGPT,
-                gpt_id: window.sessionData.selectedGPTId
+                gpt_id: window.sessionData.selectedGPTId,
+                research_consent: getResearchConsent()
             };
             $.ajax({
                 type: 'POST',
@@ -569,7 +1028,15 @@
 
             var label = document.createElement('span');
             label.className = 'msg-student-label';
-            label.textContent = 'You';
+            var labelFull = document.createElement('span');
+            labelFull.className = 'msg-student-label-full';
+            labelFull.textContent = 'Anonymized Student';
+            var labelShort = document.createElement('span');
+            labelShort.className = 'msg-student-label-short';
+            labelShort.style.display = 'none';
+            labelShort.textContent = 'Anon. Student';
+            label.appendChild(labelFull);
+            label.appendChild(labelShort);
 
             var dot = document.createElement('div');
             dot.className = 'msg-student-dot';

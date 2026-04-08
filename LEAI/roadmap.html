@@ -477,14 +477,14 @@
             <div class="feature-row">
                 <div class="feature-num">06</div>
                 <div class="feature-body">
-                    <div class="feature-name">Group reflection mode</div>
-                    <div class="feature-desc">A new survey type for in-group structured retrospectives. A group shares a single session link; the bot facilitates reflection on collaboration, coordination, and project-based friction. Each participant contributes turns in the same conversation. The instructor view shows group sessions separately from individual sessions.</div>
-                    <div class="feature-justification">Committed as a major new feature in the fellowship application. CM capstone courses rely heavily on collaborative production. This mode addresses a gap that standard individual surveys cannot fill.</div>
+                    <div class="feature-name">Group reflection mode (redesign pending)</div>
+                    <div class="feature-desc">An earlier "individual / group" Session Type was prototyped (a shared session link, group code entry, deterministic shared session ID) and has been <strong>removed from the codebase</strong> pending a full redesign. The next iteration will be a purpose-built in-group structured retrospective mode &mdash; the specific UX, data model, and instructor view are open questions to be decided as part of the redesign.</div>
+                    <div class="feature-justification">Committed as a major new feature in the fellowship application. CM capstone courses rely heavily on collaborative production, so the underlying need is unchanged; only the prior implementation was discarded.</div>
                 </div>
                 <div class="feature-meta">
                     <span class="badge badge-p1">P1</span>
                     <span class="badge badge-fellowship">F</span>
-                    <span class="badge badge-status-planned">Planned</span>
+                    <span class="badge badge-status-planned">Redesign Pending</span>
                 </div>
             </div>
 
@@ -662,9 +662,9 @@
             </thead>
             <tbody>
                 <tr>
-                    <td>Instructor Configuration Layer (themes, timing, individual/group, anonymity)</td>
+                    <td>Instructor Configuration Layer (themes, timing, anonymity; group mode redesign)</td>
                     <td>#4, #5, #6</td>
-                    <td>Group mode is the largest new build; themes/timing are additions to existing PromptDesigner</td>
+                    <td>Themes/timing are additions to existing PromptDesigner. The original individual/group toggle was discarded; group mode (#6) is now a planned redesign rather than an extension of the prior prototype.</td>
                 </tr>
                 <tr>
                     <td>Student Interaction Layer — Individual</td>
@@ -674,7 +674,7 @@
                 <tr>
                     <td>Student Interaction Layer — Group Reflection Mode</td>
                     <td>#6</td>
-                    <td>Not yet started; highest-effort new feature</td>
+                    <td>Prior prototype removed from the codebase; awaiting a clean-sheet redesign before any new implementation begins.</td>
                 </tr>
                 <tr>
                     <td>Instructor Insight Dashboard (themes, student language, friction)</td>

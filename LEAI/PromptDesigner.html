@@ -454,13 +454,6 @@ If the student responds that they have no more feedback to give, then please con
                                         <!-- <option value="identified">Identified</option> -->
                                     </select>
                                 </div>
-                                <div>
-                                    <label>Session Type</label>
-                                    <select id="s-survey-type" style="margin-bottom:12px">
-                                        <option value="individual">Individual</option>
-                                        <!-- <option value="group">Group (shared session)</option> -->
-                                    </select>
-                                </div>
                             </div>
                             <div class="builder-row" style="margin-bottom:0">
                                 <div>
@@ -870,7 +863,6 @@ If the student responds that they have no more feedback to give, then please con
         var opensAt = document.getElementById('s-opens-at').value;
         var expiresAt = document.getElementById('s-expires-at').value;
         var anonymity = document.getElementById('s-anonymity').value;
-        var surveyType = document.getElementById('s-survey-type').value;
         var canvasIntegration = false; // canvas integration hidden for now
 
         this.disabled = true;
@@ -887,7 +879,6 @@ If the student responds that they have no more feedback to give, then please con
                 opens_at: opensAt ? new Date(opensAt).toISOString() : null,
                 expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
                 anonymity_mode: anonymity,
-                survey_type: surveyType,
                 canvas_integration: canvasIntegration,
             })
         })
@@ -910,7 +901,6 @@ If the student responds that they have no more feedback to give, then please con
                 document.getElementById('s-opens-at').value = '';
                 document.getElementById('s-expires-at').value = '';
                 document.getElementById('s-anonymity').value = 'anonymous';
-                document.getElementById('s-survey-type').value = 'individual';
                 loadSurveys();
             }
         })
