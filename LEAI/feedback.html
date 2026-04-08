@@ -103,31 +103,6 @@
         .inactive-title { font-size: 1.25rem; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
         .inactive-msg { font-size: 0.9rem; color: var(--muted); max-width: 400px; line-height: 1.6; }
 
-        /* ===== PRE-CHAT SCREEN ===== */
-        #pre-chat-screen {
-            display: none; position: absolute; inset: 0; z-index: 50;
-            background: var(--surface);
-            flex-direction: column; align-items: center; justify-content: center;
-            text-align: center; padding: 40px 32px; gap: 12px;
-        }
-        #pre-chat-screen .inactive-icon { font-size: 24px; }
-        #pre-chat-screen input {
-            width: 100%; max-width: 360px;
-            padding: 10px 14px; border: 1px solid rgba(169,180,183,0.5);
-            border-radius: var(--radius-md); font-family: inherit; font-size: 0.9rem;
-            color: var(--text); background: var(--surface-card);
-            margin-bottom: 0;
-        }
-        #pre-chat-screen input:focus { outline: none; border-color: var(--primary); }
-        #pre-chat-start-btn {
-            padding: 10px 28px; background: var(--primary); color: white;
-            border: none; border-radius: var(--radius-sm); font-family: inherit;
-            font-size: 0.82rem; font-weight: 700; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 0.07em;
-        }
-        #pre-chat-start-btn:hover { background: var(--primary-dim); }
-        #pre-chat-start-btn:disabled { background: var(--surface-mid); color: var(--muted); cursor: not-allowed; }
-
         /* ===== MAIN CONTENT (messages + footer) ===== */
         .main-content {
             flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
@@ -189,9 +164,6 @@
         /* Spacer so last message clears sticky footer */
         .chat-spacer { height: 180px; flex-shrink: 0; }
 
-        /* Hidden completion hint (JS may reference class but we don't show it) */
-        .completion-hint { display: none; }
-
         /* ===== CHAT FOOTER ===== */
         .chat-footer {
             background: rgba(255,255,255,0.9);
@@ -205,19 +177,6 @@
         }
         @media (min-width: 480px) { .chat-footer { padding: 14px 24px 18px; } }
         @media (min-width: 768px) { .chat-footer { padding: 14px 32px 18px; } }
-
-        /* ===== COMPLETION CODE SECTION ===== */
-        #completion-code-section {
-            display: none;
-            margin-bottom: 10px;
-            background: rgba(220,252,231,0.6);
-            border: 1px solid rgba(134,239,172,0.4);
-            border-radius: var(--radius-sm);
-            padding: 8px 14px;
-            font-size: 0.72rem; font-weight: 700; color: #166534;
-            text-transform: uppercase; letter-spacing: 0.06em;
-        }
-        #completion-code-value { font-family: monospace; font-weight: 800; letter-spacing: 0.08em; }
 
         /* ===== INPUT AREA ===== */
         .input-area {
@@ -268,14 +227,6 @@
             font-size: 0.62rem; font-weight: 800;
             text-transform: uppercase; letter-spacing: 0.08em;
             margin-left: 10px; flex-shrink: 0;
-        }
-        /* Amber variant — used when the survey is NOT fully anonymous so
-           students see at a glance that this session is identified, group,
-           or carries a Canvas-credit identity bridge. */
-        .anon-badge.mode-attention {
-            background: rgba(146,64,14,0.08);
-            color: #92400e;
-            border-color: rgba(146,64,14,0.30);
         }
         .anon-badge .material-symbols-outlined {
             font-size: 13px; font-variation-settings: 'FILL' 1, 'wght' 600, 'GRAD' 0, 'opsz' 20;
@@ -504,9 +455,9 @@
             <span class="chat-header-sep">|</span>
             <div class="chat-header-title-block">
                 <h2 id="chat-title">Loading...</h2>
-                <div class="chat-header-subtitle" id="chat-header-subtitle">Your responses are anonymous</div>
+                <div class="chat-header-subtitle">Your responses are anonymous</div>
             </div>
-            <span id="anon-badge" class="anon-badge" title="Your responses are fully anonymous">
+            <span class="anon-badge" title="Your responses are anonymous">
                 <span class="material-symbols-outlined">lock</span>ANONYMOUS
             </span>
         </div>
@@ -536,15 +487,6 @@
         <div class="inactive-msg" id="inactive-msg">This survey is not currently available. Please check with your instructor.</div>
     </div>
 
-    <!-- Pre-chat entry screen (pseudonymous ID / group code) — overlay -->
-    <div id="pre-chat-screen">
-        <div class="inactive-icon" id="pre-chat-icon"></div>
-        <div class="inactive-title" id="pre-chat-title">Before you start</div>
-        <div class="inactive-msg" id="pre-chat-msg"></div>
-        <input type="text" id="pre-chat-input" placeholder="" />
-        <button id="pre-chat-start-btn">Continue</button>
-    </div>
-
     <!-- Main chat content -->
     <div class="main-content">
         <div id="transcription">
@@ -556,10 +498,6 @@
     <!-- Sticky footer -->
     <footer class="chat-footer">
         <div class="chat-footer-inner">
-            <!-- Canvas completion code — shown after first message sent by JS -->
-            <div id="completion-code-section">
-                Completion code: <span id="completion-code-value"></span> — Submit this in Canvas to record your participation.
-            </div>
             <div class="input-area">
                 <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
                 <button id="sendMessage" disabled>Send</button>
@@ -573,7 +511,7 @@
     <div class="consent-modal-card">
         <div class="consent-modal-header">
             <h3 id="consent-modal-title">Before you begin</h3>
-            <p class="consent-modal-intro" id="consent-modal-intro">
+            <p class="consent-modal-intro">
                 LEAI is an <strong>anonymous</strong> mid-course feedback tool. Your responses help your
                 instructor improve your experience <em>while the course is still running</em> &mdash; not
                 at the end of the quarter.
@@ -582,12 +520,12 @@
         <div class="consent-checkboxes" id="consent-checkboxes">
             <label class="consent-checkbox">
                 <input type="checkbox" id="consent-required">
-                <span id="consent-required-text">
+                <span>
                     I have read and agree to the
                     <a href="legal/terms.html" target="_blank" rel="noopener noreferrer">Terms of Use</a>
                     and
                     <a href="legal/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
-                    I understand my feedback is <strong>fully anonymous</strong> and will be used by my
+                    I understand my feedback is <strong>anonymous</strong> and will be used by my
                     instructor to improve the course while it is running.
                 </span>
             </label>
@@ -673,132 +611,6 @@
         let chatHistory = [];
         var gptConfig = null;
 
-        // Tiny DOM builders so updateLegalCopy() can rewrite the consent
-        // modal and badge without ever assigning innerHTML (matches the
-        // existing convention in this file — see the comment near
-        // appendDiscussionLedger).
-        function _legalClear(el) {
-            while (el.firstChild) el.removeChild(el.firstChild);
-        }
-        function _legalText(t) { return document.createTextNode(t); }
-        function _legalStrong(t) {
-            var s = document.createElement('strong');
-            s.textContent = t;
-            return s;
-        }
-        function _legalEm(t) {
-            var e = document.createElement('em');
-            e.textContent = t;
-            return e;
-        }
-        function _legalLink(href, text) {
-            var a = document.createElement('a');
-            a.setAttribute('href', href);
-            a.setAttribute('target', '_blank');
-            a.setAttribute('rel', 'noopener noreferrer');
-            a.textContent = text;
-            return a;
-        }
-
-        // Rewrites the anonymity badge, header subtitle, consent intro, and
-        // required-checkbox text to match the survey's actual mode. The
-        // unconditional "ANONYMOUS / fully anonymous" wording in the static
-        // markup only applies when anonymity_mode === 'anonymous' and
-        // canvas_integration === false; in any other configuration we have
-        // to be honest with the student about what is being collected.
-        function updateLegalCopy(gpt) {
-            if (!gpt) return;
-            var mode = gpt.anonymity_mode || 'anonymous';
-            var canvas = !!gpt.canvas_integration;
-            var nonAnonymous = (mode !== 'anonymous') || canvas;
-
-            // ----- Anonymity badge -----
-            var badge = document.getElementById('anon-badge');
-            if (badge) {
-                var label, icon, title;
-                if (mode === 'identified') {
-                    label = 'IDENTIFIED';
-                    icon = 'person';
-                    title = 'Your responses are linked to the identifier you enter and visible to your instructor.';
-                } else if (mode === 'pseudonymous') {
-                    label = 'PSEUDONYMOUS';
-                    icon = 'badge';
-                    title = 'Your responses are linked to the pseudonym you enter and visible to your instructor.';
-                } else {
-                    label = 'ANONYMOUS';
-                    icon = 'lock';
-                    title = 'Your responses are anonymous. Your instructor cannot tell which submission came from which student.';
-                }
-                if (canvas) {
-                    label += ' \u00B7 CANVAS CREDIT';
-                    title += ' If you submit the completion code shown after this session into Canvas, your Canvas account becomes linked to this conversation in your instructor\u2019s records.';
-                }
-                _legalClear(badge);
-                var iconSpan = document.createElement('span');
-                iconSpan.className = 'material-symbols-outlined';
-                iconSpan.textContent = icon;
-                badge.appendChild(iconSpan);
-                badge.appendChild(_legalText(label));
-                badge.setAttribute('title', title);
-                badge.classList.toggle('mode-attention', nonAnonymous);
-            }
-
-            // ----- Header subtitle -----
-            var subtitle = document.getElementById('chat-header-subtitle');
-            if (subtitle) {
-                if (mode === 'identified') {
-                    subtitle.textContent = 'Linked to the identifier you enter';
-                } else if (mode === 'pseudonymous') {
-                    subtitle.textContent = 'Linked to the pseudonym you enter';
-                } else if (canvas) {
-                    subtitle.textContent = 'Anonymous \u2014 completion code links you to Canvas';
-                } else {
-                    subtitle.textContent = 'Your responses are anonymous';
-                }
-            }
-
-            // ----- Consent modal: intro paragraph -----
-            var intro = document.getElementById('consent-modal-intro');
-            if (intro) {
-                _legalClear(intro);
-                if (mode === 'identified' || mode === 'pseudonymous') {
-                    intro.appendChild(_legalText('LEAI is a mid-course feedback tool. This survey uses '));
-                    intro.appendChild(_legalStrong((mode === 'identified' ? 'identified' : 'pseudonymous') + ' mode'));
-                    intro.appendChild(_legalText(' \u2014 you will be asked to enter an identifier before the chat begins, and the messages you send will be linked to that identifier in your instructor\u2019s records.'));
-                } else {
-                    intro.appendChild(_legalText('LEAI is an '));
-                    intro.appendChild(_legalStrong('anonymous'));
-                    intro.appendChild(_legalText(' mid-course feedback tool. Your responses help your instructor improve your experience '));
-                    intro.appendChild(_legalEm('while the course is still running'));
-                    intro.appendChild(_legalText(' \u2014 not at the end of the quarter.'));
-                }
-                if (canvas) {
-                    intro.appendChild(_legalText(' If you choose to submit the completion code shown after the session into Canvas, your Canvas account will be linked to this conversation in your instructor\u2019s records.'));
-                }
-            }
-
-            // ----- Consent modal: required-checkbox label -----
-            var requiredText = document.getElementById('consent-required-text');
-            if (requiredText) {
-                _legalClear(requiredText);
-                requiredText.appendChild(_legalText('I have read and agree to the '));
-                requiredText.appendChild(_legalLink('legal/terms.html', 'Terms of Use'));
-                requiredText.appendChild(_legalText(' and '));
-                requiredText.appendChild(_legalLink('legal/privacy.html', 'Privacy Policy'));
-                requiredText.appendChild(_legalText('.'));
-                if (mode === 'identified' || mode === 'pseudonymous') {
-                    requiredText.appendChild(_legalText(' I understand the identifier I enter will be stored alongside my messages and visible to my instructor.'));
-                } else {
-                    requiredText.appendChild(_legalText(' I understand my feedback is '));
-                    requiredText.appendChild(_legalStrong('anonymous'));
-                    requiredText.appendChild(_legalText(' and will be used by my instructor to improve the course while it is running.'));
-                }
-                if (canvas) {
-                    requiredText.appendChild(_legalText(' I understand that if I submit the completion code into Canvas, my Canvas account will be linked to this session in my instructor\u2019s records.'));
-                }
-            }
-        }
-
         function initGpt(gpt) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
@@ -808,8 +620,6 @@
             generateIntroductoryMessage(gpt.instructions);
             $('#sendMessage').prop('disabled', false);
         }
-
-        var pendingGpt = null; // GPT data waiting for pre-chat entry
 
         function showInactive(reason) {
             var icons = { closed: '🔒', expired: '⏰', not_yet_open: '📅' };
@@ -827,38 +637,6 @@
             document.querySelector('.main-content').style.display = 'none';
         }
 
-        function showPreChat(gpt) {
-            pendingGpt = gpt;
-            document.getElementById('pre-chat-icon').textContent = '👤';
-            document.getElementById('pre-chat-title').textContent = 'Identify yourself';
-            document.getElementById('pre-chat-msg').textContent = 'Enter an identifier so your instructor can match your feedback across sessions. This will not be shared publicly.';
-            document.getElementById('pre-chat-input').placeholder = 'Student ID or nickname';
-
-            document.getElementById('pre-chat-screen').style.display = 'flex';
-            document.querySelector('.main-content').style.display = 'none';
-            document.getElementById('pre-chat-input').focus();
-        }
-
-        document.getElementById('pre-chat-start-btn').addEventListener('click', function () {
-            var val = document.getElementById('pre-chat-input').value.trim();
-            if (!val) {
-                document.getElementById('pre-chat-input').focus();
-                return;
-            }
-            var gpt = pendingGpt;
-            pendingGpt = null;
-            document.getElementById('pre-chat-screen').style.display = 'none';
-            document.querySelector('.main-content').style.display = '';
-
-            // Pseudonymous: prefix sessionID with identifier
-            window.sessionData.sessionID = val + '_' + window.sessionData.sessionID;
-            initGpt(gpt);
-        });
-
-        document.getElementById('pre-chat-input').addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') document.getElementById('pre-chat-start-btn').click();
-        });
-
         function loadDirectGpt(directId) {
             $('.select-wrapper').hide();
             $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId }, function (gpt) {
@@ -870,22 +648,10 @@
                     return;
                 }
 
-                // Rewrite the anonymity badge / consent modal copy to match
-                // this survey's actual mode BEFORE the consent modal opens.
-                updateLegalCopy(gpt);
-
-                var proceedAfterConsent = function () {
-                    if (gpt.anonymity_mode === 'pseudonymous') {
-                        showPreChat(gpt);
-                    } else {
-                        initGpt(gpt);
-                    }
-                };
-
                 if (hasSessionConsent()) {
-                    proceedAfterConsent();
+                    initGpt(gpt);
                 } else {
-                    showConsentModal(proceedAfterConsent);
+                    showConsentModal(function () { initGpt(gpt); });
                 }
             }).fail(function () {
                 var errP = document.createElement('p');
@@ -957,23 +723,6 @@
                 success: function (response) { console.log('Success:', response); },
                 error: function (xhr, status, error) { console.error('Error:', error); }
             });
-        }
-
-        var completionCodeShown = false;
-        function showCompletionCode() {
-            if (completionCodeShown) return;
-            if (!gptConfig || !gptConfig.canvas_integration) return;
-            completionCodeShown = true;
-            // Derive a short code from the session_id
-            var sid = window.sessionData.sessionID;
-            var hash = 0;
-            for (var i = 0; i < sid.length; i++) {
-                hash = ((hash << 5) - hash) + sid.charCodeAt(i);
-                hash |= 0;
-            }
-            var code = Math.abs(hash).toString(36).toUpperCase().padStart(6, '0').slice(0, 6);
-            document.getElementById('completion-code-value').textContent = code;
-            document.getElementById('completion-code-section').style.display = 'block';
         }
 
         // Text message handling
@@ -1080,7 +829,6 @@
             var message = $('#messageInput').val().trim();
             if (message) {
                 appendMessage('user-message', message);
-                showCompletionCode();
                 getAIresponse(message);
                 chatHistory.push({ role: 'user', content: message });
                 $('#messageInput').val('').css('height', 'auto');

@@ -10,19 +10,15 @@ LEAI streamlines feedback collection to your instructor *throughout the quarter*
 
 ## 2. Your participation is voluntary
 
-Participating in LEAI feedback sessions is **entirely voluntary**. Choosing not to participate, or stopping at any time, will not affect your grade or your standing in the course. You may close the tab at any point, and any in-progress message that you have not sent is discarded. (If your instructor has enabled Canvas completion credit, see Section 3.)
+Participating in LEAI feedback sessions is **entirely voluntary**. Choosing not to participate, or stopping at any time, will not affect your grade or your standing in the course. You may close the tab at any point, and any in-progress message that you have not sent is discarded.
 
-## 3. What information you may be asked for
+## 3. What information is collected
 
-LEAI's anonymity guarantee depends on the **mode** your instructor selected. The chat page shows the active mode in a badge near the top.
+LEAI is **anonymous**. You are not asked for your name, email, student ID, or any other identifying information. The chat page shows an **ANONYMOUS** badge near the top as a visible reminder.
 
-- **Anonymous mode (default).** You are not asked for any identifying information. Do not voluntarily include your name, student ID, classmates' names, or other identifying details in the body of your messages — the system does not need them, and they undermine the anonymity design.
+Please do not voluntarily include your name, student ID, classmates' names, or other identifying details in the body of your messages — the system does not need them, and they undermine the anonymity design.
 
-- **Pseudonymous / identified mode.** Before the chat begins you are asked to enter an identifier (a real name, student ID, or nickname, depending on what your instructor specified). Whatever you type is stored and visible to your instructor.
-
-- **Canvas completion credit.** If your instructor has enabled completion credit, you will be shown a short code at the end of the session. Entering that code into Canvas links your Canvas account to your specific session in your instructor's records. Entering the code is optional.
-
-The full data-handling details for each mode are covered in the LEAI Privacy Policy.
+The full data-handling details are covered in the LEAI Privacy Policy.
 
 ## 4. Appropriate use
 
@@ -52,7 +48,7 @@ If you need an official answer, contact your instructor directly through your co
 
 ## 6. No guarantee of individual reply
 
-In anonymous mode, the instructor cannot tell which submission came from which student, so there is no way for them to reply to you individually through this tool. In identified or Canvas-credit modes the instructor *can* see who you are, but LEAI is still designed for one-way feedback collection — there is no built-in reply channel. If you need a direct response from your instructor, use the course's official communication channels.
+Because the instructor cannot tell which submission came from which student, there is no way for them to reply to you individually through this tool. If you need a direct response from your instructor, use the course's official communication channels.
 
 ## 7. Minimum age
 
@@ -60,7 +56,7 @@ You must be at least 13 years old to use this tool. LEAI is not intended for use
 
 ## 8. FERPA and educational records
 
-LEAI is operated as a research and feedback tool by the GUII Lab. It is not part of UCSC's official student record system, and submissions made through LEAI are not part of your education record under the Family Educational Rights and Privacy Act (FERPA). Even when used for completion credit through Canvas, only the completion code is shared with the LMS — not the contents of your conversation.
+LEAI is operated as a research and feedback tool by the GUII Lab. It is not part of UCSC's official student record system, and submissions made through LEAI are not part of your education record under the Family Educational Rights and Privacy Act (FERPA).
 
 ## 9. Disclaimers and limitation of liability
 

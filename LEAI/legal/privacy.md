@@ -4,17 +4,13 @@
 
 Your privacy matters. This page explains, in plain language, what LEAI collects, what it does not collect, who can see it, and what happens to it.
 
-**The short version:** LEAI is anonymous by default. If your instructor enables one of the optional modes (pseudonymous, identified, or Canvas completion credit), the guarantee changes — and we say so directly in this document and in the chat interface itself. We do not sell, advertise, or build a profile of you.
+**The short version:** LEAI is anonymous. We do not collect your name, email, student ID, or any other identifying information; we do not sell or share your feedback; and we do not build a profile of you. The rest of this document explains the details.
 
-## 1. Anonymous by default — but read on
+## 1. Anonymous by design
 
-When your instructor creates a survey, they pick an *anonymity mode*. This is the single most important thing for understanding what LEAI collects from you. The chat page shows the active mode in a badge near the top of the screen — look for it before you start typing.
+When you use the LEAI Feedback Collector, no name, email, student ID, institutional login, or profile information is asked for or stored. Your conversation is tagged with a randomly generated session code (for example, *id_k3m9x2ab*) so the system can group your messages within one conversation. The code is not linked to you as a person, and when you close the tab the link between you and that code is gone.
 
-**Anonymous mode (default).** No name, email, student ID, institutional login, or profile information is asked for or stored. Your conversation is tagged with a randomly generated session code (for example, *id_k3m9x2ab*) so the system can group your messages within one conversation. The code is not linked to you as a person. Your instructor cannot tell which submission came from which student. This is the default mode and the one we recommend instructors keep.
-
-**Pseudonymous / identified mode.** Before the chat begins you are asked to enter an identifier — a real name, student ID, nickname, or whatever the instructor specifies. Whatever you type is stored as part of your session record and is visible to your instructor and any teaching assistants they share access with. Choose carefully: if you type your real name or your university ID, the conversation is no longer anonymous to your instructor. If your instructor allows nicknames, you may use one.
-
-**Canvas completion credit.** If your instructor enables completion credit, a short code is shown to you at the end of your session. You may choose to enter that code into Canvas (or another LMS) to receive credit for participating. **If you do this, your Canvas account becomes linked to your specific session in your instructor's records.** That is the trade-off for receiving credit; you can decline to enter the code if you prefer to remain unlinked.
+Your instructor cannot tell which submission came from which student. That is the point — it lets you be honest without worrying about how it might look. The chat page shows an **ANONYMOUS** badge near the top of the screen as a visual reminder of this guarantee.
 
 ## 2. What we store
 
@@ -26,7 +22,7 @@ For each message you send or receive in LEAI, the backend stores:
 
 - A timestamp
 
-- The session code, and — in pseudonymous or identified mode — the identifier you entered
+- The randomly generated session code described above
 
 - The survey identifier (which course and which prompt)
 
@@ -46,7 +42,7 @@ The whole point of LEAI is to streamline feedback to your instructor *while the 
 
 ## 5. Who can see your data
 
-- **Your course instructor** and any teaching assistants the instructor grants access to (by sharing the course's access password) can read the feedback submitted to that course's surveys, in whatever mode the instructor chose. Anyone the instructor shares the course password with can read everything submitted to that course; the instructor is responsible for controlling that scope.
+- **Your course instructor** and any teaching assistants the instructor grants access to (by sharing the course's access password) can read the anonymous feedback submitted to that course's surveys. Anyone the instructor shares the course password with can read everything submitted to that course; the instructor is responsible for controlling that scope.
 
 - **The GUII Lab research team** maintains the system and has access to the underlying database as needed to operate the service (fixing bugs, performing backups, and migrating data).
 
@@ -72,9 +68,7 @@ LEAI is a research prototype and does not yet enforce an automated retention sch
 
 ## 9. Your rights
 
-In **anonymous** mode there is no identity attached to your submissions, so there is no way for us to look up “your” data and remove it individually. The most reliable way to keep something out of the dataset is to not submit it: you can close the tab at any time and any unsent draft is discarded.
-
-In **pseudonymous, identified, or Canvas-credit** modes the situation is different — your submissions can be located. If you want a specific session removed in those modes, contact your instructor or write to the GUII Lab. We will honor reasonable removal requests subject to verification that the request comes from the person who made the submission.
+Because LEAI does not collect any identity from you, there is no way for us to look up “your” data and remove it individually — there is simply no identifier to look up. The most reliable way to keep something out of the dataset is to not submit it: you can close the tab at any time and any unsent draft is discarded.
 
 ## 10. Security
 
@@ -82,7 +76,7 @@ Data is transmitted over HTTPS and stored in a managed cloud database operated b
 
 ## 11. FERPA and educational records
 
-LEAI is a research and feedback tool operated by the GUII Lab at UC Santa Cruz. It is not part of UCSC's official student record system. Submissions made through LEAI are not part of your education record under the Family Educational Rights and Privacy Act (FERPA), and they are not shared with the UCSC registrar. If your instructor uses LEAI to award participation credit through Canvas, only the completion code (and your decision to enter it) is shared with the LMS — not the contents of your conversation.
+LEAI is a research and feedback tool operated by the GUII Lab at UC Santa Cruz. It is not part of UCSC's official student record system. Submissions made through LEAI are not part of your education record under the Family Educational Rights and Privacy Act (FERPA), and they are not shared with the UCSC registrar.
 
 ## 12. Changes to this policy
 

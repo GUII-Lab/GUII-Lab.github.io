@@ -22,20 +22,12 @@ from docx.shared import Pt
 # Tiny formatting helpers
 # ---------------------------------------------------------------------------
 
-def add_intro_italic(doc, text):
-    """Add an italic line — used for the 'Last updated' caption."""
-    p = doc.add_paragraph()
-    run = p.add_run(text)
-    run.italic = True
-
-
-def add_para(doc, *segments):
-    """Add a paragraph composed of (text, {bold,italic}) segments.
+def _fill(p, segments):
+    """Populate ``p`` with runs from (text, {bold,italic}) segments.
 
     Each segment is either a plain string (regular text) or a tuple
     ``(text, "bold")`` / ``(text, "italic")`` / ``(text, "bold-italic")``.
     """
-    p = doc.add_paragraph()
     for seg in segments:
         if isinstance(seg, str):
             p.add_run(seg)
@@ -47,22 +39,21 @@ def add_para(doc, *segments):
         if "italic" in fmt:
             run.italic = True
     return p
+
+
+def add_para(doc, *segments):
+    """Add a paragraph composed of (text, {bold,italic}) segments."""
+    return _fill(doc.add_paragraph(), segments)
 
 
 def add_bullet(doc, *segments):
     """Add a bullet-list paragraph composed of formatted segments."""
-    p = doc.add_paragraph(style="List Bullet")
-    for seg in segments:
-        if isinstance(seg, str):
-            p.add_run(seg)
-            continue
-        text, fmt = seg
-        run = p.add_run(text)
-        if "bold" in fmt:
-            run.bold = True
-        if "italic" in fmt:
-            run.italic = True
-    return p
+    return _fill(doc.add_paragraph(style="List Bullet"), segments)
+
+
+def add_intro_italic(doc, text):
+    """Add an italic line — used for the 'Last updated' caption."""
+    return add_para(doc, (text, "italic"))
 
 
 def normalize_styles(doc):
@@ -91,61 +82,31 @@ def build_privacy_policy(out_path: Path) -> None:
     add_para(
         doc,
         ("The short version: ", "bold"),
-        "LEAI is anonymous by default. If your instructor enables one of the optional "
-        "modes (pseudonymous, identified, or Canvas completion credit), the "
-        "guarantee changes — and we say so directly in this document and in the chat "
-        "interface itself. We do not sell, advertise, or build a profile of you.",
+        "LEAI is anonymous. We do not collect your name, email, student ID, or any "
+        "other identifying information; we do not sell or share your feedback; and "
+        "we do not build a profile of you. The rest of this document explains the "
+        "details.",
     )
 
-    # ---- Section 1: anonymity modes ---------------------------------------
-    doc.add_heading("1. Anonymous by default — but read on", level=2)
+    # ---- Section 1: anonymous by design -----------------------------------
+    doc.add_heading("1. Anonymous by design", level=2)
     add_para(
         doc,
-        "When your instructor creates a survey, they pick an ",
-        ("anonymity mode", "italic"),
-        ". This is the single most important thing for understanding what LEAI "
-        "collects from you. The chat page shows the active mode in a badge near the "
-        "top of the screen — look for it before you start typing.",
-    )
-
-    add_para(
-        doc,
-        ("Anonymous mode (default). ", "bold"),
-        "No name, email, student ID, institutional login, or profile information is "
-        "asked for or stored. Your conversation is tagged with a randomly generated "
-        "session code (for example, ",
+        "When you use the LEAI Feedback Collector, no name, email, student ID, "
+        "institutional login, or profile information is asked for or stored. Your "
+        "conversation is tagged with a randomly generated session code (for example, ",
         ("id_k3m9x2ab", "italic"),
         ") so the system can group your messages within one conversation. The code "
-        "is not linked to you as a person. Your instructor cannot tell which "
-        "submission came from which student. This is the default mode and the one "
-        "we recommend instructors keep.",
+        "is not linked to you as a person, and when you close the tab the link "
+        "between you and that code is gone.",
     )
-
     add_para(
         doc,
-        ("Pseudonymous / identified mode. ", "bold"),
-        "Before the chat begins you are asked to enter an identifier — a real name, "
-        "student ID, nickname, or whatever the instructor specifies. Whatever you "
-        "type is stored as part of your session record and is visible to your "
-        "instructor and any teaching assistants they share access with. Choose "
-        "carefully: if you type your real name or your university ID, the "
-        "conversation is no longer anonymous to your instructor. If your instructor "
-        "allows nicknames, you may use one.",
-    )
-
-    add_para(
-        doc,
-        ("Canvas completion credit. ", "bold"),
-        "If your instructor enables completion credit, a short code is shown to you "
-        "at the end of your session. You may choose to enter that code into Canvas "
-        "(or another LMS) to receive credit for participating. ",
-        (
-            "If you do this, your Canvas account becomes linked to your specific "
-            "session in your instructor's records. ",
-            "bold",
-        ),
-        "That is the trade-off for receiving credit; you can decline to enter the "
-        "code if you prefer to remain unlinked.",
+        "Your instructor cannot tell which submission came from which student. That "
+        "is the point — it lets you be honest without worrying about how it might "
+        "look. The chat page shows an ",
+        ("ANONYMOUS", "bold"),
+        " badge near the top of the screen as a visual reminder of this guarantee.",
     )
 
     # ---- Section 2: what we store -----------------------------------------
@@ -154,11 +115,7 @@ def build_privacy_policy(out_path: Path) -> None:
     add_bullet(doc, "The text of the message")
     add_bullet(doc, "Whether the message came from you or from the AI")
     add_bullet(doc, "A timestamp")
-    add_bullet(
-        doc,
-        "The session code, and — in pseudonymous or identified mode — "
-        "the identifier you entered",
-    )
+    add_bullet(doc, "The randomly generated session code described above")
     add_bullet(doc, "The survey identifier (which course and which prompt)")
     add_bullet(doc, "The name of the AI model used to generate the reply")
     add_bullet(doc, "Your per-session research-consent choice (see Section 6)")
@@ -203,10 +160,10 @@ def build_privacy_policy(out_path: Path) -> None:
         doc,
         ("Your course instructor ", "bold"),
         "and any teaching assistants the instructor grants access to (by sharing "
-        "the course's access password) can read the feedback submitted to that "
-        "course's surveys, in whatever mode the instructor chose. Anyone the "
-        "instructor shares the course password with can read everything submitted "
-        "to that course; the instructor is responsible for controlling that scope.",
+        "the course's access password) can read the anonymous feedback submitted "
+        "to that course's surveys. Anyone the instructor shares the course password "
+        "with can read everything submitted to that course; the instructor is "
+        "responsible for controlling that scope.",
     )
     add_bullet(
         doc,
@@ -292,22 +249,11 @@ def build_privacy_policy(out_path: Path) -> None:
     doc.add_heading("9. Your rights", level=2)
     add_para(
         doc,
-        "In ",
-        ("anonymous", "bold"),
-        " mode there is no identity attached to your submissions, so there is no "
-        "way for us to look up \u201cyour\u201d data and remove it individually. The "
-        "most reliable way to keep something out of the dataset is to not submit "
-        "it: you can close the tab at any time and any unsent draft is discarded.",
-    )
-    add_para(
-        doc,
-        "In ",
-        ("pseudonymous, identified, or Canvas-credit", "bold"),
-        " modes the situation is different — your submissions can be located. If "
-        "you want a specific session removed in those modes, contact your "
-        "instructor or write to the GUII Lab. We will honor reasonable removal "
-        "requests subject to verification that the request comes from the person "
-        "who made the submission.",
+        "Because LEAI does not collect any identity from you, there is no way for "
+        "us to look up \u201cyour\u201d data and remove it individually \u2014 there "
+        "is simply no identifier to look up. The most reliable way to keep "
+        "something out of the dataset is to not submit it: you can close the tab "
+        "at any time and any unsent draft is discarded.",
     )
 
     # ---- Section 10: security ---------------------------------------------
@@ -332,9 +278,7 @@ def build_privacy_policy(out_path: Path) -> None:
         "Cruz. It is not part of UCSC's official student record system. Submissions "
         "made through LEAI are not part of your education record under the Family "
         "Educational Rights and Privacy Act (FERPA), and they are not shared with "
-        "the UCSC registrar. If your instructor uses LEAI to award participation "
-        "credit through Canvas, only the completion code (and your decision to "
-        "enter it) is shared with the LMS — not the contents of your conversation.",
+        "the UCSC registrar.",
     )
 
     # ---- Section 12: changes ----------------------------------------------
@@ -401,46 +345,29 @@ def build_terms_of_use(out_path: Path) -> None:
         ("entirely voluntary", "bold"),
         ". Choosing not to participate, or stopping at any time, will not affect "
         "your grade or your standing in the course. You may close the tab at any "
-        "point, and any in-progress message that you have not sent is discarded. "
-        "(If your instructor has enabled Canvas completion credit, see Section 3.)",
+        "point, and any in-progress message that you have not sent is discarded.",
     )
 
-    # ---- Section 3: what info you may be asked for ------------------------
-    doc.add_heading("3. What information you may be asked for", level=2)
+    # ---- Section 3: what info is collected --------------------------------
+    doc.add_heading("3. What information is collected", level=2)
     add_para(
         doc,
-        "LEAI's anonymity guarantee depends on the ",
-        ("mode", "bold"),
-        " your instructor selected. The chat page shows the active mode in a badge "
-        "near the top.",
-    )
-    add_bullet(
-        doc,
-        ("Anonymous mode (default). ", "bold"),
-        "You are not asked for any identifying information. Do not voluntarily "
-        "include your name, student ID, classmates' names, or other identifying "
-        "details in the body of your messages — the system does not need them, and "
-        "they undermine the anonymity design.",
-    )
-    add_bullet(
-        doc,
-        ("Pseudonymous / identified mode. ", "bold"),
-        "Before the chat begins you are asked to enter an identifier (a real name, "
-        "student ID, or nickname, depending on what your instructor specified). "
-        "Whatever you type is stored and visible to your instructor.",
-    )
-    add_bullet(
-        doc,
-        ("Canvas completion credit. ", "bold"),
-        "If your instructor has enabled completion credit, you will be shown a "
-        "short code at the end of the session. Entering that code into Canvas "
-        "links your Canvas account to your specific session in your instructor's "
-        "records. Entering the code is optional.",
+        "LEAI is ",
+        ("anonymous", "bold"),
+        ". You are not asked for your name, email, student ID, or any other "
+        "identifying information. The chat page shows an ",
+        ("ANONYMOUS", "bold"),
+        " badge near the top as a visible reminder.",
     )
     add_para(
         doc,
-        "The full data-handling details for each mode are covered in the LEAI "
-        "Privacy Policy.",
+        "Please do not voluntarily include your name, student ID, classmates' "
+        "names, or other identifying details in the body of your messages \u2014 "
+        "the system does not need them, and they undermine the anonymity design.",
+    )
+    add_para(
+        doc,
+        "The full data-handling details are covered in the LEAI Privacy Policy.",
     )
 
     # ---- Section 4: appropriate use ---------------------------------------
@@ -496,14 +423,10 @@ def build_terms_of_use(out_path: Path) -> None:
     doc.add_heading("6. No guarantee of individual reply", level=2)
     add_para(
         doc,
-        "In anonymous mode, the instructor cannot tell which submission came from "
-        "which student, so there is no way for them to reply to you individually "
-        "through this tool. In identified or Canvas-credit modes the instructor ",
-        ("can", "italic"),
-        " see who you are, but LEAI is still designed for one-way feedback "
-        "collection — there is no built-in reply channel. If you need a direct "
-        "response from your instructor, use the course's official communication "
-        "channels.",
+        "Because the instructor cannot tell which submission came from which "
+        "student, there is no way for them to reply to you individually through "
+        "this tool. If you need a direct response from your instructor, use the "
+        "course's official communication channels.",
     )
 
     # ---- Section 7: minimum age -------------------------------------------
@@ -523,9 +446,7 @@ def build_terms_of_use(out_path: Path) -> None:
         "LEAI is operated as a research and feedback tool by the GUII Lab. It is "
         "not part of UCSC's official student record system, and submissions made "
         "through LEAI are not part of your education record under the Family "
-        "Educational Rights and Privacy Act (FERPA). Even when used for completion "
-        "credit through Canvas, only the completion code is shared with the LMS — "
-        "not the contents of your conversation.",
+        "Educational Rights and Privacy Act (FERPA).",
     )
 
     # ---- Section 9: disclaimers / liability -------------------------------
