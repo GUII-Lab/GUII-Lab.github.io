@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEAI Feedback Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="leai-tailwind-config.js"></script>
+    <link rel="stylesheet" href="leai-shared.css">
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        /* Page header */
+        .page-header {
+            padding: 20px 28px 16px;
+            border-bottom: 1px solid var(--surface-mid);
+            background: var(--surface-card);
+            flex-shrink: 0;
+        }
+        .page-header h1 {
+            font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+            color: var(--text); line-height: 1.2; margin-bottom: 4px;
+        }
+        .page-header p {
+            color: var(--text-variant); font-size: 0.82rem; line-height: 1.5;
+        }
+        .page-header p a { color: var(--primary); text-decoration: none; }
+        .page-header p a:hover { text-decoration: underline; }
+
+        /* Workspace fills remaining height */
+        .chat-workspace {
+            flex: 1; display: flex; overflow: hidden;
+        }
+
+        /* Session list footer */
+        .chat-sessions-footer {
+            padding: 10px 12px;
+            border-top: 1px solid var(--surface-mid);
+            font-size: 0.56rem; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        /* New chat button */
+        .new-chat-btn {
+            display: flex; align-items: center; gap: 6px;
+            width: calc(100% - 16px); margin: 8px 8px 4px;
+            padding: 8px 10px; background: var(--primary); color: var(--on-primary);
+            border: none; border-radius: var(--radius-sm);
+            font-family: inherit; font-size: 0.72rem; font-weight: 700;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .new-chat-btn:hover { background: var(--primary-dim); }
+
+        /* Sessions list header */
+        .sessions-list-header {
+            padding: 10px 12px 6px;
+            font-size: 0.56rem; font-weight: 700; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+
+        /* Chat header title editable */
+        .chat-title-editable {
+            font-size: 1rem; font-weight: 700; letter-spacing: -0.01em;
+            color: var(--text); outline: none; line-height: 1.3;
+            margin: 0; border: none; background: transparent;
+        }
+        .chat-title-editable[contenteditable="true"] {
+            border-bottom: 2px solid var(--primary);
+            padding-bottom: 2px;
+        }
+
+        /* Empty state */
+        .chat-empty-state {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 40px 20px; text-align: center;
+        }
+        .chat-empty-state h3 {
+            font-size: 1rem; font-weight: 700; color: var(--text);
+            margin-bottom: 16px;
+        }
+        .quick-prompts {
+            display: flex; flex-direction: column; gap: 8px;
+            max-width: 400px; width: 100%;
+        }
+        .quick-prompt-btn {
+            background: var(--surface-card); border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm); padding: 10px 14px;
+            font-family: inherit; font-size: 0.82rem; color: var(--text);
+            cursor: pointer; text-align: left; line-height: 1.4;
+            transition: background 0.12s, border-color 0.12s;
+        }
+        .quick-prompt-btn:hover {
+            background: var(--surface-low); border-color: var(--primary);
+        }
+
+        /* Advanced system prompt */
+        .advanced-toggle-btn {
+            background: none; border: none; cursor: pointer;
+            font-family: inherit; font-size: 0.62rem; font-weight: 700;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em;
+            padding: 0; display: flex; align-items: center; gap: 4px;
+        }
+        .advanced-toggle-btn:hover { color: var(--text-variant); }
+        .advanced-panel {
+            display: none; margin-top: 10px; max-width: 860px;
+        }
+        .advanced-panel.open { display: block; }
+        .advanced-panel textarea {
+            width: 100%; min-height: 100px; resize: vertical;
+            font-family: ui-monospace, 'SF Mono', monospace;
+            font-size: 0.72rem; line-height: 1.5;
+            padding: 10px; border: 1px solid var(--outline);
+            border-radius: var(--radius-sm); background: var(--surface);
+            color: var(--text); margin-bottom: 8px;
+        }
+        .advanced-actions { display: flex; gap: 8px; }
+
+        /* Inline error toast */
+        .chat-error-toast {
+            background: #fee2e2; color: var(--error);
+            font-size: 0.78rem; padding: 8px 14px;
+            border-radius: var(--radius-sm);
+            align-self: center; max-width: 80%;
+        }
+
+        /* Mobile session toggle */
+        .mobile-sessions-btn {
+            display: none; background: none; border: none; cursor: pointer;
+            color: var(--text-variant); padding: 4px;
+        }
+        .mobile-new-chat-btn {
+            display: none; background: none; border: none; cursor: pointer;
+            color: var(--primary); padding: 4px; margin-left: auto;
+        }
+
+        @media (max-width: 767px) {
+            .page-header { padding: 14px 16px 12px; }
+            .page-header h1 { font-size: 1.15rem; }
+            .mobile-sessions-btn { display: flex; align-items: center; }
+            .mobile-new-chat-btn { display: flex; align-items: center; }
+            .scope-bar { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+    <div class="login-card">
+        <div class="login-logo">LEAI</div>
+        <h1>Feedback Chat</h1>
+        <p>Enter your course ID and dashboard password to start chatting.</p>
+        <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide &rarr;</a></p>
+        <label style="margin-top:14px">Course ID</label>
+        <input type="text" id="login-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Dashboard password" />
+        <button class="btn btn-primary" id="login-btn">Start Chatting</button>
+        <div id="login-msg"></div>
+        <p class="login-help">Need help? Contact your course administrator.</p>
+    </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <span class="sidebar-logo">LEAI</span>
+                <span class="sidebar-course-id" id="sidebar-course-id"></span>
+            </div>
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="sidebar-nav">
+            <a href="PromptDesigner.html" class="sidebar-item" id="nav-prompt-designer" title="Prompt Designer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span class="sidebar-label">Prompt Designer</span>
+            </a>
+            <a href="FeedbackAnalyzer.html" class="sidebar-item" id="nav-feedback-analyzer" title="Feedback Analyzer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span class="sidebar-label">Feedback Analyzer</span>
+            </a>
+            <a href="FeedbackChat.html" class="sidebar-item" id="nav-feedback-chat" title="Feedback Chat">
+                <span class="material-symbols-outlined">forum</span>
+                <span class="sidebar-label">Feedback Chat</span>
+            </a>
+            <a href="instructor-guide.html" class="sidebar-item" title="Instructor Guide">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span class="sidebar-label">Instructor Guide</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-version" data-leai-version></div>
+            <button class="sidebar-item" id="sidebar-signout" title="Sign Out">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span class="sidebar-label">Sign Out</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="app-main" style="overflow:hidden">
+        <div id="mobile-topbar">
+            <button id="hamburger-btn" aria-label="Open menu">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <span class="mobile-brand">LEAI</span>
+            <button class="mobile-new-chat-btn" id="mobile-new-chat-btn" title="New chat">
+                <span class="material-symbols-outlined" style="font-size:22px">add</span>
+            </button>
+        </div>
+        <div id="sidebar-scrim"></div>
+
+        <!-- Page header -->
+        <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <button class="mobile-sessions-btn" id="mobile-sessions-btn" title="Show sessions">
+                <span class="material-symbols-outlined" style="font-size:22px">menu_open</span>
+            </button>
+            <div style="flex:1;min-width:0">
+                <h1>Feedback Chat</h1>
+                <p>Chat with your survey data. <a href="FeedbackAnalyzer.html">&larr; Back to Analyzer</a></p>
+            </div>
+        </div>
+
+        <!-- Chat workspace -->
+        <div class="chat-workspace">
+            <!-- Session list (left) -->
+            <div class="chat-sessions" id="chat-sessions">
+                <button class="new-chat-btn" id="new-chat-btn">
+                    <span class="material-symbols-outlined" style="font-size:16px">add</span>
+                    New chat
+                </button>
+                <div class="sessions-list-header" id="sessions-list-header">Recent</div>
+                <div class="chat-sessions-scroll" id="sessions-list"></div>
+                <div class="chat-sessions-footer" id="sessions-footer">Stored on server</div>
+            </div>
+
+            <!-- Chat column (right) -->
+            <div class="chat-column">
+                <div class="chat-header" id="chat-header" style="display:none">
+                    <div class="chat-title-row">
+                        <h2 class="chat-title-editable" id="chat-title">New chat</h2>
+                        <div style="display:flex;gap:6px;flex-shrink:0">
+                            <button class="btn-ghost btn-sm" id="rename-btn" title="Rename">Rename</button>
+                            <button class="btn-ghost btn-sm" id="export-btn" title="Export">Export</button>
+                            <button class="btn-ghost btn-sm" id="delete-btn" title="Delete" style="color:var(--error)">Delete</button>
+                        </div>
+                    </div>
+                    <div class="scope-bar" id="chat-scope-bar"></div>
+                </div>
+
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-empty-state" id="chat-empty-state">
+                        <span class="material-symbols-outlined" style="font-size:48px;color:var(--outline);margin-bottom:12px">forum</span>
+                        <h3>Ask about your survey data</h3>
+                        <div class="quick-prompts" id="quick-prompts"></div>
+                    </div>
+                </div>
+
+                <div class="chat-input-area" id="chat-input-area" style="display:none">
+                    <div class="chat-input-row">
+                        <textarea id="chat-input" placeholder="Ask about your survey data..." rows="1"></textarea>
+                        <button class="btn btn-sm" id="send-btn" style="height:52px;padding:0 18px">
+                            <span class="material-symbols-outlined" style="font-size:18px">send</span>
+                        </button>
+                    </div>
+                    <div class="chat-input-footer">
+                        <button class="advanced-toggle-btn" id="advanced-toggle-btn">
+                            <span id="advanced-arrow">&#9656;</span> Advanced &middot; system prompt
+                        </button>
+                        <span>Shift+Enter for newline</span>
+                    </div>
+                    <div class="advanced-panel" id="advanced-panel">
+                        <textarea id="system-prompt-editor"></textarea>
+                        <div class="advanced-actions">
+                            <button class="btn-ghost" id="restore-default-btn" style="font-size:0.72rem">Restore default</button>
+                            <button class="btn-ghost" id="replay-last-btn" style="font-size:0.72rem">&#9654; Replay last turn</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete confirmation modal -->
+<div class="modal-overlay" id="delete-modal">
+    <div class="modal-box">
+        <h3>Delete this chat?</h3>
+        <p>This will permanently delete the session and all its messages. This action cannot be undone.</p>
+        <div class="modal-actions">
+            <button class="btn-ghost" id="delete-cancel-btn">Cancel</button>
+            <button class="btn btn-sm" id="delete-confirm-btn" style="background:var(--error)">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script src="leai-shared.js"></script>
+<script src="leai-version.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    // ===== STATE =====
+    var session = null;
+    var sessions = [];
+    var activeSessionId = null;
+    var activeSessionData = null;
+    var isSending = false;
+
+    // ===== LOGIN =====
+    document.getElementById('login-btn').addEventListener('click', function () {
+        var courseId = document.getElementById('login-course-id').value.trim();
+        var password = document.getElementById('login-password').value;
+        if (!courseId || !password) { showLoginMsg('Enter course ID and password.'); return; }
+        this.disabled = true;
+        fetch(API + '/verify_course_password/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: courseId, password: password })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.valid) {
+                session = { courseId: courseId, courseName: data.course_name };
+                saveSession(session);
+                enterApp();
+            } else {
+                var loginErr = data.error || '';
+                var loginMsg = (loginErr === 'Invalid password' || loginErr === 'Incorrect password.')
+                    ? 'Incorrect password. Please try again.'
+                    : (loginErr === 'Course not found' ? 'Course ID not found. Double-check or create a new course.'
+                    : 'Sign-in failed. Please check your Course ID and password.');
+                showLoginMsg(loginMsg);
+            }
+        })
+        .catch(function () { showLoginMsg('Network error.'); })
+        .finally(function () { document.getElementById('login-btn').disabled = false; });
+    });
+
+    document.getElementById('login-password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') document.getElementById('login-btn').click();
+    });
+
+    function showLoginMsg(text) {
+        var el = document.getElementById('login-msg');
+        el.className = 'msg msg-error';
+        el.textContent = text;
+    }
+
+    function enterApp() {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        initSidebar('nav-feedback-chat', function () {
+            session = null;
+            sessions = [];
+            activeSessionId = null;
+            activeSessionData = null;
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-msg').textContent = '';
+        });
+        handleDeepLink();
+    }
+
+    // ===== AUTO-LOGIN FROM SESSION =====
+    document.addEventListener('DOMContentLoaded', function () {
+        var stored = getSession();
+        if (stored && stored.courseId) {
+            session = stored;
+            enterApp();
+        }
+    });
+
+    // ===== DEEP LINK HANDLING =====
+    function handleDeepLink() {
+        var params = new URLSearchParams(window.location.search);
+        var sessionParam = params.get('session');
+        var seedParam = params.get('seed');
+        var scopeParam = params.get('scope');
+
+        if (sessionParam === 'new' && seedParam === 'quicktake' && scopeParam) {
+            var scope;
+            if (scopeParam === 'entire-course') {
+                scope = { kind: 'course' };
+            } else if (scopeParam.indexOf('week-') === 0) {
+                var weekNum = parseInt(scopeParam.replace('week-', ''), 10);
+                scope = { kind: 'week', week_number: weekNum };
+            } else {
+                scope = { kind: 'course' };
+            }
+
+            leaiChat.getQuickTake(session.courseId, scopeParam)
+                .then(function (qt) {
+                    var seedMsg = null;
+                    if (qt && qt.bullets && qt.bullets.length) {
+                        var bulletList = qt.bullets.map(function (b, i) { return (i + 1) + '. ' + b; }).join('\n');
+                        seedMsg = 'CONTEXT FROM AI QUICK TAKE (' + scopeParam + '):\n' + bulletList;
+                    }
+                    return leaiChat.createSession(session.courseId, {
+                        scope: scope,
+                        seedSystemMessage: seedMsg
+                    });
+                })
+                .then(function (newSession) {
+                    history.replaceState(null, '', 'FeedbackChat.html');
+                    loadSessions(newSession.id || newSession.session_id);
+                })
+                .catch(function () {
+                    history.replaceState(null, '', 'FeedbackChat.html');
+                    loadSessions();
+                });
+        } else {
+            loadSessions();
+        }
+    }
+
+    // ===== SESSION LIST =====
+    function loadSessions(selectId) {
+        leaiChat.listSessions(session.courseId)
+            .then(function (data) {
+                sessions = data.sessions || [];
+                renderSessionList();
+                document.getElementById('sessions-footer').textContent =
+                    'Stored on server \u00b7 ' + sessions.length + ' chat' + (sessions.length !== 1 ? 's' : '');
+
+                var targetId = selectId || sessionStorage.getItem('leai_chat_active_' + session.courseId);
+                if (targetId && sessions.some(function (s) { return (s.id || s.session_id) === targetId; })) {
+                    selectSession(targetId);
+                } else if (sessions.length > 0) {
+                    selectSession(sessions[0].id || sessions[0].session_id);
+                } else {
+                    showNoSession();
+                }
+            })
+            .catch(function () {
+                showNoSession();
+            });
+    }
+
+    function renderSessionList() {
+        var container = document.getElementById('sessions-list');
+        container.textContent = '';
+        document.getElementById('sessions-list-header').textContent = 'Recent \u00b7 ' + sessions.length;
+
+        sessions.forEach(function (s) {
+            var sid = s.id || s.session_id;
+            var item = document.createElement('div');
+            item.className = 'chat-session-item' + (sid === activeSessionId ? ' active' : '');
+            item.setAttribute('data-id', sid);
+
+            var title = document.createElement('div');
+            title.className = 'chat-session-title';
+            title.textContent = s.title || 'New chat';
+
+            var meta = document.createElement('div');
+            meta.className = 'chat-session-meta';
+            var parts = [];
+            if (s.scope) {
+                if (s.scope.kind === 'week' && s.scope.week_number != null) {
+                    parts.push('Week ' + s.scope.week_number);
+                } else {
+                    parts.push('Course');
+                }
+            }
+            var turnCount = s.turn_count || s.message_count || 0;
+            parts.push(turnCount + ' turn' + (turnCount !== 1 ? 's' : ''));
+            parts.push(relativeTime(s.updated_at || s.created_at));
+            meta.textContent = parts.join(' \u00b7 ');
+
+            item.appendChild(title);
+            item.appendChild(meta);
+            item.addEventListener('click', function () {
+                selectSession(sid);
+            });
+            container.appendChild(item);
+        });
+    }
+
+    function relativeTime(isoStr) {
+        if (!isoStr) return '';
+        var diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+        if (diff < 60) return 'just now';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+        return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    // ===== SESSION SELECTION =====
+    function selectSession(sessionId) {
+        activeSessionId = sessionId;
+        sessionStorage.setItem('leai_chat_active_' + session.courseId, sessionId);
+
+        // Update active highlight
+        var items = document.querySelectorAll('.chat-session-item');
+        items.forEach(function (el) {
+            el.classList.toggle('active', el.getAttribute('data-id') === sessionId);
+        });
+
+        // Show loading state
+        document.getElementById('chat-header').style.display = 'block';
+        document.getElementById('chat-input-area').style.display = 'block';
+        var msgContainer = document.getElementById('chat-messages');
+        msgContainer.textContent = '';
+        var loadingDiv = document.createElement('div');
+        loadingDiv.style.cssText = 'padding:40px;display:flex;flex-direction:column;gap:8px;align-items:center';
+        var s1 = document.createElement('div'); s1.className = 'shimmer-line'; s1.style.width = '60%';
+        var s2 = document.createElement('div'); s2.className = 'shimmer-line'; s2.style.width = '80%';
+        var s3 = document.createElement('div'); s3.className = 'shimmer-line'; s3.style.width = '40%';
+        loadingDiv.appendChild(s1); loadingDiv.appendChild(s2); loadingDiv.appendChild(s3);
+        msgContainer.appendChild(loadingDiv);
+
+        // Close mobile session panel
+        document.getElementById('chat-sessions').classList.remove('mobile-open');
+
+        leaiChat.getSession(sessionId)
+            .then(function (data) {
+                activeSessionData = data;
+                renderChatHeader(data);
+                renderMessages(data.messages || []);
+                renderSystemPromptEditor(data);
+            })
+            .catch(function () {
+                msgContainer.textContent = '';
+                var errDiv = document.createElement('div');
+                errDiv.className = 'chat-error-toast';
+                errDiv.textContent = 'Failed to load session.';
+                msgContainer.appendChild(errDiv);
+            });
+    }
+
+    function showNoSession() {
+        activeSessionId = null;
+        activeSessionData = null;
+        document.getElementById('chat-header').style.display = 'none';
+        document.getElementById('chat-input-area').style.display = 'none';
+        var msgContainer = document.getElementById('chat-messages');
+        msgContainer.textContent = '';
+        msgContainer.appendChild(createEmptyState());
+    }
+
+    // ===== RENDER CHAT HEADER =====
+    function renderChatHeader(data) {
+        var titleEl = document.getElementById('chat-title');
+        titleEl.textContent = data.title || 'New chat';
+        titleEl.contentEditable = 'false';
+
+        var scopeBar = document.getElementById('chat-scope-bar');
+        scopeBar.textContent = '';
+        if (data.scope) {
+            var chip = document.createElement('span');
+            chip.className = 'scope-chip active';
+            if (data.scope.kind === 'week' && data.scope.week_number != null) {
+                chip.textContent = 'Week ' + data.scope.week_number;
+            } else {
+                chip.textContent = 'Entire course';
+            }
+            scopeBar.appendChild(chip);
+        }
+    }
+
+    // ===== RENDER MESSAGES =====
+    function renderMessages(messages) {
+        var container = document.getElementById('chat-messages');
+        container.textContent = '';
+
+        var hasVisibleMessages = false;
+        messages.forEach(function (m) {
+            if (m.role === 'system') return;
+            hasVisibleMessages = true;
+
+            if (m.role === 'user') {
+                container.appendChild(createUserBubble(m.text || m.content));
+            } else if (m.role === 'assistant') {
+                container.appendChild(createAssistantBubble(m));
+            }
+        });
+
+        if (!hasVisibleMessages) {
+            container.appendChild(createEmptyState());
+        }
+
+        scrollToBottom();
+    }
+
+    function createEmptyState() {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'chat-empty-state';
+        wrapper.id = 'chat-empty-state';
+
+        var icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined';
+        icon.style.cssText = 'font-size:48px;color:var(--outline);margin-bottom:12px';
+        icon.textContent = 'forum';
+        wrapper.appendChild(icon);
+
+        var heading = document.createElement('h3');
+        heading.textContent = 'Ask about your survey data';
+        wrapper.appendChild(heading);
+
+        var prompts = document.createElement('div');
+        prompts.className = 'quick-prompts';
+        var promptTexts = [
+            'What are students struggling with this week?',
+            'Group the responses into detailed clusters',
+            'Give me the best student quotes from Week 5',
+            'Compare Week 3 to Week 5 \u2014 what changed?'
+        ];
+        promptTexts.forEach(function (text) {
+            var btn = document.createElement('button');
+            btn.className = 'quick-prompt-btn';
+            btn.textContent = text;
+            btn.addEventListener('click', function () {
+                document.getElementById('chat-input').value = text;
+                sendMessage();
+            });
+            prompts.appendChild(btn);
+        });
+        wrapper.appendChild(prompts);
+        return wrapper;
+    }
+
+    function createUserBubble(text) {
+        var div = document.createElement('div');
+        div.className = 'chat-msg-user';
+        div.textContent = text;
+        return div;
+    }
+
+    function createAssistantBubble(msg) {
+        var wrapper = document.createElement('div');
+        wrapper.className = 'chat-msg-assistant';
+
+        // Label
+        var label = document.createElement('div');
+        label.className = 'chat-msg-label';
+        var labelText = 'LEAI';
+        if (msg.citations && msg.citations.length) {
+            var verified = msg.citations.filter(function (c) { return c.verdict === 'verified'; }).length;
+            labelText += ' \u00b7 Verified ' + verified + '/' + msg.citations.length;
+        }
+        label.textContent = labelText;
+        wrapper.appendChild(label);
+
+        // Message text with inline citations
+        var textDiv = document.createElement('div');
+        var rawText = msg.text || msg.content || '';
+        renderTextWithCitations(textDiv, rawText, msg.citations || []);
+        wrapper.appendChild(textDiv);
+
+        // Sources drawer
+        if (msg.sources && msg.sources.length) {
+            var drawer = createSourcesDrawer(msg.sources);
+            wrapper.appendChild(drawer);
+
+            // Wire citation pill clicks to expand drawer
+            var pills = textDiv.querySelectorAll('.cite');
+            pills.forEach(function (pill) {
+                pill.addEventListener('click', function () {
+                    var drawerList = drawer.querySelector('.sources-list');
+                    if (drawerList && drawerList.style.display === 'none') {
+                        drawerList.style.display = 'block';
+                        var toggleBtn = drawer.querySelector('.sources-toggle');
+                        toggleBtn.textContent = '\u25be ' + msg.sources.length + ' source' + (msg.sources.length !== 1 ? 's' : '');
+                    }
+                    var pillIdx = pill.textContent.trim();
+                    var card = drawer.querySelector('[data-cite="' + pillIdx + '"]');
+                    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                });
+            });
+        }
+
+        return wrapper;
+    }
+
+    function renderTextWithCitations(container, text, citations) {
+        // Build a map from citation ID to verdict
+        var citationMap = {};
+        if (citations && citations.length) {
+            citations.forEach(function (c, i) {
+                var pillId = c.id || c.label || ('R' + (i + 1));
+                citationMap[pillId] = c.verdict;
+            });
+        }
+
+        // Split text on [RN] patterns and build DOM nodes
+        var regex = /\[R(\d+)\]/g;
+        var lastIndex = 0;
+        var match;
+
+        while ((match = regex.exec(text)) !== null) {
+            if (match.index > lastIndex) {
+                container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+            }
+            var rid = 'R' + match[1];
+            var verdict = citationMap[rid] || null;
+            var pill = leaiAnalysis.renderCitationPill(rid, verdict);
+            container.appendChild(pill);
+            lastIndex = regex.lastIndex;
+        }
+        if (lastIndex < text.length) {
+            container.appendChild(document.createTextNode(text.slice(lastIndex)));
+        }
+    }
+
+    function createSourcesDrawer(sources) {
+        var drawer = document.createElement('div');
+        drawer.className = 'sources-drawer';
+
+        var toggle = document.createElement('button');
+        toggle.className = 'sources-toggle';
+        toggle.textContent = '\u25b8 ' + sources.length + ' source' + (sources.length !== 1 ? 's' : '');
+        drawer.appendChild(toggle);
+
+        var list = document.createElement('div');
+        list.className = 'sources-list';
+        list.style.display = 'none';
+
+        sources.forEach(function (src) {
+            var card = document.createElement('div');
+            card.className = 'source-card';
+            card.setAttribute('data-cite', src.rid || src.id || '');
+
+            var meta = document.createElement('div');
+            meta.className = 'source-meta';
+            var metaParts = [];
+            if (src.rid) metaParts.push(src.rid);
+            if (src.session_id) metaParts.push('Session ' + src.session_id);
+            if (src.week_number != null) metaParts.push('Week ' + src.week_number);
+            meta.textContent = metaParts.join(' \u00b7 ');
+
+            var srcText = document.createElement('div');
+            srcText.className = 'source-text';
+            srcText.textContent = src.text || src.content || '';
+
+            card.appendChild(meta);
+            card.appendChild(srcText);
+            list.appendChild(card);
+        });
+
+        drawer.appendChild(list);
+
+        toggle.addEventListener('click', function () {
+            var open = list.style.display !== 'none';
+            list.style.display = open ? 'none' : 'block';
+            toggle.textContent = (open ? '\u25b8 ' : '\u25be ') + sources.length + ' source' + (sources.length !== 1 ? 's' : '');
+        });
+
+        return drawer;
+    }
+
+    function createShimmerPlaceholder() {
+        var div = document.createElement('div');
+        div.className = 'chat-msg-assistant';
+        div.id = 'shimmer-placeholder';
+        var label = document.createElement('div');
+        label.className = 'chat-msg-label';
+        label.textContent = 'LEAI';
+        div.appendChild(label);
+        var s1 = document.createElement('div'); s1.className = 'shimmer-line'; s1.style.width = '80%';
+        var s2 = document.createElement('div'); s2.className = 'shimmer-line'; s2.style.width = '60%';
+        var s3 = document.createElement('div'); s3.className = 'shimmer-line'; s3.style.width = '70%';
+        div.appendChild(s1); div.appendChild(s2); div.appendChild(s3);
+        return div;
+    }
+
+    function scrollToBottom() {
+        var container = document.getElementById('chat-messages');
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ===== SEND MESSAGE =====
+    function sendMessage() {
+        if (isSending) return;
+        var input = document.getElementById('chat-input');
+        var text = input.value.trim();
+        if (!text) return;
+        if (!activeSessionId) return;
+
+        isSending = true;
+        input.value = '';
+        document.getElementById('send-btn').disabled = true;
+
+        // Remove empty state if present
+        var emptyState = document.getElementById('chat-empty-state');
+        if (emptyState) emptyState.remove();
+
+        var container = document.getElementById('chat-messages');
+
+        // If first user message, auto-title
+        var isFirstMessage = !activeSessionData || !activeSessionData.messages ||
+            !activeSessionData.messages.some(function (m) { return m.role === 'user'; });
+
+        if (isFirstMessage) {
+            var autoTitle = leaiChat.cheapAutoTitle(text);
+            leaiChat.updateSession(activeSessionId, { title: autoTitle })
+                .then(function () {
+                    document.getElementById('chat-title').textContent = autoTitle;
+                    var listItem = document.querySelector('.chat-session-item[data-id="' + activeSessionId + '"] .chat-session-title');
+                    if (listItem) listItem.textContent = autoTitle;
+                })
+                .catch(function () { /* non-critical */ });
+        }
+
+        // Render user bubble optimistically
+        var userBubble = createUserBubble(text);
+        container.appendChild(userBubble);
+        scrollToBottom();
+
+        // Show shimmer
+        var shimmer = createShimmerPlaceholder();
+        container.appendChild(shimmer);
+        scrollToBottom();
+
+        leaiChat.sendTurn(activeSessionId, text)
+            .then(function (result) {
+                shimmer.remove();
+
+                if (result && result.message) {
+                    container.appendChild(createAssistantBubble(result.message));
+                    if (activeSessionData && activeSessionData.messages) {
+                        activeSessionData.messages.push({ role: 'user', text: text });
+                        activeSessionData.messages.push(result.message);
+                    }
+                }
+                scrollToBottom();
+                loadSessionsQuiet();
+            })
+            .catch(function (err) {
+                shimmer.remove();
+                userBubble.remove();
+                input.value = text;
+
+                var toast = document.createElement('div');
+                toast.className = 'chat-error-toast';
+                toast.textContent = 'Failed to send: ' + (err.message || 'Unknown error');
+                container.appendChild(toast);
+                scrollToBottom();
+                setTimeout(function () { toast.remove(); }, 5000);
+            })
+            .finally(function () {
+                isSending = false;
+                document.getElementById('send-btn').disabled = false;
+                input.focus();
+            });
+    }
+
+    function loadSessionsQuiet() {
+        leaiChat.listSessions(session.courseId)
+            .then(function (data) {
+                sessions = data.sessions || [];
+                renderSessionList();
+                document.getElementById('sessions-footer').textContent =
+                    'Stored on server \u00b7 ' + sessions.length + ' chat' + (sessions.length !== 1 ? 's' : '');
+            })
+            .catch(function () { /* silent */ });
+    }
+
+    // ===== NEW CHAT =====
+    function createNewChat() {
+        leaiChat.createSession(session.courseId, {
+            title: 'New chat',
+            scope: { kind: 'course' }
+        })
+        .then(function (newSession) {
+            var newId = newSession.id || newSession.session_id;
+            loadSessions(newId);
+        })
+        .catch(function () { /* fallback */ });
+    }
+
+    // ===== RENAME =====
+    function startRename() {
+        var titleEl = document.getElementById('chat-title');
+        titleEl.contentEditable = 'true';
+        titleEl.focus();
+        var range = document.createRange();
+        range.selectNodeContents(titleEl);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    function finishRename() {
+        var titleEl = document.getElementById('chat-title');
+        if (titleEl.contentEditable !== 'true') return;
+        titleEl.contentEditable = 'false';
+        var newTitle = titleEl.textContent.trim();
+        if (!newTitle) {
+            titleEl.textContent = activeSessionData ? activeSessionData.title : 'New chat';
+            return;
+        }
+        if (activeSessionId) {
+            leaiChat.updateSession(activeSessionId, { title: newTitle })
+                .then(function () {
+                    if (activeSessionData) activeSessionData.title = newTitle;
+                    loadSessionsQuiet();
+                })
+                .catch(function () { /* silent */ });
+        }
+    }
+
+    // ===== DELETE =====
+    function showDeleteModal() {
+        document.getElementById('delete-modal').classList.add('visible');
+    }
+
+    function hideDeleteModal() {
+        document.getElementById('delete-modal').classList.remove('visible');
+    }
+
+    function confirmDelete() {
+        if (!activeSessionId) return;
+        hideDeleteModal();
+        leaiChat.deleteSession(activeSessionId)
+            .then(function () {
+                activeSessionId = null;
+                activeSessionData = null;
+                sessionStorage.removeItem('leai_chat_active_' + session.courseId);
+                loadSessions();
+            })
+            .catch(function () { /* silent */ });
+    }
+
+    // ===== EXPORT =====
+    function exportChat() {
+        if (!activeSessionData) return;
+        var md = leaiChat.exportAsMarkdown(activeSessionData);
+        var blob = new Blob([md], { type: 'text/markdown' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = (activeSessionData.title || 'chat') + '.md';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // ===== SYSTEM PROMPT EDITOR =====
+    function renderSystemPromptEditor(data) {
+        var editor = document.getElementById('system-prompt-editor');
+        editor.value = data.system_prompt_override || DEFAULT_FEEDBACK_CHAT_SYSTEM_PROMPT;
+    }
+
+    function toggleAdvanced() {
+        var panel = document.getElementById('advanced-panel');
+        var arrow = document.getElementById('advanced-arrow');
+        var isOpen = panel.classList.contains('open');
+        panel.classList.toggle('open');
+        arrow.textContent = isOpen ? '\u25b8' : '\u25be';
+    }
+
+    function saveSystemPrompt() {
+        if (!activeSessionId) return;
+        var editor = document.getElementById('system-prompt-editor');
+        var value = editor.value.trim();
+        leaiChat.updateSession(activeSessionId, { system_prompt_override: value || null })
+            .catch(function () { /* silent */ });
+    }
+
+    function restoreDefaultPrompt() {
+        var editor = document.getElementById('system-prompt-editor');
+        editor.value = DEFAULT_FEEDBACK_CHAT_SYSTEM_PROMPT;
+        if (activeSessionId) {
+            leaiChat.updateSession(activeSessionId, { system_prompt_override: null })
+                .catch(function () { /* silent */ });
+        }
+    }
+
+    function replayLastTurn() {
+        if (!activeSessionData || !activeSessionData.messages) return;
+        var lastUserMsg = null;
+        for (var i = activeSessionData.messages.length - 1; i >= 0; i--) {
+            if (activeSessionData.messages[i].role === 'user') {
+                lastUserMsg = activeSessionData.messages[i].text || activeSessionData.messages[i].content;
+                break;
+            }
+        }
+        if (lastUserMsg) {
+            document.getElementById('chat-input').value = lastUserMsg;
+            sendMessage();
+        }
+    }
+
+    // ===== EVENT BINDINGS =====
+    document.getElementById('new-chat-btn').addEventListener('click', createNewChat);
+    document.getElementById('mobile-new-chat-btn').addEventListener('click', createNewChat);
+    document.getElementById('send-btn').addEventListener('click', sendMessage);
+    document.getElementById('rename-btn').addEventListener('click', startRename);
+    document.getElementById('export-btn').addEventListener('click', exportChat);
+    document.getElementById('delete-btn').addEventListener('click', showDeleteModal);
+    document.getElementById('delete-cancel-btn').addEventListener('click', hideDeleteModal);
+    document.getElementById('delete-confirm-btn').addEventListener('click', confirmDelete);
+    document.getElementById('advanced-toggle-btn').addEventListener('click', toggleAdvanced);
+    document.getElementById('restore-default-btn').addEventListener('click', restoreDefaultPrompt);
+    document.getElementById('replay-last-btn').addEventListener('click', replayLastTurn);
+    document.getElementById('system-prompt-editor').addEventListener('blur', saveSystemPrompt);
+
+    document.getElementById('chat-title').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            finishRename();
+        }
+    });
+    document.getElementById('chat-title').addEventListener('blur', finishRename);
+
+    document.getElementById('chat-input').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    document.getElementById('mobile-sessions-btn').addEventListener('click', function () {
+        document.getElementById('chat-sessions').classList.toggle('mobile-open');
+    });
+
+    document.getElementById('delete-modal').addEventListener('click', function (e) {
+        if (e.target === this) hideDeleteModal();
+    });
+
+})();
+</script>
+</body>
+</html>
