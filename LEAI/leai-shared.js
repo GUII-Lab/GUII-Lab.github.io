@@ -182,3 +182,225 @@ function initTagInput(containerId, placeholder) {
         setTags: function (arr) { tags = arr ? arr.slice() : []; render(); }
     };
 }
+
+// ===== LEAI ANALYSIS HELPERS (client-side, no network) =====
+
+var STOPWORDS = new Set([
+    'a','about','above','after','again','against','all','am','an','and','any',
+    'are','as','at','be','because','been','before','being','below','between',
+    'both','but','by','can','could','did','do','does','doing','down','during',
+    'each','few','for','from','further','get','got','had','has','have','having',
+    'he','her','here','hers','herself','him','himself','his','how','i','if',
+    'in','into','is','it','its','itself','just','like','ll','me','might','more',
+    'most','my','myself','no','nor','not','now','of','off','on','once','only',
+    'or','other','our','ours','ourselves','out','over','own','re','s','same',
+    'she','should','so','some','such','t','than','that','the','their','theirs',
+    'them','themselves','then','there','these','they','this','those','through',
+    'to','too','under','until','up','ve','very','was','we','were','what','when',
+    'where','which','while','who','whom','why','will','with','would','you',
+    'your','yours','yourself','yourselves','also','been','being','come','could',
+    'did','does','done','going','gonna','got','gotta','had','has','have',
+    'just','keep','let','make','many','may','much','must','need','really',
+    'say','said','shall','since','still','sure','take','tell','thing','think',
+    'try','use','want','way','well','went','work','yeah','yes',
+]);
+
+var leaiAnalysis = {
+    tokenize: function(text) {
+        return text.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')
+            .split(/\s+/).filter(function(t) { return t.length > 1 && !STOPWORDS.has(t); });
+    },
+
+    computeNgrams: function(responses, n) {
+        var counts = {};
+        responses.forEach(function(r) {
+            var tokens = leaiAnalysis.tokenize(r.text);
+            for (var i = 0; i <= tokens.length - n; i++) {
+                var gram = tokens.slice(i, i + n).join(' ');
+                counts[gram] = (counts[gram] || 0) + 1;
+            }
+        });
+        return Object.keys(counts).map(function(term) {
+            return { term: term, count: counts[term] };
+        }).sort(function(a, b) { return b.count - a.count; });
+    },
+
+    computeKeyness: function(targetCounts, targetTotal, baselineCounts, baselineTotal) {
+        var results = [];
+        var allTerms = new Set(Object.keys(targetCounts).concat(Object.keys(baselineCounts)));
+        allTerms.forEach(function(term) {
+            var a = targetCounts[term] || 0;
+            var b = baselineCounts[term] || 0;
+            if (a === 0) return;
+            var e1 = targetTotal * (a + b) / (targetTotal + baselineTotal);
+            var e2 = baselineTotal * (a + b) / (targetTotal + baselineTotal);
+            var ll = 0;
+            if (a > 0 && e1 > 0) ll += a * Math.log(a / e1);
+            if (b > 0 && e2 > 0) ll += b * Math.log(b / e2);
+            ll *= 2;
+            results.push({ term: term, ll: Math.round(ll * 10) / 10, count: a });
+        });
+        return results.sort(function(a, b) { return b.ll - a.ll; });
+    },
+
+    matchResponsesForTerm: function(responses, term) {
+        var lower = term.toLowerCase();
+        return responses.filter(function(r) {
+            return r.text.toLowerCase().indexOf(lower) !== -1;
+        });
+    },
+
+    buildResponseIndex: function(allSurveys, scopeKind, scopeWeekNumber) {
+        var responses = [];
+        var counter = 1;
+        var surveys = allSurveys;
+        if (scopeKind === 'week' && scopeWeekNumber != null) {
+            surveys = allSurveys.filter(function(s) {
+                return s.week_number === scopeWeekNumber;
+            });
+        }
+        surveys.forEach(function(s) {
+            var sids = Object.keys(s.sessions).sort();
+            sids.forEach(function(sid) {
+                var msgs = s.sessions[sid];
+                var studentMsgs = msgs.filter(function(m) {
+                    return m.sent_by === 'user-message';
+                }).map(function(m) { return m.content; });
+                if (studentMsgs.length) {
+                    responses.push({
+                        rid: 'R' + counter,
+                        survey_id: s.gpt_id,
+                        session_id: sid,
+                        week_number: s.week_number || 0,
+                        text: studentMsgs.join(' | '),
+                    });
+                    counter++;
+                }
+            });
+        });
+        return responses;
+    },
+
+    renderCitationPill: function(pillIndex, verdict) {
+        var span = document.createElement('span');
+        span.className = 'cite' + (verdict === 'verified' ? ' verified' :
+            verdict === 'partial' || verdict === 'unsupported' ? ' warn' : '');
+        span.textContent = pillIndex;
+        span.setAttribute('tabindex', '0');
+        return span;
+    },
+};
+
+// ===== LEAI CHAT HELPERS (async fetch wrappers) =====
+
+var DEFAULT_FEEDBACK_CHAT_SYSTEM_PROMPT = (
+    'You are LEAI, a research assistant helping a university instructor ' +
+    'understand student feedback from their course.\n\n' +
+    'You have access to student responses from the scope the instructor ' +
+    'selected. Each response is tagged R1, R2, … R<N>.\n\n' +
+    'Rules:\n' +
+    '- Answer the instructor\'s question concisely and directly.\n' +
+    '- Every factual claim about what students said MUST cite the exact ' +
+    'response IDs that support it, using bracket markers like [R17].\n' +
+    '- Do not invent response IDs. Only cite IDs you were given.\n' +
+    '- Quote fragments must be verbatim from the responses.\n' +
+    '- If the responses don\'t support an answer, say so.'
+);
+
+var leaiChat = {
+    _fetch: function(path, opts) {
+        opts = opts || {};
+        opts.headers = opts.headers || {};
+        if (opts.body && !opts.headers['Content-Type']) {
+            opts.headers['Content-Type'] = 'application/json';
+        }
+        return fetch(API + path, opts).then(function(r) {
+            if (r.status === 204) return null;
+            if (r.status === 404 && opts._allow404) return null;
+            if (!r.ok) return r.json().then(function(err) {
+                throw new Error(err.error || 'Request failed: ' + r.status);
+            });
+            return r.json();
+        });
+    },
+
+    listSessions: function(courseId) {
+        return leaiChat._fetch('/leai_chat_sessions/?course_id=' + encodeURIComponent(courseId));
+    },
+    getSession: function(sessionId) {
+        return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/');
+    },
+    createSession: function(courseId, opts) {
+        return leaiChat._fetch('/leai_chat_sessions/', {
+            method: 'POST',
+            body: JSON.stringify({
+                course_id: courseId,
+                title: opts.title || 'New chat',
+                scope: opts.scope || { kind: 'course' },
+                seed_system_message: opts.seedSystemMessage || null,
+            }),
+        });
+    },
+    updateSession: function(sessionId, patch) {
+        return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/', {
+            method: 'PATCH',
+            body: JSON.stringify(patch),
+        });
+    },
+    deleteSession: function(sessionId) {
+        return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/', {
+            method: 'DELETE',
+        });
+    },
+    sendTurn: function(sessionId, userText) {
+        return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/turn/', {
+            method: 'POST',
+            body: JSON.stringify({ user_text: userText }),
+        });
+    },
+
+    getQuickTake: function(courseId, scopeKey) {
+        return leaiChat._fetch(
+            '/leai_quicktake/?course_id=' + encodeURIComponent(courseId) +
+            '&scope_key=' + encodeURIComponent(scopeKey),
+            { _allow404: true },
+        );
+    },
+    generateQuickTake: function(courseId, scopeKey, scope) {
+        return leaiChat._fetch('/leai_quicktake/generate/', {
+            method: 'POST',
+            body: JSON.stringify({
+                course_id: courseId,
+                scope_key: scopeKey,
+                scope: scope,
+            }),
+        });
+    },
+    deleteQuickTake: function(courseId, scopeKey) {
+        return leaiChat._fetch(
+            '/leai_quicktake/?course_id=' + encodeURIComponent(courseId) +
+            '&scope_key=' + encodeURIComponent(scopeKey),
+            { method: 'DELETE' },
+        );
+    },
+
+    exportAsMarkdown: function(session) {
+        var lines = ['# ' + session.title, ''];
+        (session.messages || []).forEach(function(m) {
+            if (m.role === 'system') return;
+            lines.push('## ' + (m.role === 'user' ? 'Instructor' : 'LEAI'));
+            lines.push('');
+            lines.push(m.text);
+            lines.push('');
+        });
+        return lines.join('\n');
+    },
+
+    cheapAutoTitle: function(text) {
+        var trimmed = text.trim().replace(/\s+/g, ' ');
+        if (trimmed.length <= 28) return trimmed;
+        var cut = trimmed.slice(0, 28);
+        var lastSpace = cut.lastIndexOf(' ');
+        return (lastSpace > 10 ? cut.slice(0, lastSpace) : cut) + '\u2026';
+    },
+};
