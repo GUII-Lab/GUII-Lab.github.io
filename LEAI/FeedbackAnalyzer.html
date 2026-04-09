@@ -890,15 +890,24 @@
         var actions = document.createElement('div');
         actions.className = 'card-actions';
 
+        // Build a verdict lookup from qt.verification
+        var verdictMap = {};
+        if (qt.verification) {
+            qt.verification.forEach(function (v) {
+                verdictMap[v.bullet_index + ':' + v.source_id] = v.verdict;
+            });
+        }
+
         // Verified count
         if (qt.bullets) {
             var verifiedCount = 0;
             var totalCites = 0;
-            qt.bullets.forEach(function (b) {
-                if (b.citations) {
-                    b.citations.forEach(function (c) {
+            qt.bullets.forEach(function (b, bulletIdx) {
+                if (b.cited_ids && b.cited_ids.length) {
+                    b.cited_ids.forEach(function (rid) {
                         totalCites++;
-                        if (c.verdict === 'verified') verifiedCount++;
+                        var verdict = verdictMap[bulletIdx + ':' + rid] || null;
+                        if (verdict === 'supported' || verdict === 'verified') verifiedCount++;
                     });
                 }
             });
@@ -936,12 +945,14 @@
         if (qt.bullets && qt.bullets.length) {
             var ul = document.createElement('ul');
             ul.className = 'quick-take-bullets';
-            qt.bullets.forEach(function (b) {
+            qt.bullets.forEach(function (b, bulletIdx) {
                 var li = document.createElement('li');
                 li.appendChild(document.createTextNode(b.text + ' '));
-                if (b.citations && b.citations.length) {
-                    b.citations.forEach(function (c) {
-                        var pill = leaiAnalysis.renderCitationPill(c.rid || c.index, c.verdict || 'unknown');
+                if (b.cited_ids && b.cited_ids.length) {
+                    b.cited_ids.forEach(function (rid, i) {
+                        var verdict = verdictMap[bulletIdx + ':' + rid] || null;
+                        var pill = leaiAnalysis.renderCitationPill(i + 1, verdict);
+                        pill.title = rid;
                         li.appendChild(pill);
                         li.appendChild(document.createTextNode(' '));
                     });

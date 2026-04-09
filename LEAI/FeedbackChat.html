@@ -662,9 +662,9 @@
         var label = document.createElement('div');
         label.className = 'chat-msg-label';
         var labelText = 'LEAI';
-        if (msg.citations && msg.citations.length) {
-            var verified = msg.citations.filter(function (c) { return c.verdict === 'verified'; }).length;
-            labelText += ' \u00b7 Verified ' + verified + '/' + msg.citations.length;
+        if (msg.cited && msg.cited.length) {
+            var verified = msg.cited.filter(function (c) { return c.verdict === 'supported' || c.verdict === 'verified'; }).length;
+            labelText += ' \u00b7 Verified ' + verified + '/' + msg.cited.length;
         }
         label.textContent = labelText;
         wrapper.appendChild(label);
@@ -672,7 +672,7 @@
         // Message text with inline citations
         var textDiv = document.createElement('div');
         var rawText = msg.text || msg.content || '';
-        renderTextWithCitations(textDiv, rawText, msg.citations || []);
+        renderTextWithCitations(textDiv, rawText, msg.cited || []);
         wrapper.appendChild(textDiv);
 
         // Sources drawer
@@ -700,18 +700,19 @@
         return wrapper;
     }
 
-    function renderTextWithCitations(container, text, citations) {
-        // Build a map from citation ID to verdict
-        var citationMap = {};
-        if (citations && citations.length) {
-            citations.forEach(function (c, i) {
-                var pillId = c.id || c.label || ('R' + (i + 1));
-                citationMap[pillId] = c.verdict;
+    function renderTextWithCitations(container, text, cited) {
+        // Build maps from pill_index and rid to verdict
+        var verdictByPill = {};
+        var ridByPill = {};
+        if (cited && cited.length) {
+            cited.forEach(function (c) {
+                verdictByPill[c.pill_index] = c.verdict;
+                ridByPill[c.pill_index] = c.rid;
             });
         }
 
-        // Split text on [RN] patterns and build DOM nodes
-        var regex = /\[R(\d+)\]/g;
+        // Split text on [N] pill-index patterns and build DOM nodes
+        var regex = /\[(\d+)\]/g;
         var lastIndex = 0;
         var match;
 
@@ -719,9 +720,10 @@
             if (match.index > lastIndex) {
                 container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
             }
-            var rid = 'R' + match[1];
-            var verdict = citationMap[rid] || null;
-            var pill = leaiAnalysis.renderCitationPill(rid, verdict);
+            var pillIndex = parseInt(match[1], 10);
+            var verdict = verdictByPill[pillIndex] || null;
+            var pill = leaiAnalysis.renderCitationPill(pillIndex, verdict);
+            if (ridByPill[pillIndex]) pill.title = ridByPill[pillIndex];
             container.appendChild(pill);
             lastIndex = regex.lastIndex;
         }
