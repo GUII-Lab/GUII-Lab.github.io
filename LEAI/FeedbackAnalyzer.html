@@ -947,7 +947,8 @@
             ul.className = 'quick-take-bullets';
             qt.bullets.forEach(function (b, bulletIdx) {
                 var li = document.createElement('li');
-                li.appendChild(document.createTextNode(b.text + ' '));
+                var cleanText = b.text.replace(/\s*\[R\d+\]/g, '').trim();
+                li.appendChild(document.createTextNode(cleanText + ' '));
                 if (b.cited_ids && b.cited_ids.length) {
                     b.cited_ids.forEach(function (rid, i) {
                         var verdict = verdictMap[bulletIdx + ':' + rid] || null;
