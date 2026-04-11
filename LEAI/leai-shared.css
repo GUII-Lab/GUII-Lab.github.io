@@ -491,6 +491,13 @@ input[type="checkbox"], input[type="radio"] {
     padding: 10px 14px; border-radius: 6px 6px 2px 6px;
     font-size: 0.84rem; line-height: 1.55; }
 .chat-msg-assistant { max-width: 80%; font-size: 0.84rem; line-height: 1.65; }
+.chat-msg-assistant p { margin: 0 0 0.6em; }
+.chat-msg-assistant p:last-child { margin-bottom: 0; }
+.chat-msg-assistant ul, .chat-msg-assistant ol { margin: 0.4em 0 0.6em 1.4em; padding: 0; }
+.chat-msg-assistant li { margin-bottom: 0.3em; }
+.chat-msg-assistant li:last-child { margin-bottom: 0; }
+.chat-msg-assistant code { background: var(--surface-low); padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+.chat-msg-assistant strong { font-weight: 600; }
 .chat-msg-label { font-size: 0.64rem; font-weight: 700; color: var(--text-variant);
     text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 5px; }
 

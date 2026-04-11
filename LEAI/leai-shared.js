@@ -352,6 +352,33 @@ var leaiChat = {
             method: 'DELETE',
         });
     },
+    // Plain chat proxy — wraps /openai-chat/
+    chat: function(userText, opts) {
+        opts = opts || {};
+        var body = { user_text: userText };
+        if (opts.chatHistory) body.chat_history = opts.chatHistory;
+        if (opts.model) body.model = opts.model;
+        if (opts.temperature != null) body.temperature = opts.temperature;
+        return leaiChat._fetch('/openai-chat/', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+    },
+
+    // Structured JSON response — wraps /openai-structured/
+    structured: function(userText, jsonSchema, opts) {
+        opts = opts || {};
+        var body = { user_text: userText, json_schema: jsonSchema };
+        if (opts.schemaName) body.schema_name = opts.schemaName;
+        if (opts.chatHistory) body.chat_history = opts.chatHistory;
+        if (opts.model) body.model = opts.model;
+        if (opts.temperature != null) body.temperature = opts.temperature;
+        return leaiChat._fetch('/openai-structured/', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
+    },
+
     sendTurn: function(sessionId, userText) {
         return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/turn/', {
             method: 'POST',
@@ -402,5 +429,78 @@ var leaiChat = {
         var cut = trimmed.slice(0, 28);
         var lastSpace = cut.lastIndexOf(' ');
         return (lastSpace > 10 ? cut.slice(0, lastSpace) : cut) + '\u2026';
+    },
+};
+
+// ---------------------------------------------------------------------------
+// leaiMarkdown — lightweight Markdown → HTML for chat messages
+// Handles: **bold**, *italic*, `code`, - / * unordered lists, 1. ordered lists,
+// line breaks, and paragraphs. Strips extra whitespace around block elements.
+// ---------------------------------------------------------------------------
+var leaiMarkdown = {
+    /**
+     * Convert a Markdown string to sanitised HTML.
+     * Only a safe subset of inline/block Markdown is supported.
+     */
+    render: function (md) {
+        if (!md) return '';
+
+        // Normalise line endings
+        var lines = md.replace(/\r\n?/g, '\n').split('\n');
+        var html = [];
+        var i = 0;
+
+        while (i < lines.length) {
+            var line = lines[i];
+
+            // Blank line → close current context, skip
+            if (line.trim() === '') { i++; continue; }
+
+            // Unordered list (- or * at start)
+            if (/^\s*[-*]\s+/.test(line)) {
+                html.push('<ul>');
+                while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+                    html.push('<li>' + leaiMarkdown._inline(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+                    i++;
+                }
+                html.push('</ul>');
+                continue;
+            }
+
+            // Ordered list (1. 2. etc)
+            if (/^\s*\d+[.)]\s+/.test(line)) {
+                html.push('<ol>');
+                while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) {
+                    html.push('<li>' + leaiMarkdown._inline(lines[i].replace(/^\s*\d+[.)]\s+/, '')) + '</li>');
+                    i++;
+                }
+                html.push('</ol>');
+                continue;
+            }
+
+            // Regular paragraph — collect consecutive non-blank, non-list lines
+            var para = [];
+            while (i < lines.length && lines[i].trim() !== '' &&
+                   !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\d+[.)]\s+/.test(lines[i])) {
+                para.push(lines[i]);
+                i++;
+            }
+            html.push('<p>' + leaiMarkdown._inline(para.join(' ')) + '</p>');
+        }
+
+        return html.join('');
+    },
+
+    /** Convert inline Markdown (bold, italic, code) to HTML. Text is escaped first. */
+    _inline: function (text) {
+        // Escape HTML entities
+        text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // `code`
+        text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // **bold**
+        text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // *italic* (but not inside **)
+        text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+        return text;
     },
 };

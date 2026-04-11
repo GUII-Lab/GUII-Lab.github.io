@@ -101,7 +101,7 @@
             background: var(--surface-low); border-color: var(--primary);
         }
 
-        /* Advanced system prompt */
+        /* Advanced system prompt toggle */
         .advanced-toggle-btn {
             background: none; border: none; cursor: pointer;
             font-family: inherit; font-size: 0.62rem; font-weight: 700;
@@ -109,19 +109,30 @@
             padding: 0; display: flex; align-items: center; gap: 4px;
         }
         .advanced-toggle-btn:hover { color: var(--text-variant); }
-        .advanced-panel {
-            display: none; margin-top: 10px; max-width: 860px;
+
+        /* System prompt modal */
+        .prompt-modal-box {
+            background: var(--surface-card);
+            border-radius: var(--radius-md);
+            padding: 28px; max-width: 640px; width: 90%;
+            box-shadow: var(--shadow-float);
         }
-        .advanced-panel.open { display: block; }
-        .advanced-panel textarea {
-            width: 100%; min-height: 100px; resize: vertical;
+        .prompt-modal-box h3 {
+            font-size: 1rem; font-weight: 700; margin-bottom: 4px;
+            letter-spacing: -0.01em;
+        }
+        .prompt-modal-box .modal-subtitle {
+            font-size: 0.78rem; color: var(--muted); margin-bottom: 16px; line-height: 1.5;
+        }
+        .prompt-modal-box textarea {
+            width: 100%; min-height: 180px; resize: vertical;
             font-family: ui-monospace, 'SF Mono', monospace;
             font-size: 0.72rem; line-height: 1.5;
             padding: 10px; border: 1px solid var(--outline);
             border-radius: var(--radius-sm); background: var(--surface);
-            color: var(--text); margin-bottom: 8px;
+            color: var(--text); margin-bottom: 12px;
         }
-        .advanced-actions { display: flex; gap: 8px; }
+        .prompt-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
         /* Inline error toast */
         .chat-error-toast {
@@ -293,19 +304,27 @@
                     </div>
                     <div class="chat-input-footer">
                         <button class="advanced-toggle-btn" id="advanced-toggle-btn">
-                            <span id="advanced-arrow">&#9656;</span> Advanced &middot; system prompt
+                            <span class="material-symbols-outlined" style="font-size:14px">tune</span> System prompt
                         </button>
                         <span>Shift+Enter for newline</span>
                     </div>
-                    <div class="advanced-panel" id="advanced-panel">
-                        <textarea id="system-prompt-editor"></textarea>
-                        <div class="advanced-actions">
-                            <button class="btn-ghost" id="restore-default-btn" style="font-size:0.72rem">Restore default</button>
-                            <button class="btn-ghost" id="replay-last-btn" style="font-size:0.72rem">&#9654; Replay last turn</button>
-                        </div>
-                    </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- System prompt modal -->
+<div class="modal-overlay" id="prompt-modal">
+    <div class="prompt-modal-box">
+        <h3>System Prompt</h3>
+        <p class="modal-subtitle">Customize how LEAI responds. Changes apply to future messages in this session.</p>
+        <textarea id="system-prompt-editor"></textarea>
+        <div class="prompt-modal-actions">
+            <button class="btn-ghost" id="restore-default-btn" style="font-size:0.72rem">Restore default</button>
+            <button class="btn-ghost" id="replay-last-btn" style="font-size:0.72rem">&#9654; Replay last turn</button>
+            <div style="flex:1"></div>
+            <button class="btn btn-sm" id="prompt-modal-done-btn">Done</button>
         </div>
     </div>
 </div>
@@ -711,25 +730,31 @@
             });
         }
 
-        // Split text on [N] pill-index patterns and build DOM nodes
-        var regex = /\[(\d+)\]/g;
-        var lastIndex = 0;
-        var match;
+        // Use text-safe placeholders that survive Markdown parsing + HTML escaping,
+        // then replace them in the rendered HTML string before innerHTML assignment.
+        var pillified = text.replace(/\[(\d+)\]/g, function (_, n) {
+            return 'LEAICITE' + n + 'END';
+        });
 
-        while ((match = regex.exec(text)) !== null) {
-            if (match.index > lastIndex) {
-                container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-            }
-            var pillIndex = parseInt(match[1], 10);
+        // Parse Markdown → HTML
+        var html = leaiMarkdown.render(pillified);
+
+        // Replace text placeholders with real <span> elements in the HTML string
+        html = html.replace(/LEAICITE(\d+)END/g, function (_, n) {
+            return '<span data-cite-pill="' + n + '"></span>';
+        });
+
+        // Inject into container
+        container.innerHTML = html;
+
+        // Replace placeholder spans with real citation pill elements
+        container.querySelectorAll('[data-cite-pill]').forEach(function (span) {
+            var pillIndex = parseInt(span.getAttribute('data-cite-pill'), 10);
             var verdict = verdictByPill[pillIndex] || null;
             var pill = leaiAnalysis.renderCitationPill(pillIndex, verdict);
             if (ridByPill[pillIndex]) pill.title = ridByPill[pillIndex];
-            container.appendChild(pill);
-            lastIndex = regex.lastIndex;
-        }
-        if (lastIndex < text.length) {
-            container.appendChild(document.createTextNode(text.slice(lastIndex)));
-        }
+            span.parentNode.replaceChild(pill, span);
+        });
     }
 
     function createSourcesDrawer(sources) {
@@ -972,12 +997,12 @@
         editor.value = data.system_prompt_override || DEFAULT_FEEDBACK_CHAT_SYSTEM_PROMPT;
     }
 
-    function toggleAdvanced() {
-        var panel = document.getElementById('advanced-panel');
-        var arrow = document.getElementById('advanced-arrow');
-        var isOpen = panel.classList.contains('open');
-        panel.classList.toggle('open');
-        arrow.textContent = isOpen ? '\u25b8' : '\u25be';
+    function openPromptModal() {
+        document.getElementById('prompt-modal').classList.add('visible');
+    }
+    function closePromptModal() {
+        document.getElementById('prompt-modal').classList.remove('visible');
+        saveSystemPrompt();
     }
 
     function saveSystemPrompt() {
@@ -1021,10 +1046,13 @@
     document.getElementById('delete-btn').addEventListener('click', showDeleteModal);
     document.getElementById('delete-cancel-btn').addEventListener('click', hideDeleteModal);
     document.getElementById('delete-confirm-btn').addEventListener('click', confirmDelete);
-    document.getElementById('advanced-toggle-btn').addEventListener('click', toggleAdvanced);
+    document.getElementById('advanced-toggle-btn').addEventListener('click', openPromptModal);
+    document.getElementById('prompt-modal-done-btn').addEventListener('click', closePromptModal);
+    document.getElementById('prompt-modal').addEventListener('click', function (e) {
+        if (e.target === this) closePromptModal();
+    });
     document.getElementById('restore-default-btn').addEventListener('click', restoreDefaultPrompt);
     document.getElementById('replay-last-btn').addEventListener('click', replayLastTurn);
-    document.getElementById('system-prompt-editor').addEventListener('blur', saveSystemPrompt);
 
     document.getElementById('chat-title').addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
