@@ -202,13 +202,15 @@
     <a href="#edit-survey">Editing a Survey</a>
     <a href="#duplicate-survey">Duplicating a Survey</a>
 
-    <div class="sidebar-section">Feedback Analyzer</div>
-    <a href="#analyzer-login">Logging In to Analyzer</a>
-    <a href="#reading-results">Reading Results</a>
-    <a href="#survey-detail">Survey Detail View</a>
+    <div class="sidebar-section">Analyzing Feedback</div>
+    <a href="#analyzer-login">Logging In</a>
+    <a href="#analyzer-dashboard">The Dashboard</a>
+    <a href="#scope-filtering">Filtering by Scope</a>
+    <a href="#traditional-analysis">Traditional Analysis (N-grams)</a>
+    <a href="#ai-quicktake">AI Quick Take</a>
     <a href="#student-responses">Student Responses</a>
-    <a href="#ai-analysis">AI Analysis</a>
-    <a href="#export-csv">Exporting to CSV</a>
+    <a href="#feedback-chat">Feedback Chat</a>
+    <a href="#chat-system-prompt">Customising the AI Prompt</a>
 
     <div class="sidebar-section">Student Experience</div>
     <a href="#student-chat">The Chat Interface</a>
@@ -241,15 +243,17 @@
         <a href="#close-reopen" class="toc-link">7. Closing &amp; Reopening</a>
         <a href="#edit-survey" class="toc-link">8. Editing a Survey</a>
         <a href="#duplicate-survey" class="toc-link">9. Duplicating a Survey</a>
-        <a href="#reading-results" class="toc-link">10. Reading Results</a>
-        <a href="#survey-detail" class="toc-link">11. Survey Detail View</a>
-        <a href="#student-responses" class="toc-link">12. Student Responses</a>
-        <a href="#ai-analysis" class="toc-link">13. AI Analysis</a>
-        <a href="#export-csv" class="toc-link">14. Exporting to CSV</a>
-        <a href="#student-chat" class="toc-link">15. The Student Chat Interface</a>
-        <a href="#consent-flow" class="toc-link">16. Consent &amp; Anonymity Notice</a>
-        <a href="#inactive-states" class="toc-link">17. Closed &amp; Expired Surveys</a>
-        <a href="#faq" class="toc-link">18. Common Questions</a>
+        <a href="#analyzer-dashboard" class="toc-link">10. The Analyzer Dashboard</a>
+        <a href="#scope-filtering" class="toc-link">11. Filtering by Scope</a>
+        <a href="#traditional-analysis" class="toc-link">12. Traditional Analysis (N-grams)</a>
+        <a href="#ai-quicktake" class="toc-link">13. AI Quick Take</a>
+        <a href="#student-responses" class="toc-link">14. Student Responses</a>
+        <a href="#feedback-chat" class="toc-link">15. Feedback Chat</a>
+        <a href="#chat-system-prompt" class="toc-link">16. Customising the AI Prompt</a>
+        <a href="#student-chat" class="toc-link">17. The Student Chat Interface</a>
+        <a href="#consent-flow" class="toc-link">18. Consent &amp; Anonymity Notice</a>
+        <a href="#inactive-states" class="toc-link">19. Closed &amp; Expired Surveys</a>
+        <a href="#faq" class="toc-link">20. Common Questions</a>
       </div>
     </div>
 
@@ -493,81 +497,123 @@
 
     <!-- ═══════════════ FEEDBACK ANALYZER ═══════════════ -->
     <hr class="divider">
-    <h2 class="section-heading" id="analyzer-login">Feedback Analyzer</h2>
+    <h2 class="section-heading" id="analyzer-login">Analyzing Feedback</h2>
 
-    <p>The Feedback Analyzer shows you participation numbers, conversation quality metrics, and lets you download raw data. Open the <strong>Feedback Analyzer</strong> page and log in with the same course ID and password.</p>
+    <p>The <strong>Feedback Analyzer</strong> is your central dashboard for understanding what students are saying. It offers three layers of analysis — each designed so you can go as shallow or as deep as you need:</p>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/test-f13-f14-analyzer2.png" alt="Feedback Analyzer dashboard showing survey table">
-      <div class="caption">The Feedback Analyzer after logging in. The top row shows totals; the table below lists each survey.</div>
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Traditional Analysis</strong> — deterministic word-frequency bars you can verify yourself (no AI involved)</li>
+      <li><strong>AI Quick Take</strong> — a one-click summary with citations so you can trace every claim back to a student response</li>
+      <li><strong>Feedback Chat</strong> — a full chat interface where you ask free-form questions about your data and the AI answers with evidence</li>
+    </ul>
+
+    <p>Open the <strong>Feedback Analyzer</strong> from the sidebar (or navigate directly) and log in with your course ID and dashboard password — the same credentials you use for the Prompt Designer.</p>
+
+    <!-- ── Dashboard ── -->
+    <h3 class="sub-heading" id="analyzer-dashboard">The Dashboard</h3>
+
+    <p>After logging in you see the full dashboard for your course. It has four sections stacked top to bottom:</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scope chips</strong><p>A row of buttons at the top: <strong>Entire Course</strong> plus one chip per weekly survey. Click any chip to filter everything on the page to that scope.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Stats row</strong><p>Four cards showing: total <strong>Responses</strong>, <strong>Participation</strong> percentage, <strong>Avg Words</strong> per response, and a <strong>Responses / Week</strong> sparkline so you can spot drop-offs at a glance.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Traditional Analysis</strong><p>Horizontal bar chart of the most frequent terms in student feedback. Toggle between Unigram, Bigram, and Trigram. Click any bar to see the exact responses that contain that term.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>AI Quick Take &amp; Student Responses</strong><p>Below the bars you'll find the AI-generated summary (if you've triggered one) and the full list of student responses in collapsible cards.</p></div></div>
     </div>
 
-    <h3 class="sub-heading" id="reading-results">Reading the Results Table</h3>
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-dashboard.png" alt="Feedback Analyzer dashboard showing scope chips, stats row with 45 responses and 100% participation, and horizontal n-gram bar chart">
+      <div class="caption">The Analyzer dashboard in <strong>Entire Course</strong> scope. Scope chips across the top, four stat cards, and the Traditional Analysis bar chart showing bigrams by frequency.</div>
+    </div>
 
-    <p>The survey table has these columns:</p>
+    <!-- ── Scope Filtering ── -->
+    <h3 class="sub-heading" id="scope-filtering">Filtering by Scope</h3>
 
-    <table style="width:100%;border-collapse:collapse;font-size:15px;margin:16px 0;">
-      <thead>
-        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-          <th style="text-align:left;padding:10px 14px;color:#64748b;font-weight:600;">Column</th>
-          <th style="text-align:left;padding:10px 14px;color:#64748b;font-weight:600;">What it means</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Week</td>
-          <td style="padding:10px 14px;color:#475569;">The week number you assigned when creating the survey</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Label</td>
-          <td style="padding:10px 14px;color:#475569;">The survey name you chose</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Status</td>
-          <td style="padding:10px 14px;color:#475569;">Current lifecycle state: Open, Closed, Expired, or Scheduled</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Responses</td>
-          <td style="padding:10px 14px;color:#475569;">Number of unique students who submitted at least one message</td>
-        </tr>
-        <tr style="border-bottom:1px solid #e2e8f0;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Avg. Turns</td>
-          <td style="padding:10px 14px;color:#475569;">Average number of messages per student. Higher = deeper conversation. Typically 3–8 is a healthy range.</td>
-        </tr>
-        <tr style="background:#fafafa;">
-          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Actions</td>
-          <td style="padding:10px 14px;color:#475569;"><strong>View →</strong> opens the full conversation list. <strong>CSV</strong> downloads all responses as a spreadsheet.</td>
-        </tr>
-      </tbody>
-    </table>
+    <p>The scope chips at the top of the dashboard control what data appears everywhere on the page — stats, n-gram bars, Quick Take, and response list all update instantly when you select a different scope.</p>
+
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Entire Course</strong> — shows every student response across all weeks. The Keyness toggle is disabled because there is no reference subset to compare against.</li>
+      <li><strong>Week N</strong> — shows only responses from that week's survey. The Keyness toggle becomes active, letting you see which terms are <em>statistically distinctive</em> for that week compared to the full course.</li>
+    </ul>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Use scope to spot weekly shifts.</strong> Click through Week 1 → Week 2 → Week 3 and watch the n-gram bars change. Terms that appear only in later weeks often signal emerging issues worth addressing.</p>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-scope-week.png" alt="Analyzer filtered to Week 1 Check-in showing 15 responses, 33% participation, and week-specific n-gram bars">
+      <div class="caption">The dashboard filtered to <strong>Week 1 Check-in</strong>. Stats, n-gram bars, and all other sections update to show only that week's data. Note the Keyness toggle is now available in the bar chart controls.</div>
+    </div>
+
+    <!-- ── Traditional Analysis ── -->
+    <h3 class="sub-heading" id="traditional-analysis">Traditional Analysis (N-grams)</h3>
+
+    <p>The Traditional Analysis panel shows you what students are talking about using pure word-frequency counting — <strong>no AI is involved</strong>, so the results are completely deterministic and reproducible.</p>
+
+    <p><strong>Three term-length modes:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Unigram</strong> — single words (e.g. "game", "confusing", "help")</li>
+      <li><strong>Bigram</strong> — two-word pairs (e.g. "group project", "office hours") — the default view</li>
+      <li><strong>Trigram</strong> — three-word phrases (e.g. "too much group")</li>
+    </ul>
+
+    <p><strong>Two ranking modes:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Freq</strong> — raw count: how many times the term appears</li>
+      <li><strong>Keyness</strong> — <em>(only available when a weekly scope is selected)</em> — ranks terms by how statistically over-represented they are in the selected week compared to the full course. Uses a log-likelihood formula. A high keyness score means the term is distinctively associated with that week's feedback.</li>
+    </ul>
+
+    <p><strong>Clicking a bar</strong> expands it to show every student response that contains that term, with the keyword highlighted in gold. Each match card shows a response ID (R1, R2, etc.) and the week label so you can cross-reference it with the full response list below.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-ngram-clickthrough.png" alt="N-gram bar chart with 'game design' bar expanded, showing two matching student responses with the keyword highlighted in gold">
+      <div class="caption">Clicking a bar reveals matching responses. Here the <strong>game design</strong> bigram is expanded, showing the two student responses that contain it with keywords highlighted.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-keyness.png" alt="N-gram bar chart in Keyness ranking mode showing statistically distinctive terms for Week 1">
+      <div class="caption">Switching to <strong>Keyness</strong> ranking (available when a weekly scope is selected) reorders terms by how statistically distinctive they are for that week compared to the full course.</div>
+    </div>
 
     <div class="callout info">
       <span class="callout-label">Note</span>
-      <p><strong>What is "Avg. Turns"?</strong> Each time a student sends a message and the AI replies, that counts as one turn. An average of 1 means most students sent one message and left. An average of 5 means students had a richer back-and-forth dialogue.</p>
+      <p><strong>Common English words are filtered out.</strong> The n-gram analysis automatically removes stopwords like "the", "is", "and", "I", etc. so the bars show meaningful content words only.</p>
     </div>
 
-    <h3 class="sub-heading" id="survey-detail">Survey Detail View</h3>
+    <!-- ── AI Quick Take ── -->
+    <h3 class="sub-heading" id="ai-quicktake">AI Quick Take</h3>
 
-    <p>Click <strong>View →</strong> on any survey row to open the Survey Detail tab. This view gives you everything about one survey in one place: participation stats, AI-generated analysis, and the full conversation history from every student.</p>
-
-    <h3 class="sub-heading" id="student-responses">Reading Student Responses</h3>
-
-    <p>The <strong>Student Responses</strong> section appears at the bottom of the Survey Detail view. Each student's conversation is shown as a collapsible card. Sessions from anonymous surveys appear as "Anonymous Student 1", "Anonymous Student 2", and so on.</p>
+    <p>The AI Quick Take gives you a concise, citation-backed summary of the feedback in the current scope. Unlike the traditional analysis, this <strong>does use AI</strong> — but every claim includes numbered citations so you can verify it against the original student responses.</p>
 
     <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>When you first open a survey's detail view, all student cards are collapsed — you see the student label and their message count. This gives you a quick sense of participation before diving in.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a card to expand</strong><p>Click any card header to reveal that student's full conversation. Student messages are highlighted in blue; AI replies appear in a lighter style so the distinction is clear at a glance.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the <strong>Expand All</strong> button (top-right of the section) to open every conversation at once for a full read-through. The button changes to <strong>Collapse All</strong> so you can tidy up just as quickly.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "Generate summary"</strong><p>The Quick Take is generated on demand — it won't run automatically. You'll see a shimmer animation while the AI processes the responses (typically 10–20 seconds).</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the bullet points</strong><p>The AI returns 8–15 themed bullet points covering recurring praise, concerns, and suggestions. Each bullet ends with numbered citation pills like <strong>[1] [2] [3]</strong>.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Check the verification badge</strong><p>The top-right shows something like <strong>62/66 verified</strong>. This means a second AI pass checked each citation against the source text. Teal pills are verified; gold pills are flagged as partially supported.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Hover a pill to see the source</strong><p>Hover over any numbered citation pill to see which response ID (R1, R2, etc.) it refers to. You can scroll down to the Student Responses section to find that response.</p></div></div>
     </div>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/analyzer-student-responses-collapsed.png" alt="Student Responses section showing three collapsed cards with message counts">
-      <div class="caption">The Student Responses section in its default collapsed state. Each card shows the student number and how many messages they sent. Click any card — or Expand All — to read the full conversation.</div>
+    <div class="callout warn">
+      <span class="callout-label">Important</span>
+      <p><strong>Minimum 20 responses required.</strong> The Quick Take will not generate if the current scope has fewer than 20 student responses. This prevents the AI from making broad claims from too little data. Switch to "Entire Course" scope if a single week doesn't meet the threshold.</p>
     </div>
 
+    <p>The Quick Take is <strong>cached on the server</strong> — once generated, it reloads instantly on future visits. Click <strong>Regenerate</strong> to create a fresh summary (for example, after new responses come in). Click <strong>Show prompt</strong> to see the exact instruction sent to the AI.</p>
+
     <div class="screenshot-wrap">
-      <img src="guide-assets/analyzer-student-responses-expanded.png" alt="Student Responses section with all conversations expanded showing student and AI messages">
-      <div class="caption">After clicking Expand All, every conversation thread opens. Student messages appear in blue; AI replies are shown in a lighter style. The full back-and-forth is visible without leaving the page.</div>
+      <img src="guide-assets/analyzer-quicktake.png" alt="AI Quick Take panel showing themed bullet points with numbered citation pills in teal and a Verified badge in the top-right">
+      <div class="caption">The AI Quick Take for the full course. Each bullet summarises a theme with inline citation pills (numbered, teal = verified). The <strong>Verified</strong> badge at top-right shows how many citations passed a second-pass check.</div>
+    </div>
+
+    <!-- ── Student Responses ── -->
+    <h3 class="sub-heading" id="student-responses">Student Responses</h3>
+
+    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card. Anonymous surveys display "Anonymous Student 1", "Anonymous Student 2", and so on.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>Each card shows the student label, the week, and a message count. This gives you a quick sense of participation before diving in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click to expand</strong><p>Click any card to reveal that student's full messages. Each message is labelled <strong>STUDENT</strong> so the source is clear.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the button at the top-right of the section to open every card at once for a full read-through.</p></div></div>
     </div>
 
     <div class="callout tip">
@@ -575,34 +621,61 @@
       <p><strong>Looking for a specific theme?</strong> Use your browser's Find (Cmd+F / Ctrl+F) while all cards are expanded to search across all student messages at once.</p>
     </div>
 
-    <h3 class="sub-heading" id="ai-analysis">AI Analysis</h3>
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-responses.png" alt="Student Responses section with several cards expanded showing individual student messages labelled STUDENT">
+      <div class="caption">The Student Responses section with cards expanded. Each card shows the student label and their messages. Use <strong>Expand All</strong> to open every card at once.</div>
+    </div>
 
-    <p>Each survey detail view includes an AI-generated analysis that summarizes recurring themes and friction points from student conversations. The analysis is generated on demand and <strong>persists between sessions</strong> — once run, it reloads automatically the next time you open that survey's detail view.</p>
+    <!-- ── Feedback Chat ── -->
+    <hr class="divider">
+    <h3 class="sub-heading" id="feedback-chat">Feedback Chat</h3>
+
+    <p>For deeper exploration, open the <strong>Feedback Chat</strong> page from the sidebar. This is a full chat workspace where you can ask free-form questions about your survey data and the AI responds with evidence-backed answers.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-new-session.png" alt="Feedback Chat empty state with New Chat button, session sidebar, and quick-prompt suggestions">
+      <div class="caption">A fresh Feedback Chat session. The sidebar lists saved sessions, and quick-prompt suggestions help you get started.</div>
+    </div>
 
     <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Run Analysis</strong><p>In the Analysis section, click the <strong>Run Analysis</strong> button. The AI reads all student messages from this survey and returns a structured summary in a few seconds.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Review themes and friction points</strong><p>The analysis identifies 3–6 recurring themes (with supporting student quotes) and 1–3 friction points ranked by urgency. High-urgency items are ones the AI flagged as needing attention before the next class.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Re-run if needed</strong><p>After new responses come in, click <strong>Re-run Analysis</strong> to refresh. The timestamp below the button shows when the last analysis was run.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "+ New Chat"</strong><p>This creates a new chat session scoped to your entire course. Quick-prompt suggestions appear to help you get started — click one or type your own question.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Ask a question</strong><p>Type a question like "What are students struggling with?" or "Group the responses into clusters" and press Enter. The AI reads all student responses in scope and answers with inline numbered citations.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer includes a <strong>Verified X/Y</strong> badge. Numbered citation pills are embedded in the text — teal means the citation was verified against the source; gold means it's partially supported. Hover a pill to see the response ID.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Continue the conversation</strong><p>Ask follow-up questions in the same session. The AI remembers the context from earlier messages, so you can drill deeper ("Tell me more about the grading complaints") without repeating yourself.</p></div></div>
+    </div>
+
+    <p><strong>Sessions are persistent.</strong> Chat sessions are saved on the server and appear in the left sidebar. You can switch between sessions, rename them, export a session as Markdown, or delete sessions you no longer need. The session title is automatically generated from your first message.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-markdown-citations.png" alt="Feedback Chat showing a multi-turn conversation with markdown-formatted AI responses containing bold headings, bullet lists, and numbered citation pills">
+      <div class="caption">A chat conversation in progress. The AI response uses <strong>bold headings</strong>, bullet lists, and numbered citation pills. Hover a pill to see which student response it refers to.</div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing the AI Quick Take on the Analyzer dashboard, click <strong>Ask a follow-up →</strong> to jump directly into a new chat session pre-loaded with the Quick Take context.</p>
+    </div>
+
+    <!-- ── System Prompt ── -->
+    <h3 class="sub-heading" id="chat-system-prompt">Customising the AI Prompt</h3>
+
+    <p>The Feedback Chat gives you full control over the AI's behaviour. Click the <strong>System Prompt</strong> button below the text input to open the prompt editor.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open the prompt editor</strong><p>Click the small <strong>System Prompt</strong> button beneath the message input. A popup appears with the current system prompt in an editable text field.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Edit the prompt</strong><p>Change the instructions to focus the AI on a specific area — for example, add "Focus only on responses related to grading" or "Respond in bullet points only." Changes apply to future messages in this session.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Restore default</strong><p>Click <strong>Restore default</strong> in the popup to reset to the standard LEAI prompt at any time.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Replay last turn</strong><p>Click <strong>Replay last turn</strong> to re-send your last question with the updated prompt. This lets you quickly compare how different prompts change the AI's response.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-system-prompt-modal.png" alt="System Prompt popup modal showing an editable text area with the current AI instructions, plus Restore default, Replay last turn, and Done buttons">
+      <div class="caption">The System Prompt popup. Edit the instructions, click <strong>Done</strong> to save, or use <strong>Restore default</strong> to reset. <strong>Replay last turn</strong> re-sends your last question with the updated prompt.</div>
     </div>
 
     <div class="callout info">
       <span class="callout-label">Note</span>
-      <p><strong>Analysis is saved automatically.</strong> The results are stored in your browser so you don't need to re-run every visit. The analysis persists until you explicitly click Re-run Analysis or clear your browser data.</p>
-    </div>
-
-    <h3 class="sub-heading" id="export-csv">Exporting Responses to a Spreadsheet</h3>
-
-    <p>You can download all student conversations for a survey as a CSV file, which opens in Excel, Google Sheets, or Numbers.</p>
-
-    <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Find the survey row</strong><p>Locate the survey you want to export in the table.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Export CSV</strong><p>Click the <strong>Export CSV</strong> button in the Actions column. Your browser will automatically download a file named something like <code>survey_3_responses.csv</code>.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open in your spreadsheet app</strong><p>Double-click the downloaded file to open it in Excel or Google Sheets. Each row is one message in a student conversation, with columns for session ID, sender (student or AI), message content, and timestamp.</p></div></div>
-    </div>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/test-f13-f14-analyzer2.png" alt="Feedback Analyzer table with Export CSV buttons visible">
-      <div class="caption">Each row in the survey table has an Export CSV button. Click it to download that survey's full conversation data as a spreadsheet.</div>
+      <p><strong>Prompt changes are per-session.</strong> Each chat session stores its own system prompt override. Creating a new session always starts with the default prompt. This means you can experiment freely without affecting other sessions.</p>
     </div>
 
 
