@@ -557,11 +557,9 @@
 </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="leai-shared.js"></script>
     <script src="leai-version.js"></script>
     <script>
-        const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'http://localhost:8000/datapipeline/api'
-            : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
 
         // ===== CONSENT =====
         // Terms & Privacy live as standalone pages in LEAI/legal/.
@@ -687,29 +685,16 @@
         });
 
         function generateIntroductoryMessage(instructions) {
-            $.ajax({
-                type: 'POST',
-                url: API + '/openai-chat/',
-                data: JSON.stringify({
-                    chat_history: [{ sent_by: 'system', content: instructions }],
-                    user_text: 'Begin the conversation. Greet the student briefly and ask your first question.'
-                }),
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                success: function (aiResponse) {
-                    let introMessage = aiResponse.response || aiResponse.content || aiResponse;
-                    if (typeof introMessage !== 'string') {
-                        introMessage = JSON.stringify(aiResponse);
-                    }
-                    introMessage = introMessage.trim();
-                    appendMessage('ai-message', introMessage);
-                    chatHistory.push({ role: 'assistant', content: introMessage });
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error generating introductory message:', error);
-                    appendMessage('ai-message', 'Welcome! How can I help you today?');
-                }
+            leaiChat.chat(
+                'Begin the conversation. Greet the student briefly and ask your first question.',
+                { chatHistory: [{ sent_by: 'system', content: instructions }] }
+            ).then(function(data) {
+                var introMessage = data.response.trim();
+                appendMessage('ai-message', introMessage);
+                chatHistory.push({ role: 'assistant', content: introMessage });
+            }).catch(function(err) {
+                console.error('Error generating introductory message:', err);
+                appendMessage('ai-message', 'Welcome! How can I help you today?');
             });
         }
 
@@ -905,29 +890,17 @@
             // Add loading state
             $('#sendMessage').addClass('loading');
 
-            $.ajax({
-                type: 'POST',
-                url: API + '/openai-chat/',
-                data: JSON.stringify(requestData),
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                success: function (aiResponse) {
-                    let responseText = aiResponse.response || aiResponse.content || aiResponse;
-                    if (typeof responseText !== 'string') {
-                        responseText = JSON.stringify(aiResponse);
-                    }
-                    responseText = responseText.trim();
-                    appendMessage('ai-message', responseText);
-                    chatHistory.push({ role: 'assistant', content: responseText });
-                },
-                error: function (xhr, status, error) {
-                    console.error('Error getting AI Response:', error, xhr.responseText);
-                    appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
-                },
-                complete: function() {
-                    $('#sendMessage').removeClass('loading');
-                }
+            leaiChat.chat(transcription, {
+                chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined
+            }).then(function(data) {
+                var responseText = data.response.trim();
+                appendMessage('ai-message', responseText);
+                chatHistory.push({ role: 'assistant', content: responseText });
+            }).catch(function(err) {
+                console.error('Error getting AI Response:', err);
+                appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
+            }).finally(function() {
+                $('#sendMessage').removeClass('loading');
             });
         }
 
