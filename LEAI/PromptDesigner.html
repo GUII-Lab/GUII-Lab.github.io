@@ -502,6 +502,27 @@ If the student responds that they have no more feedback to give, then please con
                         </div>
                     </div>
 
+                    <!-- Delete Survey confirmation modal -->
+                    <div class="modal-overlay" id="delete-modal">
+                        <div class="modal-box" style="max-width:460px">
+                            <h3>Delete survey?</h3>
+                            <p>
+                                You are about to permanently delete
+                                <strong id="delete-survey-label"></strong>.
+                                This will also remove every student response
+                                collected for this survey.
+                                <br><br>
+                                <strong style="color:var(--error)">This action cannot be undone.</strong>
+                            </p>
+                            <input type="hidden" id="delete-survey-id" />
+                            <div id="delete-msg"></div>
+                            <div class="modal-actions" style="margin-top:4px">
+                                <button class="btn btn-ghost" id="delete-cancel">Cancel</button>
+                                <button class="btn btn-sm" id="delete-confirm" style="background:#b91c1c;color:#fff;border:none">Permanently Delete</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Edit Survey modal -->
                     <div class="modal-overlay" id="edit-modal">
                         <div class="modal-box" style="max-width:520px">
@@ -1071,9 +1092,19 @@ If the student responds that they have no more feedback to give, then please con
                     editBtn.addEventListener('click', function () { openEditModal(survey); });
                 }(s));
 
+                // Delete button (destructive)
+                var deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.title = 'Permanently delete this survey and all its responses';
+                deleteBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#fee2e2;color:#b91c1c;text-transform:uppercase;letter-spacing:0.06em;';
+                (function (survey) {
+                    deleteBtn.addEventListener('click', function () { openDeleteModal(survey); });
+                }(s));
+
                 actionsRow.appendChild(toggleBtn);
                 actionsRow.appendChild(dupBtn);
                 actionsRow.appendChild(editBtn);
+                actionsRow.appendChild(deleteBtn);
 
                 if (activeCourse && activeCourse.id.indexOf('test-') === 0) {
                     var importAnswersBtn = document.createElement('button');
@@ -1164,6 +1195,50 @@ If the student responds that they have no more feedback to give, then please con
         })
         .catch(function () { document.getElementById('edit-msg').textContent = 'Network error.'; })
         .finally(function () { document.getElementById('edit-save').disabled = false; });
+    });
+
+    // ===== DELETE SURVEY =====
+    function openDeleteModal(s) {
+        document.getElementById('delete-survey-id').value = s.id;
+        document.getElementById('delete-survey-label').textContent = s.survey_label || s.name || ('Survey #' + s.id);
+        document.getElementById('delete-msg').textContent = '';
+        var confirmBtn = document.getElementById('delete-confirm');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Permanently Delete';
+        document.getElementById('delete-modal').classList.add('visible');
+    }
+
+    document.getElementById('delete-cancel').addEventListener('click', function () {
+        document.getElementById('delete-modal').classList.remove('visible');
+    });
+
+    document.getElementById('delete-confirm').addEventListener('click', function () {
+        var surveyId = document.getElementById('delete-survey-id').value;
+        if (!surveyId) return;
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Deleting\u2026';
+        fetch(API + '/delete_survey/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ survey_id: parseInt(surveyId, 10) })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) {
+                document.getElementById('delete-msg').textContent = 'Could not delete survey. Please try again.';
+                btn.disabled = false;
+                btn.textContent = 'Permanently Delete';
+            } else {
+                document.getElementById('delete-modal').classList.remove('visible');
+                loadSurveys();
+            }
+        })
+        .catch(function () {
+            document.getElementById('delete-msg').textContent = 'Network error.';
+            btn.disabled = false;
+            btn.textContent = 'Permanently Delete';
+        });
     });
 
     // ===== EXPORT SURVEYS =====
