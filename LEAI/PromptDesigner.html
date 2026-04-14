@@ -1496,13 +1496,15 @@ If the student responds that they have no more feedback to give, then please con
                     body: JSON.stringify(allMessages[i])
                 })
                 .then(function (r) { return r.json(); })
-                .then(function () { sent++; })
+                .then(function (resp) {
+                    if (resp && resp.error) { failed++; } else { sent++; }
+                })
                 .catch(function () { failed++; })
                 .finally(function () {
-                    if ((i + 1) % 25 === 0) {
-                        setMsg('survey-msg', 'Importing\u2026 ' + (i + 1) + '/' + total + ' messages', 'success');
+                    if ((i + 1) % 25 === 0 || i + 1 === total) {
+                        setMsg('survey-msg', 'Importing\u2026 ' + (i + 1) + '/' + total + ' messages (' + failed + ' failed)', 'success');
                     }
-                    sendNext(i + 1);
+                    setTimeout(function () { sendNext(i + 1); }, 50);
                 });
             }
 

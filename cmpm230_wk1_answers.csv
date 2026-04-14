@@ -1,0 +1,201 @@
+session_id,turn,sender,message
+s01,1,bot,"Hey there! I'm Freddie, your feedback bot for CMPM 230. I'm here to collect your thoughts on this week's topics. You can end our chat anytime by saying STOP or when you're out of feedback. So — did framing a computational experience as a data science question feel natural or forced to you?"
+s01,2,student,Hey Freddie. Honestly the DSLC made sense since I've done data projects before. But the domain framing part was newer for me — I wasn't sure how specific to get when turning a game scenario into a DS question.
+s01,3,bot,"Got it — the DSLC clicked but domain framing felt unclear in scope. What do you think would have made it easier to figure out the right level of specificity? More examples, a rubric, something else?"
+s01,4,student,"Definitely more worked examples. Reza showed one game example but I would've liked to see 2 or 3 to get a feel for the granularity. Like one too broad, one too narrow, one just right."
+s01,5,bot,That's a really concrete suggestion. Speaking of Reza — how would you rate his teaching this week overall? Anything about his approach that stood out positively or could improve?
+s01,6,student,Reza's clearly passionate and explains things well at a high level. I think he could slow down a bit during the more technical parts though. The pace was a little fast when he got into the lifecycle details.
+s01,7,bot,Thanks for that. Now — how did the exercises work for you? Did mapping a computational experience to the DSLC stages and writing a domain-framed data question about a game help solidify the concepts?
+s01,8,student,The DSLC mapping exercise was useful — it made the stages feel concrete instead of abstract. The domain question exercise was harder but in a good way. I chose Valorant matchmaking and it made the concept click.
+s01,9,bot,"Nice, sounds like the exercises landed well for you. On the flip side — what topics from this week felt especially well-explained or clicked right away?"
+s01,10,student,The big picture framing of data science as a full workflow was really well presented. I'd done bits and pieces before but seeing it as a coherent lifecycle with stages was a new and helpful way to think about it.
+s01,11,bot,Great to hear that connected. Last question on content — what are you most excited or curious about for next week's topic on data and collection?
+s01,12,student,"I'm curious about how we'll approach data collection specifically for games. Like will we use APIs, scraping, surveys? I want to know what's practical for game analytics."
+s01,13,bot,"Awesome, thanks for all your feedback Alex! Before we wrap — any thoughts on how I did as a feedback bot? Ways I could improve at gathering your thoughts?"
+s01,14,student,You were good. Maybe let the conversation feel a bit more open-ended at the start before drilling into specific questions. But overall solid.
+s02,1,bot,"Hi! I'm Freddie, your CMPM 230 feedback bot. I'm here to hear how this week went for you. Say STOP anytime or let me know when you're done. To kick off — were the intro concepts like the DSLC and domain framing explained clearly enough for you?"
+s02,2,student,"Hi Freddie! Hmm, I think I understood the general idea of the DSLC but some of the terminology was hard to follow. Like I get the stages visually but when Reza used technical terms quickly I got a bit lost."
+s02,3,bot,"That makes sense — the visual was clear but the jargon was a barrier. What do you think would have helped? Maybe a glossary handout, more pauses for questions, or something else?"
+s02,4,student,A glossary would be amazing actually. Or even just having key terms on the slides with simple definitions. I come from game design so the stats-y language is new to me.
+s02,5,bot,Totally fair. How did you feel about Reza's teaching approach this week? Did his style work for you as someone coming from a design background?
+s02,6,student,"I like Reza, he's enthusiastic and makes it feel approachable. The game examples really helped me connect. I just wish he'd check in more with students who might not have the CS background."
+s02,7,bot,Good feedback. How about the exercises — mapping a computational experience to the DSLC and writing a domain-framed data question about a game? Did those help your learning?
+s02,8,student,"The DSLC mapping was ok once I figured out what to do, but I was confused at first about what counted as a computational experience. The game question exercise was more fun — I picked Animal Crossing!"
+s02,9,bot,Love that choice! What topics from this week felt well-explained or made sense to you right away?
+s02,10,student,Honestly the idea that games generate data that can be studied scientifically was kind of an aha moment. I never thought about my design work that way before.
+s02,11,bot,That's great — sounds like the framing resonated. What are you looking forward to or curious about with next week's data and collection topic?
+s02,12,student,I'm curious but also a little nervous. Hopefully it stays connected to games and doesn't get too abstract.
+s02,13,bot,Thanks for being so open with your feedback Maya! Quick last thing — how was chatting with me? Anything I could do better as a feedback bot?
+s02,14,student,"You were nice and easy to talk to! Maybe shorter questions though, some felt like a lot to process at once. Thanks Freddie!"
+s03,1,bot,"Hey! I'm Freddie, the feedback bot for CMPM 230. Here to hear about your Week 1 experience. Say STOP or let me know when you're out of feedback. First up — how did framing computational experiences as data science questions land for you?"
+s03,2,student,Hey Freddie. Honestly a lot of this week felt familiar since I've taken stats courses. The DSLC is basically the same workflow we learned in intro stats just with different names. Domain framing was the newer angle.
+s03,3,bot,"Interesting — so the stats overlap felt redundant. Was the game-specific domain framing enough to make it feel distinct, or did you want the course to go deeper faster?"
+s03,4,student,The game context did make it feel fresh. I think the issue is more that Week 1 intro material is always slow. I'm hoping later weeks get more into the weeds. Reza hinted at some good stuff coming.
+s03,5,bot,"Makes sense — patience for the payoff. How was Reza's teaching for you this week? Given your background, did he still offer new perspectives?"
+s03,6,student,Reza's good. He clearly knows his stuff and the game analytics lens is unique. I appreciated that he didn't just rehash generic DS intro content — the computational experience framing was a nice twist.
+s03,7,bot,Glad to hear. Did the exercises — DSLC mapping and the domain-framed data question — feel useful or too basic given your background?
+s03,8,student,The DSLC mapping was easy for me but I can see how it'd help others. The domain question was more interesting — I chose analyzing player churn in a mobile game which felt like a real problem to solve.
+s03,9,bot,Cool — what were you most excited about for next week on data and collection?
+s03,10,student,Live vs dead data sounds interesting from the description. And I want to see how game data collection differs from traditional survey or experimental data that I'm used to.
+s03,11,bot,Thanks for the thoughtful feedback Jordan. Before we go — any thoughts on how I did as a bot? Ways I could better collect feedback?
+s03,12,student,"Pretty good. Maybe adapt the questions based on what the student says — like if someone says stuff was easy, skip the struggle questions and go deeper on what they want. Otherwise solid."
+s04,1,bot,"Hi! I'm Freddie, the CMPM 230 feedback bot. I want to hear about your Week 1 experience. You can say STOP anytime or just let me know when you're done. Starting off — were the intro concepts around the DSLC and domain framing clear?"
+s04,2,student,"Hi Freddie. I'll be honest — most of Week 1 was review for me. I've taken ML courses and worked as a data analyst so the DSLC and framing questions are things I've already internalized. Not a complaint, just context."
+s04,3,bot,"Appreciate the honesty. Even if it was review, was there anything about how it was framed for games/computational experiences specifically that offered a new angle for you?"
+s04,4,student,Yeah the computational experience framing is the one new thing. I've never thought about applying DS specifically to game systems. That part was interesting. I just wish we could have moved faster through the basics to get to the game-specific stuff.
+s04,5,bot,Fair point. How did Reza handle the balance of teaching to a mixed-experience class? Any feedback on his approach?
+s04,6,student,Reza's a strong lecturer. He's good at making things accessible without being condescending. I think offering an optional advanced track or reading list for students like me would help. I don't want to be bored but I also don't want the class slowed down.
+s04,7,bot,"That's a constructive suggestion. How were the exercises for you — the DSLC mapping and domain-framed data question? Too easy, just right, or still useful?"
+s04,8,student,The DSLC mapping was too basic for me. The domain question was better — I chose predicting speedrun completion rates which was a fun problem to frame. I'd suggest having a harder variant for experienced students.
+s04,9,bot,Nice problem choice. What topics this week felt especially well-presented despite being familiar?
+s04,10,student,"The way Reza connected each DSLC stage to a running game example throughout the lecture was really effective pedagogically. Even though I knew the content, the narrative structure was well done."
+s04,11,bot,Good to know. What are you most looking forward to next week with data and collection?
+s04,12,student,I want to see how data documentation works for game telemetry. That's messier than typical datasets and I'm curious how Reza approaches it.
+s04,13,bot,"Thanks Sam, really helpful feedback. Last thing — how was your experience with me as a feedback tool? Suggestions?"
+s04,14,student,You're fine. My suggestion would be to let students optionally tag their experience level at the start so you can tailor your questions. Would make the conversation more efficient for experienced folks.
+s05,1,bot,"Hey! I'm Freddie, your CMPM 230 feedback bot. I'm here to hear how Week 1 went for you. You can type STOP or just tell me when you're out of things to share. So — were the intro concepts like the DSLC and domain framing clear for you?"
+s05,2,student,Hi Freddie. Honestly I was pretty overwhelmed. There were a lot of new terms and I felt like I was falling behind. I'm a game design major and this feels very CS-heavy.
+s05,3,bot,That's totally valid to feel. Which specific terms or concepts were the hardest to follow? And what do you think could have helped make them more approachable?
+s05,4,student,The DSLC stages were confusing — like I get that there are steps but I couldn't tell where one ended and the next began in the examples. Maybe more visual walkthroughs or step by step breakdowns would help.
+s05,5,bot,"Step-by-step breakdowns sound helpful. How about Reza's teaching — did his approach work for you, or was there something about the pacing or style that made it harder?"
+s05,6,student,Reza is really nice and patient when you ask questions. But the lecture moved fast and I was afraid to ask too many questions in front of everyone. Maybe some kind of anonymous question tool during class?
+s05,7,bot,That's a great suggestion. How did the exercises go — mapping to the DSLC and writing a domain-framed question about a game? Were they helpful or added to the overwhelm?
+s05,8,student,They were hard but the game part made them less scary. I picked Mario Kart for the domain question which at least made it fun to think about even if I wasn't sure I did it right.
+s05,9,bot,Glad the game connection helped. Was there anything from this week that did click or felt well-explained?
+s05,10,student,The idea that you can study games with data was cool. I just need more support getting from the idea to the execution. I think I'll be ok once I get the hang of it.
+s05,11,bot,That's a positive outlook! Thanks for sharing Taylor. Before we wrap — how was this chat experience? Ways I could be better at collecting feedback?
+s05,12,student,"You were good! Maybe check in about how the student is feeling emotionally too, not just about the content. This class is stressful for non-CS people."
+s06,1,bot,"Hi! I'm Freddie, your CMPM 230 feedback bot. I'd love to hear about your Week 1 experience. Type STOP or let me know when you're done. To start — did the concept of framing computational experiences as data science questions click for you?"
+s06,2,student,Hey Freddie! Yeah it totally clicked. I've been thinking about ML pipelines a lot and the DSLC maps really naturally onto that. Domain framing is basically feature selection and problem definition in ML terms.
+s06,3,bot,"Nice connection to ML. Was there anything that felt less clear or that you think could have been taught differently, even from your more advanced perspective?"
+s06,4,student,"I think the connection between domain framing and actual model objectives could have been more explicit. Like when you frame a question about a game, what does that imply about your target variable? That link was implicit."
+s06,5,bot,Interesting observation. How would you rate Reza's teaching this week? Did he provide enough depth for someone with your background?
+s06,6,student,Reza's great — he clearly knows the space deeply. I think he's balancing a wide range of student backgrounds which is tough. For me personally I'd love optional deeper dives but I understand he has to serve everyone.
+s06,7,bot,Fair. How did the exercises land? The DSLC mapping and domain-framed data question — did they push your thinking at all?
+s06,8,student,The DSLC mapping was straightforward but the domain question was interesting. I framed a question about predicting player toxicity in competitive FPS games. It forced me to think about what data I'd actually need.
+s06,9,bot,That's a meaty question to frame. What from this week felt especially well-explained?
+s06,10,student,The full workflow overview was excellent. Having a clear mental model of the entire pipeline from question to communication before diving into any piece is something my ML courses never did well.
+s06,11,bot,Great point. What are you most excited about for next week's data and collection topic?
+s06,12,student,Live vs dead data sounds fascinating. And I want to know more about collecting behavioral telemetry from games — that feels like it connects directly to the kind of ML projects I want to do.
+s06,13,bot,Thanks Riley! Last thing — any feedback on me as a bot? How could I gather your thoughts better?
+s06,14,student,Honestly you're solid. Maybe let students bring up their own topics first before asking directed questions. Sometimes I have thoughts that don't fit neatly into your questions.
+s07,1,bot,"Hi there! I'm Freddie, the CMPM 230 feedback bot. I want to hear how Week 1 went for you. Say STOP anytime or let me know when you've shared everything. So — were the intro concepts like the DSLC and domain framing clear for you?"
+s07,2,student,Hi Freddie. Um honestly I was kind of scared going in. I'm an art and game design major and this is my first real data class. The DSLC felt really abstract and I kept thinking I don't belong here.
+s07,3,bot,I hear you — it's tough being in unfamiliar territory. What specifically felt abstract about the DSLC? And what do you think might have made it feel less intimidating?
+s07,4,student,I think if there were more visual examples? Like an actual step by step walkthrough with a game I know. The stages as a list of names didn't mean much to me. But when Reza used the game example it started making more sense.
+s07,5,bot,So the concrete game example was the key. How was Reza's teaching for you? Did his approach help with the anxiety at all?
+s07,6,student,Reza is super nice and encouraging. He said there's no wrong questions which helped. I just wish there was more time to process things before moving to the next concept. It was a lot of new ideas in one lecture.
+s07,7,bot,That's understandable. How were the exercises — mapping to the DSLC and writing a domain question about a game? Did they help or feel too daunting?
+s07,8,student,The domain question was actually the most fun part! I wrote about how players choose outfits in a dress up game. It made data science feel like something I could connect to my interests.
+s07,9,bot,That's wonderful! Was there anything this week that felt well-explained or that you understood easily?
+s07,10,student,The idea that every game is generating data just by being played was cool. Like I never thought about my design choices creating data points. That was explained well.
+s07,11,bot,Nice takeaway. Thanks Casey! Quick last thing — how was chatting with me? Any ways I could be better?
+s07,12,student,You were really nice! Maybe be a little more encouraging when someone says they're struggling? Like validate that it's ok to find things hard. Thanks Freddie :)
+s08,1,bot,"Hey! I'm Freddie, your CMPM 230 feedback bot. I want to hear about Week 1. Say STOP or let me know when you're out of feedback. First up — were the concepts around the DSLC and domain framing clear to you?"
+s08,2,student,Hey. Yeah they were clear enough. I get the lifecycle stuff. I just found the lecture kind of heavy on theory. I'd rather be coding or working with actual data than listening to frameworks.
+s08,3,bot,Fair — you wanted more hands-on work. What would an ideal balance of theory vs practice look like for you?
+s08,4,student,Like 30% lecture 70% coding/exercises. The two exercises were the best part of class. Everything else was stuff I could have read on my own.
+s08,5,bot,How did you feel about Reza's teaching style? Any feedback on his approach?
+s08,6,student,"He's fine, knows his stuff. I just don't learn well from lectures. Not really his fault. He did a good job with the examples."
+s08,7,bot,Got it. How were those exercises — the DSLC mapping and domain question? You mentioned they were the best part.
+s08,8,student,"Yeah the DSLC mapping made the theory actually stick. The domain question was cool, I used a game I'm building and it was useful for my own project. More stuff like that please."
+s08,9,bot,Awesome. What are you looking forward to with next week's data and collection topic?
+s08,10,student,Hoping there's more coding involved. Working with actual datasets and collection tools. That's where I learn best.
+s08,11,bot,Thanks Morgan. Last thing — feedback on me as a bot? How could I improve?
+s08,12,student,You're fine. Maybe fewer questions and more open-ended prompts so I can just dump my thoughts. Felt a bit like an interview.
+s09,1,bot,"Hi! I'm Freddie, the CMPM 230 feedback bot. Here to collect your Week 1 thoughts. You can say STOP anytime. To kick things off — how did framing computational experiences as data science questions feel for you?"
+s09,2,student,Hi Freddie. This is interesting to me because in cognitive science we frame research questions similarly but for human behavior. Seeing the parallel with computational experiences was illuminating.
+s09,3,bot,Nice to hear that connection! Was there anything from the DS framing that felt different or challenging compared to how you frame research in cog sci?
+s09,4,student,The DSLC felt familiar but the 'computational experience' part was new. I kept wanting to frame things in terms of user experience rather than the system itself. Not sure if that's wrong or just a different lens.
+s09,5,bot,That's a thoughtful distinction. How was Reza's teaching approach for you as someone from a different field?
+s09,6,student,Reza was great at making it accessible across disciplines. He didn't assume everyone was CS which I appreciated. The game examples were helpful as shared ground between all of us.
+s09,7,bot,Good to hear. How did the exercises support your learning — the DSLC mapping and domain-framed question?
+s09,8,student,I framed a question about how tutorial design affects player learning curves. It felt very natural from my research angle. The DSLC mapping was useful for seeing how my research steps translate.
+s09,9,bot,That's a fascinating question. What topic clicked best for you this week?
+s09,10,student,Domain framing was the highlight. It's basically operationalization in research methods but applied to games. That connection was exciting.
+s09,11,bot,Thanks Avery! Any feedback on me as a feedback bot? How could I improve?
+s09,12,student,You're good! Maybe ask about how concepts connect to students' other coursework or research. That's where the real insights come from for interdisciplinary students.
+s10,1,bot,"Hey! I'm Freddie, the CMPM 230 feedback bot. I want to hear how Week 1 went. Say STOP anytime or let me know when you're done. Starting off — did framing computational experiences as data science questions feel practical and applicable to you?"
+s10,2,student,Hi Freddie. Yeah it did. I interned at a mobile game studio last summer and we were basically doing this without calling it data science. Having the formal framework is useful.
+s10,3,bot,Great real-world connection. Was there anything about the formal framework that felt disconnected from how it actually works in industry?
+s10,4,student,Kind of. In production you don't really think in DSLC stages — you just look at metrics and react. But I can see how the formal structure helps for more rigorous analysis. Reza made that distinction well.
+s10,5,bot,How was Reza's teaching overall for you? Any feedback on his approach from someone with industry context?
+s10,6,student,"Reza's solid. I like that he uses real game examples, not toy problems. I'd love to see even more case studies from actual studios. Maybe guest speakers from industry down the line."
+s10,7,bot,Cool suggestion. How were the exercises — did mapping the DSLC and writing a domain question about a game feel useful?
+s10,8,student,The DSLC mapping felt a bit academic but the domain question was great. I used a retention problem from my internship as the basis and it helped me see the theory-practice connection.
+s10,9,bot,That's practical. What are you most excited for with next week's data and collection topic?
+s10,10,student,Really looking forward to live vs dead data. At my internship we dealt with both and I want to understand the formal distinctions better.
+s10,11,bot,Thanks Jamie! Quick last thing — any feedback on me as a feedback bot?
+s10,12,student,Yeah you're fine. Maybe ask about how concepts relate to industry or real work. Students with experience might have good insights to share.
+s12,1,bot,"Hi! I'm Freddie, your CMPM 230 feedback bot. I'm here to hear about Week 1. Type STOP or let me know when you're done sharing. To start — were the intro concepts like the DSLC and domain framing clear for you?"
+s12,2,student,FREDDIE HI! Ok so I have a lot of thoughts. This week was so interesting! I loved learning about the DSLC and how everything connects. The game examples were really fun.
+s12,3,bot,"Love the energy! Was there anything from this week that was confusing or that you struggled with, even a little bit?"
+s12,4,student,Hmm domain framing was a bit tricky. Like I understand it conceptually but when I tried to actually write my own question it took a while. Also I kept going back and forth between the DSLC stages — is that normal?
+s12,5,bot,Totally normal! What do you think would have made domain framing easier to practice? And how did Reza's teaching help or not help with that?
+s12,6,student,"More practice examples would help! Reza is awesome by the way, super energetic and makes everything feel exciting. He could maybe slow down just a tiny bit during the exercise walkthroughs."
+s12,7,bot,Good feedback. Speaking of exercises — how did the DSLC mapping and domain question exercises go for you? Did they support your learning?
+s12,8,student,YES the exercises were the best! I picked Stardew Valley for my domain question and it was so fun thinking about what data a farming sim generates. The mapping exercise was also cool but I second guessed myself a lot.
+s12,9,bot,Stardew Valley is a great pick. What are you excited about for next week on data and collection?
+s12,10,student,Everything!! But especially learning about different data types in games. I never really thought about how games store information. This is opening a whole new world for me!
+s12,11,bot,Thanks Quinn! Last thing — how was I as a feedback bot? Anything I could do better?
+s12,12,student,You were great! Maybe add more encouragement when someone shares something they're excited about. Like validate the excitement too not just the struggles!
+s13,1,bot,"Hey! I'm Freddie, the CMPM 230 feedback bot. I'm here to collect your thoughts on Week 1. Say STOP anytime or when you're out of feedback. First — were the intro concepts around the DSLC and domain framing explained clearly for you?"
+s13,2,student,Hi Freddie. I just transferred to UCSC this quarter so I'm still getting used to the pace here. The concepts made sense in the lecture but when I went home to review I realized I wasn't sure about some things.
+s13,3,bot,"Adjusting to a new school is tough. What concepts were you unsure about when reviewing? And what do you think would have helped — slides, recordings, office hours?"
+s13,4,student,Mainly the difference between domain framing and just asking a question about data. It felt subtle. Recorded lectures or a cheat sheet with definitions would help a lot. I'm used to having those from my old school.
+s13,5,bot,That's a fair ask. How was Reza's teaching style for you as someone new to UCSC?
+s13,6,student,He seems really good. Very welcoming. I was nervous being new but he made the class feel inclusive. The game focus helps since that's common ground for everyone.
+s13,7,bot,Glad he's welcoming. Did the exercises — DSLC mapping and domain question — help clarify things or add to the uncertainty?
+s13,8,student,They helped actually. Having something concrete to do made the abstract stuff land better. I just needed a bit more guidance on what a good answer looks like.
+s13,9,bot,Makes sense. Thanks for sharing Skyler! Any feedback on me? How could I better collect your thoughts?
+s13,10,student,You're good. This was my first time using a feedback bot — it was actually easier than filling out a form. Nice work!
+s14,1,bot,"Hi! I'm Freddie, the CMPM 230 feedback bot. I want to hear about your Week 1 experience. Say STOP or tell me when you're done. So — did framing computational experiences as data science questions feel natural or forced to you?"
+s14,2,student,"Hey Freddie. As a game design and CS double major, it felt pretty natural. I've always thought about games as systems that generate data, so the framing clicked. The DSLC was a nice formal way to organize that intuition."
+s14,3,bot,Good that it matched your intuition. Was there anything that didn't land as well or that you think could be improved about how concepts were presented?
+s14,4,student,Domain framing was well done but I wish there were examples from different game genres. Reza mostly used competitive/multiplayer examples. Narrative games and single player experiences also have interesting data science questions.
+s14,5,bot,That's a great point about genre diversity. How was Reza's teaching overall? Any other feedback on his approach?
+s14,6,student,Reza's really engaging and knowledgeable. He balances accessibility and depth well. My only suggestion would be to explicitly call out when a concept applies differently to different game types since we're a mixed design/CS audience.
+s14,7,bot,Constructive. How did the exercises work for you — the DSLC mapping and domain-framed data question?
+s14,8,student,Both were useful. The DSLC mapping helped me see gaps in how I usually think about data work. The domain question I wrote was about narrative branching patterns in Disco Elysium which was fun to formalize.
+s14,9,bot,Cool choice! What from this week felt especially well-explained?
+s14,10,student,The full workflow overview. Having the big picture before diving into details is exactly the right pedagogical choice. It gives everything a home to fit into.
+s14,11,bot,What are you most looking forward to with next week's topic on data and collection?
+s14,12,student,I'm curious about live vs dead data — like how telemetry from a live game differs from post-hoc analysis of logs. That distinction seems really important for game DS.
+s14,13,bot,Thanks River! Last question — any feedback on how I could improve as a feedback bot?
+s14,14,student,"You follow a pretty rigid script. Maybe adapt more based on what the student says — like if I raise a nuanced point, dig deeper into it rather than moving to the next standard question."
+s15,1,bot,"Hey! I'm Freddie, your CMPM 230 feedback bot. Here to gather your thoughts on Week 1. Say STOP anytime or when you're done. To start — were the intro concepts around the DSLC and domain framing explained clearly?"
+s15,2,student,"Hi Freddie. The concepts were mostly clear but I have some specific questions. When we talk about the DSLC, Reza presented it as linear but he also mentioned iteration. I'd like more clarity on when you go back to earlier stages vs moving forward."
+s15,3,bot,"Good edge case to raise. What do you think would have helped — maybe a branching diagram instead of a linear one, or case studies showing iteration?"
+s15,4,student,A case study showing a real project that had to loop back would be ideal. Like 'we were at analysis but realized our data collection was flawed so we went back.' That would make the iteration concrete.
+s15,5,bot,That's a really specific and useful suggestion. How was Reza's teaching approach this week? Any thoughts on how he handles these kinds of nuanced questions?
+s15,6,student,Reza's excellent. When I asked about iteration in class he gave a good answer but didn't have time to fully explore it. I'd appreciate if edge cases like that were addressed in supplementary materials or office hours.
+s15,7,bot,Good idea. How were the exercises? Did mapping to the DSLC and writing a domain question push your thinking in the right ways?
+s15,8,student,The DSLC mapping exposed an interesting tension — my computational experience didn't fit neatly into the stages which was actually really instructive. The domain question exercise was well-scoped. I chose analyzing difficulty curves in roguelikes.
+s15,9,bot,Great observations. What topics this week felt well-explained or immediately clear?
+s15,10,student,The computational-experience framing was elegant. Defining exactly what counts as a computational experience and then showing how any CE generates analyzable data was very well done. Clear and concise.
+s15,11,bot,What are you looking forward to next week with data and collection?
+s15,12,student,I want to understand the formal criteria for choosing between observational and experimental data collection in a game context. Also curious about ethical considerations with player data.
+s15,13,bot,Those are great questions. Thanks for the detailed feedback Cameron! Any suggestions for how I could improve as a feedback bot?
+s15,14,student,"You could ask more open-ended questions and then follow up on specifics. Also, letting me rate things on a scale alongside qualitative feedback would be useful for aggregation."
+s16,1,bot,"Hey! I'm Freddie, the CMPM 230 feedback bot. I'm here to hear about Week 1. Type STOP or tell me when you're done. First — were the intro concepts like the DSLC and domain framing clear to you?"
+s16,2,student,Hey. I'll be real with you — I'm only in this class because it's required for my major. Data science is not my thing. I'm a game design person and I want to make games not analyze them.
+s16,3,bot,"I appreciate the honesty. Even with that feeling, was there anything from this week that connected to your game design interests at all?"
+s16,4,student,"I guess the domain framing part was ok because at least it was about games. But the DSLC stages just felt like a lot of jargon for common sense. You collect data, clean it, analyze it, done. Why does it need a lifecycle?"
+s16,5,bot,Fair question. How did Reza's teaching land for you? Did the game examples help make it more relevant?
+s16,6,student,"Reza's fine, he's enthusiastic. The game examples helped a bit. I just think there could be more emphasis on how this actually helps you make better games, not just study them. That would motivate me more."
+s16,7,bot,That's actually great feedback. Did the exercises help at all — the DSLC mapping and writing a data question about a game?
+s16,8,student,The domain question was ok I guess. I picked my own game project which made it somewhat relevant. The DSLC mapping felt like busywork though. STOP
+s16,9,bot,"Thanks for being honest Jesse, that's really valuable feedback. Before we go — any quick thoughts on how I could be a better feedback bot?"
+s16,10,student,Maybe don't assume everyone is excited about the material. Ask what would make it more relevant to them. That's more useful than asking what clicked.
+s17,1,bot,"Hi! I'm Freddie, your CMPM 230 feedback bot. I want to hear about your Week 1 experience. Say STOP or let me know when you're done. To start — how did the intro concepts like the DSLC and domain framing land for you?"
+s17,2,student,"Hey. Coming from an ML background, the DSLC is basically CRISP-DM which I've used before. Domain framing is problem formulation. So content-wise this was review. The game-specific angle is the only new thing."
+s17,3,bot,"Got it — familiar ground. Was the game angle enough to make it worthwhile, or did the week feel like it could have been compressed for experienced students?"
+s17,4,student,Honestly it could have been compressed. But I know intro weeks serve a purpose for the class. The computational experience framing is genuinely useful — it's a cleaner abstraction than what I've seen in ML courses.
+s17,5,bot,Good to know the CE framing added value. How was Reza's teaching from your perspective?
+s17,6,student,"Reza's a good communicator. He doesn't just read slides, he actually teaches. I think he does well making things accessible. For advanced students, maybe offer pre-reading or challenge problems."
+s17,7,bot,Solid suggestion. How were the exercises for you?
+s17,8,student,Easy but well-designed. I can see how they'd help less experienced students. My domain question was about predicting esports match outcomes which was interesting to formalize.
+s17,9,bot,What are you looking forward to next week?
+s17,10,student,Data documentation and live data concepts. Those are areas where game data diverges from standard ML datasets and I want to understand the differences.
+s17,11,bot,Thanks Blake. Any feedback on me as a bot?
+s17,12,student,Fine. A bit formulaic though. Maybe fewer prescribed questions and more of a natural conversation flow. Feels like a survey with extra steps right now.
