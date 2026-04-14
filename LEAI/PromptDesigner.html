@@ -531,12 +531,14 @@ If the student responds that they have no more feedback to give, then please con
                     <div class="card-title" style="justify-content:space-between">
                         Your Surveys
                         <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button class="btn btn-outline" id="example-csv-btn" title="Download example CSV for importing survey answers" style="display:none">Example CSV</button>
                             <button class="btn btn-outline" id="import-surveys-btn" title="Import surveys from a JSON file">Import</button>
                             <button class="btn btn-outline" id="export-surveys-btn" title="Export all surveys as JSON">Export</button>
                             <button class="btn btn-outline" id="refresh-surveys-btn">Refresh</button>
                         </div>
                     </div>
                     <input type="file" id="import-file-input" accept=".json" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0" />
+                    <input type="file" id="import-answers-file-input" accept=".csv" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0" />
                     <div id="survey-list-container">
                         <div class="empty-state">No surveys yet.</div>
                     </div>
@@ -551,6 +553,7 @@ If the student responds that they have no more feedback to give, then please con
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
+    var pendingAnswersImport = null;
 
     // ===== INIT TAG INPUT FOR THEMES =====
     // ===== SETTINGS TOGGLE =====
@@ -629,6 +632,8 @@ If the student responds that they have no more feedback to give, then please con
         document.getElementById('app').style.display = 'flex';
         setupSidebar();
         loadSurveys();
+        var isTestCourse = activeCourse && activeCourse.id.indexOf('test-') === 0;
+        document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
     }
 
     function lockCourse(courseId, courseName) {
@@ -1070,6 +1075,20 @@ If the student responds that they have no more feedback to give, then please con
                 actionsRow.appendChild(dupBtn);
                 actionsRow.appendChild(editBtn);
 
+                if (activeCourse && activeCourse.id.indexOf('test-') === 0) {
+                    var importAnswersBtn = document.createElement('button');
+                    importAnswersBtn.textContent = 'Import Answers';
+                    importAnswersBtn.title = 'Import conversation data from a CSV file';
+                    importAnswersBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#dbeafe;color:#1e40af;text-transform:uppercase;letter-spacing:0.06em;';
+                    (function (surveyId, surveyName) {
+                        importAnswersBtn.addEventListener('click', function () {
+                            pendingAnswersImport = { surveyId: surveyId, surveyName: surveyName };
+                            document.getElementById('import-answers-file-input').click();
+                        });
+                    }(s.id, s.name));
+                    actionsRow.appendChild(importAnswersBtn);
+                }
+
                 item.appendChild(titleRow);
                 item.appendChild(meta);
                 item.appendChild(linkBox);
@@ -1261,6 +1280,233 @@ If the student responds that they have no more feedback to give, then please con
             }
 
             createNext(0);
+        };
+        reader.readAsText(file);
+    });
+
+    // ===== IMPORT SURVEY ANSWERS (CSV) — test- courses only =====
+
+    function parseCSV(text) {
+        var rows = [];
+        var row = [];
+        var field = '';
+        var inQuotes = false;
+        var i = 0;
+        while (i < text.length) {
+            var c = text[i];
+            if (inQuotes) {
+                if (c === '"') {
+                    if (i + 1 < text.length && text[i + 1] === '"') {
+                        field += '"';
+                        i += 2;
+                    } else {
+                        inQuotes = false;
+                        i++;
+                    }
+                } else {
+                    field += c;
+                    i++;
+                }
+            } else {
+                if (c === '"') {
+                    inQuotes = true;
+                    i++;
+                } else if (c === ',') {
+                    row.push(field);
+                    field = '';
+                    i++;
+                } else if (c === '\r') {
+                    if (i + 1 < text.length && text[i + 1] === '\n') i++;
+                    row.push(field);
+                    rows.push(row);
+                    field = '';
+                    row = [];
+                    i++;
+                } else if (c === '\n') {
+                    row.push(field);
+                    rows.push(row);
+                    field = '';
+                    row = [];
+                    i++;
+                } else {
+                    field += c;
+                    i++;
+                }
+            }
+        }
+        if (field || row.length) {
+            row.push(field);
+            rows.push(row);
+        }
+        return rows;
+    }
+
+    function toCSVRow(fields) {
+        return fields.map(function (f) {
+            if (/[,"\n\r]/.test(f)) return '"' + f.replace(/"/g, '""') + '"';
+            return f;
+        }).join(',');
+    }
+
+    document.getElementById('example-csv-btn').addEventListener('click', function () {
+        var rows = [
+            ['session_id', 'turn', 'sender', 'message'],
+            ['session_1', '1', 'bot', "Hi! I'm your feedback bot. How did this week's topics land for you? Say STOP when you're done."],
+            ['session_1', '2', 'student', 'Hey! The lecture was clear overall. I liked the hands-on examples.'],
+            ['session_1', '3', 'bot', 'Glad to hear the examples helped! Was there anything you found confusing or wanted more time on?'],
+            ['session_1', '4', 'student', 'Grouping was a bit fast. I needed more practice with the syntax.'],
+            ['session_1', '5', 'bot', 'What do you think would have helped \u2014 more examples, a cheat sheet, or pair exercises?'],
+            ['session_1', '6', 'student', 'A cheat sheet with common patterns would be great.'],
+            ['session_1', '7', 'bot', 'Thanks for the suggestion! Any feedback on how I could improve as a feedback bot?'],
+            ['session_1', '8', 'student', 'You\'re good. Maybe let me bring up topics first before asking specific questions.'],
+            ['session_2', '1', 'bot', "Hi! I'm your feedback bot. How did this week's topics land for you? Say STOP when you're done."],
+            ['session_2', '2', 'student', 'Honestly I was confused by most of it. The terminology is hard.'],
+            ['session_2', '3', 'bot', 'That\'s valid. Which terms or concepts were the hardest? What might have made them clearer?'],
+            ['session_2', '4', 'student', 'Observational units \u2014 I don\'t even know what that means in a game context. STOP'],
+            ['session_2', '5', 'bot', 'Thanks for being honest! How could I be a better feedback bot?'],
+            ['session_2', '6', 'student', 'Maybe explain things a bit instead of just asking questions.'],
+        ];
+        var csv = rows.map(toCSVRow).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'survey-answers-example.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('import-answers-file-input').addEventListener('change', function () {
+        var file = this.files[0];
+        this.value = '';
+        if (!file || !pendingAnswersImport) return;
+
+        var target = pendingAnswersImport;
+        pendingAnswersImport = null;
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            var rows = parseCSV(e.target.result);
+            if (rows.length < 2) {
+                setMsg('survey-msg', 'CSV file is empty or has no data rows.', 'error');
+                return;
+            }
+
+            // Validate headers
+            var headers = rows[0].map(function (h) { return h.toLowerCase().trim(); });
+            var required = ['session_id', 'turn', 'sender', 'message'];
+            var colMap = {};
+            for (var ri = 0; ri < required.length; ri++) {
+                var idx = headers.indexOf(required[ri]);
+                if (idx === -1) {
+                    setMsg('survey-msg', 'Missing required column: ' + required[ri] + '. Expected columns: session_id, turn, sender, message', 'error');
+                    return;
+                }
+                colMap[required[ri]] = idx;
+            }
+
+            // Parse and validate data rows
+            var messages = [];
+            var errors = [];
+            for (var r = 1; r < rows.length; r++) {
+                var row = rows[r];
+                if (row.length === 1 && row[0].trim() === '') continue;
+
+                var sessionId = (row[colMap.session_id] || '').trim();
+                var turn = (row[colMap.turn] || '').trim();
+                var sender = (row[colMap.sender] || '').toLowerCase().trim();
+                var message = (row[colMap.message] || '').trim();
+
+                if (!sessionId) { errors.push('Row ' + (r + 1) + ': missing session_id'); continue; }
+                if (!turn || isNaN(Number(turn))) { errors.push('Row ' + (r + 1) + ': turn must be a number'); continue; }
+                if (sender !== 'bot' && sender !== 'student') { errors.push('Row ' + (r + 1) + ': sender must be "bot" or "student"'); continue; }
+                if (!message) { errors.push('Row ' + (r + 1) + ': missing message'); continue; }
+
+                messages.push({
+                    sessionLabel: sessionId,
+                    turn: Number(turn),
+                    sentBy: sender === 'student' ? 'user-message' : 'ai-message',
+                    content: message
+                });
+            }
+
+            if (errors.length > 0) {
+                var preview = errors.slice(0, 3).join('; ');
+                if (errors.length > 3) preview += ' (+' + (errors.length - 3) + ' more)';
+                setMsg('survey-msg', 'CSV errors: ' + preview, 'error');
+                return;
+            }
+
+            if (messages.length === 0) {
+                setMsg('survey-msg', 'No valid messages found in CSV.', 'error');
+                return;
+            }
+
+            // Group by session and sort by turn
+            var sessions = {};
+            messages.forEach(function (m) {
+                if (!sessions[m.sessionLabel]) sessions[m.sessionLabel] = [];
+                sessions[m.sessionLabel].push(m);
+            });
+            Object.keys(sessions).forEach(function (key) {
+                sessions[key].sort(function (a, b) { return a.turn - b.turn; });
+            });
+
+            // Map each unique session label to a random session ID
+            var sessionIdMap = {};
+            Object.keys(sessions).forEach(function (label) {
+                sessionIdMap[label] = 'id_' + Math.random().toString(36).substr(2, 9);
+            });
+
+            // Flatten into ordered list (sessions in label order, messages in turn order)
+            var allMessages = [];
+            Object.keys(sessions).sort().forEach(function (label) {
+                sessions[label].forEach(function (m) {
+                    allMessages.push({
+                        session_id: sessionIdMap[label],
+                        student_id: sessionIdMap[label],
+                        sent_by: m.sentBy,
+                        content: m.content,
+                        gpt_used: target.surveyName,
+                        gpt_id: target.surveyId,
+                        research_consent: false
+                    });
+                });
+            });
+
+            var sessionCount = Object.keys(sessions).length;
+            var total = allMessages.length;
+            var sent = 0;
+            var failed = 0;
+
+            setMsg('survey-msg', 'Importing ' + total + ' messages across ' + sessionCount + ' session(s)\u2026', 'success');
+
+            function sendNext(i) {
+                if (i >= total) {
+                    var msg = 'Imported ' + sent + ' of ' + total + ' messages (' + sessionCount + ' sessions).';
+                    setMsg('survey-msg', msg, failed ? 'error' : 'success');
+                    loadSurveys();
+                    return;
+                }
+                fetch(API + '/feedback_message_api/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(allMessages[i])
+                })
+                .then(function (r) { return r.json(); })
+                .then(function () { sent++; })
+                .catch(function () { failed++; })
+                .finally(function () {
+                    if ((i + 1) % 25 === 0) {
+                        setMsg('survey-msg', 'Importing\u2026 ' + (i + 1) + '/' + total + ' messages', 'success');
+                    }
+                    sendNext(i + 1);
+                });
+            }
+
+            sendNext(0);
         };
         reader.readAsText(file);
     });
