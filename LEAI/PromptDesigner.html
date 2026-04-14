@@ -530,8 +530,13 @@ If the student responds that they have no more feedback to give, then please con
                 <div class="card" id="surveys-card">
                     <div class="card-title" style="justify-content:space-between">
                         Your Surveys
-                        <button class="btn btn-outline" id="refresh-surveys-btn">Refresh</button>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button class="btn btn-outline" id="import-surveys-btn" title="Import surveys from a JSON file">Import</button>
+                            <button class="btn btn-outline" id="export-surveys-btn" title="Export all surveys as JSON">Export</button>
+                            <button class="btn btn-outline" id="refresh-surveys-btn">Refresh</button>
+                        </div>
                     </div>
+                    <input type="file" id="import-file-input" accept=".json" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0" />
                     <div id="survey-list-container">
                         <div class="empty-state">No surveys yet.</div>
                     </div>
@@ -1140,6 +1145,124 @@ If the student responds that they have no more feedback to give, then please con
         })
         .catch(function () { document.getElementById('edit-msg').textContent = 'Network error.'; })
         .finally(function () { document.getElementById('edit-save').disabled = false; });
+    });
+
+    // ===== EXPORT SURVEYS =====
+    document.getElementById('export-surveys-btn').addEventListener('click', function () {
+        if (!activeCourse) return;
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = 'Exporting\u2026';
+        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+        .then(function (r) { return r.json(); })
+        .then(function (surveys) {
+            if (!surveys.length) {
+                setMsg('survey-msg', 'No surveys to export.', 'error');
+                return;
+            }
+            var payload = {
+                leai_export: 'surveys',
+                exported_at: new Date().toISOString(),
+                surveys: surveys.map(function (s) {
+                    return {
+                        survey_label: s.survey_label || s.name,
+                        week_number: s.week_number,
+                        instructions: s.instructions,
+                        opens_at: s.opens_at,
+                        expires_at: s.expires_at,
+                        anonymity_mode: s.anonymity_mode || 'anonymous',
+                    };
+                })
+            };
+            var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = activeCourse.id + '-surveys.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setMsg('survey-msg', 'Exported ' + surveys.length + ' survey(s).', 'success');
+        })
+        .catch(function () { setMsg('survey-msg', 'Failed to export surveys.', 'error'); })
+        .finally(function () { btn.disabled = false; btn.textContent = 'Export'; });
+    });
+
+    // ===== IMPORT SURVEYS =====
+    document.getElementById('import-surveys-btn').addEventListener('click', function () {
+        if (!activeCourse) return;
+        document.getElementById('import-file-input').click();
+    });
+
+    document.getElementById('import-file-input').addEventListener('change', function () {
+        var file = this.files[0];
+        this.value = '';
+        if (!file || !activeCourse) return;
+
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            var data;
+            try { data = JSON.parse(e.target.result); }
+            catch (_) { setMsg('survey-msg', 'Invalid JSON file.', 'error'); return; }
+
+            if (data.leai_export !== 'surveys' || !Array.isArray(data.surveys) || !data.surveys.length) {
+                setMsg('survey-msg', 'Not a valid LEAI survey export file.', 'error');
+                return;
+            }
+
+            // Shift dates: delta = now - exported_at
+            var exportedAt = new Date(data.exported_at).getTime();
+            var delta = Date.now() - exportedAt;
+
+            function shiftDate(iso) {
+                if (!iso) return null;
+                return new Date(new Date(iso).getTime() + delta).toISOString();
+            }
+
+            var surveys = data.surveys;
+            var total = surveys.length;
+            var created = 0;
+            var failed = 0;
+
+            setMsg('survey-msg', 'Importing ' + total + ' survey(s)\u2026', 'success');
+
+            // Create surveys sequentially to preserve order
+            function createNext(i) {
+                if (i >= total) {
+                    var msg = 'Imported ' + created + ' of ' + total + ' survey(s).';
+                    setMsg('survey-msg', msg, failed ? 'error' : 'success');
+                    loadSurveys();
+                    return;
+                }
+                var s = surveys[i];
+                fetch(API + '/create_feedback_gpt/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        course_id: activeCourse.id,
+                        name: activeCourse.id + ' \u2014 ' + (s.survey_label || 'Imported Survey'),
+                        week_number: s.week_number || null,
+                        survey_label: s.survey_label || 'Imported Survey',
+                        instructions: s.instructions || '',
+                        instructor_name: activeCourse.name,
+                        opens_at: shiftDate(s.opens_at),
+                        expires_at: shiftDate(s.expires_at),
+                        anonymity_mode: s.anonymity_mode || 'anonymous',
+                        canvas_integration: false,
+                    })
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (resp) {
+                    if (resp.error) { failed++; } else { created++; }
+                })
+                .catch(function () { failed++; })
+                .finally(function () { createNext(i + 1); });
+            }
+
+            createNext(0);
+        };
+        reader.readAsText(file);
     });
 </script>
 </body>
