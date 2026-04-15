@@ -163,6 +163,36 @@
             border-radius: var(--radius-xs); padding: 2px 8px;
             text-transform: uppercase; letter-spacing: 0.06em;
         }
+
+        /* Info icon with hover tooltip */
+        .info-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%;
+            border: 1px solid var(--outline); background: transparent;
+            color: var(--muted); cursor: help;
+            font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
+            font-style: italic; line-height: 1; padding: 0;
+            margin-left: 6px; vertical-align: middle; flex-shrink: 0;
+            position: relative; text-transform: none; letter-spacing: 0;
+        }
+        .info-icon::before { content: 'i'; }
+        .info-icon:hover, .info-icon:focus { color: var(--primary); border-color: var(--primary); outline: none; }
+        .info-icon:hover::after, .info-icon:focus::after {
+            content: attr(data-tooltip);
+            position: absolute; bottom: calc(100% + 8px); left: 0;
+            width: max-content; max-width: 280px;
+            background: var(--text); color: #fff;
+            padding: 10px 12px; border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 400;
+            font-style: normal; line-height: 1.5; letter-spacing: 0;
+            text-transform: none; text-align: left; white-space: pre-line;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            z-index: 100; pointer-events: none;
+        }
+        .info-icon--right:hover::after, .info-icon--right:focus::after { left: auto; right: 0; }
+        @media (max-width: 767px) {
+            .info-icon:hover::after, .info-icon:focus::after { max-width: 220px; }
+        }
     </style>
 </head>
 <body>
@@ -267,14 +297,20 @@
                 <div class="section-header">
                     <span class="section-title">Traditional Analysis</span>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                        <div class="toggle" id="ngram-toggle">
-                            <button class="active" data-n="1" tabindex="0">Unigram</button>
-                            <button data-n="2" tabindex="0">Bigram</button>
-                            <button data-n="3" tabindex="0">Trigram</button>
+                        <div style="display:flex;align-items:center">
+                            <div class="toggle" id="ngram-toggle">
+                                <button class="active" data-n="1" tabindex="0">Unigram</button>
+                                <button data-n="2" tabindex="0">Bigram</button>
+                                <button data-n="3" tabindex="0">Trigram</button>
+                            </div>
+                            <button type="button" class="info-icon info-icon--right" aria-label="About n-gram options" data-tooltip="N-gram length controls how terms are grouped when counting.&#10;&#10;• Unigram: single words (e.g., 'game')&#10;• Bigram: two-word phrases (e.g., 'game design')&#10;• Trigram: three-word phrases&#10;&#10;Lower n surfaces vocabulary; higher n reveals recurring phrasings.&#10;&#10;Stopwords like 'the' and 'is' are removed before counting."></button>
                         </div>
-                        <div class="toggle" id="sort-toggle">
-                            <button class="active" data-sort="freq" tabindex="0">Freq</button>
-                            <button data-sort="keyness" tabindex="0" id="keyness-btn">Keyness</button>
+                        <div style="display:flex;align-items:center">
+                            <div class="toggle" id="sort-toggle">
+                                <button class="active" data-sort="freq" tabindex="0">Freq</button>
+                                <button data-sort="keyness" tabindex="0" id="keyness-btn">Keyness</button>
+                            </div>
+                            <button type="button" class="info-icon info-icon--right" aria-label="About sort options" data-tooltip="• Freq: ranks terms by raw count in the current scope — simple popularity.&#10;&#10;• Keyness: ranks terms by how much more often they appear in this week compared to the entire-course baseline, using log-likelihood.&#10;&#10;Higher keyness = more distinctive to this week.&#10;&#10;Keyness is only available when a specific week is selected."></button>
                         </div>
                     </div>
                 </div>
@@ -515,10 +551,20 @@
         });
         var avgWords = totalResponses > 0 ? Math.round(totalWords / totalResponses) : 0;
 
+        var scopeLabel = currentScope.kind === 'course' ? 'the entire course' : 'the selected week';
         var cards = [
-            { value: totalResponses, label: 'Responses' },
-            { value: participation + '%', label: 'Participation' },
-            { value: avgWords, label: 'Avg Words' },
+            {
+                value: totalResponses, label: 'Responses',
+                tooltip: 'Total number of student messages collected in ' + scopeLabel + '.\n\nEach message a student sent in a feedback session counts as one response.\n\nA single student may contribute multiple responses per survey.'
+            },
+            {
+                value: participation + '%', label: 'Participation',
+                tooltip: 'Responses in ' + scopeLabel + ' (' + totalResponses + ') ÷ total unique student sessions across the entire course (' + totalUnique + ').\n\nShows engagement relative to your full course roster, not just this week.'
+            },
+            {
+                value: avgWords, label: 'Avg Words',
+                tooltip: 'Average number of words per student response in ' + scopeLabel + '.\n\nCalculated as total words (' + totalWords + ') ÷ total responses (' + totalResponses + ').\n\nWhitespace-split; punctuation stays attached.'
+            },
         ];
 
         cards.forEach(function (c) {
@@ -527,6 +573,12 @@
             var l = document.createElement('div');
             l.className = 'stat-label';
             l.textContent = c.label;
+            var info = document.createElement('button');
+            info.type = 'button';
+            info.className = 'info-icon';
+            info.setAttribute('aria-label', 'About ' + c.label);
+            info.setAttribute('data-tooltip', c.tooltip);
+            l.appendChild(info);
             var v = document.createElement('div');
             v.className = 'stat-value';
             v.textContent = c.value;
@@ -541,6 +593,12 @@
         var sl = document.createElement('div');
         sl.className = 'stat-label';
         sl.textContent = 'Responses / Week';
+        var sparkInfo = document.createElement('button');
+        sparkInfo.type = 'button';
+        sparkInfo.className = 'info-icon info-icon--right';
+        sparkInfo.setAttribute('aria-label', 'About Responses / Week');
+        sparkInfo.setAttribute('data-tooltip', 'One bar per survey week across the entire course.\n\nBar height is proportional to the number of unique student sessions in that week (not individual messages).\n\nHover a bar for the exact count.');
+        sl.appendChild(sparkInfo);
         sparkCard.appendChild(sl);
 
         var sparkContainer = document.createElement('div');
