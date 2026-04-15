@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page not found · GUII Lab</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="/LEAI/leai-tailwind-config.js"></script>
+    <link rel="stylesheet" href="/LEAI/leai-shared.css">
+    <style>
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg, #f7f9fb);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 24px;
+        }
+        .nf-card {
+            max-width: 520px;
+            width: 100%;
+            background: #fff;
+            border: 1px solid rgba(169,180,183,0.35);
+            border-radius: 14px;
+            padding: 40px 36px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .nf-code {
+            font-size: 56px;
+            font-weight: 800;
+            color: var(--primary, #006493);
+            letter-spacing: -2px;
+            line-height: 1;
+            margin-bottom: 8px;
+        }
+        .nf-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin: 0 0 10px;
+            color: #1a1f22;
+        }
+        .nf-desc {
+            color: #5c6b73;
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0 0 24px;
+        }
+        .nf-countdown {
+            font-size: 13px;
+            color: #8a969b;
+            margin-bottom: 20px;
+        }
+        .nf-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        .nf-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            text-decoration: none;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: background 120ms, border-color 120ms;
+        }
+        .nf-btn-primary { background: var(--primary, #006493); color: #fff; }
+        .nf-btn-primary:hover { background: #004f76; }
+        .nf-btn-secondary { background: #fff; color: #1a1f22; border-color: rgba(169,180,183,0.55); }
+        .nf-btn-secondary:hover { background: #f2f5f7; }
+    </style>
+</head>
+<body>
+    <main class="nf-card" role="main">
+        <div class="nf-code">404</div>
+        <h1 class="nf-title">We couldn't find that page</h1>
+        <p class="nf-desc" id="nf-desc">Redirecting you to the LEAI Prompt Designer…</p>
+        <p class="nf-countdown" id="nf-countdown">Redirecting in 5s</p>
+        <div class="nf-actions">
+            <a class="nf-btn nf-btn-primary" id="nf-go" href="/LEAI/PromptDesigner.html">
+                <span class="material-symbols-outlined" style="font-size:18px;">arrow_forward</span>
+                <span id="nf-go-label">Go to Prompt Designer</span>
+            </a>
+            <a class="nf-btn nf-btn-secondary" href="/">Lab home</a>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var signedIn = false;
+            try { signedIn = !!localStorage.getItem('sessionID'); } catch (e) {}
+            var dest = '/LEAI/PromptDesigner.html';
+            var label = signedIn ? 'Go to Prompt Designer' : 'Sign in';
+            var desc = signedIn
+                ? 'Redirecting you to the LEAI Prompt Designer…'
+                : 'Please sign in to continue. Redirecting to the sign-in page…';
+
+            document.getElementById('nf-go').href = dest;
+            document.getElementById('nf-go-label').textContent = label;
+            document.getElementById('nf-desc').textContent = desc;
+
+            var secondsLeft = 5;
+            var cd = document.getElementById('nf-countdown');
+            cd.textContent = 'Redirecting in ' + secondsLeft + 's';
+            var timer = setInterval(function () {
+                secondsLeft -= 1;
+                if (secondsLeft <= 0) {
+                    clearInterval(timer);
+                    window.location.replace(dest);
+                } else {
+                    cd.textContent = 'Redirecting in ' + secondsLeft + 's';
+                }
+            }, 1000);
+        })();
+    </script>
+</body>
+</html>
