@@ -322,6 +322,7 @@
             <div class="analysis-section" id="quick-take-section">
                 <div class="section-header">
                     <span class="section-title">AI Quick Take</span>
+                    <button type="button" class="info-icon info-icon--right" aria-label="About AI Quick Take" data-tooltip="AI Quick Take synthesises the student responses in the current scope into a concise set of themed bullet points, each with inline citations (e.g. [R17]) to the supporting responses.&#10;&#10;Prompt used:&#10;&quot;You are an educational data analyst helping an instructor understand patterns in anonymous student feedback. Synthesise the key themes, concerns, and insights into a concise set of bullet points. Each bullet must cite the specific response IDs that support it using [R<n>] notation. Be objective, accurate, and avoid over-generalisation.&quot;&#10;&#10;Minimum 5 responses required. 20+ recommended for reliable themes — below that, summaries may overgeneralise from a small sample.&#10;&#10;For very large scopes, responses are chunked and merged so the full corpus is considered."></button>
                 </div>
                 <div id="quick-take-container"></div>
             </div>
@@ -842,10 +843,10 @@
         var container = document.getElementById('quick-take-container');
         container.textContent = '';
 
-        if (currentResponses.length < 20) {
+        if (currentResponses.length < 5) {
             var disabled = document.createElement('div');
             disabled.className = 'quick-take-disabled';
-            disabled.textContent = 'AI Quick Take requires at least 20 responses. Currently ' + currentResponses.length + ' in this scope.';
+            disabled.textContent = 'AI Quick Take requires at least 5 responses (20+ recommended for reliable themes). Currently ' + currentResponses.length + ' in this scope.';
             container.appendChild(disabled);
             return;
         }

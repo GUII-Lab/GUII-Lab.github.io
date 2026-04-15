@@ -244,9 +244,18 @@ var leaiAnalysis = {
     },
 
     matchResponsesForTerm: function(responses, term) {
-        var lower = term.toLowerCase();
+        // Normalize both sides with the same regex used in tokenize() so that
+        // punctuation between tokens (e.g. "Dr. John") doesn't prevent the
+        // substring match for a bigram like "dr john".
+        function normalize(s) {
+            return s.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')
+                .replace(/\s+/g, ' ').trim();
+        }
+        var needle = normalize(term);
+        if (!needle) return [];
         return responses.filter(function(r) {
-            return r.text.toLowerCase().indexOf(lower) !== -1;
+            var hay = ' ' + normalize(r.text) + ' ';
+            return hay.indexOf(' ' + needle + ' ') !== -1;
         });
     },
 
