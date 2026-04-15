@@ -102,7 +102,10 @@
             padding: 4px 10px; border-radius: var(--radius-xs); white-space: nowrap;
             font-family: inherit; text-transform: uppercase; letter-spacing: 0.06em;
             text-decoration: none; display: inline-flex; align-items: center;
+            justify-content: center; box-sizing: border-box;
         }
+        /* Fixed min-width so text swap (Copy ↔ Copied!) doesn't reflow the row */
+        button.copy-btn { min-width: 72px; }
         .copy-btn:hover { background: var(--surface-highest); }
 
         .empty-state { text-align: center; color: var(--muted); font-size: 0.85rem; padding: 40px 0; }

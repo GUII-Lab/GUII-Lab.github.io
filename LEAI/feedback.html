@@ -498,7 +498,6 @@
         <div id="transcription">
             <!-- Messages rendered by JS -->
         </div>
-        <div class="chat-spacer"></div>
     </div>
 
     <!-- Sticky footer -->
@@ -508,7 +507,6 @@
                 <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
                 <button id="sendMessage" disabled>Send</button>
             </div>
-            <div class="chat-footer-version" data-leai-version></div>
         </div>
     </footer>
 </div>
@@ -557,6 +555,8 @@
 </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
     <script src="leai-shared.js"></script>
     <script src="leai-version.js"></script>
     <script>
@@ -667,13 +667,42 @@
             });
         }
 
-        $(document).ready(function () {
-            var uniqueID = 'id_' + Math.random().toString(36).substr(2, 9);
-            window.sessionData = { sessionID: uniqueID, selectedGPT: '', selectedGPTId: null };
+        // Anonymous, collision-resistant per-survey session id.
+        // - crypto.randomUUID() → 128 bits of entropy (was 9-char Math.random,
+        //   which could collide across concurrent students and cause two
+        //   students' messages to be grouped into the same instructor-side
+        //   thread).
+        // - Persisted in sessionStorage keyed by survey id so accidental
+        //   reloads continue the same anonymous thread instead of fragmenting.
+        // - Contains no identifying info → anonymity preserved.
+        function getOrCreateAnonSessionId(surveyId) {
+            var key = 'leai_survey_session_' + (surveyId || 'default');
+            var existing = sessionStorage.getItem(key);
+            if (existing) return existing;
+            var uuid = (window.crypto && crypto.randomUUID)
+                ? crypto.randomUUID()
+                : 'id_' + Date.now().toString(36) + '_' +
+                  Math.random().toString(36).slice(2, 10) +
+                  Math.random().toString(36).slice(2, 10);
+            sessionStorage.setItem(key, uuid);
+            return uuid;
+        }
 
+        $(document).ready(function () {
             // Check for ?id= URL param — direct link mode
             const urlParams = new URLSearchParams(window.location.search);
             const directId = urlParams.get('id');
+
+            var uniqueID = getOrCreateAnonSessionId(directId);
+            window.sessionData = {
+                sessionID: uniqueID,
+                selectedGPT: '',
+                selectedGPTId: null,
+                // Monotonic per-tab counter — guarantees stable intra-session
+                // ordering on the instructor side even if two messages share
+                // the same backend timestamp.
+                msgSeq: 0
+            };
 
             if (directId) {
                 loadDirectGpt(directId);
@@ -699,6 +728,7 @@
         }
 
         function storeData(content, sentBy) {
+            window.sessionData.msgSeq = (window.sessionData.msgSeq || 0) + 1;
             var data = {
                 session_id: window.sessionData.sessionID,
                 student_id: window.sessionData.sessionID,
@@ -706,7 +736,9 @@
                 content: content,
                 gpt_used: window.sessionData.selectedGPT,
                 gpt_id: window.sessionData.selectedGPTId,
-                research_consent: getResearchConsent()
+                research_consent: getResearchConsent(),
+                client_seq: window.sessionData.msgSeq,
+                client_ts: Date.now()
             };
             $.ajax({
                 type: 'POST',
@@ -747,9 +779,19 @@
             var body = document.createElement('div');
             body.className = 'msg-ai-body';
 
-            var text = document.createElement('p');
-            text.className = 'msg-ai-text';
-            text.textContent = message;
+            var text = document.createElement('div');
+            text.className = 'msg-ai-text md-content';
+            // Render markdown via marked, sanitize with DOMPurify → DOM fragment
+            // so no innerHTML is ever assigned directly.
+            if (window.marked && window.DOMPurify) {
+                var frag = window.DOMPurify.sanitize(
+                    window.marked.parse(message),
+                    { RETURN_DOM_FRAGMENT: true }
+                );
+                text.appendChild(frag);
+            } else {
+                text.textContent = message;
+            }
 
             body.appendChild(text);
             article.appendChild(meta);
