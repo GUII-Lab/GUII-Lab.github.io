@@ -658,7 +658,11 @@
             btn.textContent = text;
             btn.addEventListener('click', function () {
                 document.getElementById('chat-input').value = text;
-                sendMessage();
+                if (activeSessionId) {
+                    sendMessage();
+                } else {
+                    startSessionAndSend(text);
+                }
             });
             prompts.appendChild(btn);
         });
@@ -699,9 +703,13 @@
             var drawer = createSourcesDrawer(msg.sources);
             wrapper.appendChild(drawer);
 
-            // Wire citation pill clicks to expand drawer
+            // Wire citation pill clicks to expand drawer (overrides the
+            // default popover handler wired in renderTextWithCitations).
+            var ridByPillLocal = {};
+            (msg.cited || []).forEach(function (c) { ridByPillLocal[c.pill_index] = c.rid; });
             var pills = textDiv.querySelectorAll('.cite');
             pills.forEach(function (pill) {
+                pill.dataset.drawerBound = '1';
                 pill.addEventListener('click', function () {
                     var drawerList = drawer.querySelector('.sources-list');
                     if (drawerList && drawerList.style.display === 'none') {
@@ -709,8 +717,9 @@
                         var toggleBtn = drawer.querySelector('.sources-toggle');
                         toggleBtn.textContent = '\u25be ' + msg.sources.length + ' source' + (msg.sources.length !== 1 ? 's' : '');
                     }
-                    var pillIdx = pill.textContent.trim();
-                    var card = drawer.querySelector('[data-cite="' + pillIdx + '"]');
+                    var pillIdx = parseInt(pill.textContent.trim(), 10);
+                    var rid = ridByPillLocal[pillIdx];
+                    var card = rid ? drawer.querySelector('[data-cite="' + rid + '"]') : null;
                     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 });
             });
@@ -751,10 +760,56 @@
         container.querySelectorAll('[data-cite-pill]').forEach(function (span) {
             var pillIndex = parseInt(span.getAttribute('data-cite-pill'), 10);
             var verdict = verdictByPill[pillIndex] || null;
+            var rid = ridByPill[pillIndex] || null;
             var pill = leaiAnalysis.renderCitationPill(pillIndex, verdict);
-            if (ridByPill[pillIndex]) pill.title = ridByPill[pillIndex];
+            if (rid) pill.title = rid;
+            pill.style.cursor = 'pointer';
+            // Default click shows an inline popover. createAssistantBubble may
+            // override this with a drawer-scroll handler when sources exist.
+            pill.addEventListener('click', function (ev) {
+                if (pill.dataset.drawerBound === '1') return; // drawer handler will take over
+                ev.stopPropagation();
+                showCitationPopover(pill, rid, verdict);
+            });
             span.parentNode.replaceChild(pill, span);
         });
+    }
+
+    var _openPopover = null;
+    function showCitationPopover(anchor, rid, verdict) {
+        if (_openPopover) { _openPopover.remove(); _openPopover = null; }
+        var verdictLabel = ({
+            supported: 'Verified — response supports this claim.',
+            verified:  'Verified — response supports this claim.',
+            partial:   'Partial — response only weakly supports this claim.',
+            unsupported: 'Unsupported — cited response does not clearly support this claim.'
+        })[verdict] || 'Cited but not verified against the response text.';
+
+        var pop = document.createElement('div');
+        pop.className = 'cite-popover';
+        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:8px 12px;font-size:0.78rem;line-height:1.4;color:#1a1f22;box-shadow:0 4px 12px rgba(0,0,0,0.12);max-width:260px';
+        var ridLine = document.createElement('div');
+        ridLine.style.cssText = 'font-weight:600;margin-bottom:4px';
+        ridLine.textContent = rid || 'Citation';
+        var vLine = document.createElement('div');
+        vLine.style.color = '#5c6b73';
+        vLine.textContent = verdictLabel;
+        pop.appendChild(ridLine);
+        pop.appendChild(vLine);
+        document.body.appendChild(pop);
+
+        var r = anchor.getBoundingClientRect();
+        pop.style.left = (window.scrollX + r.left) + 'px';
+        pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+        _openPopover = pop;
+
+        var dismiss = function (ev) {
+            if (pop.contains(ev.target) || ev.target === anchor) return;
+            pop.remove();
+            _openPopover = null;
+            document.removeEventListener('click', dismiss, true);
+        };
+        setTimeout(function () { document.addEventListener('click', dismiss, true); }, 0);
     }
 
     function createSourcesDrawer(sources) {
@@ -921,6 +976,44 @@
             loadSessions(newId);
         })
         .catch(function () { /* fallback */ });
+    }
+
+    // Create a new session and immediately send `text` through it. Used when
+    // the user clicks a quick-prompt button from the empty state before any
+    // chat session exists.
+    function startSessionAndSend(text) {
+        var title = leaiChat.cheapAutoTitle ? leaiChat.cheapAutoTitle(text) : text.slice(0, 40);
+        leaiChat.createSession(session.courseId, {
+            title: title,
+            scope: { kind: 'course' }
+        })
+        .then(function (newSession) {
+            var newId = newSession.id || newSession.session_id;
+            return leaiChat.getSession(newId).then(function (data) {
+                activeSessionId = newId;
+                activeSessionData = data;
+                sessionStorage.setItem('leai_chat_active_' + session.courseId, newId);
+                document.getElementById('chat-header').style.display = 'block';
+                document.getElementById('chat-input-area').style.display = 'block';
+                document.getElementById('chat-messages').textContent = '';
+                renderChatHeader(data);
+                renderMessages(data.messages || []);
+                if (typeof renderSystemPromptEditor === 'function') {
+                    renderSystemPromptEditor(data);
+                }
+                document.getElementById('chat-input').value = text;
+                sendMessage();
+                loadSessionsQuiet();
+            });
+        })
+        .catch(function (err) {
+            var container = document.getElementById('chat-messages');
+            var toast = document.createElement('div');
+            toast.className = 'chat-error-toast';
+            toast.textContent = 'Could not start chat: ' + (err.message || 'Unknown error');
+            container.appendChild(toast);
+            setTimeout(function () { toast.remove(); }, 5000);
+        });
     }
 
     // ===== RENAME =====
