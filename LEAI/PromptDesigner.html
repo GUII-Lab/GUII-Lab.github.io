@@ -1553,37 +1553,29 @@ If the student responds that they have no more feedback to give, then please con
 
             var sessionCount = Object.keys(sessions).length;
             var total = allMessages.length;
-            var sent = 0;
-            var failed = 0;
 
             setMsg('survey-msg', 'Importing ' + total + ' messages across ' + sessionCount + ' session(s)\u2026', 'success');
 
-            function sendNext(i) {
-                if (i >= total) {
-                    var msg = 'Imported ' + sent + ' of ' + total + ' messages (' + sessionCount + ' sessions).';
-                    setMsg('survey-msg', msg, failed ? 'error' : 'success');
-                    loadSurveys();
+            fetch(API + '/feedback_messages_bulk_api/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: allMessages })
+            })
+            .then(function (r) {
+                return r.json().then(function (resp) { return { ok: r.ok, resp: resp }; });
+            })
+            .then(function (result) {
+                if (!result.ok || !result.resp || result.resp.status !== 'success') {
+                    var detail = (result.resp && result.resp.message) || 'Unknown server error';
+                    setMsg('survey-msg', 'Import failed: ' + detail, 'error');
                     return;
                 }
-                fetch(API + '/feedback_message_api/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(allMessages[i])
-                })
-                .then(function (r) { return r.json(); })
-                .then(function (resp) {
-                    if (resp && resp.error) { failed++; } else { sent++; }
-                })
-                .catch(function () { failed++; })
-                .finally(function () {
-                    if ((i + 1) % 25 === 0 || i + 1 === total) {
-                        setMsg('survey-msg', 'Importing\u2026 ' + (i + 1) + '/' + total + ' messages (' + failed + ' failed)', 'success');
-                    }
-                    setTimeout(function () { sendNext(i + 1); }, 50);
-                });
-            }
-
-            sendNext(0);
+                setMsg('survey-msg', 'Imported ' + result.resp.saved + ' messages across ' + sessionCount + ' session(s).', 'success');
+                loadSurveys();
+            })
+            .catch(function (err) {
+                setMsg('survey-msg', 'Import failed: ' + (err && err.message ? err.message : 'network error'), 'error');
+            });
         };
         reader.readAsText(file);
     });
