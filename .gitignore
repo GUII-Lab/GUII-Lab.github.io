@@ -41,3 +41,6 @@ node_modules/
 .DS_Store
 stitch/
 review-screenshots/
+.trellis/
+.web-verify/
+e2e-screenshots/
