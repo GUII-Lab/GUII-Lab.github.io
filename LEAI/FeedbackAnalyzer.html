@@ -855,15 +855,48 @@
         var sk = scopeKey();
         leaiChat.getQuickTake(session.courseId, sk)
             .then(function (qt) {
-                if (qt) {
-                    renderQuickTakeLoaded(container, qt);
-                } else {
+                if (!qt) {
                     renderQuickTakeCTA(container);
+                    return;
+                }
+                if (qt.status === 'pending' || qt.status === 'running') {
+                    renderQuickTakeShimmer(container);
+                    attachQuickTakePoll(container, sk);
+                } else if (qt.status === 'failed') {
+                    renderQuickTakeErrorCard(container, qt.error || 'Generation failed');
+                } else {
+                    renderQuickTakeLoaded(container, qt);
                 }
             })
             .catch(function () {
                 renderQuickTakeCTA(container);
             });
+    }
+
+    function attachQuickTakePoll(container, sk) {
+        leaiChat.pollQuickTake(session.courseId, sk, { intervalMs: 2000, timeoutMs: 300000 })
+            .then(function (qt) {
+                renderQuickTakeLoaded(container, qt);
+            })
+            .catch(function (err) {
+                renderQuickTakeErrorCard(container, err.message || 'Unknown error');
+            });
+    }
+
+    function renderQuickTakeErrorCard(container, message) {
+        container.textContent = '';
+        var errCard = document.createElement('div');
+        errCard.className = 'quick-take-error';
+        errCard.textContent = 'Failed to generate summary: ' + message;
+        var retryBtn = document.createElement('button');
+        retryBtn.className = 'btn btn-sm';
+        retryBtn.style.marginTop = '10px';
+        retryBtn.textContent = 'Retry';
+        retryBtn.addEventListener('click', function () {
+            generateQuickTake(container);
+        });
+        errCard.appendChild(retryBtn);
+        container.appendChild(errCard);
     }
 
     function renderQuickTakeCTA(container) {
@@ -912,23 +945,18 @@
             : { kind: 'week', week_number: currentScope.weekNumber };
 
         leaiChat.generateQuickTake(session.courseId, sk, scope)
+            .then(function () {
+                // 202 accepted: worker is running. Poll until ready or failed.
+                return leaiChat.pollQuickTake(session.courseId, sk, {
+                    intervalMs: 2000,
+                    timeoutMs: 300000,
+                });
+            })
             .then(function (qt) {
                 renderQuickTakeLoaded(container, qt);
             })
             .catch(function (err) {
-                container.textContent = '';
-                var errCard = document.createElement('div');
-                errCard.className = 'quick-take-error';
-                errCard.textContent = 'Failed to generate summary: ' + (err.message || 'Unknown error');
-                var retryBtn = document.createElement('button');
-                retryBtn.className = 'btn btn-sm';
-                retryBtn.style.marginTop = '10px';
-                retryBtn.textContent = 'Retry';
-                retryBtn.addEventListener('click', function () {
-                    generateQuickTake(container);
-                });
-                errCard.appendChild(retryBtn);
-                container.appendChild(errCard);
+                renderQuickTakeErrorCard(container, err.message || 'Unknown error');
             });
     }
 

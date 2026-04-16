@@ -412,6 +412,52 @@ var leaiChat = {
             }),
         });
     },
+    pollQuickTake: function(courseId, scopeKey, opts) {
+        // Poll getQuickTake until status is ready/failed, then resolve/reject.
+        // opts: { intervalMs=2000, timeoutMs=300000, onTick(qt) }
+        opts = opts || {};
+        var intervalMs = opts.intervalMs || 2000;
+        var timeoutMs = opts.timeoutMs || 300000;
+        var onTick = typeof opts.onTick === 'function' ? opts.onTick : null;
+        var startedAt = Date.now();
+        return new Promise(function (resolve, reject) {
+            function tick() {
+                leaiChat.getQuickTake(courseId, scopeKey)
+                    .then(function (qt) {
+                        if (!qt) {
+                            // 404: the row vanished (e.g. deleted). Treat as failure.
+                            reject(new Error('QuickTake job not found'));
+                            return;
+                        }
+                        if (onTick) {
+                            try { onTick(qt); } catch (_) {}
+                        }
+                        if (qt.status === 'ready') {
+                            resolve(qt);
+                            return;
+                        }
+                        if (qt.status === 'failed') {
+                            reject(new Error(qt.error || 'Generation failed'));
+                            return;
+                        }
+                        if (Date.now() - startedAt > timeoutMs) {
+                            reject(new Error('Generation timed out'));
+                            return;
+                        }
+                        setTimeout(tick, intervalMs);
+                    })
+                    .catch(function (err) {
+                        if (Date.now() - startedAt > timeoutMs) {
+                            reject(err);
+                            return;
+                        }
+                        // Transient fetch error: retry on next tick.
+                        setTimeout(tick, intervalMs);
+                    });
+            }
+            tick();
+        });
+    },
     deleteQuickTake: function(courseId, scopeKey) {
         return leaiChat._fetch(
             '/leai_quicktake/?course_id=' + encodeURIComponent(courseId) +
