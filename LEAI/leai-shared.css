@@ -445,7 +445,13 @@ input[type="checkbox"], input[type="radio"] {
 .source-card .source-meta { font-size: 0.58rem; color: var(--muted);
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
     margin-bottom: 3px; }
+.source-card .source-idx { color: var(--primary); margin-right: 4px; }
 .source-card .source-text { font-size: 0.78rem; line-height: 1.55; }
+.source-card-flash { animation: sourceCardFlash 1.2s ease-out; }
+@keyframes sourceCardFlash {
+    0%   { background: color-mix(in srgb, var(--primary) 18%, transparent); }
+    100% { background: transparent; }
+}
 
 /* ===== SCOPE CHIP BAR ===== */
 .scope-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

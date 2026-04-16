@@ -353,6 +353,12 @@
     var activeSessionId = null;
     var activeSessionData = null;
     var isSending = false;
+    // Cached rid → response lookup for the logged-in course. Built once per
+    // app entry by fetching the course feedback list, then used to synthesize
+    // per-message sources for the drawer (the turn endpoint returns cited[]
+    // but not source text).
+    var responsesByRid = {};
+    var responsesLoaded = false;
 
     // ===== LOGIN =====
     document.getElementById('login-btn').addEventListener('click', function () {
@@ -402,10 +408,51 @@
             sessions = [];
             activeSessionId = null;
             activeSessionData = null;
+            responsesByRid = {};
+            responsesLoaded = false;
             document.getElementById('login-password').value = '';
             document.getElementById('login-msg').textContent = '';
         });
-        handleDeepLink();
+        loadResponsesIndex().finally(function () { handleDeepLink(); });
+    }
+
+    // Fetch the course's feedback list and build a rid → response map using
+    // the same scoping rules the backend uses for chat corpora (course-wide
+    // ordering). If a chat session narrows scope to a week, the rids still
+    // resolve because the map is a superset.
+    function loadResponsesIndex() {
+        return fetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
+            .then(function (r) { return r.json(); })
+            .then(function (surveys) {
+                if (!Array.isArray(surveys)) return;
+                var idx = leaiAnalysis.buildResponseIndex(surveys, 'course', null);
+                responsesByRid = {};
+                idx.forEach(function (r) { responsesByRid[r.rid] = r; });
+                responsesLoaded = true;
+            })
+            .catch(function () { /* drawer just stays collapsed without sources */ });
+    }
+
+    // Synthesize a sources array for an assistant message by looking up each
+    // cited rid in responsesByRid. Returns [] if nothing matches.
+    function synthesizeSources(cited) {
+        if (!cited || !cited.length || !responsesLoaded) return [];
+        var out = [];
+        cited.slice().sort(function (a, b) {
+            return (a.pill_index || 0) - (b.pill_index || 0);
+        }).forEach(function (c) {
+            var r = responsesByRid[c.rid];
+            if (r) {
+                out.push({
+                    rid: r.rid,
+                    pill_index: c.pill_index,
+                    week_number: r.week_number,
+                    session_id: r.session_id,
+                    text: r.text,
+                });
+            }
+        });
+        return out;
     }
 
     // ===== AUTO-LOGIN FROM SESSION =====
@@ -418,11 +465,23 @@
     });
 
     // ===== DEEP LINK HANDLING =====
+    // Recognised shapes:
+    //   ?session=<uuid>                         — direct handoff, preselect that session
+    //   ?session=new&seed=quicktake&scope=<sk>  — legacy seed-from-QuickTake deep link
     function handleDeepLink() {
         var params = new URLSearchParams(window.location.search);
         var sessionParam = params.get('session');
         var seedParam = params.get('seed');
         var scopeParam = params.get('scope');
+
+        // UUID form — strip query before loading so refreshes don't re-trigger
+        // the deep-link path and the URL stays clean once the session is selected.
+        var uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (sessionParam && uuidLike.test(sessionParam)) {
+            history.replaceState(null, '', 'FeedbackChat.html');
+            loadSessions(sessionParam);
+            return;
+        }
 
         if (sessionParam === 'new' && seedParam === 'quicktake' && scopeParam) {
             var scope;
@@ -698,7 +757,11 @@
         renderTextWithCitations(textDiv, rawText, msg.cited || []);
         wrapper.appendChild(textDiv);
 
-        // Sources drawer
+        // Sources drawer — backend only returns cited[], so synthesize
+        // source text from the course's response index.
+        if (!msg.sources || !msg.sources.length) {
+            msg.sources = synthesizeSources(msg.cited || []);
+        }
         if (msg.sources && msg.sources.length) {
             var drawer = createSourcesDrawer(msg.sources);
             wrapper.appendChild(drawer);
@@ -720,7 +783,10 @@
                     var pillIdx = parseInt(pill.textContent.trim(), 10);
                     var rid = ridByPillLocal[pillIdx];
                     var card = rid ? drawer.querySelector('[data-cite="' + rid + '"]') : null;
-                    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (card) {
+                        card.classList.add('source-card-flash');
+                        setTimeout(function () { card.classList.remove('source-card-flash'); }, 1200);
+                    }
                 });
             });
         }
@@ -812,6 +878,8 @@
         setTimeout(function () { document.addEventListener('click', dismiss, true); }, 0);
     }
 
+    // Sources are ordered by pill_index so the drawer reads [1][2][3]…,
+    // matching what the AI bubble shows inline.
     function createSourcesDrawer(sources) {
         var drawer = document.createElement('div');
         drawer.className = 'sources-drawer';
@@ -825,26 +893,9 @@
         list.className = 'sources-list';
         list.style.display = 'none';
 
-        sources.forEach(function (src) {
-            var card = document.createElement('div');
-            card.className = 'source-card';
-            card.setAttribute('data-cite', src.rid || src.id || '');
-
-            var meta = document.createElement('div');
-            meta.className = 'source-meta';
-            var metaParts = [];
-            if (src.rid) metaParts.push(src.rid);
-            if (src.session_id) metaParts.push('Session ' + src.session_id);
-            if (src.week_number != null) metaParts.push('Week ' + src.week_number);
-            meta.textContent = metaParts.join(' \u00b7 ');
-
-            var srcText = document.createElement('div');
-            srcText.className = 'source-text';
-            srcText.textContent = src.text || src.content || '';
-
-            card.appendChild(meta);
-            card.appendChild(srcText);
-            list.appendChild(card);
+        sources.forEach(function (src, i) {
+            var localIdx = (src && src.pill_index) || (i + 1);
+            list.appendChild(leaiAnalysis.renderSourceCard(localIdx, src));
         });
 
         drawer.appendChild(list);

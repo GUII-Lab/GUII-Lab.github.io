@@ -588,14 +588,20 @@
 
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "Generate summary"</strong><p>The Quick Take is generated on demand — it won't run automatically. You'll see a shimmer animation while the AI processes the responses (typically 10–20 seconds).</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the bullet points</strong><p>The AI returns 8–15 themed bullet points covering recurring praise, concerns, and suggestions. Each bullet ends with numbered citation pills like <strong>[1] [2] [3]</strong>.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the bullet points</strong><p>The AI returns 8–15 themed bullet points covering recurring praise, concerns, and suggestions. Each bullet ends with numbered citation pills like <strong>[1] [2] [3]</strong>, numbered locally within this Quick Take in the order the sources are first cited — the same convention used by peer-reviewed papers.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Check the verification badge</strong><p>The top-right shows something like <strong>62/66 verified</strong>. This means a second AI pass checked each citation against the source text. Teal pills are verified; gold pills are flagged as partially supported.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Hover a pill to see the source</strong><p>Hover over any numbered citation pill to see which response ID (R1, R2, etc.) it refers to. You can scroll down to the Student Responses section to find that response.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a pill to read the source</strong><p>Click any numbered pill to see the underlying student response in a popover — the quoted text, the student's week, and the verification badge. The same pill number always points to the same source, so if <strong>[4]</strong> appears in two different bullets it refers to the same student.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand "N sources" for the full list</strong><p>Click the <strong>▾ N sources</strong> toggle below the bullets to reveal a drawer with every cited response in order — each card shows <strong>[n] R-id · Week X</strong> followed by the response text. Clicking a pill briefly highlights its matching card so you can find it quickly.</p></div></div>
     </div>
 
     <div class="callout warn">
       <span class="callout-label">Important</span>
       <p><strong>Minimum 5 responses required; 20+ recommended.</strong> The Quick Take will not generate below 5 responses. Between 5 and 20, summaries may overgeneralise from a small sample — treat low-N output as indicative, not conclusive. Switch to "Entire Course" scope if a single week doesn't meet the recommended threshold.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">How citation numbers work</span>
+      <p>Pill numbers (<strong>[1] [2] [3] …</strong>) are <strong>local to each AI response</strong> and assigned in first-appearance order, like footnotes in a paper. They are <em>not</em> the same as R-ids. <strong>R-ids</strong> (R1, R2, R3 …) are the stable class-wise identifiers you'll see in the sources drawer and in the Student Responses section below — they let you trace a citation back to a specific student across the whole course.</p>
     </div>
 
     <p>The Quick Take is <strong>cached on the server</strong> — once generated, it reloads instantly on future visits. Click <strong>Regenerate</strong> to create a fresh summary (for example, after new responses come in). Click <strong>Show prompt</strong> to see the exact instruction sent to the AI.</p>
@@ -608,12 +614,18 @@
     <!-- ── Student Responses ── -->
     <h3 class="sub-heading" id="student-responses">Student Responses</h3>
 
-    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card. Anonymous surveys display "Anonymous Student 1", "Anonymous Student 2", and so on.</p>
+    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card labelled with an <strong>R-id</strong> — <strong>R1, R2, R3 …</strong> — the same identifiers the AI Quick Take cites. R-ids are assigned class-wide and stay stable across scopes, so the R5 card here is the same R5 you'll see referenced in the Quick Take drawer.</p>
 
     <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>Each card shows the student label, the week, and a message count. This gives you a quick sense of participation before diving in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>Each card shows the R-id, the week, and a message count. This gives you a quick sense of participation before diving in.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click to expand</strong><p>Click any card to reveal that student's full messages. Each message is labelled <strong>STUDENT</strong> so the source is clear.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Cross-reference with the Quick Take</strong><p>When a Quick Take bullet cites a source as <strong>R12</strong>, scroll to the R12 card here to read that student's full conversation. This is useful when you want to understand the context behind a specific data point in the AI summary.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the button at the top-right of the section to open every card at once for a full read-through.</p></div></div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Privacy note</span>
+      <p>R-ids are <strong>anonymous by design</strong> — they identify a unique student session for cross-referencing, but they do not reveal who the student is. If your survey is configured as anonymous (the default for the Weekly Check-in template), the R-id is the only identifier shown anywhere in the dashboard.</p>
     </div>
 
     <div class="callout tip">
@@ -640,7 +652,7 @@
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "+ New Chat"</strong><p>This creates a new chat session scoped to your entire course. Quick-prompt suggestions appear to help you get started — click one or type your own question.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Ask a question</strong><p>Type a question like "What are students struggling with?" or "Group the responses into clusters" and press Enter. The AI reads all student responses in scope and answers with inline numbered citations.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer includes a <strong>Verified X/Y</strong> badge. Numbered citation pills are embedded in the text — teal means the citation was verified against the source; gold means it's partially supported. Hover a pill to see the response ID.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer uses the <strong>same citation format as the Quick Take</strong>: numbered pills in first-appearance order, a <strong>Verified X/Y</strong> badge, and an expandable <strong>N sources</strong> drawer where each card shows <strong>[n] R-id · Week X</strong>. Teal pills are verified; gold pills are partially supported. Click a pill to read the source text.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Continue the conversation</strong><p>Ask follow-up questions in the same session. The AI remembers the context from earlier messages, so you can drill deeper ("Tell me more about the grading complaints") without repeating yourself.</p></div></div>
     </div>
 
@@ -653,7 +665,7 @@
 
     <div class="callout tip">
       <span class="callout-label">Tip</span>
-      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing the AI Quick Take on the Analyzer dashboard, click <strong>Ask a follow-up →</strong> to jump directly into a new chat session pre-loaded with the Quick Take context.</p>
+      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing the AI Quick Take, click <strong>Ask a follow-up →</strong> to open a new chat session with the Quick Take pasted in as the first AI message — pills, sources drawer, and verification badges all carry over. You can then ask follow-ups like <em>"Tell me more about [4]"</em> or <em>"Which weeks do the grading complaints cluster in?"</em> without re-pasting the analysis.</p>
     </div>
 
     <!-- ── System Prompt ── -->

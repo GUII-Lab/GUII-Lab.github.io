@@ -873,6 +873,70 @@
             });
     }
 
+    var _quickTakePopover = null;
+    function showQuickTakeCitePopover(anchor, rid, verdict, source) {
+        if (_quickTakePopover) { _quickTakePopover.remove(); _quickTakePopover = null; }
+
+        var verdictMeta = ({
+            supported:   { label: 'Verified',   color: '#1e7d36' },
+            verified:    { label: 'Verified',   color: '#1e7d36' },
+            partial:     { label: 'Partial',    color: '#8a6d00' },
+            unsupported: { label: 'Unsupported', color: '#b22222' }
+        })[verdict] || { label: 'Unverified', color: '#5c6b73' };
+
+        var pop = document.createElement('div');
+        pop.className = 'cite-popover';
+        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:360px;min-width:220px';
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+        var ridEl = document.createElement('span');
+        ridEl.style.cssText = 'font-weight:700;font-size:0.78rem;letter-spacing:0.02em';
+        ridEl.textContent = rid || 'Citation';
+        header.appendChild(ridEl);
+        if (source && source.week_number) {
+            var weekEl = document.createElement('span');
+            weekEl.style.cssText = 'font-size:0.7rem;color:#5c6b73;text-transform:uppercase;letter-spacing:0.06em';
+            weekEl.textContent = '\u00b7 Week ' + source.week_number;
+            header.appendChild(weekEl);
+        }
+        var verdictBadge = document.createElement('span');
+        verdictBadge.style.cssText = 'margin-left:auto;padding:1px 8px;border-radius:10px;font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:' + verdictMeta.color + '14;color:' + verdictMeta.color;
+        verdictBadge.textContent = verdictMeta.label;
+        header.appendChild(verdictBadge);
+        pop.appendChild(header);
+
+        var body = document.createElement('div');
+        if (source && source.text) {
+            body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + verdictMeta.color + ';padding:2px 0 2px 8px;font-size:0.78rem';
+            body.textContent = source.text;
+        } else {
+            body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
+            body.textContent = 'Response text not available for this citation.';
+        }
+        pop.appendChild(body);
+
+        document.body.appendChild(pop);
+
+        var r = anchor.getBoundingClientRect();
+        var left = window.scrollX + r.left;
+        var top = window.scrollY + r.bottom + 6;
+        var maxRight = window.scrollX + document.documentElement.clientWidth - 8;
+        var popWidth = pop.offsetWidth;
+        if (left + popWidth > maxRight) left = Math.max(window.scrollX + 8, maxRight - popWidth);
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
+        _quickTakePopover = pop;
+
+        var dismiss = function (ev) {
+            if (pop.contains(ev.target) || ev.target === anchor) return;
+            pop.remove();
+            _quickTakePopover = null;
+            document.removeEventListener('click', dismiss, true);
+        };
+        setTimeout(function () { document.addEventListener('click', dismiss, true); }, 0);
+    }
+
     function attachQuickTakePoll(container, sk) {
         leaiChat.pollQuickTake(session.courseId, sk, { intervalMs: 2000, timeoutMs: 300000 })
             .then(function (qt) {
@@ -963,6 +1027,22 @@
     function renderQuickTakeLoaded(container, qt) {
         container.textContent = '';
 
+        // Backend persists bullets + verification but not the corpus snapshot,
+        // so derive the cited source rows from the surveys already loaded.
+        // Matches the numbering produced by buildResponseIndex on the server.
+        if ((!qt.sources || !qt.sources.length) && window.leaiAnalysis) {
+            var citedSet = {};
+            (qt.bullets || []).forEach(function (b) {
+                (b.cited_ids || []).forEach(function (rid) { citedSet[rid] = true; });
+            });
+            var corpus = leaiAnalysis.buildResponseIndex(
+                allSurveys, currentScope.kind, currentScope.weekNumber
+            );
+            qt.sources = corpus.filter(function (r) { return citedSet[r.rid]; });
+        }
+        var sourceByRid = {};
+        (qt.sources || []).forEach(function (s) { if (s.rid) sourceByRid[s.rid] = s; });
+
         var card = document.createElement('div');
         card.className = 'quick-take';
         var accent = document.createElement('div');
@@ -1029,7 +1109,11 @@
         header.appendChild(actions);
         accent.appendChild(header);
 
-        // Bullets with citation pills
+        // Bullets with citation pills — numbering is shared across all bullets
+        // in this Quick Take (first-appearance order), so duplicate R-ids get
+        // the same local number everywhere they appear.
+        var pillBindings = [];
+        var pillAssignment = leaiAnalysis.assignPillIndices(qt.bullets || []);
         if (qt.bullets && qt.bullets.length) {
             var ul = document.createElement('ul');
             ul.className = 'quick-take-bullets';
@@ -1038,12 +1122,15 @@
                 var cleanText = b.text.replace(/\s*\[R\d+\]/g, '').trim();
                 li.appendChild(document.createTextNode(cleanText + ' '));
                 if (b.cited_ids && b.cited_ids.length) {
-                    b.cited_ids.forEach(function (rid, i) {
+                    b.cited_ids.forEach(function (rid) {
                         var verdict = verdictMap[bulletIdx + ':' + rid] || null;
-                        var pill = leaiAnalysis.renderCitationPill(i + 1, verdict);
+                        var localIdx = pillAssignment.ridToPill[rid];
+                        var pill = leaiAnalysis.renderCitationPill(localIdx, verdict);
                         pill.title = rid;
+                        pill.style.cursor = 'pointer';
                         li.appendChild(pill);
                         li.appendChild(document.createTextNode(' '));
+                        pillBindings.push({ pill: pill, rid: rid, verdict: verdict });
                     });
                 }
                 ul.appendChild(li);
@@ -1057,49 +1144,75 @@
         }
 
         // Sources drawer
+        var sourcesDrawer = null;
+        var sourcesList = null;
+        var sourcesToggle = null;
         if (qt.sources && qt.sources.length) {
-            var drawer = document.createElement('div');
-            drawer.className = 'sources-drawer';
+            sourcesDrawer = document.createElement('div');
+            sourcesDrawer.className = 'sources-drawer';
 
-            var toggleBtn = document.createElement('button');
-            toggleBtn.className = 'sources-toggle';
-            toggleBtn.setAttribute('tabindex', '0');
-            toggleBtn.textContent = '\u25b8 ' + qt.sources.length + ' source' + (qt.sources.length !== 1 ? 's' : '');
+            sourcesToggle = document.createElement('button');
+            sourcesToggle.className = 'sources-toggle';
+            sourcesToggle.setAttribute('tabindex', '0');
+            sourcesToggle.textContent = '\u25b8 ' + qt.sources.length + ' source' + (qt.sources.length !== 1 ? 's' : '');
 
-            var sourcesList = document.createElement('div');
+            sourcesList = document.createElement('div');
             sourcesList.className = 'sources-list';
             sourcesList.style.display = 'none';
 
+            // Order drawer cards by the local pill index first (so the drawer
+            // reads [1][2][3]...), then append any cited sources not referenced
+            // by a bullet at the end.
+            var sourcesByRid = {};
+            qt.sources.forEach(function (src) { if (src && src.rid) sourcesByRid[src.rid] = src; });
+            var ordered = [];
+            var seen = {};
+            pillAssignment.orderedRids.forEach(function (rid) {
+                if (sourcesByRid[rid]) { ordered.push(sourcesByRid[rid]); seen[rid] = true; }
+            });
             qt.sources.forEach(function (src) {
-                var srcCard = document.createElement('div');
-                srcCard.className = 'source-card';
-
-                var metaEl = document.createElement('div');
-                metaEl.className = 'source-meta';
-                metaEl.textContent = (src.rid || '') + ' \u00b7 Week ' + (src.week_number || '?');
-
-                var textEl = document.createElement('div');
-                textEl.className = 'source-text';
-                textEl.textContent = src.text || '';
-
-                srcCard.appendChild(metaEl);
-                srcCard.appendChild(textEl);
-                sourcesList.appendChild(srcCard);
+                if (src && src.rid && !seen[src.rid]) ordered.push(src);
+            });
+            ordered.forEach(function (src, i) {
+                var localIdx = (src.rid && pillAssignment.ridToPill[src.rid]) || (i + 1);
+                sourcesList.appendChild(leaiAnalysis.renderSourceCard(localIdx, src));
             });
 
-            toggleBtn.addEventListener('click', function () {
+            sourcesToggle.addEventListener('click', function () {
                 var visible = sourcesList.style.display !== 'none';
                 sourcesList.style.display = visible ? 'none' : 'block';
-                toggleBtn.textContent = (visible ? '\u25b8 ' : '\u25be ') + qt.sources.length + ' source' + (qt.sources.length !== 1 ? 's' : '');
+                sourcesToggle.textContent = (visible ? '\u25b8 ' : '\u25be ') + qt.sources.length + ' source' + (qt.sources.length !== 1 ? 's' : '');
             });
-            toggleBtn.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBtn.click(); }
+            sourcesToggle.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sourcesToggle.click(); }
             });
 
-            drawer.appendChild(toggleBtn);
-            drawer.appendChild(sourcesList);
-            accent.appendChild(drawer);
+            sourcesDrawer.appendChild(sourcesToggle);
+            sourcesDrawer.appendChild(sourcesList);
+            accent.appendChild(sourcesDrawer);
         }
+
+        // Wire citation pill clicks. Always show an inline popover anchored
+        // to the pill with the R-id, week, verdict, and the full response
+        // text that backs the citation. If the drawer is already expanded,
+        // flash the matching card in place (no page scroll).
+        pillBindings.forEach(function (binding) {
+            binding.pill.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                var src = binding.rid ? sourceByRid[binding.rid] : null;
+                showQuickTakeCitePopover(binding.pill, binding.rid, binding.verdict, src);
+                if (sourcesList && binding.rid && sourcesList.style.display !== 'none') {
+                    var cardEl = sourcesList.querySelector('[data-cite="' + binding.rid + '"]');
+                    if (cardEl) {
+                        cardEl.classList.add('source-card-flash');
+                        setTimeout(function () { cardEl.classList.remove('source-card-flash'); }, 1200);
+                    }
+                }
+            });
+            binding.pill.addEventListener('keydown', function (ev) {
+                if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); binding.pill.click(); }
+            });
+        });
 
         // Show prompt
         var promptReveal = document.createElement('div');
@@ -1132,13 +1245,63 @@
         promptReveal.appendChild(promptPre);
         accent.appendChild(promptReveal);
 
-        // Ask follow-up link
+        // Ask follow-up — seed the new chat with this Quick Take as a
+        // visible AI message (same pills, same sources). The student
+        // responses backing the citations are picked up by the chat's
+        // scope, so the LLM can reference them in follow-up turns.
         var followUp = document.createElement('a');
-        followUp.href = 'FeedbackChat.html?session=new&seed=quicktake&scope=' + encodeURIComponent(scopeKey());
+        followUp.href = 'FeedbackChat.html';
         followUp.className = 'btn btn-outline';
         followUp.style.cssText = 'font-size:0.66rem;padding:4px 10px;margin-top:8px;display:inline-flex;text-decoration:none';
         followUp.textContent = 'Ask a follow-up \u2192';
         followUp.setAttribute('tabindex', '0');
+        followUp.addEventListener('click', function (ev) {
+            // Allow middle-click / cmd-click to open the bare chat page.
+            if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
+            ev.preventDefault();
+            followUp.textContent = 'Opening chat\u2026';
+            var scope;
+            var sk = scopeKey();
+            if (sk === 'entire-course') scope = { kind: 'course' };
+            else if (sk.indexOf('week-') === 0) scope = { kind: 'week', week_number: parseInt(sk.replace('week-', ''), 10) };
+            else scope = { kind: 'course' };
+
+            // Build the pill-numbered text + cited array from the current
+            // render state (pillAssignment already computed above).
+            var lines = [];
+            (qt.bullets || []).forEach(function (b, bi) {
+                var text = (b.text || '').replace(/\s*\[R\d+\]/g, '').trim();
+                var pills = (b.cited_ids || [])
+                    .map(function (rid) { return '[' + pillAssignment.ridToPill[rid] + ']'; })
+                    .join('');
+                lines.push('- ' + text + (pills ? ' ' + pills : ''));
+            });
+            var seedText = lines.join('\n') || (qt.text || 'Quick Take (no summary text).');
+            var seedCited = pillAssignment.orderedRids.map(function (rid) {
+                var verdict = null;
+                for (var k in verdictMap) {
+                    if (verdictMap.hasOwnProperty(k) && k.split(':')[1] === rid) {
+                        verdict = verdictMap[k]; break;
+                    }
+                }
+                return { rid: rid, pill_index: pillAssignment.ridToPill[rid], verdict: verdict };
+            });
+
+            leaiChat.createSession(session.courseId, {
+                title: 'Follow-up: ' + (sk === 'entire-course' ? 'Course' : ('Week ' + (scope.week_number || ''))),
+                scope: scope,
+                seedAssistantMessage: { text: seedText, cited: seedCited },
+            })
+                .then(function (newSession) {
+                    var newId = newSession.id || newSession.session_id;
+                    sessionStorage.setItem('leai_chat_active_' + session.courseId, newId);
+                    window.location.href = 'FeedbackChat.html?session=' + encodeURIComponent(newId);
+                })
+                .catch(function () {
+                    followUp.textContent = 'Ask a follow-up \u2192';
+                    window.location.href = 'FeedbackChat.html';
+                });
+        });
         accent.appendChild(followUp);
 
         card.appendChild(accent);
@@ -1157,10 +1320,14 @@
 
         var entries = [];
         scopeSurveys.forEach(function (s) {
-            Object.entries(s.sessions).forEach(function (entry) {
+            // Sort session ids lexically to match the backend corpus order
+            // (build_response_corpus uses (week_number ASC, session_id ASC)),
+            // so that the student-card R-labels line up with R-ids that AI
+            // Quick Take / chat citations reference.
+            Object.keys(s.sessions).sort().forEach(function (sid) {
                 entries.push({
-                    sessionId: entry[0],
-                    msgs: entry[1],
+                    sessionId: sid,
+                    msgs: s.sessions[sid],
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number)
                 });
@@ -1187,7 +1354,10 @@
 
             var label = document.createElement('span');
             label.className = 'student-card-label';
-            label.textContent = 'Anonymous Student ' + (idx + 1);
+            // R-id is the class-wise anonymized identifier used in Quick Take
+            // and chat citations; match the scope-local numbering here so a
+            // student's [R3] card label reads "R3".
+            label.textContent = 'R' + (idx + 1);
 
             var meta = document.createElement('span');
             meta.className = 'student-card-meta';

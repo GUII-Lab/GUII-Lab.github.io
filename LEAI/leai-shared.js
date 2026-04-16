@@ -298,6 +298,64 @@ var leaiAnalysis = {
         span.setAttribute('tabindex', '0');
         return span;
     },
+
+    // Assigns pill indices per AI response: first-appearance order across all
+    // bullets, shared so duplicate rids always get the same number.
+    // Input:  [{ text, cited_ids:[rid, ...] }, ...]
+    // Output: {
+    //   ridToPill: { rid: pillIndex },   // 1-based, in first-appearance order
+    //   orderedRids: [rid, ...],         // index 0 → pill 1, etc.
+    //   bulletPills: [[pillIndex, ...], ...] // per-bullet pill sequence preserving duplicates
+    // }
+    assignPillIndices: function(bullets) {
+        var ridToPill = {};
+        var orderedRids = [];
+        var bulletPills = [];
+        (bullets || []).forEach(function(b) {
+            var seq = [];
+            (b.cited_ids || []).forEach(function(rid) {
+                if (!(rid in ridToPill)) {
+                    orderedRids.push(rid);
+                    ridToPill[rid] = orderedRids.length;
+                }
+                seq.push(ridToPill[rid]);
+            });
+            bulletPills.push(seq);
+        });
+        return { ridToPill: ridToPill, orderedRids: orderedRids, bulletPills: bulletPills };
+    },
+
+    // Shared source-card renderer for the drawer on both QuickTake and Chat.
+    // Renders:  [n]  R-id · Week X
+    //           "response text"
+    renderSourceCard: function(localIdx, src) {
+        var card = document.createElement('div');
+        card.className = 'source-card';
+        if (src && src.rid) card.setAttribute('data-cite', src.rid);
+
+        var meta = document.createElement('div');
+        meta.className = 'source-meta';
+
+        var idxEl = document.createElement('span');
+        idxEl.className = 'source-idx';
+        idxEl.textContent = '[' + localIdx + ']';
+        meta.appendChild(idxEl);
+
+        var parts = [];
+        if (src && src.rid) parts.push(src.rid);
+        if (src && src.week_number != null) parts.push('Week ' + src.week_number);
+        if (parts.length) {
+            meta.appendChild(document.createTextNode(' ' + parts.join(' \u00b7 ')));
+        }
+
+        var text = document.createElement('div');
+        text.className = 'source-text';
+        text.textContent = (src && (src.text || src.content)) || '';
+
+        card.appendChild(meta);
+        card.appendChild(text);
+        return card;
+    },
 };
 
 // ===== LEAI CHAT HELPERS (async fetch wrappers) =====
@@ -340,14 +398,18 @@ var leaiChat = {
         return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/');
     },
     createSession: function(courseId, opts) {
+        var body = {
+            course_id: courseId,
+            title: opts.title || 'New chat',
+            scope: opts.scope || { kind: 'course' },
+            seed_system_message: opts.seedSystemMessage || null,
+        };
+        if (opts.seedAssistantMessage) {
+            body.seed_assistant_message = opts.seedAssistantMessage;
+        }
         return leaiChat._fetch('/leai_chat_sessions/', {
             method: 'POST',
-            body: JSON.stringify({
-                course_id: courseId,
-                title: opts.title || 'New chat',
-                scope: opts.scope || { kind: 'course' },
-                seed_system_message: opts.seedSystemMessage || null,
-            }),
+            body: JSON.stringify(body),
         });
     },
     updateSession: function(sessionId, patch) {
