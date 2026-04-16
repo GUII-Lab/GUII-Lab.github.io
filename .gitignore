@@ -44,3 +44,8 @@ review-screenshots/
 .trellis/
 .web-verify/
 e2e-screenshots/
+
+# Per-topic verification artifacts (canonical scripts/build-verify-report.py
+# stays tracked; scoped builders and generated HTML reports do not).
+verification-report-*.html
+scripts/build-verify-report-*.py
