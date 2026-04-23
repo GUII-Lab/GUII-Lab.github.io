@@ -313,10 +313,19 @@
 
         <div class="page-content">
             <div class="page-header">
-                <h1>Prompt Designer</h1>
+                <h1>
+                    Prompt Designer
+                    <span class="mode-badge" id="mode-badge" data-mode="general">General Mode</span>
+                </h1>
                 <p>Create and manage AI-powered feedback surveys for your course.</p>
             </div>
 
+            <div class="mode-tabs" role="tablist" aria-label="Survey mode">
+                <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
+                <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
+            </div>
+
+            <div id="mode-panel-general" role="tabpanel">
             <div class="layout">
                 <div>
                     <!-- New Survey -->
@@ -424,6 +433,7 @@ If the student responds that they have no more feedback to give, then please con
                                 <div class="builder-section-title">Bot Rules</div>
                                 <div class="checkbox-group">
                                     <label><input type="checkbox" id="b-rule-short" checked /> Keep responses short</label>
+                                    <label><input type="checkbox" id="b-rule-one-question" checked /> Ask at most one question per turn</label>
                                     <label><input type="checkbox" id="b-rule-no-explain" checked /> Don't explain topics to students</label>
                                     <label><input type="checkbox" id="b-rule-on-topic" checked /> Stay on topic, redirect off-topic messages</label>
                                     <label><input type="checkbox" id="b-rule-stop" checked /> Allow students to end with STOP keyword</label>
@@ -568,6 +578,246 @@ If the student responds that they have no more feedback to give, then please con
                     </div>
                 </div>
             </div>
+            </div><!-- /#mode-panel-general -->
+
+            <div id="mode-panel-group" class="ingroup-scope" role="tabpanel" style="display:none">
+                <div class="layout">
+                    <div id="ig-left-column">
+                        <!-- Team Structure card -->
+                        <div class="card" id="teams-card">
+                            <div class="card-title" style="justify-content:space-between">
+                                <span>
+                                    Your Teams
+                                    <span class="info-icon" tabindex="0" data-tooltip="Configure how many teams you have and how many students are on each. You don't enter names — students pick their own team when they respond."></span>
+                                </span>
+                            </div>
+
+                            <!-- Named-configuration sub-tabs (hidden until 2+ configs) -->
+                            <div class="team-config-tabs" id="team-config-tabs" style="display:none"></div>
+
+                            <!-- Summary row (shown when a config exists) -->
+                            <div class="team-structure-summary" id="team-summary" style="display:none">
+                                <span class="summary-text" id="team-summary-text"></span>
+                                <div style="display:flex;gap:6px">
+                                    <button class="btn btn-outline btn-sm" id="team-add-btn">+ Another</button>
+                                    <button class="btn btn-outline btn-sm" id="team-edit-btn">Edit</button>
+                                </div>
+                            </div>
+
+                            <!-- Setup form -->
+                            <div id="team-setup-form">
+                                <label>Configuration name
+                                    <span class="info-icon" tabindex="0" data-tooltip="A label for this grouping (e.g., 'Lab Teams', 'Final Project Teams'). Helpful if you'll have more than one."></span>
+                                </label>
+                                <input type="text" id="t-config-name" placeholder="Primary" value="Primary" />
+
+                                <div class="builder-row">
+                                    <div>
+                                        <label>How many teams?
+                                            <span class="info-icon" tabindex="0" data-tooltip="Total number of teams in your course."></span>
+                                        </label>
+                                        <input type="number" id="t-team-count" placeholder="8" min="1" max="50" />
+                                    </div>
+                                    <div>
+                                        <label>Default team size?
+                                            <span class="info-icon" tabindex="0" data-tooltip="Used for all teams unless you override individual sizes below."></span>
+                                        </label>
+                                        <input type="number" id="t-default-size" placeholder="4" min="1" max="20" />
+                                    </div>
+                                </div>
+
+                                <label>Label for each team?
+                                    <span class="info-icon" tabindex="0" data-tooltip="The word students see. E.g., 'Lab Group 3'."></span>
+                                </label>
+                                <select id="t-label-prefix">
+                                    <option value="Team">Team</option>
+                                    <option value="Group">Group</option>
+                                    <option value="Lab Group">Lab Group</option>
+                                    <option value="Project Group">Project Group</option>
+                                </select>
+
+                                <div id="t-size-grid-wrap" style="display:none">
+                                    <label style="margin-top:16px">Team sizes
+                                        <span class="info-icon" tabindex="0" data-tooltip="Pre-filled with your default. Change only the teams that differ — exceptions get highlighted green."></span>
+                                    </label>
+                                    <div class="team-size-grid" id="t-size-grid"></div>
+                                </div>
+
+                                <div style="margin-top:20px">
+                                    <button class="btn btn-primary" id="t-save-btn">Save configuration</button>
+                                    <button class="btn btn-ghost" id="t-cancel-btn" style="display:none;margin-left:8px">Cancel</button>
+                                </div>
+
+                                <p style="font-size:0.78rem;color:var(--muted);margin-top:16px;line-height:1.5">
+                                    You don't enter student names here. Students pick their own team when they respond, and their identity stays anonymous to you. If a student switches teams, they'll just pick the new one next time — nothing for you to do. If a student drops, edit the size here; past surveys keep the sizes they were created with.
+                                </p>
+                                <div id="t-msg"></div>
+                            </div>
+                        </div>
+
+                        <!-- In-Group Survey builder card -->
+                        <div class="card" id="ig-builder-card">
+                            <div class="card-title">In-Group Survey</div>
+
+                            <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
+                            <input type="number" id="ig-week" placeholder="e.g. 6" min="1" />
+
+                            <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
+                            <input type="text" id="ig-label" placeholder="Week 6 — Team Dynamics Check-in" />
+
+                            <div id="ig-config-picker-wrap" style="display:none">
+                                <label>Which team configuration does this survey use?
+                                    <span class="info-icon" tabindex="0" data-tooltip="Surveys snapshot this configuration at creation — later edits to the source won't change past surveys."></span>
+                                </label>
+                                <select id="ig-config-picker"></select>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Bot Persona</div>
+                                <div class="builder-row">
+                                    <div>
+                                        <label>Bot Name
+                                            <span class="info-icon" tabindex="0" data-tooltip="Students see this name at the top of their chat."></span>
+                                        </label>
+                                        <input type="text" id="ig-bot-name" placeholder="Teammate" />
+                                    </div>
+                                    <div>
+                                        <label>Bot Role</label>
+                                        <input type="text" id="ig-bot-role" placeholder="team dynamics check-in bot" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Assignment / Activity Context</div>
+                                <label>What is the team working on right now?
+                                    <span class="info-icon" tabindex="0" data-tooltip="One line, e.g. 'Midterm Group Project — Game Prototype'. Grounds the bot's questions in the work."></span>
+                                </label>
+                                <input type="text" id="ig-activity" placeholder="Midterm Group Project — Game Prototype" />
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Team Dynamics Questions</div>
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" id="ig-ask-collab" checked /> Ask about overall team collaboration and communication</label>
+                                    <label><input type="checkbox" id="ig-ask-workload" checked /> Ask about workload distribution and fairness</label>
+                                    <label><input type="checkbox" id="ig-ask-working" checked /> Ask what's working well in the team</label>
+                                    <label><input type="checkbox" id="ig-ask-concerns" checked /> Ask if there's any friction or concern the instructor should know about</label>
+                                    <label><input type="checkbox" id="ig-ask-teammate" checked /> If concern surfaces, offer teammate-level details under letter labels (A/B/C) — never real names</label>
+                                </div>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Bot Rules</div>
+                                <div class="checkbox-group">
+                                    <label><input type="checkbox" id="ig-rule-short" checked /> Keep responses short</label>
+                                    <label><input type="checkbox" id="ig-rule-one-question" checked /> Ask at most one question per turn</label>
+                                    <label><input type="checkbox" id="ig-rule-on-topic" checked /> Stay on topic, redirect off-topic messages</label>
+                                    <label><input type="checkbox" id="ig-rule-stop" checked /> Allow students to end with STOP keyword</label>
+                                </div>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Response Length</div>
+                                <label>Max characters per response (optional)</label>
+                                <input type="number" id="ig-max-chars" placeholder="300" min="50" />
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Additional Instructions</div>
+                                <textarea id="ig-additional" rows="3" placeholder="Any extra rules or questions you want the bot to include..."></textarea>
+                            </div>
+
+                            <button class="advanced-toggle" id="ig-settings-toggle" type="button">&#9654; Survey settings</button>
+                            <div id="ig-settings-panel" style="display:none;margin-top:12px">
+                                <div class="builder-row">
+                                    <div>
+                                        <label>Anonymity Mode
+                                            <span class="info-icon" tabindex="0" data-tooltip="In-Group surveys are always anonymous — instructors only see team-level feedback."></span>
+                                        </label>
+                                        <select id="ig-anonymity" disabled>
+                                            <option value="anonymous">Anonymous (locked)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="builder-row">
+                                    <div>
+                                        <label>Opens At <span style="font-weight:400">(optional)</span></label>
+                                        <input type="datetime-local" id="ig-opens-at" />
+                                    </div>
+                                    <div>
+                                        <label>Expires At <span style="font-weight:400">(leave blank = +14 days)</span></label>
+                                        <input type="datetime-local" id="ig-expires-at" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:20px">
+                                <button class="btn btn-primary" id="ig-create-btn">Create Survey &amp; Get Link</button>
+                            </div>
+                            <div id="ig-msg"></div>
+                            <div id="ig-result" style="margin-top:16px;display:none"></div>
+                        </div>
+                    </div>
+
+                    <!-- Right column: Your In-Group Surveys list -->
+                    <div>
+                        <div class="card" id="ig-surveys-card">
+                            <div class="card-title" style="justify-content:space-between">
+                                Your In-Group Surveys
+                                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                                    <button class="btn btn-outline" id="ig-import-btn" title="Import in-group surveys (and their team snapshots) from a JSON file" style="display:none">Import</button>
+                                    <button class="btn btn-outline" id="ig-export-btn" title="Export all in-group surveys + snapshots as JSON" style="display:none">Export</button>
+                                    <button class="btn btn-outline" id="ig-refresh-btn">Refresh</button>
+                                </div>
+                            </div>
+                            <input type="file" id="ig-import-file" accept=".json" style="position:absolute;width:0;height:0;overflow:hidden;opacity:0" />
+                            <div id="ig-survey-list-container">
+                                <div class="empty-state">No in-group surveys yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /#mode-panel-group -->
+
+            <!-- In-Group Edit modal -->
+            <div class="modal-overlay" id="ig-edit-overlay">
+                <div class="modal-box">
+                    <h3>Edit In-Group Survey</h3>
+                    <input type="hidden" id="ig-edit-id" />
+                    <label>Survey Label</label>
+                    <input type="text" id="ig-edit-label" />
+                    <label>Week / Milestone</label>
+                    <input type="number" id="ig-edit-week" min="1" />
+                    <label>Activity Context</label>
+                    <input type="text" id="ig-edit-activity" />
+                    <label>Opens At</label>
+                    <input type="datetime-local" id="ig-edit-opens-at" />
+                    <label>Expires At</label>
+                    <input type="datetime-local" id="ig-edit-expires-at" />
+                    <div id="ig-edit-msg"></div>
+                    <div class="modal-actions" style="margin-top:4px">
+                        <button class="btn btn-ghost" id="ig-edit-cancel">Cancel</button>
+                        <button class="btn btn-sm" id="ig-edit-save">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- In-Group Delete confirmation modal -->
+            <div class="modal-overlay" id="ig-delete-overlay">
+                <div class="modal-box">
+                    <h3>Delete in-group survey?</h3>
+                    <p style="color:var(--text-variant);font-size:0.9rem;line-height:1.5;margin:8px 0 16px">
+                        This permanently removes the survey, its team snapshot, all anonymous session assignments, and the stored conversation log. The shareable link will stop working.
+                    </p>
+                    <div id="ig-delete-target" style="font-size:0.85rem;color:var(--muted);margin-bottom:16px"></div>
+                    <div id="ig-delete-msg"></div>
+                    <div class="modal-actions" style="margin-top:4px">
+                        <button class="btn btn-ghost" id="ig-delete-cancel">Cancel</button>
+                        <button class="btn btn-sm" id="ig-delete-confirm" style="background:#b91c1c">Delete</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -658,6 +908,7 @@ If the student responds that they have no more feedback to give, then please con
         loadSurveys();
         var isTestCourse = activeCourse && activeCourse.id.indexOf('test-') === 0;
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
+        if (typeof initIngroupUI === 'function') initIngroupUI();
     }
 
     function lockCourse(courseId, courseName) {
@@ -676,12 +927,842 @@ If the student responds that they have no more feedback to give, then please con
         });
     });
 
+    // ===== MODE TABS (general vs in-group) =====
+    const MODE_KEY = 'leai.promptDesigner.mode';
+
+    function applyMode(mode) {
+        document.querySelectorAll('.mode-tab').forEach(function (t) {
+            var isActive = t.dataset.mode === mode;
+            t.classList.toggle('active', isActive);
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        var generalPanel = document.getElementById('mode-panel-general');
+        var groupPanel = document.getElementById('mode-panel-group');
+        if (generalPanel) generalPanel.style.display = (mode === 'general') ? '' : 'none';
+        if (groupPanel)   groupPanel.style.display = (mode === 'group') ? '' : 'none';
+        var badge = document.getElementById('mode-badge');
+        if (badge) {
+            badge.setAttribute('data-mode', mode);
+            badge.textContent = (mode === 'general') ? 'General Mode' : 'In-Group Mode';
+        }
+        localStorage.setItem(MODE_KEY, mode);
+    }
+
+    function isFormDirty() {
+        var active = document.querySelector('.mode-tab.active');
+        if (!active) return false;
+        var panel = (active.dataset.mode === 'general')
+            ? document.getElementById('mode-panel-general')
+            : document.getElementById('mode-panel-group');
+        if (!panel) return false;
+        var fields = panel.querySelectorAll('input[type="text"], input[type="number"], textarea');
+        for (var i = 0; i < fields.length; i++) {
+            if (fields[i].value && fields[i].value.trim().length > 0) return true;
+        }
+        return false;
+    }
+
+    document.querySelectorAll('.mode-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var target = tab.dataset.mode;
+            if (target === (localStorage.getItem(MODE_KEY) || 'general')) return;
+            if (isFormDirty()) {
+                if (!confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
+            }
+            applyMode(target);
+        });
+    });
+
+    // ===== IN-GROUP: TEAM STRUCTURE =====
+    var currentConfigId = null;       // id of the config being viewed/edited; null = new
+    var sizeOverrides = {};           // team_number -> size (only when != default)
+    var lastLoadedConfigs = [];
+
+    function igCourseId() {
+        return (activeCourse && activeCourse.id) || 'unknown';
+    }
+
+    function igRegenerateSizeGrid() {
+        var count = parseInt(document.getElementById('t-team-count').value, 10);
+        var defSize = parseInt(document.getElementById('t-default-size').value, 10);
+        var prefix = document.getElementById('t-label-prefix').value;
+        var wrap = document.getElementById('t-size-grid-wrap');
+        var grid = document.getElementById('t-size-grid');
+        if (!count || !defSize || count < 1) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        grid.textContent = '';
+        for (var i = 1; i <= count; i++) {
+            var size = (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize;
+            var isException = (sizeOverrides[i] != null) && (sizeOverrides[i] !== defSize);
+            var item = document.createElement('div');
+            item.className = 'team-size-item' + (isException ? ' exception' : '');
+            var lab = document.createElement('label');
+            lab.textContent = prefix + ' ' + i;
+            var inp = document.createElement('input');
+            inp.type = 'number';
+            inp.min = '1';
+            inp.max = '20';
+            inp.value = size;
+            inp.dataset.teamNumber = String(i);
+            item.appendChild(lab);
+            item.appendChild(inp);
+            grid.appendChild(item);
+        }
+        grid.querySelectorAll('input').forEach(function (inp) {
+            inp.addEventListener('input', function () {
+                var n = parseInt(inp.dataset.teamNumber, 10);
+                var v = parseInt(inp.value, 10);
+                var d = parseInt(document.getElementById('t-default-size').value, 10);
+                if (v && v !== d) sizeOverrides[n] = v;
+                else delete sizeOverrides[n];
+                inp.parentElement.classList.toggle('exception', v !== d);
+                igMaybeWarnSmallTeam();
+            });
+        });
+        igMaybeWarnSmallTeam();
+    }
+
+    function igMaybeWarnSmallTeam() {
+        var count = parseInt(document.getElementById('t-team-count').value, 10);
+        var defSize = parseInt(document.getElementById('t-default-size').value, 10);
+        var anySmall = defSize > 0 && defSize <= 2;
+        for (var i = 1; i <= count; i++) {
+            var s = (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize;
+            if (s > 0 && s <= 2) anySmall = true;
+        }
+        var msg = document.getElementById('t-msg');
+        if (anySmall) {
+            msg.className = 'msg msg-warn';
+            msg.textContent = 'Note: teams with 2 or fewer members make teammate-level comments potentially traceable. Consider whether this survey is appropriate.';
+        } else {
+            msg.className = '';
+            msg.textContent = '';
+        }
+    }
+
+    function igScopeElement(el, config) {
+        if (!el) return;
+        el.classList.add('config-scoped');
+        el.setAttribute('data-config-color', (config && config.color) || 'forest');
+    }
+    function igUnscopeElement(el) {
+        if (!el) return;
+        el.removeAttribute('data-config-color');
+        // leave .config-scoped so var chain still resolves to neutral defaults
+    }
+    function igApplyTeamsCardColor(config) {
+        igScopeElement(document.getElementById('teams-card'), config);
+    }
+    function igApplyBuilderCardColor(config) {
+        igScopeElement(document.getElementById('ig-builder-card'), config);
+    }
+
+    function igShowSummary(config) {
+        var sum = config.teams.reduce(function (s, t) { return s + t.size; }, 0);
+        var avg = config.teams.length ? (sum / config.teams.length) : 0;
+        document.getElementById('team-summary-text').textContent =
+            config.name + ' · ' + config.teams.length + ' teams · avg size ' +
+            avg.toFixed(1) + ' · updated ' + new Date(config.updated_at).toLocaleDateString();
+        document.getElementById('team-summary').style.display = '';
+        document.getElementById('team-setup-form').style.display = 'none';
+        igApplyTeamsCardColor(config);
+    }
+
+    function igRenderScopeBanner(config) {
+        // Shows "Creating a survey for: [Config name]" at the top of the In-Group Survey
+        // builder, tinted with the config's color — reminds the instructor which teams
+        // this survey will target. Also sets the builder card's config color so the
+        // primary button, section titles and card-title pick up that color.
+        var card = document.getElementById('ig-builder-card');
+        if (!card) return;
+        var existing = card.querySelector('.ig-scope-banner');
+        if (existing) existing.remove();
+        if (!config) { igUnscopeElement(card); return; }
+        igApplyBuilderCardColor(config);
+        var banner = document.createElement('div');
+        banner.className = 'ig-scope-banner';
+        banner.style.padding = '8px 14px';
+        banner.style.margin = '-28px -28px 20px';  // extend to card edges
+        banner.style.background = 'var(--config-tint)';
+        banner.style.color = 'var(--config-color)';
+        banner.style.fontSize = '0.78rem';
+        banner.style.fontWeight = '600';
+        banner.style.letterSpacing = '0.06em';
+        banner.style.textTransform = 'uppercase';
+        banner.style.borderTop = '3px solid var(--config-color)';
+        banner.textContent = 'Creating a survey for: ' + config.name;
+        card.insertBefore(banner, card.firstChild);
+    }
+
+    function igPopulateForm(config) {
+        document.getElementById('t-config-name').value = config.name;
+        document.getElementById('t-team-count').value = config.teams.length;
+        var sizes = config.teams.map(function (t) { return t.size; });
+        // mode size = most common
+        var counts = {};
+        sizes.forEach(function (x) { counts[x] = (counts[x] || 0) + 1; });
+        var modeSize = sizes[0];
+        Object.keys(counts).forEach(function (k) {
+            if (counts[k] > (counts[modeSize] || 0)) modeSize = parseInt(k, 10);
+        });
+        document.getElementById('t-default-size').value = modeSize;
+        document.getElementById('t-label-prefix').value = config.label_prefix;
+        sizeOverrides = {};
+        config.teams.forEach(function (t) {
+            if (t.size !== modeSize) sizeOverrides[t.number] = t.size;
+        });
+        igRegenerateSizeGrid();
+    }
+
+    function igResetForm() {
+        currentConfigId = null;
+        sizeOverrides = {};
+        document.getElementById('t-config-name').value = '';
+        document.getElementById('t-team-count').value = '';
+        document.getElementById('t-default-size').value = '';
+        document.getElementById('t-label-prefix').value = 'Team';
+        igRegenerateSizeGrid();
+        document.getElementById('team-summary').style.display = 'none';
+        document.getElementById('team-setup-form').style.display = '';
+        document.getElementById('t-msg').textContent = '';
+        document.getElementById('t-msg').className = '';
+        // Drop active-config color on the Your Teams card only, so the instructor
+        // sees a neutral setup state while they create a new configuration.
+        // The In-Group Survey builder card keeps its own color (tied to the survey target).
+        igUnscopeElement(document.getElementById('teams-card'));
+    }
+
+    function igRenderConfigTabs(configs) {
+        var wrap = document.getElementById('team-config-tabs');
+        wrap.textContent = '';
+        if (configs.length <= 1) { wrap.style.display = 'none'; return; }
+        wrap.style.display = '';
+        configs.forEach(function (c) {
+            var btn = document.createElement('button');
+            btn.className = 'team-config-tab' + (c.id === currentConfigId ? ' active' : '');
+            btn.textContent = c.name;
+            btn.dataset.configId = String(c.id);
+            btn.setAttribute('data-config-color', c.color || 'forest');
+            btn.addEventListener('click', function () {
+                currentConfigId = c.id;
+                igPopulateForm(c);
+                igShowSummary(c);
+                igRenderConfigTabs(configs);
+                // Also point the survey-builder picker + banner at the newly-selected
+                // config, so "which config the survey targets" stays in sync with
+                // "which config the instructor is viewing in Your Teams".
+                igRefreshConfigPicker();
+                igRenderScopeBanner(c);
+            });
+            wrap.appendChild(btn);
+        });
+        var add = document.createElement('button');
+        add.className = 'team-config-tab add-config';
+        add.textContent = '+ New team configuration';
+        add.addEventListener('click', igResetForm);
+        wrap.appendChild(add);
+    }
+
+    function igLoadConfigs() {
+        return leaiTeamsApi.listTeamConfigurations(igCourseId()).then(function (configs) {
+            lastLoadedConfigs = configs;
+            if (!configs.length) {
+                currentConfigId = null;
+                document.getElementById('team-summary').style.display = 'none';
+                document.getElementById('team-setup-form').style.display = '';
+                document.getElementById('team-config-tabs').style.display = 'none';
+                return configs;
+            }
+            var target = configs.find(function (c) { return c.id === currentConfigId; }) || configs[0];
+            currentConfigId = target.id;
+            igPopulateForm(target);
+            igShowSummary(target);
+            igRenderConfigTabs(configs);
+            return configs;
+        });
+    }
+
+    // Wire up event handlers once (elements are in the DOM at load time)
+    ['t-team-count', 't-default-size', 't-label-prefix'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', igRegenerateSizeGrid);
+            el.addEventListener('change', igRegenerateSizeGrid);
+        }
+    });
+
+    var saveBtn = document.getElementById('t-save-btn');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+        var name = document.getElementById('t-config-name').value.trim() || 'Primary';
+        var count = parseInt(document.getElementById('t-team-count').value, 10);
+        var defSize = parseInt(document.getElementById('t-default-size').value, 10);
+        var prefix = document.getElementById('t-label-prefix').value;
+        if (!count || !defSize) {
+            setMsg('t-msg', 'Enter team count and default size.', 'error');
+            return;
+        }
+        var teams = [];
+        for (var i = 1; i <= count; i++) {
+            teams.push({ number: i, size: (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize });
+        }
+        var payload = { name: name, label_prefix: prefix, teams: teams };
+        var p = currentConfigId
+            ? leaiTeamsApi.updateTeamConfiguration(currentConfigId, payload)
+            : leaiTeamsApi.createTeamConfiguration(igCourseId(), payload);
+        p.then(function (saved) {
+            currentConfigId = saved.id;
+            igLoadConfigs().then(function () {
+                igRefreshConfigPicker();
+                igRenderScopeBanner(igPickerActiveConfig());
+            });
+        }).catch(function (e) {
+            setMsg('t-msg', 'Save failed: ' + e.message, 'error');
+        });
+    });
+
+    var editBtn = document.getElementById('team-edit-btn');
+    if (editBtn) editBtn.addEventListener('click', function () {
+        document.getElementById('team-summary').style.display = 'none';
+        document.getElementById('team-setup-form').style.display = '';
+    });
+
+    var addBtn = document.getElementById('team-add-btn');
+    if (addBtn) addBtn.addEventListener('click', igResetForm);
+
+    var cancelBtn = document.getElementById('t-cancel-btn');
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { igLoadConfigs(); });
+
+    // ===== IN-GROUP: SURVEY BUILDER =====
+    function igRefreshConfigPicker() {
+        var wrap = document.getElementById('ig-config-picker-wrap');
+        var sel = document.getElementById('ig-config-picker');
+        sel.textContent = '';
+        lastLoadedConfigs.forEach(function (c) {
+            var opt = document.createElement('option');
+            opt.value = String(c.id);
+            opt.textContent = c.name + ' (' + c.teams.length + ' teams)';
+            sel.appendChild(opt);
+        });
+        // Default-select the currently active team-structure config so the scope
+        // banner matches what the instructor is viewing in the Your Teams card.
+        if (currentConfigId) sel.value = String(currentConfigId);
+        wrap.style.display = (lastLoadedConfigs.length >= 2) ? '' : 'none';
+    }
+
+    function igPickerActiveConfig() {
+        var sel = document.getElementById('ig-config-picker');
+        var pickedId = (lastLoadedConfigs.length >= 2 && sel && sel.value)
+            ? parseInt(sel.value, 10)
+            : (lastLoadedConfigs[0] && lastLoadedConfigs[0].id);
+        return lastLoadedConfigs.find(function (c) { return c.id === pickedId; }) || null;
+    }
+
+    function igBuildPrompt(d) {
+        var lines = [];
+        var persona = 'You are ' + (d.bot_name || 'Teammate') + ', a ' +
+            (d.bot_role || 'team dynamics check-in bot') + ' collecting anonymous team feedback.';
+        lines.push(persona);
+        lines.push('');
+        lines.push('The team is working on: ' + (d.activity || '[activity not specified]') + '.');
+        lines.push('');
+        lines.push('Anonymity is the core guarantee of this conversation. You MUST NOT:');
+        lines.push('- Ask the student for their name, student ID, or any identifier.');
+        lines.push('- Ask who is on the team, how many people are on it, or to list/describe teammates.');
+        lines.push('- Ask the student to describe what the project is or what the team is building — the instructor already has that context. If the activity above is "[activity not specified]", simply proceed without asking.');
+        lines.push('- Ask anything that would let you (or a reader of the transcript) identify who submitted the feedback.');
+        lines.push('Treat the team identifier ({TEAM_CONTEXT}) as already known to you — never ask the student to confirm or describe it.');
+        lines.push('');
+        lines.push('Conversation flow:');
+        lines.push('1. Start by briefly introducing yourself and stating that this conversation is anonymous and team-level only. Do NOT ask who is on the team or what the project is. Go straight into your first feedback question.');
+        lines.push('2. You may acknowledge that the student is sharing as a member of {TEAM_CONTEXT}, but only as a statement — never as a question.');
+        var step = 3;
+        if (d.ask_collab)   { lines.push(step++ + '. Ask about overall team collaboration and communication.'); }
+        if (d.ask_workload) { lines.push(step++ + '. Ask about workload distribution and fairness.'); }
+        if (d.ask_working)  { lines.push(step++ + '. Ask what is working well in the team.'); }
+        if (d.ask_concerns) { lines.push(step++ + '. Ask whether there is any friction or concern the instructor should know about.'); }
+        if (d.ask_teammate) {
+            lines.push(step++ + '. If the student raises a concern about a specific teammate, assign that teammate a letter label (A, then B, then C, in the order they come up). Respond with "Got it — I\'ll refer to that person as Teammate A" and then only use the letter label. Never ask for or repeat real teammate names. If the student types a real name, do not echo it in your replies.');
+        }
+        lines.push('');
+        lines.push('Rules:');
+        if (d.rule_short)        lines.push('- Keep responses short.');
+        if (d.rule_one_question) lines.push('- Ask at most one question per turn. Zero is fine (a simple acknowledgement with no question) — never bundle multiple questions into a single reply. No numbered or bulleted lists of questions, no "and also…" follow-ups, and never more than one "?" per message. If several topics matter, pick the single most relevant one and save the rest for later turns.');
+        if (d.rule_on_topic)     lines.push('- Stay on topic. Redirect off-topic messages.');
+        if (d.rule_stop)         lines.push('- If the student says STOP or says they have no more feedback, conclude the conversation.');
+        if (d.max_chars)     lines.push('- Keep each response under ' + d.max_chars + ' characters.');
+        if (d.additional)    lines.push('\n' + d.additional);
+        lines.push('');
+        lines.push('Safety footer (always mention in your opening turn): "This feedback is anonymous. The instructor only sees team-level summaries, not who submitted what. If you flag a teammate, you do so under a letter label (A/B/C)."');
+        return lines.join('\n');
+    }
+
+    var igPickerEl = document.getElementById('ig-config-picker');
+    if (igPickerEl) igPickerEl.addEventListener('change', function () {
+        var picked = igPickerActiveConfig();
+        if (picked) {
+            igApplyConfigColor(picked);
+            igRenderScopeBanner(picked);
+        }
+    });
+
+    var igSettingsToggle = document.getElementById('ig-settings-toggle');
+    if (igSettingsToggle) igSettingsToggle.addEventListener('click', function () {
+        var p = document.getElementById('ig-settings-panel');
+        var isHidden = (p.style.display === 'none' || p.style.display === '');
+        p.style.display = isHidden ? 'block' : 'none';
+        // \u25BC = ▼ (open),  \u25B6 = ▶ (closed)
+        this.textContent = (isHidden ? '\u25BC' : '\u25B6') + ' Survey settings';
+    });
+
+    var igCreateBtn = document.getElementById('ig-create-btn');
+    if (igCreateBtn) igCreateBtn.addEventListener('click', function () {
+        var week = document.getElementById('ig-week').value;
+        var label = document.getElementById('ig-label').value.trim();
+        if (!week || !label) {
+            setMsg('ig-msg', 'Enter week and survey label.', 'error');
+            return;
+        }
+        if (!lastLoadedConfigs.length) {
+            setMsg('ig-msg', 'Set up your team structure first (above).', 'error');
+            return;
+        }
+        var pickerEl = document.getElementById('ig-config-picker');
+        var chosenId = (lastLoadedConfigs.length >= 2 && pickerEl.value)
+            ? parseInt(pickerEl.value, 10)
+            : lastLoadedConfigs[0].id;
+
+        var promptData = {
+            bot_name:     document.getElementById('ig-bot-name').value.trim(),
+            bot_role:     document.getElementById('ig-bot-role').value.trim(),
+            activity:     document.getElementById('ig-activity').value.trim(),
+            ask_collab:   document.getElementById('ig-ask-collab').checked,
+            ask_workload: document.getElementById('ig-ask-workload').checked,
+            ask_working:  document.getElementById('ig-ask-working').checked,
+            ask_concerns: document.getElementById('ig-ask-concerns').checked,
+            ask_teammate: document.getElementById('ig-ask-teammate').checked,
+            rule_short:        document.getElementById('ig-rule-short').checked,
+            rule_one_question: document.getElementById('ig-rule-one-question').checked,
+            rule_on_topic:     document.getElementById('ig-rule-on-topic').checked,
+            rule_stop:         document.getElementById('ig-rule-stop').checked,
+            max_chars:    document.getElementById('ig-max-chars').value,
+            additional:   document.getElementById('ig-additional').value.trim(),
+        };
+        var botPrompt = igBuildPrompt(promptData);
+
+        // Real backend: POST /create_feedback_gpt/ with mode=group + team_configuration_id.
+        // Survey row and team snapshot are created atomically server-side.
+        var createPayload = {
+            course_id: igCourseId(),
+            instructor_name: (activeCourse && activeCourse.instructorName) || '',
+            name: label,
+            survey_label: label,
+            instructions: botPrompt,
+            week_number: parseInt(week, 10),
+            anonymity_mode: 'anonymous',
+            opens_at:   document.getElementById('ig-opens-at').value || null,
+            expires_at: document.getElementById('ig-expires-at').value || null,
+            mode: 'group',
+            team_configuration_id: chosenId,
+        };
+        fetch(API + '/create_feedback_gpt/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(createPayload),
+        }).then(function (r) { return r.json().then(function (body) {
+            if (!r.ok) throw new Error(body.error || 'create failed');
+            return body;
+        }); }).then(function (resp) {
+            if (typeof igLoadSurveys === 'function') igLoadSurveys();
+            var base = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
+            // Use public_id (random alphanumeric) to match the shared link convention.
+            var shareUrl = base + '?id=' + resp.public_id;
+
+            var result = document.getElementById('ig-result');
+            result.textContent = '';
+            result.style.display = '';
+
+            var heading = document.createElement('div');
+            heading.style.fontWeight = '600';
+            heading.style.marginBottom = '8px';
+            heading.style.color = 'var(--ingroup-primary)';
+            heading.textContent = 'Survey created. Share this link with your students:';
+            result.appendChild(heading);
+
+            var linkBox = document.createElement('div');
+            linkBox.className = 'link-box';
+            var linkText = document.createElement('code');
+            linkText.className = 'link-text';
+            linkText.textContent = shareUrl;
+            linkBox.appendChild(linkText);
+            var copyBtn = document.createElement('button');
+            copyBtn.className = 'copy-btn';
+            copyBtn.type = 'button';
+            copyBtn.textContent = 'Copy';
+            copyBtn.addEventListener('click', function () {
+                navigator.clipboard.writeText(shareUrl).then(function () {
+                    copyBtn.textContent = 'Copied!';
+                    setTimeout(function () { copyBtn.textContent = 'Copy'; }, 1500);
+                });
+            });
+            linkBox.appendChild(copyBtn);
+            result.appendChild(linkBox);
+
+            setMsg('ig-msg', '', 'success');
+        }).catch(function (e) {
+            setMsg('ig-msg', 'Could not create survey: ' + e.message, 'error');
+        });
+    });
+
+    // ===== IN-GROUP: SURVEY LIST (full parity with General) =====
+    function igFormatExpiry(iso) { return typeof formatExpiry === 'function' ? formatExpiry(iso) : null; }
+    function igSurveyStatus(s) {
+        if (typeof surveyStatus === 'function') return surveyStatus(s);
+        if (s.is_closed) return { label: 'Closed', cssClass: 'status-closed' };
+        var now = new Date();
+        if (s.opens_at && new Date(s.opens_at) > now) return { label: 'Scheduled', cssClass: 'status-scheduled' };
+        if (s.expires_at && new Date(s.expires_at) < now) return { label: 'Expired', cssClass: 'status-expired' };
+        return { label: 'Open', cssClass: 'status-open' };
+    }
+
+    function igLoadSurveys() {
+        var container = document.getElementById('ig-survey-list-container');
+        if (!container) return;
+        container.textContent = '';
+        var loading = document.createElement('div');
+        loading.className = 'empty-state';
+        loading.textContent = 'Loading\u2026';
+        container.appendChild(loading);
+
+        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(igCourseId()))
+            .then(function (r) { return r.json(); })
+            .then(function (surveys) {
+                container.textContent = '';
+                var groupSurveys = (surveys || []).filter(function (s) { return s.mode === 'group'; });
+                if (!groupSurveys.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.textContent = 'No in-group surveys yet. Create one on the left.';
+                    container.appendChild(empty);
+                    return;
+                }
+                var list = document.createElement('div');
+                list.className = 'survey-list';
+                groupSurveys.slice().sort(function (a, b) {
+                    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                }).forEach(function (s) {
+                    list.appendChild(igBuildSurveyItem(s));
+                });
+                container.appendChild(list);
+            })
+            .catch(function () {
+                container.textContent = '';
+                var err = document.createElement('div');
+                err.className = 'empty-state';
+                err.style.color = 'var(--error)';
+                err.textContent = 'Failed to load in-group surveys.';
+                container.appendChild(err);
+            });
+    }
+
+    function igBuildSurveyItem(s) {
+        // Backend shape: { id, public_id, survey_label, name, week_number,
+        //                  is_closed, opens_at, expires_at, team_configuration_id,
+        //                  team_snapshot_name, team_snapshot_color }.
+        var publicId = s.public_id || s.id;
+        var link = BASE_URL + '?id=' + publicId;
+        var label = s.survey_label || s.name || ('Week ' + (s.week_number || '?'));
+        var weekLabel = s.week_number ? 'Week ' + s.week_number : '';
+        var status = igSurveyStatus(s);
+        var expiry = igFormatExpiry(s.expires_at);
+        // Prefer the snapshotted color (stable through config renames); fall back to
+        // the current config color if the snapshot didn't come back.
+        var fallbackConfig = (lastLoadedConfigs || []).find(function (c) { return c.id === s.team_configuration_id; });
+        var configColor = s.team_snapshot_color || (fallbackConfig && fallbackConfig.color) || 'forest';
+        var configName = s.team_snapshot_name || (fallbackConfig && fallbackConfig.name) || 'Unknown configuration';
+
+        var item = document.createElement('div');
+        item.className = 'survey-item';
+        item.classList.add('config-scoped');
+        item.setAttribute('data-config-color', configColor);
+        item.style.borderLeft = '3px solid var(--config-color)';
+        item.style.paddingLeft = '14px';
+
+        // Title row: config badge + title + status
+        var titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;';
+
+        var cfgBadge = document.createElement('span');
+        cfgBadge.className = 'survey-type-badge';
+        cfgBadge.setAttribute('data-mode', 'group');
+        cfgBadge.style.background = 'var(--config-tint)';
+        cfgBadge.style.color = 'var(--config-color)';
+        cfgBadge.textContent = configName;
+
+        var title = document.createElement('div');
+        title.className = 'survey-item-title';
+        title.textContent = label;
+
+        var badge = document.createElement('span');
+        badge.className = 'status-badge ' + status.cssClass;
+        badge.textContent = status.label;
+
+        titleRow.appendChild(cfgBadge);
+        titleRow.appendChild(title);
+        titleRow.appendChild(badge);
+
+        var meta = document.createElement('div');
+        meta.className = 'survey-item-meta';
+        var metaParts = [];
+        if (weekLabel) metaParts.push(weekLabel);
+        if (expiry) metaParts.push('Expires ' + expiry);
+        meta.textContent = metaParts.join(' \u00b7 ');
+
+        // Link box with open + copy
+        var linkBox = document.createElement('div');
+        linkBox.className = 'link-box';
+        var linkSpan = document.createElement('span');
+        linkSpan.className = 'link-text';
+        linkSpan.textContent = link;
+        linkSpan.title = link;
+        var openBtn = document.createElement('a');
+        openBtn.className = 'copy-btn';
+        openBtn.textContent = '\u2197';
+        openBtn.href = link;
+        openBtn.target = '_blank';
+        openBtn.rel = 'noopener';
+        openBtn.title = 'Open survey';
+        openBtn.style.textDecoration = 'none';
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(link).then(function () {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+            });
+        });
+        linkBox.appendChild(linkSpan);
+        linkBox.appendChild(openBtn);
+        linkBox.appendChild(copyBtn);
+
+        // Actions row: close/reopen, duplicate, edit, delete
+        var actionsRow = document.createElement('div');
+        actionsRow.style.cssText = 'display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;';
+
+        var toggleBtn = document.createElement('button');
+        toggleBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;text-transform:uppercase;letter-spacing:0.06em;';
+        if (s.is_closed) {
+            toggleBtn.textContent = 'Reopen';
+            toggleBtn.style.background = '#dcfce7';
+            toggleBtn.style.color = '#166534';
+        } else {
+            toggleBtn.textContent = 'Close';
+            toggleBtn.style.background = '#fee2e2';
+            toggleBtn.style.color = '#9f403d';
+        }
+        toggleBtn.addEventListener('click', function () {
+            toggleBtn.disabled = true;
+            fetch(API + '/set_survey_status/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ survey_id: s.id, action: s.is_closed ? 'reopen' : 'close' }),
+            }).then(function (r) { return r.json(); })
+              .then(function () { igLoadSurveys(); })
+              .catch(function () { toggleBtn.disabled = false; });
+        });
+
+        var dupBtn = document.createElement('button');
+        dupBtn.textContent = 'Duplicate';
+        dupBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#e8eff1;color:#566164;text-transform:uppercase;letter-spacing:0.06em;';
+        dupBtn.addEventListener('click', function () {
+            dupBtn.disabled = true;
+            fetch(API + '/clone_survey/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ survey_id: s.id }),
+            }).then(function (r) { return r.json(); })
+              .then(function () { igLoadSurveys(); })
+              .catch(function () { dupBtn.disabled = false; });
+        });
+
+        var editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:var(--config-tint);color:var(--config-color);text-transform:uppercase;letter-spacing:0.06em;';
+        editBtn.addEventListener('click', function () { igOpenEditModal(s); });
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.title = 'Permanently delete this survey and all its responses';
+        deleteBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#fee2e2;color:#b91c1c;text-transform:uppercase;letter-spacing:0.06em;';
+        deleteBtn.addEventListener('click', function () { igOpenDeleteModal(s); });
+
+        actionsRow.appendChild(toggleBtn);
+        actionsRow.appendChild(dupBtn);
+        actionsRow.appendChild(editBtn);
+        actionsRow.appendChild(deleteBtn);
+
+        item.appendChild(titleRow);
+        item.appendChild(meta);
+        item.appendChild(linkBox);
+        item.appendChild(actionsRow);
+        return item;
+    }
+
+    // ----- Edit modal -----
+    function igToLocalDatetime(iso) {
+        if (!iso) return '';
+        try {
+            var d = new Date(iso);
+            var pad = function (n) { return String(n).padStart(2, '0'); };
+            return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) +
+                'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        } catch (e) { return ''; }
+    }
+    function igOpenEditModal(s) {
+        document.getElementById('ig-edit-id').value = String(s.id);
+        document.getElementById('ig-edit-label').value = s.survey_label || s.label || s.name || '';
+        document.getElementById('ig-edit-week').value = s.week_number || s.week || '';
+        // We don't currently surface the activity context separately from the prompt
+        // on the backend — leave the field blank for edits and let instructors add
+        // standalone notes instead.
+        document.getElementById('ig-edit-activity').value = '';
+        document.getElementById('ig-edit-opens-at').value = igToLocalDatetime(s.opens_at);
+        document.getElementById('ig-edit-expires-at').value = igToLocalDatetime(s.expires_at);
+        document.getElementById('ig-edit-msg').textContent = '';
+        document.getElementById('ig-edit-overlay').classList.add('visible');
+    }
+    function igCloseEditModal() {
+        document.getElementById('ig-edit-overlay').classList.remove('visible');
+    }
+    var igEditCancel = document.getElementById('ig-edit-cancel');
+    if (igEditCancel) igEditCancel.addEventListener('click', igCloseEditModal);
+    var igEditSave = document.getElementById('ig-edit-save');
+    if (igEditSave) igEditSave.addEventListener('click', function () {
+        var id = document.getElementById('ig-edit-id').value;
+        var label = document.getElementById('ig-edit-label').value.trim();
+        var week = document.getElementById('ig-edit-week').value;
+        var opensAt = document.getElementById('ig-edit-opens-at').value || null;
+        var expiresAt = document.getElementById('ig-edit-expires-at').value || null;
+        if (!label || !week) {
+            setMsg('ig-edit-msg', 'Label and week are required.', 'error');
+            return;
+        }
+        fetch(API + '/update_survey/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                survey_id: id,
+                survey_label: label,
+                name: label,
+                week_number: parseInt(week, 10),
+                opens_at: opensAt,
+                expires_at: expiresAt,
+            }),
+        }).then(function (r) { return r.json().then(function (b) {
+            if (!r.ok || b.error) throw new Error(b.error || 'save failed');
+            return b;
+        }); }).then(function () {
+            igCloseEditModal();
+            igLoadSurveys();
+        }).catch(function (e) {
+            setMsg('ig-edit-msg', 'Save failed: ' + e.message, 'error');
+        });
+    });
+
+    // ----- Delete modal -----
+    function igOpenDeleteModal(s) {
+        document.getElementById('ig-delete-target').textContent = s.survey_label || s.name || ('Survey #' + s.id);
+        document.getElementById('ig-delete-msg').textContent = '';
+        var overlay = document.getElementById('ig-delete-overlay');
+        overlay.setAttribute('data-pending-id', String(s.id));
+        overlay.classList.add('visible');
+    }
+    function igCloseDeleteModal() {
+        document.getElementById('ig-delete-overlay').classList.remove('visible');
+    }
+    var igDeleteCancel = document.getElementById('ig-delete-cancel');
+    if (igDeleteCancel) igDeleteCancel.addEventListener('click', igCloseDeleteModal);
+    var igDeleteConfirm = document.getElementById('ig-delete-confirm');
+    if (igDeleteConfirm) igDeleteConfirm.addEventListener('click', function () {
+        var overlay = document.getElementById('ig-delete-overlay');
+        var id = overlay.getAttribute('data-pending-id');
+        if (!id) { igCloseDeleteModal(); return; }
+        igDeleteConfirm.disabled = true;
+        fetch(API + '/delete_survey/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ survey_id: id }),
+        }).then(function (r) { return r.json().then(function (b) {
+            if (!r.ok || b.error) throw new Error(b.error || 'delete failed');
+            return b;
+        }); }).then(function () {
+            igDeleteConfirm.disabled = false;
+            igCloseDeleteModal();
+            igLoadSurveys();
+        }).catch(function (e) {
+            igDeleteConfirm.disabled = false;
+            setMsg('ig-delete-msg', 'Delete failed: ' + e.message, 'error');
+        });
+    });
+
+    // ----- Refresh / Export / Import -----
+    var igRefreshBtn = document.getElementById('ig-refresh-btn');
+    if (igRefreshBtn) igRefreshBtn.addEventListener('click', function () { igLoadSurveys(); });
+
+    var igExportBtn = document.getElementById('ig-export-btn');
+    if (igExportBtn) igExportBtn.addEventListener('click', function () {
+        var bundle = leaiTeamsApi.exportMockInGroupSurveys(igCourseId());
+        var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'leai-in-group-surveys-' + igCourseId() + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    var igImportBtn = document.getElementById('ig-import-btn');
+    var igImportFile = document.getElementById('ig-import-file');
+    if (igImportBtn) igImportBtn.addEventListener('click', function () { igImportFile.click(); });
+    if (igImportFile) igImportFile.addEventListener('change', function () {
+        var f = igImportFile.files && igImportFile.files[0];
+        if (!f) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+            try {
+                var bundle = JSON.parse(reader.result);
+                leaiTeamsApi.importMockInGroupSurveys(bundle).then(function (res) {
+                    alert('Imported ' + res.imported + ' survey(s); skipped ' + res.skipped + ' duplicate(s).');
+                    igLoadSurveys();
+                }).catch(function (e) {
+                    alert('Import failed: ' + e.message);
+                });
+            } catch (e) {
+                alert('Invalid JSON: ' + e.message);
+            }
+            igImportFile.value = '';
+        };
+        reader.readAsText(f);
+    });
+
+    function initIngroupUI() {
+        igLoadConfigs().then(function () {
+            igRefreshConfigPicker();
+            igRenderScopeBanner(igPickerActiveConfig());
+            igLoadSurveys();
+        });
+    }
+
     // ===== AUTO-LOGIN FROM SESSION =====
     document.addEventListener('DOMContentLoaded', function () {
+        applyMode(localStorage.getItem(MODE_KEY) || 'general');
         var stored = getSession();
         if (stored && stored.courseId) {
             activeCourse = { id: stored.courseId, name: stored.courseName };
             enterApp();
+            initIngroupUI();
         }
     });
 
@@ -827,6 +1908,10 @@ If the student responds that they have no more feedback to give, then please con
             } else {
                 rules.push('Keep your responses simple and short. Your purpose is to gather feedback.');
             }
+        }
+        var oneQEl = document.getElementById('b-rule-one-question');
+        if (oneQEl && oneQEl.checked) {
+            rules.push('Ask at most one question per turn. It is fine to ask zero questions (for example, a simple acknowledgement like "Thanks, got it." when there is nothing more to probe), but never bundle multiple questions into a single reply — no numbered or bulleted lists of questions, no "and also…" follow-ups, and never more than one "?" per message. If you have several topics to cover, pick the single most relevant one for this turn and save the rest for later turns after the student answers.');
         }
         if (document.getElementById('b-rule-no-explain').checked) {
             rules.push('Do not explain topics that the student describes.');

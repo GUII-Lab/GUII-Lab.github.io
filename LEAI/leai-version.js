@@ -8,8 +8,8 @@
 // version number in their document text; that value is hardcoded in
 // LEAI/legal/scripts/build_docx.py and must be updated in lockstep.
 
-window.LEAI_VERSION = 'v0.2.1';
-window.LEAI_UPDATED = '2026-04-14';
+window.LEAI_VERSION = 'v0.2.2';
+window.LEAI_UPDATED = '2026-04-22';
 
 (function () {
     function applyVersionText() {

@@ -449,6 +449,86 @@
             .msg-student-label-full { display: none; }
             .msg-student-label-short { display: inline !important; }
         }
+
+        /* ===== IN-GROUP MODE: per-config palette + pre-chat screens =====
+           Keep in sync with leai-shared.css — 8 colors in cycle order. */
+        [data-config-color="forest"] { --config-color: #2E7D57; --config-color-dim: #256A49; --config-tint: rgba( 46,125, 87,0.12); }
+        [data-config-color="plum"]   { --config-color: #9333EA; --config-color-dim: #7A2BC2; --config-tint: rgba(147, 51,234,0.10); }
+        [data-config-color="amber"]  { --config-color: #D97706; --config-color-dim: #B36105; --config-tint: rgba(217,119,  6,0.10); }
+        [data-config-color="teal"]   { --config-color: #0F766E; --config-color-dim: #0B5E58; --config-tint: rgba( 15,118,110,0.12); }
+        [data-config-color="rose"]   { --config-color: #BE185D; --config-color-dim: #9D144E; --config-tint: rgba(190, 24, 93,0.10); }
+        [data-config-color="indigo"] { --config-color: #4338CA; --config-color-dim: #362CA5; --config-tint: rgba( 67, 56,202,0.10); }
+        [data-config-color="brown"]  { --config-color: #92400E; --config-color-dim: #78340B; --config-tint: rgba(146, 64, 14,0.10); }
+        [data-config-color="slate"]  { --config-color: #475569; --config-color-dim: #384252; --config-tint: rgba( 71, 85,105,0.10); }
+
+        .pre-chat-screen {
+            max-width: 520px; margin: 80px auto; padding: 36px 32px;
+            background: var(--surface-card); border-radius: var(--radius-md);
+            box-shadow: var(--shadow-float); border-top: 4px solid var(--config-color, var(--primary));
+            font-family: 'Inter', sans-serif;
+        }
+        .pre-chat-screen .pre-chat-eyebrow {
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.10em;
+            text-transform: uppercase; color: var(--config-color, var(--primary));
+            margin-bottom: 12px;
+        }
+        .pre-chat-screen h1 {
+            font-size: 1.4rem; font-weight: 700; color: var(--text);
+            margin-bottom: 18px; letter-spacing: -0.01em; line-height: 1.25;
+        }
+        .pre-chat-screen p {
+            color: var(--text-variant); line-height: 1.6; margin-bottom: 14px;
+            font-size: 0.93rem;
+        }
+        .pre-chat-screen label {
+            display: block; font-size: 0.78rem; font-weight: 600;
+            color: var(--text); margin: 18px 0 8px; text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .pre-chat-screen select {
+            width: 100%; padding: 12px 14px; border: 1px solid var(--outline);
+            border-radius: var(--radius-md); font-size: 1rem; margin-bottom: 20px;
+            background: var(--surface-card); font-family: inherit;
+        }
+        .pre-chat-screen select:focus {
+            outline: none; border-color: var(--config-color, var(--primary));
+        }
+        .pre-chat-screen .pre-chat-help {
+            font-size: 0.78rem; color: var(--muted); margin: -8px 0 18px;
+            line-height: 1.5;
+        }
+        /* .pre-chat-btn is reused both in the pre-chat screens and as the chat Send
+           button, so keep the rule unscoped. */
+        .pre-chat-btn {
+            background: linear-gradient(135deg, var(--config-color, var(--primary)), var(--config-color-dim, var(--primary-dim)));
+            color: white; border: none;
+            padding: 12px 24px; border-radius: var(--radius-md);
+            font-size: 0.95rem; font-weight: 600; cursor: pointer;
+            width: 100%; font-family: inherit;
+            transition: background 0.15s;
+        }
+        .pre-chat-btn:hover:not(:disabled) { background: var(--config-color-dim, var(--primary-dim)); }
+        .pre-chat-btn:disabled {
+            background: var(--surface-mid); color: var(--muted); cursor: not-allowed;
+        }
+        .pre-chat-screen .pre-chat-secondary {
+            display: block; text-align: center; margin-top: 18px;
+            color: var(--muted); font-size: 0.78rem; text-decoration: none;
+        }
+        .pre-chat-screen .pre-chat-secondary:hover { color: var(--text); }
+
+        /* In-group context strip shown above the chat header */
+        #ingroup-context-strip {
+            padding: 8px 16px; font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 0.08em; text-transform: uppercase;
+            background: var(--config-tint); color: var(--config-color);
+            border-bottom: 1px solid var(--outline);
+            display: flex; align-items: center; gap: 8px;
+        }
+        #ingroup-context-strip::before {
+            content: ""; width: 8px; height: 8px; border-radius: 50%;
+            background: var(--config-color);
+        }
     </style>
 </head>
 
@@ -617,13 +697,27 @@
         let chatHistory = [];
         var gptConfig = null;
 
+        // Runtime guardrail appended to every non-group survey's system prompt.
+        // Newer models (gpt-5.x) default to enumerating multiple questions in one
+        // reply even when the authored prompt doesn't; instructors shouldn't need
+        // to re-author older surveys, so enforce the rule here.
+        function withOneQuestionGuardrail(instructions) {
+            return (instructions || '') +
+                '\n\nONE-QUESTION GUARDRAIL (highest priority, overrides anything above):\n' +
+                '- Ask AT MOST one question per turn. Zero questions is also acceptable (for example, a brief acknowledgement like “Thanks, got it.” when there is nothing more to probe or when wrapping up).\n' +
+                '- Never bundle multiple questions into a single reply. Do NOT produce numbered or bulleted lists of questions, do NOT chain questions with “and” / “also” / “as well as”, and never include more than one “?” character in a message.\n' +
+                '- If several topics are relevant, pick the single most relevant one for this turn and save the others for later turns once the student has answered.\n' +
+                '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
+        }
+
         function initGpt(gpt) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
-            chatHistory = [{ role: 'system', content: gpt.instructions }];
+            var sysPrompt = withOneQuestionGuardrail(gpt.instructions);
+            chatHistory = [{ role: 'system', content: sysPrompt }];
             $('#transcription').empty();
-            generateIntroductoryMessage(gpt.instructions);
+            generateIntroductoryMessage(sysPrompt);
             $('#sendMessage').prop('disabled', false);
         }
 
@@ -645,7 +739,33 @@
 
         function loadDirectGpt(directId) {
             $('.select-wrapper').hide();
+
+            // Fallback (no backend): if the id matches a locally-saved mock in-group
+            // survey, route to the in-group flow. Skipped in production since
+            // getMockInGroupSurvey returns null when USE_MOCK is false.
+            if (typeof leaiTeamsApi !== 'undefined' && leaiTeamsApi.getMockInGroupSurvey) {
+                var mock = leaiTeamsApi.getMockInGroupSurvey(directId);
+                if (mock && mock.mode === 'group') {
+                    startInGroupFlow(mock);
+                    return;
+                }
+            }
+
             $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId }, function (gpt) {
+                // In-group surveys come back with mode === 'group' plus an inlined
+                // team_snapshot. Route through the transparency + team-picker flow.
+                if (gpt.mode === 'group') {
+                    if (!gpt.is_active) { showInactive(gpt.reason); return; }
+                    startInGroupFlow({
+                        id: gpt.id,
+                        public_id: gpt.public_id,
+                        label: gpt.survey_label || gpt.name,
+                        prompt: gpt.instructions,
+                        team_snapshot: gpt.team_snapshot,
+                    });
+                    return;
+                }
+
                 const label = gpt.survey_label || gpt.name;
                 $('h2').text(label);
 
@@ -665,6 +785,355 @@
                 errP.textContent = 'Survey not found. Please check your link.';
                 document.getElementById('transcription').appendChild(errP);
             });
+        }
+
+        // ===== IN-GROUP FLOW =====
+        // Two pre-chat screens (transparency, team picker) then the regular chat with
+        // team context injected into the system prompt.
+        function startInGroupFlow(survey) {
+            // Prefer the snapshot the backend inlined on the public_id response
+            // (saves a round trip); fall back to fetching if needed.
+            var snapP = survey.team_snapshot
+                ? Promise.resolve(survey.team_snapshot)
+                : leaiTeamsApi.getSurveyTeamSnapshot(survey.public_id || survey.id);
+            snapP.then(function (snap) {
+                if (!snap) {
+                    document.body.textContent = '';
+                    var err = document.createElement('div');
+                    err.className = 'pre-chat-screen';
+                    var h = document.createElement('h1');
+                    h.textContent = 'Link not ready';
+                    var p = document.createElement('p');
+                    p.textContent = 'This survey does not have team structure attached yet. Please contact your instructor.';
+                    err.appendChild(h);
+                    err.appendChild(p);
+                    document.body.appendChild(err);
+                    return;
+                }
+                renderInGroupTransparencyScreen(survey, snap);
+            });
+        }
+
+        // Helper: build a paragraph containing mixed text and <strong> emphasis without
+        // using innerHTML, so we stay compatible with the project's XSS-safe conventions.
+        function makeParagraph(segments) {
+            var p = document.createElement('p');
+            segments.forEach(function (seg) {
+                if (typeof seg === 'string') {
+                    p.appendChild(document.createTextNode(seg));
+                } else if (seg && seg.bold) {
+                    var s = document.createElement('strong');
+                    s.textContent = seg.bold;
+                    p.appendChild(s);
+                }
+            });
+            return p;
+        }
+
+        function renderInGroupTransparencyScreen(survey, snap) {
+            var color = snap.color || 'forest';
+            document.body.textContent = '';
+            document.body.setAttribute('data-config-color', color);
+
+            var screen = document.createElement('div');
+            screen.className = 'pre-chat-screen';
+
+            var eyebrow = document.createElement('div');
+            eyebrow.className = 'pre-chat-eyebrow';
+            eyebrow.textContent = snap.name + ' · Team Feedback';
+            screen.appendChild(eyebrow);
+
+            var h = document.createElement('h1');
+            h.textContent = 'Before you start';
+            screen.appendChild(h);
+
+            screen.appendChild(makeParagraph([
+                'This feedback is ',
+                { bold: 'anonymous' },
+                '. Your instructor sees team-level summaries only — not who submitted what, and not any teammate\u2019s real name.',
+            ]));
+            screen.appendChild(makeParagraph([
+                'If you want to flag a specific teammate, you\u2019ll refer to them as ',
+                { bold: 'Teammate A, B, or C' },
+                '.',
+            ]));
+
+            var btn = document.createElement('button');
+            btn.className = 'pre-chat-btn';
+            btn.type = 'button';
+            btn.textContent = 'I understand, continue \u2192';
+            btn.addEventListener('click', function () {
+                renderInGroupTeamPicker(survey, snap);
+            });
+            screen.appendChild(btn);
+
+            document.body.appendChild(screen);
+        }
+
+        function renderInGroupTeamPicker(survey, snap) {
+            document.body.textContent = '';
+            document.body.setAttribute('data-config-color', snap.color || 'forest');
+
+            var screen = document.createElement('div');
+            screen.className = 'pre-chat-screen';
+
+            var eyebrow = document.createElement('div');
+            eyebrow.className = 'pre-chat-eyebrow';
+            eyebrow.textContent = snap.name;
+            screen.appendChild(eyebrow);
+
+            var h = document.createElement('h1');
+            h.textContent = 'Which team are you on?';
+            screen.appendChild(h);
+
+            var lab = document.createElement('label');
+            lab.htmlFor = 'tp-select';
+            lab.textContent = 'Pick your team';
+            screen.appendChild(lab);
+
+            var sel = document.createElement('select');
+            sel.id = 'tp-select';
+            var first = document.createElement('option');
+            first.value = '';
+            first.textContent = '\u2014 select \u2014';
+            sel.appendChild(first);
+            snap.teams.forEach(function (t) {
+                var opt = document.createElement('option');
+                opt.value = String(t.id);
+                opt.textContent = snap.label_prefix + ' ' + t.number;
+                sel.appendChild(opt);
+            });
+            screen.appendChild(sel);
+
+            var help = document.createElement('div');
+            help.className = 'pre-chat-help';
+            help.textContent = 'Your choice is anonymous. The instructor only knows which team responded, not who.';
+            screen.appendChild(help);
+
+            var btn = document.createElement('button');
+            btn.className = 'pre-chat-btn';
+            btn.type = 'button';
+            btn.textContent = 'Continue';
+            btn.disabled = true;
+            sel.addEventListener('change', function () { btn.disabled = !sel.value; });
+            btn.addEventListener('click', function () {
+                var teamId = parseInt(sel.value, 10);
+                if (!teamId) return;
+                var team = snap.teams.find(function (t) { return t.id === teamId; });
+                if (!team) return;
+                localStorage.setItem('leai.feedback.' + survey.id + '.team',
+                    JSON.stringify({ id: team.id, number: team.number, label_prefix: snap.label_prefix }));
+                if (window.sessionData && window.sessionData.sessionID) {
+                    leaiTeamsApi.assignSessionToTeam(window.sessionData.sessionID, team.id);
+                }
+                startInGroupChat(survey, snap, team);
+            });
+            screen.appendChild(btn);
+
+            var secondary = document.createElement('a');
+            secondary.href = '#';
+            secondary.className = 'pre-chat-secondary';
+            secondary.textContent = 'I don\u2019t see my team';
+            secondary.addEventListener('click', function (e) {
+                e.preventDefault();
+                alert('Please contact your instructor — your team isn\u2019t in this survey yet.');
+            });
+            screen.appendChild(secondary);
+
+            document.body.appendChild(screen);
+        }
+
+        function startInGroupChat(survey, snap, team) {
+            var teamContext = snap.label_prefix + ' ' + team.number;
+            var filledPrompt = String(survey.prompt || '').split('{TEAM_CONTEXT}').join(teamContext);
+            // Runtime anonymity guardrail — enforced regardless of how the survey's
+            // prompt was authored. Older surveys were created before the
+            // PromptDesigner template spelled these rules out, so we append them
+            // here to make sure every in-group bot honors anonymity.
+            filledPrompt += '\n\nANONYMITY GUARDRAIL (highest priority, overrides anything above):\n' +
+                '- The student is already identified to you as a member of ' + teamContext + '. Never ask them to confirm, list, or describe who is on the team.\n' +
+                '- Never ask for the student\u2019s name, ID, or any personal identifier.\n' +
+                '- Never ask the student to describe what the team\u2019s project/activity is — the instructor already has that context. If you lack that context, proceed with feedback questions anyway.\n' +
+                '- If the student volunteers real names, do not repeat them. Use letter labels (Teammate A/B/C) for any specific peer the student raises.\n' +
+                '- Your opening turn must go straight from a brief anonymous-intro into the first feedback question. Do NOT ask \u201cwho\u2019s on your team\u201d or \u201cwhat is your project about\u201d.';
+
+            filledPrompt += '\n\nONE-QUESTION GUARDRAIL (highest priority, overrides anything above):\n' +
+                '- Ask AT MOST one question per turn. Zero questions is also acceptable (for example, a brief acknowledgement like \u201cThanks, got it.\u201d when there is nothing more to probe or when wrapping up).\n' +
+                '- Never bundle multiple questions into a single reply. Do NOT produce numbered or bulleted lists of questions, do NOT chain questions with \u201cand\u201d / \u201calso\u201d / \u201cas well as\u201d, and never include more than one \u201c?\u201d character in a message.\n' +
+                '- If several topics are relevant, pick the single most relevant one for this turn and save the others for later turns once the student has answered.\n' +
+                '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
+
+            document.body.textContent = '';
+            document.body.setAttribute('data-config-color', snap.color || 'forest');
+
+            var contextStrip = document.createElement('div');
+            contextStrip.id = 'ingroup-context-strip';
+            contextStrip.textContent = snap.name + ' \u00b7 ' + teamContext + ' \u00b7 Anonymous';
+            document.body.appendChild(contextStrip);
+
+            var app = document.createElement('div');
+            app.id = 'chat-app';
+            app.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;';
+
+            var header = document.createElement('div');
+            header.className = 'chat-header';
+            var headerLeft = document.createElement('div');
+            headerLeft.className = 'chat-header-left';
+            var logo = document.createElement('span');
+            logo.className = 'chat-header-logo';
+            logo.textContent = 'LEAI';
+            var sep = document.createElement('span');
+            sep.className = 'chat-header-sep';
+            sep.textContent = '/';
+            var titleH = document.createElement('h2');
+            titleH.textContent = survey.label + ' \u2014 ' + teamContext;
+            headerLeft.appendChild(logo);
+            headerLeft.appendChild(sep);
+            headerLeft.appendChild(titleH);
+            header.appendChild(headerLeft);
+            app.appendChild(header);
+
+            var messages = document.createElement('div');
+            messages.id = 'ig-messages';
+            messages.style.cssText = 'flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;';
+            app.appendChild(messages);
+
+            var inputArea = document.createElement('div');
+            inputArea.style.cssText = 'padding:14px 20px;border-top:1px solid var(--outline);display:flex;gap:10px;align-items:flex-end;background:var(--surface-card);';
+            var textarea = document.createElement('textarea');
+            textarea.id = 'ig-input';
+            textarea.placeholder = 'Type your response...';
+            textarea.rows = 2;
+            textarea.style.cssText = 'flex:1;padding:10px 12px;border:1px solid var(--outline);border-radius:var(--radius-md);font-family:inherit;font-size:0.95rem;resize:none;';
+            var sendBtn = document.createElement('button');
+            sendBtn.type = 'button';
+            sendBtn.className = 'pre-chat-btn';
+            sendBtn.style.cssText = 'width:auto;padding:10px 20px;';
+            sendBtn.textContent = 'Send';
+            inputArea.appendChild(textarea);
+            inputArea.appendChild(sendBtn);
+            app.appendChild(inputArea);
+
+            document.body.appendChild(app);
+
+            function appendIgMessage(role, text) {
+                var m = document.createElement('div');
+                m.style.cssText =
+                    'max-width:75%;padding:10px 14px;border-radius:12px;line-height:1.5;font-size:0.95rem;' +
+                    (role === 'user'
+                        ? 'align-self:flex-end;background:var(--config-tint);color:var(--text);'
+                        : 'align-self:flex-start;background:var(--surface-low);color:var(--text);');
+                if (role !== 'user' && window.marked && window.DOMPurify) {
+                    // Bot text can contain markdown (**bold**, *italic*, lists, code).
+                    // Reuse the same sanitise-to-fragment pipeline the general flow uses
+                    // so we never assign untrusted innerHTML.
+                    var frag = window.DOMPurify.sanitize(
+                        window.marked.parse(text),
+                        { RETURN_DOM_FRAGMENT: true }
+                    );
+                    m.appendChild(frag);
+                } else {
+                    m.textContent = text;
+                }
+                messages.appendChild(m);
+                m.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+
+            var chatHistory = [{ role: 'system', content: filledPrompt }];
+            var sessionId = (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
+
+            // Persist this student's anonymous session ↔ team link on the backend
+            // so the analyzer can bucket conversations correctly. Fire-and-forget.
+            if (survey.id) {
+                leaiTeamsApi.assignSessionToTeam(sessionId, team.id);
+            }
+
+            // Flag controlling whether bot/student turns get persisted as FeedbackMessage
+            // rows on the backend. Defaults to the student's consent choice from the
+            // general-mode consent modal; for in-group surveys we haven't shown that
+            // modal, so default to false (no research analysis) unless the student
+            // already opted in for this session.
+            var researchConsent = typeof hasSessionConsent === 'function' ? !!hasSessionConsent() : false;
+
+            function logMessageEverywhere(role, text) {
+                // Single call site for turn persistence. Writes the mock chatlog (kept
+                // for the analyzer's existing in-group drill-down path) AND the backend
+                // FeedbackMessage row.
+                try {
+                    var k = 'leai.mock.chatLog.' + survey.id;
+                    var log = JSON.parse(localStorage.getItem(k) || '[]');
+                    log.push({ session: sessionId, role: role, text: text, ts: Date.now() });
+                    localStorage.setItem(k, JSON.stringify(log));
+                } catch (e) {}
+                persistBackendMessage(role, text);
+            }
+
+            function persistBackendMessage(role, text) {
+                // Write a FeedbackMessage row against this survey (gpt_id). Matches the
+                // general flow so existing analytics pipelines light up for in-group too.
+                if (!survey.id) return;
+                var payload = {
+                    session_id: sessionId,
+                    student_id: '',
+                    sent_by: (role === 'user') ? 'user' : 'assistant',
+                    content: text,
+                    gpt_used: survey.label || ('survey-' + survey.id),
+                    gpt_id: survey.id,
+                    research_consent: researchConsent,
+                };
+                try {
+                    fetch(API + '/feedback_message_api/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                } catch (e) {}
+            }
+
+            function requestBotTurn(userText) {
+                if (userText) {
+                    chatHistory.push({ role: 'user', content: userText });
+                    logMessageEverywhere('user', userText);
+                }
+                if (typeof leaiChat !== 'undefined' && leaiChat.chat) {
+                    leaiChat.chat(
+                        userText || 'Begin the conversation. Greet the student briefly and ask your first question.',
+                        { chatHistory: chatHistory.map(function (m) {
+                            return { sent_by: (m.role === 'system') ? 'system' : (m.role === 'user' ? 'user' : 'assistant'), content: m.content };
+                          })
+                        }
+                    ).then(function (data) {
+                        var reply = (data && data.response) ? data.response.trim() : 'Thanks for sharing.';
+                        chatHistory.push({ role: 'assistant', content: reply });
+                        logMessageEverywhere('bot', reply);
+                        appendIgMessage('bot', reply);
+                    }).catch(function () {
+                        var reply = 'Thanks for sharing. (Tell me more about how the team has been going.)';
+                        chatHistory.push({ role: 'assistant', content: reply });
+                        logMessageEverywhere('bot', reply);
+                        appendIgMessage('bot', reply);
+                    });
+                } else {
+                    var reply = 'Hi, I\u2019m Teammate. You\u2019re sharing feedback as a member of ' + teamContext + '. ' +
+                        'This conversation is anonymous. Let\u2019s start: how has the team been going overall?';
+                    chatHistory.push({ role: 'assistant', content: reply });
+                    logMessageEverywhere('bot', reply);
+                    appendIgMessage('bot', reply);
+                }
+            }
+
+            sendBtn.addEventListener('click', function () {
+                var text = textarea.value.trim();
+                if (!text) return;
+                appendIgMessage('user', text);
+                textarea.value = '';
+                requestBotTurn(text);
+            });
+            textarea.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
+            });
+
+            requestBotTurn(null);
         }
 
         // Anonymous, collision-resistant per-survey session id.
