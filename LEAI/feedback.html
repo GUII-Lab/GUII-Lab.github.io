@@ -1405,14 +1405,27 @@
                 chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined
             }).then(function(data) {
                 var responseText = data.response.trim();
-                appendMessage('ai-message', responseText);
-                chatHistory.push({ role: 'assistant', content: responseText });
+                var isClosing = responseText.includes('[END]');
+                var displayText = responseText.replace(/\[END\]/g, '').trim();
+                appendMessage('ai-message', displayText);
+                chatHistory.push({ role: 'assistant', content: displayText });
+                if (isClosing) lockChat();
             }).catch(function(err) {
                 console.error('Error getting AI Response:', err);
                 appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
             }).finally(function() {
                 $('#sendMessage').removeClass('loading');
             });
+        }
+
+        function lockChat() {
+            $('#messageInput').prop('disabled', true).val('');
+            $('#sendMessage').prop('disabled', true);
+            var footer = document.querySelector('.chat-footer-inner');
+            var notice = document.createElement('p');
+            notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
+            notice.textContent = 'Conversation complete — thanks for reflecting!';
+            footer.appendChild(notice);
         }
 
         document.getElementById('download-btn').addEventListener('click', function () {
