@@ -215,6 +215,21 @@
         /* ===== DOWNLOAD BUTTON (hidden in redesign, kept for JS compatibility) ===== */
         #download-btn { display: none; }
         .download-section { display: none; }
+        /* Form-mode reflection download — appears in chat footer after [END]. */
+        .formmode-download-bar {
+            display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0 0;
+            justify-content: center; align-items: center;
+        }
+        .formmode-download-bar button {
+            background: var(--primary); color: #fff; border: none;
+            border-radius: 999px; padding: 10px 20px;
+            font-size: 0.85rem; font-weight: 700; letter-spacing: 0.01em;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .formmode-download-bar button:hover { background: var(--primary-dim); }
+        .formmode-download-bar .secondary {
+            background: var(--surface-mid); color: var(--text);
+        }
 
         /* ===== HEADER ANONYMITY BADGE / SUBTITLE / TERMS LINK ===== */
         .chat-header-title-block { display: flex; flex-direction: column; min-width: 0; }
@@ -638,6 +653,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
     <script src="leai-shared.js"></script>
+    <script src="leai-formmode.js"></script>
     <script src="leai-version.js"></script>
     <script>
 
@@ -697,6 +713,56 @@
         let chatHistory = [];
         var gptConfig = null;
 
+        // ── form-mapping mode (engine-controlled) ─────────────────────────
+        // Activated when the URL has ?form=<schema_id>. Engine module lives in
+        // leai-formmode.js. When inactive, behavior is unchanged.
+        var formMode = {
+            active: false,
+            schema: null,
+            state: null,
+            schemaId: null,
+        };
+
+        function initFormModeIfRequested() {
+            try {
+                var p = new URLSearchParams(window.location.search);
+                var fid = p.get('form');
+                if (!fid) return Promise.resolve(false);
+                if (typeof leaiFormMode === 'undefined') {
+                    console.warn('?form= present but leaiFormMode module missing');
+                    return Promise.resolve(false);
+                }
+                // Optional team identification — passed via URL when the
+                // instructor distributes one link per team (M4). The engine
+                // tags it onto the session so submissions can be grouped.
+                formMode.teamId = p.get('team') || p.get('team_id') || null;
+                formMode.teamName = p.get('team_name') || formMode.teamId || null;
+                return leaiFormMode.loadSchema(fid).then(function (schema) {
+                    formMode.active = true;
+                    formMode.schema = schema;
+                    formMode.schemaId = fid;
+                    return true;
+                }).catch(function (err) {
+                    console.error('form-mode schema load failed for ' + fid + ':', err);
+                    return false;
+                });
+            } catch (e) { return Promise.resolve(false); }
+        }
+
+        function renderFormModeProgress() {
+            if (!formMode.active || !formMode.state) return;
+            var label = leaiFormMode.progressLabel(formMode.state);
+            var el = document.getElementById('formmode-progress');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'formmode-progress';
+                el.style.cssText = 'font-size:0.78rem;color:var(--muted);padding:6px 12px;border-bottom:1px solid var(--surface-mid);';
+                var host = document.querySelector('.main-content') || document.body;
+                host.insertBefore(el, host.firstChild);
+            }
+            el.textContent = label;
+        }
+
         // Runtime guardrail appended to every non-group survey's system prompt.
         // Newer models (gpt-5.x) default to enumerating multiple questions in one
         // reply even when the authored prompt doesn't; instructors shouldn't need
@@ -715,6 +781,17 @@
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
             var sysPrompt = withOneQuestionGuardrail(gpt.instructions);
+            // Form-mode appends a thin tail listing canonical area titles + the
+            // engine-driven [DIRECTIVE] contract. The engine handles structural
+            // enforcement; the prompt only carries tone and one-question rules.
+            if (formMode.active && formMode.schema) {
+                sysPrompt = sysPrompt + leaiFormMode.systemPromptTail(formMode.schema);
+                formMode.state = leaiFormMode.init(formMode.schema, {
+                    team_id: formMode.teamName || formMode.teamId || null,
+                    team_member_slot: null,
+                });
+                renderFormModeProgress();
+            }
             chatHistory = [{ role: 'system', content: sysPrompt }];
             $('#transcription').empty();
             generateIntroductoryMessage(sysPrompt);
@@ -1174,7 +1251,12 @@
             };
 
             if (directId) {
-                loadDirectGpt(directId);
+                // Load the form-mode schema first if ?form= is present, then
+                // proceed to fetch the survey config. initGpt() reads
+                // formMode.active so we need it set before that runs.
+                initFormModeIfRequested().then(function () {
+                    loadDirectGpt(directId);
+                });
             } else {
                 // No direct link — show helpful message instead of exposing survey list
                 $('#no-survey-screen').css('display', 'flex');
@@ -1183,11 +1265,23 @@
         });
 
         function generateIntroductoryMessage(instructions) {
-            leaiChat.chat(
-                'Begin the conversation. Greet the student briefly and ask your first question.',
-                { chatHistory: [{ sent_by: 'system', content: instructions }] }
-            ).then(function(data) {
-                var introMessage = data.response.trim();
+            // In form-mode, the engine's beforeTurn() builds the opening directive.
+            var openingUser = 'Begin the conversation. Greet the student briefly and ask your first question.';
+            var msgs = [{ sent_by: 'system', content: instructions }];
+            if (formMode.active && formMode.state) {
+                var pre = leaiFormMode.beforeTurn(formMode.state, null);
+                if (pre.directive && pre.directive.text) {
+                    msgs.push({ sent_by: 'system', content: pre.directive.text });
+                }
+            }
+            leaiChat.chat(openingUser, { chatHistory: msgs }).then(function(data) {
+                var raw = data.response.trim();
+                var introMessage = raw;
+                if (formMode.active && formMode.state) {
+                    var post = leaiFormMode.afterTurn(formMode.state, raw);
+                    introMessage = post.displayedMessage;
+                    renderFormModeProgress();
+                }
                 appendMessage('ai-message', introMessage);
                 chatHistory.push({ role: 'assistant', content: introMessage });
             }).catch(function(err) {
@@ -1356,6 +1450,22 @@
         function getAIresponse(transcription) {
             chatHistory.push({ role: 'user', content: transcription });
 
+            // ── form-mode pre-call hook ──────────────────────────────────
+            // Engine may short-circuit (STOP intercept) or inject a per-turn
+            // [DIRECTIVE] system message that scopes the LLM's job this turn.
+            var fmDirective = null;
+            if (formMode.active && formMode.state) {
+                var pre = leaiFormMode.beforeTurn(formMode.state, transcription);
+                if (pre.shortCircuit) {
+                    appendMessage('ai-message', pre.syntheticResponse);
+                    chatHistory.push({ role: 'assistant', content: pre.syntheticResponse });
+                    renderFormModeProgress();
+                    if (pre.ended) lockChat();
+                    return;
+                }
+                fmDirective = (pre.directive && pre.directive.text) ? pre.directive.text : null;
+            }
+
             const maxCharacterLimit = 6000;
             let totalCharacterLength = chatHistory.slice(1).reduce((acc, msg) => acc + msg.content.length, 0);
 
@@ -1389,6 +1499,13 @@
                     });
                 });
 
+            // Append the per-turn directive as a final system message so the
+            // model sees it after the conversation context. This is the engine
+            // telling the LLM what to do *this turn*.
+            if (fmDirective) {
+                chatHistoryFormatted.push({ sent_by: 'system', content: fmDirective });
+            }
+
             const requestData = {
                 user_text: transcription
             };
@@ -1405,11 +1522,20 @@
                 chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined
             }).then(function(data) {
                 var responseText = data.response.trim();
-                var isClosing = responseText.includes('[END]');
-                var displayText = responseText.replace(/\[END\]/g, '').trim();
+                var displayText, ended;
+                if (formMode.active && formMode.state) {
+                    var post = leaiFormMode.afterTurn(formMode.state, responseText);
+                    displayText = post.displayedMessage;
+                    ended = post.ended;
+                    renderFormModeProgress();
+                } else {
+                    var isClosing = responseText.includes('[END]');
+                    displayText = responseText.replace(/\[END\]/g, '').trim();
+                    ended = isClosing;
+                }
                 appendMessage('ai-message', displayText);
                 chatHistory.push({ role: 'assistant', content: displayText });
-                if (isClosing) lockChat();
+                if (ended) lockChat();
             }).catch(function(err) {
                 console.error('Error getting AI Response:', err);
                 appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
@@ -1426,6 +1552,69 @@
             notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
             notice.textContent = 'Conversation complete — thanks for reflecting!';
             footer.appendChild(notice);
+
+            // In form-mode, surface the structured-reflection download here so
+            // the student has one click from "[END]" to "file ready for upload".
+            if (formMode.active && formMode.state) {
+                renderFormModeDownloadBar(footer);
+            }
+        }
+
+        function renderFormModeDownloadBar(footer) {
+            if (document.getElementById('formmode-download-bar')) return;
+            var bar = document.createElement('div');
+            bar.id = 'formmode-download-bar';
+            bar.className = 'formmode-download-bar';
+            var pdfBtn = document.createElement('button');
+            pdfBtn.type = 'button';
+            pdfBtn.textContent = 'Download my reflection (HTML / printable)';
+            pdfBtn.addEventListener('click', function () { downloadFormModeReflection('html'); });
+            var mdBtn = document.createElement('button');
+            mdBtn.type = 'button';
+            mdBtn.className = 'secondary';
+            mdBtn.textContent = 'Download as Markdown';
+            mdBtn.addEventListener('click', function () { downloadFormModeReflection('md'); });
+            bar.appendChild(pdfBtn);
+            bar.appendChild(mdBtn);
+            footer.appendChild(bar);
+        }
+
+        function collectFormModeTranscript() {
+            // chatHistory carries everything since session start; system messages
+            // are excluded from the user-facing transcript.
+            var out = [];
+            chatHistory.forEach(function (m) {
+                if (m.role === 'system') return;
+                out.push({
+                    role: m.role === 'user' ? 'user' : 'assistant',
+                    text: m.content,
+                });
+            });
+            return out;
+        }
+
+        function downloadFormModeReflection(format) {
+            if (!formMode.active || !formMode.state) return;
+            var transcript = collectFormModeTranscript();
+            var schema = formMode.schema;
+            var lastName = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
+            var base = 'HCI271_Reflection_Week' + (schema.week || '') + '_' + lastName;
+            var blob, filename;
+            if (format === 'md') {
+                var md = leaiFormMode.renderStructuredMarkdown(formMode.state, transcript);
+                blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+                filename = base + '.md';
+            } else {
+                var html = leaiFormMode.renderStructuredHtml(formMode.state, transcript, {});
+                blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+                filename = base + '.html';
+            }
+            var a = document.createElement('a');
+            a.href = window.URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
 
         document.getElementById('download-btn').addEventListener('click', function () {
