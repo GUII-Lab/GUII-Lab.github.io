@@ -161,6 +161,20 @@
         /* .loading class — added/removed by JS on #sendMessage */
         .loading { opacity: 0.6; pointer-events: none; }
 
+        /* Typing indicator — three pulsing dots shown while LEAI is generating */
+        .typing-dots { display: inline-flex; gap: 6px; align-items: center; padding: 6px 0; }
+        .typing-dots span {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--primary); opacity: 0.35;
+            animation: typing-bounce 1.2s infinite ease-in-out;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.15s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.3s; }
+        @keyframes typing-bounce {
+            0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+            30% { transform: translateY(-4px); opacity: 1; }
+        }
+
         /* Spacer so last message clears sticky footer */
         .chat-spacer { height: 180px; flex-shrink: 0; }
 
@@ -714,39 +728,57 @@
         var gptConfig = null;
 
         // ── form-mapping mode (engine-controlled) ─────────────────────────
-        // Activated when the URL has ?form=<schema_id>. Engine module lives in
-        // leai-formmode.js. When inactive, behavior is unchanged.
+        // Activation is **server-driven**: the backend marks a survey as
+        // mode='form' and binds it to a FormSchema row. feedback.html reads
+        // gpt.mode on load and activates the engine. URL params do NOT
+        // activate or change form mode — a survey is form-mode iff its
+        // database record says so. This is what makes a missing/typo'd
+        // param impossible to confuse with a non-form survey.
         var formMode = {
             active: false,
             schema: null,
             state: null,
             schemaId: null,
+            teamId: null,
+            teamName: null,
         };
 
-        function initFormModeIfRequested() {
-            try {
-                var p = new URLSearchParams(window.location.search);
-                var fid = p.get('form');
-                if (!fid) return Promise.resolve(false);
-                if (typeof leaiFormMode === 'undefined') {
-                    console.warn('?form= present but leaiFormMode module missing');
-                    return Promise.resolve(false);
-                }
-                // Optional team identification — passed via URL when the
-                // instructor distributes one link per team (M4). The engine
-                // tags it onto the session so submissions can be grouped.
-                formMode.teamId = p.get('team') || p.get('team_id') || null;
-                formMode.teamName = p.get('team_name') || formMode.teamId || null;
-                return leaiFormMode.loadSchema(fid).then(function (schema) {
-                    formMode.active = true;
-                    formMode.schema = schema;
-                    formMode.schemaId = fid;
-                    return true;
-                }).catch(function (err) {
-                    console.error('form-mode schema load failed for ' + fid + ':', err);
-                    return false;
-                });
-            } catch (e) { return Promise.resolve(false); }
+        // Activate form mode using the schema body the backend inlined on the
+        // public_id response (preferred), or fall back to fetching by id from
+        // the registry endpoint if the body wasn't inlined.
+        function activateFormMode(gpt) {
+            var p = new URLSearchParams(window.location.search);
+            // Display-only team label — never used for activation gating.
+            formMode.teamId = p.get('team') || p.get('team_id') || null;
+            formMode.teamName = p.get('team_name') || formMode.teamId || null;
+
+            if (typeof leaiFormMode === 'undefined') {
+                console.error('mode=form but leaiFormMode module missing');
+                return Promise.resolve(false);
+            }
+
+            var inlinedBody = gpt.form_schema && gpt.form_schema.body;
+            var schemaId = gpt.form_schema_id || (gpt.form_schema && gpt.form_schema.schema_id);
+
+            var schemaP;
+            if (inlinedBody) {
+                schemaP = Promise.resolve(inlinedBody);
+            } else if (schemaId) {
+                schemaP = leaiFormMode.loadSchema(schemaId);
+            } else {
+                console.error('mode=form survey is missing form_schema_id');
+                return Promise.resolve(false);
+            }
+
+            return schemaP.then(function (schema) {
+                formMode.active = true;
+                formMode.schema = schema;
+                formMode.schemaId = schema.schema_id || schemaId;
+                return true;
+            }).catch(function (err) {
+                console.error('form-mode schema load failed:', err);
+                return false;
+            });
         }
 
         function renderFormModeProgress() {
@@ -833,13 +865,24 @@
                 // team_snapshot. Route through the transparency + team-picker flow.
                 if (gpt.mode === 'group') {
                     if (!gpt.is_active) { showInactive(gpt.reason); return; }
-                    startInGroupFlow({
-                        id: gpt.id,
-                        public_id: gpt.public_id,
-                        label: gpt.survey_label || gpt.name,
-                        prompt: gpt.instructions,
-                        team_snapshot: gpt.team_snapshot,
-                    });
+                    var startGroup = function () {
+                        startInGroupFlow({
+                            id: gpt.id,
+                            public_id: gpt.public_id,
+                            label: gpt.survey_label || gpt.name,
+                            prompt: gpt.instructions,
+                            team_snapshot: gpt.team_snapshot,
+                            anonymity_mode: gpt.anonymity_mode || 'anonymous',
+                        });
+                    };
+                    // In-group surveys may optionally bind a FormSchema; when
+                    // present, the engine enforces section coverage on top of
+                    // the team-aware prompt.
+                    if (gpt.form_schema_id) {
+                        activateFormMode(gpt).then(startGroup);
+                    } else {
+                        startGroup();
+                    }
                     return;
                 }
 
@@ -851,10 +894,20 @@
                     return;
                 }
 
+                // Form-mode surveys: activate the engine from the backend
+                // record. No URL param can flip a non-form survey into form
+                // mode and vice versa — the survey id alone is sufficient.
+                var startFlow = function () { initGpt(gpt); };
+                if (gpt.mode === 'form') {
+                    startFlow = function () {
+                        activateFormMode(gpt).then(function () { initGpt(gpt); });
+                    };
+                }
+
                 if (hasSessionConsent()) {
-                    initGpt(gpt);
+                    startFlow();
                 } else {
-                    showConsentModal(function () { initGpt(gpt); });
+                    showConsentModal(startFlow);
                 }
             }).fail(function () {
                 var errP = document.createElement('p');
@@ -924,16 +977,30 @@
             h.textContent = 'Before you start';
             screen.appendChild(h);
 
-            screen.appendChild(makeParagraph([
-                'This feedback is ',
-                { bold: 'anonymous' },
-                '. Your instructor sees team-level summaries only — not who submitted what, and not any teammate\u2019s real name.',
-            ]));
-            screen.appendChild(makeParagraph([
-                'If you want to flag a specific teammate, you\u2019ll refer to them as ',
-                { bold: 'Teammate A, B, or C' },
-                '.',
-            ]));
+            var isIdentified = (survey.anonymity_mode === 'identified');
+            if (isIdentified) {
+                screen.appendChild(makeParagraph([
+                    'This is a ',
+                    { bold: 'graded reflection' },
+                    '. Your responses, including the names you mention, will be visible to your instructor as part of the course record.',
+                ]));
+                screen.appendChild(makeParagraph([
+                    'When the bot asks for teammate names, use their ',
+                    { bold: 'real names' },
+                    ' — the structured download follows the course\u2019s reflection-template format.',
+                ]));
+            } else {
+                screen.appendChild(makeParagraph([
+                    'This feedback is ',
+                    { bold: 'anonymous' },
+                    '. Your instructor sees team-level summaries only — not who submitted what, and not any teammate\u2019s real name.',
+                ]));
+                screen.appendChild(makeParagraph([
+                    'If you want to flag a specific teammate, you\u2019ll refer to them as ',
+                    { bold: 'Teammate A, B, or C' },
+                    '.',
+                ]));
+            }
 
             var btn = document.createElement('button');
             btn.className = 'pre-chat-btn';
@@ -1023,22 +1090,44 @@
         function startInGroupChat(survey, snap, team) {
             var teamContext = snap.label_prefix + ' ' + team.number;
             var filledPrompt = String(survey.prompt || '').split('{TEAM_CONTEXT}').join(teamContext);
-            // Runtime anonymity guardrail — enforced regardless of how the survey's
-            // prompt was authored. Older surveys were created before the
-            // PromptDesigner template spelled these rules out, so we append them
-            // here to make sure every in-group bot honors anonymity.
-            filledPrompt += '\n\nANONYMITY GUARDRAIL (highest priority, overrides anything above):\n' +
-                '- The student is already identified to you as a member of ' + teamContext + '. Never ask them to confirm, list, or describe who is on the team.\n' +
-                '- Never ask for the student\u2019s name, ID, or any personal identifier.\n' +
-                '- Never ask the student to describe what the team\u2019s project/activity is — the instructor already has that context. If you lack that context, proceed with feedback questions anyway.\n' +
-                '- If the student volunteers real names, do not repeat them. Use letter labels (Teammate A/B/C) for any specific peer the student raises.\n' +
-                '- Your opening turn must go straight from a brief anonymous-intro into the first feedback question. Do NOT ask \u201cwho\u2019s on your team\u201d or \u201cwhat is your project about\u201d.';
+            // Runtime anonymity guardrail is conditional on the survey's
+            // anonymity_mode. Default 'anonymous' appends the strict guardrail
+            // (no real names, no project context). 'identified' (e.g. HCI 271
+            // graded reflections that require named roster + per-teammate
+            // contributions + 1-5 ratings) skips the guardrail and replaces
+            // it with an identified-mode hint so the bot can use names.
+            // 'pseudonymous' keeps the guardrail (treated like anonymous).
+            var anonymityMode = survey.anonymity_mode || 'anonymous';
+            if (anonymityMode === 'identified') {
+                filledPrompt += '\n\nIDENTIFIED MODE (highest priority, overrides anything above):\n' +
+                    '- This survey is non-anonymous by instructor choice. The student\u2019s identity and their teammates\u2019 names are part of the graded record.\n' +
+                    '- Use the actual names the student gives you. Do NOT relabel teammates as A/B/C.\n' +
+                    '- You may ask for the full team roster, per-teammate contributions, and 1\u20135 ratings as the system prompt requires. The student is on ' + teamContext + '.';
+            } else {
+                filledPrompt += '\n\nANONYMITY GUARDRAIL (highest priority, overrides anything above):\n' +
+                    '- The student is already identified to you as a member of ' + teamContext + '. Never ask them to confirm, list, or describe who is on the team.\n' +
+                    '- Never ask for the student\u2019s name, ID, or any personal identifier.\n' +
+                    '- Never ask the student to describe what the team\u2019s project/activity is — the instructor already has that context. If you lack that context, proceed with feedback questions anyway.\n' +
+                    '- If the student volunteers real names, do not repeat them. Use letter labels (Teammate A/B/C) for any specific peer the student raises.\n' +
+                    '- Your opening turn must go straight from a brief anonymous-intro into the first feedback question. Do NOT ask \u201cwho\u2019s on your team\u201d or \u201cwhat is your project about\u201d.';
+            }
 
             filledPrompt += '\n\nONE-QUESTION GUARDRAIL (highest priority, overrides anything above):\n' +
                 '- Ask AT MOST one question per turn. Zero questions is also acceptable (for example, a brief acknowledgement like \u201cThanks, got it.\u201d when there is nothing more to probe or when wrapping up).\n' +
                 '- Never bundle multiple questions into a single reply. Do NOT produce numbered or bulleted lists of questions, do NOT chain questions with \u201cand\u201d / \u201calso\u201d / \u201cas well as\u201d, and never include more than one \u201c?\u201d character in a message.\n' +
                 '- If several topics are relevant, pick the single most relevant one for this turn and save the others for later turns once the student has answered.\n' +
                 '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
+
+            // If the in-group survey is bound to a FormSchema, layer the same
+            // engine on top of the team-aware prompt so coverage is enforced
+            // (e.g. HCI 271 Wk 6 team reflection: must hit Parts 2 + 3 in order).
+            if (formMode.active && formMode.schema) {
+                filledPrompt = filledPrompt + leaiFormMode.systemPromptTail(formMode.schema);
+                formMode.state = leaiFormMode.init(formMode.schema, {
+                    team_id: teamContext,
+                    team_member_slot: team && team.member_slot ? String(team.member_slot) : null,
+                });
+            }
 
             document.body.textContent = '';
             document.body.setAttribute('data-config-color', snap.color || 'forest');
@@ -1116,6 +1205,35 @@
                 m.scrollIntoView({ behavior: 'smooth', block: 'end' });
             }
 
+            // Mirrors the general-flow typing indicator: a bot-styled bubble
+            // containing three pulsing dots while the LLM is generating.
+            var igChatLocked = false;
+            function showIgTyping() {
+                if (document.getElementById('ig-typing')) return;
+                var m = document.createElement('div');
+                m.id = 'ig-typing';
+                m.style.cssText =
+                    'max-width:75%;padding:10px 14px;border-radius:12px;line-height:1.5;' +
+                    'font-size:0.95rem;align-self:flex-start;background:var(--surface-low);color:var(--text);';
+                var typing = document.createElement('div');
+                typing.className = 'typing-dots';
+                typing.appendChild(document.createElement('span'));
+                typing.appendChild(document.createElement('span'));
+                typing.appendChild(document.createElement('span'));
+                m.appendChild(typing);
+                messages.appendChild(m);
+                m.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }
+            function hideIgTyping() {
+                var el = document.getElementById('ig-typing');
+                if (el) el.remove();
+            }
+            function setIgInputBusy(busy) {
+                if (igChatLocked) return;
+                textarea.disabled = busy;
+                sendBtn.disabled = busy;
+            }
+
             var chatHistory = [{ role: 'system', content: filledPrompt }];
             var sessionId = (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
 
@@ -1172,23 +1290,58 @@
                     chatHistory.push({ role: 'user', content: userText });
                     logMessageEverywhere('user', userText);
                 }
+
+                // Form-mode engine layered onto in-group: short-circuit on STOP
+                // intercepts (engine emits canned warning / closing without an
+                // LLM call), and inject a per-turn DIRECTIVE on every other turn.
+                var directiveText = null;
+                if (formMode.active && formMode.state) {
+                    var pre = leaiFormMode.beforeTurn(formMode.state, userText || null);
+                    if (pre && pre.shortCircuit) {
+                        var synthReply = pre.syntheticResponse || '';
+                        chatHistory.push({ role: 'assistant', content: synthReply });
+                        logMessageEverywhere('bot', synthReply);
+                        appendIgMessage('bot', synthReply);
+                        if (pre.ended) lockIgChat();
+                        return;
+                    }
+                    directiveText = (pre && pre.directive && pre.directive.text) || null;
+                }
+
                 if (typeof leaiChat !== 'undefined' && leaiChat.chat) {
+                    var msgs = chatHistory.map(function (m) {
+                        return { sent_by: (m.role === 'system') ? 'system' : (m.role === 'user' ? 'user' : 'assistant'), content: m.content };
+                    });
+                    if (directiveText) msgs.push({ sent_by: 'system', content: directiveText });
+                    setIgInputBusy(true);
+                    showIgTyping();
                     leaiChat.chat(
                         userText || 'Begin the conversation. Greet the student briefly and ask your first question.',
-                        { chatHistory: chatHistory.map(function (m) {
-                            return { sent_by: (m.role === 'system') ? 'system' : (m.role === 'user' ? 'user' : 'assistant'), content: m.content };
-                          })
-                        }
+                        { chatHistory: msgs }
                     ).then(function (data) {
-                        var reply = (data && data.response) ? data.response.trim() : 'Thanks for sharing.';
-                        chatHistory.push({ role: 'assistant', content: reply });
-                        logMessageEverywhere('bot', reply);
-                        appendIgMessage('bot', reply);
+                        var raw = (data && data.response) ? data.response.trim() : 'Thanks for sharing.';
+                        var displayed = raw;
+                        var ended = false;
+                        if (formMode.active && formMode.state) {
+                            var post = leaiFormMode.afterTurn(formMode.state, raw);
+                            displayed = (post && post.displayedMessage) ? post.displayedMessage : raw;
+                            ended = !!(post && post.ended);
+                        }
+                        hideIgTyping();
+                        chatHistory.push({ role: 'assistant', content: displayed });
+                        logMessageEverywhere('bot', displayed);
+                        appendIgMessage('bot', displayed);
+                        if (ended) lockIgChat();
                     }).catch(function () {
+                        hideIgTyping();
                         var reply = 'Thanks for sharing. (Tell me more about how the team has been going.)';
                         chatHistory.push({ role: 'assistant', content: reply });
                         logMessageEverywhere('bot', reply);
                         appendIgMessage('bot', reply);
+                    }).finally(function () {
+                        hideIgTyping();
+                        setIgInputBusy(false);
+                        if (!igChatLocked) textarea.focus();
                     });
                 } else {
                     var reply = 'Hi, I\u2019m Teammate. You\u2019re sharing feedback as a member of ' + teamContext + '. ' +
@@ -1199,7 +1352,29 @@
                 }
             }
 
+            // Lock the in-group chat once the engine signals end. Mirrors
+            // lockChat() for the general/form flow so the student sees the
+            // "Conversation complete" notice and can download the artifact.
+            function lockIgChat() {
+                igChatLocked = true;
+                textarea.disabled = true;
+                textarea.value = '';
+                sendBtn.disabled = true;
+                var notice = document.createElement('p');
+                notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 16px 0;';
+                notice.textContent = 'Conversation complete — thanks for reflecting!';
+                inputArea.parentNode.insertBefore(notice, inputArea.nextSibling);
+                if (formMode.active && formMode.state &&
+                        typeof renderFormModeDownloadBar === 'function') {
+                    var hostFooter = document.createElement('div');
+                    hostFooter.className = 'chat-footer-inner';
+                    inputArea.parentNode.insertBefore(hostFooter, inputArea.nextSibling);
+                    renderFormModeDownloadBar(hostFooter);
+                }
+            }
+
             sendBtn.addEventListener('click', function () {
+                if (textarea.disabled) return;
                 var text = textarea.value.trim();
                 if (!text) return;
                 appendIgMessage('user', text);
@@ -1251,12 +1426,10 @@
             };
 
             if (directId) {
-                // Load the form-mode schema first if ?form= is present, then
-                // proceed to fetch the survey config. initGpt() reads
-                // formMode.active so we need it set before that runs.
-                initFormModeIfRequested().then(function () {
-                    loadDirectGpt(directId);
-                });
+                // Activation is fully server-driven: loadDirectGpt fetches the
+                // survey, reads gpt.mode, and routes to the right flow. URL
+                // params no longer control mode.
+                loadDirectGpt(directId);
             } else {
                 // No direct link — show helpful message instead of exposing survey list
                 $('#no-survey-screen').css('display', 'flex');
@@ -1405,6 +1578,53 @@
             return article;
         }
 
+        // Conversation lock — set true when the bot ends the chat via [END].
+        // Used to prevent the per-turn unlock in getAIresponse() from
+        // re-enabling input after lockChat() has shut things down.
+        var chatLocked = false;
+
+        function showTypingIndicator() {
+            if (document.getElementById('msg-ai-typing')) return;
+            var article = document.createElement('article');
+            article.className = 'msg-ai';
+            article.id = 'msg-ai-typing';
+
+            var meta = document.createElement('div');
+            meta.className = 'msg-ai-meta';
+            var dot = document.createElement('div');
+            dot.className = 'msg-ai-dot';
+            var label = document.createElement('span');
+            label.className = 'msg-ai-label';
+            label.textContent = 'LEAI';
+            meta.appendChild(dot);
+            meta.appendChild(label);
+
+            var body = document.createElement('div');
+            body.className = 'msg-ai-body';
+            var typing = document.createElement('div');
+            typing.className = 'typing-dots';
+            typing.appendChild(document.createElement('span'));
+            typing.appendChild(document.createElement('span'));
+            typing.appendChild(document.createElement('span'));
+            body.appendChild(typing);
+
+            article.appendChild(meta);
+            article.appendChild(body);
+            transcriptionDiv.appendChild(article);
+            transcriptionDiv.scrollTo({ top: transcriptionDiv.scrollHeight, behavior: 'smooth' });
+        }
+
+        function hideTypingIndicator() {
+            var el = document.getElementById('msg-ai-typing');
+            if (el) el.remove();
+        }
+
+        function setInputBusy(busy) {
+            if (chatLocked) return;
+            $('#messageInput').prop('disabled', busy);
+            $('#sendMessage').prop('disabled', busy);
+        }
+
         function appendMessage(className, message) {
             var timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             var el;
@@ -1424,6 +1644,7 @@
         }
 
         function handleSendMessage() {
+            if ($('#messageInput').prop('disabled')) return;
             var message = $('#messageInput').val().trim();
             if (message) {
                 appendMessage('user-message', message);
@@ -1515,8 +1736,11 @@
                 requestData.chat_history = chatHistoryFormatted;
             }
 
-            // Add loading state
+            // Add loading state — disable input + show 3-dot typing indicator
+            // so the student knows LEAI is generating, not stuck.
             $('#sendMessage').addClass('loading');
+            setInputBusy(true);
+            showTypingIndicator();
 
             leaiChat.chat(transcription, {
                 chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined
@@ -1533,18 +1757,24 @@
                     displayText = responseText.replace(/\[END\]/g, '').trim();
                     ended = isClosing;
                 }
+                hideTypingIndicator();
                 appendMessage('ai-message', displayText);
                 chatHistory.push({ role: 'assistant', content: displayText });
                 if (ended) lockChat();
             }).catch(function(err) {
                 console.error('Error getting AI Response:', err);
+                hideTypingIndicator();
                 appendMessage('ai-message', 'Sorry, I encountered an error. Please try again.');
             }).finally(function() {
                 $('#sendMessage').removeClass('loading');
+                hideTypingIndicator();
+                setInputBusy(false);
+                if (!chatLocked) $('#messageInput').trigger('focus');
             });
         }
 
         function lockChat() {
+            chatLocked = true;
             $('#messageInput').prop('disabled', true).val('');
             $('#sendMessage').prop('disabled', true);
             var footer = document.querySelector('.chat-footer-inner');
