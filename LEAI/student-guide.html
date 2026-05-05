@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LEAI Student Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f7f8fc;
+    }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 32px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      font-size: 14px;
+    }
+    .sidebar-logo {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid #334155;
+      margin-bottom: 16px;
+    }
+    .sidebar-logo .tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #34d399;
+    }
+    .sidebar-logo h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+    .sidebar-logo p { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+    .sidebar-section { padding: 8px 24px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; margin-top: 8px; }
+    .sidebar a {
+      display: block;
+      padding: 7px 24px;
+      color: #94a3b8;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+      font-size: 13.5px;
+    }
+    .sidebar a:hover { color: #f1f5f9; background: #334155; border-left-color: #34d399; }
+    .sidebar a.active { color: #f1f5f9; border-left-color: #10b981; background: #053e2c; }
+
+    /* Main */
+    .main { flex: 1; max-width: 860px; padding: 48px 56px; }
+
+    /* Headings */
+    h1.page-title { font-size: 32px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+    .page-subtitle { font-size: 16px; color: #64748b; margin-bottom: 40px; }
+
+    h2.section-heading {
+      font-size: 22px; font-weight: 700; color: #0f172a;
+      margin: 56px 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    h3.sub-heading {
+      font-size: 17px; font-weight: 600; color: #1e293b;
+      margin: 32px 0 12px;
+    }
+
+    /* Mode card */
+    .mode-card {
+      background: white; border-radius: 12px; padding: 24px 28px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      margin: 20px 0 32px;
+    }
+    .mode-card .mode-tag {
+      display: inline-block;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 4px;
+    }
+    .mode-card .mode-tag.indiv { background: #dbeafe; color: #1e40af; }
+    .mode-card .mode-tag.group { background: #dcfce7; color: #166534; }
+    .mode-card h3 { font-size: 19px; color: #0f172a; margin: 8px 0 4px; font-weight: 700; }
+    .mode-card p.lede { color: #475569; font-size: 15px; }
+    .mode-card .open-link {
+      display: inline-block; margin-top: 14px;
+      padding: 9px 18px;
+      background: #0f766e; color: white;
+      border-radius: 6px;
+      font-size: 14px; font-weight: 600;
+      text-decoration: none;
+    }
+    .mode-card .open-link:hover { background: #0d5f59; }
+
+    /* Numbered steps */
+    .step-block {
+      display: flex; gap: 20px;
+      margin: 32px 0 8px;
+      align-items: flex-start;
+    }
+    .step-num-large {
+      min-width: 40px; height: 40px;
+      border-radius: 50%;
+      background: #0f766e; color: white;
+      font-size: 17px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-num-large.indiv { background: #2563eb; }
+    .step-num-large.group { background: #15803d; }
+
+    .step-body-large { flex: 1; }
+    .step-body-large .title {
+      font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 6px;
+    }
+    .step-body-large p { color: #475569; margin: 0 0 8px; }
+
+    /* Screenshots */
+    .screenshot-wrap {
+      margin: 16px 0 24px 60px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+      max-width: 720px;
+    }
+    .screenshot-wrap .caption {
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .screenshot-wrap img { width: 100%; display: block; }
+
+    /* Callouts */
+    .callout {
+      border-radius: 8px; padding: 16px 20px; margin: 20px 0;
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 15px;
+    }
+    .callout-label {
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px; margin-top: 3px; white-space: nowrap;
+    }
+    .callout.tip { background: #f0fdf4; border: 1px solid #86efac; }
+    .callout.tip .callout-label { background: #dcfce7; color: #166534; }
+    .callout.warn { background: #fffbeb; border: 1px solid #fcd34d; }
+    .callout.warn .callout-label { background: #fef9c3; color: #713f12; }
+    .callout.info { background: #eff6ff; border: 1px solid #93c5fd; }
+    .callout.info .callout-label { background: #dbeafe; color: #1e40af; }
+    .callout p { color: #374151; line-height: 1.6; }
+    .callout strong { color: #111827; }
+
+    /* TOC card */
+    .toc-card {
+      background: white; border-radius: 12px; padding: 28px 32px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      margin-bottom: 40px;
+    }
+    .toc-card h2 { font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+    .toc-link { color: #0f766e; text-decoration: none; font-size: 14px; padding: 3px 0; display: block; }
+    .toc-link:hover { text-decoration: underline; }
+
+    .divider { border: none; border-top: 1px solid #e2e8f0; margin: 48px 0; }
+
+    code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-size: 13px; font-family: 'SF Mono', Consolas, monospace; color: #0f172a; }
+
+    /* FAQ */
+    .faq-item { margin-bottom: 20px; }
+    .faq-q { font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+    .faq-a { color: #475569; font-size: 15px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { padding: 32px 24px; }
+      .toc-grid { grid-template-columns: 1fr; }
+      .screenshot-wrap { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="tag">LEAI</div>
+      <h1>Student Guide</h1>
+      <p>Reflection &amp; Feedback</p>
+    </div>
+    <div class="sidebar-section">Start Here</div>
+    <a href="#overview">What is LEAI?</a>
+    <a href="#which-mode">Which mode am I doing?</a>
+
+    <div class="sidebar-section">Individual Reflection</div>
+    <a href="#indiv-step1">1. Open the link</a>
+    <a href="#indiv-step2">2. Consent screen</a>
+    <a href="#indiv-step3">3. Chat through the sections</a>
+    <a href="#indiv-step4">4. Download &amp; submit</a>
+
+    <div class="sidebar-section">Group Reflection</div>
+    <a href="#group-step1">1. Open the link</a>
+    <a href="#group-step2">2. Read the notice</a>
+    <a href="#group-step3">3. Pick your team</a>
+    <a href="#group-step4">4. Chat through the sections</a>
+    <a href="#group-step5">5. Download &amp; submit</a>
+
+    <div class="sidebar-section">Reference</div>
+    <a href="#tips">Tips &amp; Tricks</a>
+    <a href="#faq">Common Questions</a>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+
+    <p class="page-subtitle" style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:.08em;">LEAI · Student Documentation</p>
+    <h1 class="page-title">LEAI Student Guide</h1>
+    <p class="page-subtitle">How to complete your reflection in LEAI and submit it on Canvas — for both individual and group assignments.</p>
+
+    <!-- TOC -->
+    <div class="toc-card">
+      <h2>Contents</h2>
+      <div class="toc-grid">
+        <a href="#overview" class="toc-link">What is LEAI?</a>
+        <a href="#which-mode" class="toc-link">Which mode am I doing?</a>
+        <a href="#individual" class="toc-link">Individual Reflection (4 steps)</a>
+        <a href="#group" class="toc-link">Group Reflection (5 steps)</a>
+        <a href="#tips" class="toc-link">Tips &amp; Tricks</a>
+        <a href="#faq" class="toc-link">Common Questions</a>
+      </div>
+    </div>
+
+    <!-- Overview -->
+    <h2 class="section-heading" id="overview">What is LEAI?</h2>
+    <p>LEAI is a chat-based reflection tool. Instead of filling in a static form, you have a short conversation with a reflection coach (the chatbot). It asks one section at a time, follows up if anything is unclear, and at the end builds a Word document (<code>.docx</code>) of your answers that you upload to Canvas as your submission.</p>
+
+    <div class="callout info">
+      <span class="callout-label">No account</span>
+      <p>You do <strong>not</strong> need to log in. Just open the link your instructor gave you on any device — phone, tablet, or laptop.</p>
+    </div>
+
+    <!-- Which mode -->
+    <h2 class="section-heading" id="which-mode">Which mode am I doing?</h2>
+    <p>Your instructor will give you one of two links. They look similar but behave differently.</p>
+
+    <div class="mode-card">
+      <span class="mode-tag indiv">Individual</span>
+      <h3>Anonymous individual reflection</h3>
+      <p class="lede">Your responses are anonymous. There is a consent screen up front, then you chat through your reflection sections. Used for personal weekly reflections, mid-course feedback, etc.</p>
+    </div>
+
+    <div class="mode-card">
+      <span class="mode-tag group">Group</span>
+      <h3>Identified team reflection</h3>
+      <p class="lede">This is a <strong>graded</strong> reflection. Your responses — and the teammate names you mention — are visible to your instructor. You'll be asked to pick which team you are on before the chat starts.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ═══════════════ INDIVIDUAL ═══════════════ -->
+    <h2 class="section-heading" id="individual">Individual Reflection</h2>
+    <p>Use this flow if your instructor gave you the <strong>individual</strong> link. The whole thing usually takes 5–10 minutes.</p>
+
+    <!-- Step 1 -->
+    <div class="step-block" id="indiv-step1">
+      <div class="step-num-large indiv">1</div>
+      <div class="step-body-large">
+        <div class="title">Open the link your instructor shared</div>
+        <p>It will look like <code>https://guii-lab.github.io/LEAI/feedback.html?id=…</code>. You can use any browser on any device.</p>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step-block" id="indiv-step2">
+      <div class="step-num-large indiv">2</div>
+      <div class="step-body-large">
+        <div class="title">Read the consent screen and click Continue</div>
+        <p>On the <strong>Before you begin</strong> screen, check the required box (the second optional research box is up to you), then click <strong>Continue</strong>. The button stays grey until the required box is checked.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/individual-consent.png" alt="Individual reflection consent modal — Before you begin">
+      <div class="caption">The "Before you begin" modal. The first checkbox is required; the second is optional.</div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step-block" id="indiv-step3">
+      <div class="step-num-large indiv">3</div>
+      <div class="step-body-large">
+        <div class="title">Chat through the sections</div>
+        <p>The chatbot will walk you through the reflection one section at a time. <strong>Type your answer</strong> in the box at the bottom — or tap the <strong>microphone icon</strong> to dictate it instead — and click <strong>Send</strong>. The bot may ask a quick follow-up before moving to the next section. The progress strip at the top (e.g. <em>"Area 1 of 4"</em>) shows how far along you are.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/individual-chat-start.png" alt="Individual reflection — opening question from the chatbot">
+      <div class="caption">The chatbot opens with the first reflection area. Use the text box, or the microphone icon, to answer.</div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step-block" id="indiv-step4">
+      <div class="step-num-large indiv">4</div>
+      <div class="step-body-large">
+        <div class="title">Download your reflection and upload to Canvas</div>
+        <p>When you've covered every section, the bot will tell you the reflection is complete and a <strong>Download my reflection (Word / .docx)</strong> button appears under the chat box. Click it, save the file to your computer, then upload that <code>.docx</code> to your Canvas assignment to submit.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/individual-download-button.png" alt="Download my reflection button at the bottom of the chat">
+      <div class="caption">After the bot says all sections are captured, the Download button appears under the input. Click it to save your <code>.docx</code>.</div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Revise</span>
+      <p>You can <strong>keep chatting after the Download button appears</strong> — anything you add still flows into the file. Just click the Download button again before uploading to Canvas to grab the latest version.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- ═══════════════ GROUP ═══════════════ -->
+    <h2 class="section-heading" id="group">Group Reflection</h2>
+    <p>Use this flow if your instructor gave you the <strong>group/team</strong> link. This is a graded reflection — your name and your teammates' names will be visible to your instructor.</p>
+
+    <!-- Step 1 -->
+    <div class="step-block" id="group-step1">
+      <div class="step-num-large group">1</div>
+      <div class="step-body-large">
+        <div class="title">Open the team reflection link</div>
+        <p>It will look like <code>https://guii-lab.github.io/LEAI/feedback.html?id=…</code>. The page will open with a green-bordered "Before you start" card.</p>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step-block" id="group-step2">
+      <div class="step-num-large group">2</div>
+      <div class="step-body-large">
+        <div class="title">Read the graded-reflection notice</div>
+        <p>The first card explains that this is a graded reflection and that the names you mention will be visible to your instructor. Click <strong>I understand, continue →</strong>.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/group-consent.png" alt="Group reflection — Before you start notice">
+      <div class="caption">Group mode is identified, not anonymous. Use teammates' real names when the bot asks.</div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step-block" id="group-step3">
+      <div class="step-num-large group">3</div>
+      <div class="step-body-large">
+        <div class="title">Pick your team</div>
+        <p>On the next screen, open the <strong>Pick your team</strong> dropdown and select your team number, then click <strong>Continue</strong>. If your team isn't listed, click <em>"I don't see my team"</em> and let your instructor know.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/group-team-select.png" alt="Group reflection — pick your team dropdown">
+      <div class="caption">Pick your team from the dropdown.</div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/group-team-selected.png" alt="Team 1 selected, Continue button enabled">
+      <div class="caption">Once you select a team, the Continue button turns green.</div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="step-block" id="group-step4">
+      <div class="step-num-large group">4</div>
+      <div class="step-body-large">
+        <div class="title">Chat through the sections</div>
+        <p>The chatbot will walk you through the reflection one section at a time. <strong>Type your answer</strong> in the box at the bottom — or tap the <strong>microphone icon</strong> to dictate it — and click <strong>Send</strong>. When the bot asks for teammate names, use their <strong>real names</strong> — the structured download follows your course's reflection-template format and the names go into the file.</p>
+      </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="step-block" id="group-step5">
+      <div class="step-num-large group">5</div>
+      <div class="step-body-large">
+        <div class="title">Download your reflection and upload to Canvas</div>
+        <p>When you've covered every section, a <strong>Download my reflection (Word / .docx)</strong> button appears under the chat box. Click it, save the file, and upload that <code>.docx</code> to your Canvas assignment to submit.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <img src="student-guide-assets/individual-download-button.png" alt="Download my reflection button at the bottom of the chat">
+      <div class="caption">The download button looks the same in both modes — it appears once every section is captured.</div>
+    </div>
+
+    <div class="callout warn">
+      <span class="callout-label">Heads up</span>
+      <p>In group mode your responses are <strong>not anonymous</strong>. Your instructor will see your team number, your name, and the teammate names you mention. Keep your feedback constructive.</p>
+    </div>
+
+    <hr class="divider">
+
+    <!-- TIPS -->
+    <h2 class="section-heading" id="tips">Tips &amp; Tricks</h2>
+
+    <h3 class="sub-heading">Use the microphone if typing is slow</h3>
+    <p>The microphone icon next to the Send button uses your browser's voice recognition — it dictates straight into the input box. Works best in Chrome and Edge. Click it once to start, click again to stop. Review the text before sending.</p>
+    <div class="screenshot-wrap" style="margin-left:0;">
+      <img src="student-guide-assets/mic-recording.png" alt="Mic button in active recording state — red, with dictated text in the input">
+      <div class="caption">When recording is on, the mic button turns red and your spoken words stream into the input box. Click it again to stop.</div>
+    </div>
+
+    <h3 class="sub-heading">You can take your time</h3>
+    <p>There is no time limit and no autosave gap. You can leave the tab open while you think, switch back to it later in the same session, and the conversation will still be there.</p>
+
+    <h3 class="sub-heading">Lost the file? Re-download</h3>
+    <p>If you accidentally close the tab before uploading, just open the link again — but note that your previous chat won't carry over, so you'll need to redo the reflection. Always click the download button and confirm the file is saved <em>before</em> closing the tab.</p>
+
+    <h3 class="sub-heading">Open the file before submitting</h3>
+    <p>Open the <code>.docx</code> in Word, Google Docs, or Pages once before uploading to Canvas. That way you confirm it actually contains your answers.</p>
+
+    <hr class="divider">
+
+    <!-- FAQ -->
+    <h2 class="section-heading" id="faq">Common Questions</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">The Continue button is greyed out — what do I do?</div>
+      <div class="faq-a">Check the required consent box on the "Before you begin" screen. The button stays grey until that box is checked.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">My team isn't in the dropdown.</div>
+      <div class="faq-a">Click <em>"I don't see my team"</em> on the team-selection screen and let your instructor know. Don't pick a wrong team — your reflection would be filed under the wrong group.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I change my answers after I'm done?</div>
+      <div class="faq-a">Yes. After the bot says the reflection is complete, you can keep chatting to revise or add to any section. Just click the Download button again before uploading to Canvas — the file always reflects the most recent state of the conversation.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">The microphone isn't doing anything.</div>
+      <div class="faq-a">Your browser may be blocking microphone access, or your browser may not support voice input (try Chrome or Edge). You can always type your answers instead — the experience is the same.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Does my instructor see my private notes?</div>
+      <div class="faq-a">Only what you send to the chatbot is recorded. In <strong>individual</strong> mode, your responses are anonymous — your instructor sees the answers, not your name. In <strong>group</strong> mode, your responses are tied to your team and the names you mention are visible.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Where do I actually submit?</div>
+      <div class="faq-a">In <strong>Canvas</strong>, on the assignment your instructor created. The file you upload is the <code>.docx</code> that LEAI generated for you.</div>
+    </div>
+
+    <p style="margin-top:48px;color:#94a3b8;font-size:13px;text-align:center;">
+      Questions or stuck? Email your instructor — they can see whether your submission came through.
+    </p>
+
+  </main>
+</div>
+<script src="leai-version.js"></script>
+</body>
+</html>
