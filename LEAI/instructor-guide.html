@@ -243,6 +243,7 @@
         <a href="#close-reopen" class="toc-link">7. Closing &amp; Reopening</a>
         <a href="#edit-survey" class="toc-link">8. Editing a Survey</a>
         <a href="#duplicate-survey" class="toc-link">9. Duplicating a Survey</a>
+        <a href="#in-group" class="toc-link">In-Group Feedback Mode</a>
         <a href="#analyzer-dashboard" class="toc-link">10. The Analyzer Dashboard</a>
         <a href="#scope-filtering" class="toc-link">11. Filtering by Scope</a>
         <a href="#traditional-analysis" class="toc-link">12. Traditional Analysis (N-grams)</a>
@@ -494,6 +495,116 @@
       <img src="guide-assets/test-f12-duplicate.png" alt="Survey list with a newly duplicated entry">
       <div class="caption">After clicking Duplicate, a new survey card appears at the bottom of the list. The copy is immediately Open and ready to use.</div>
     </div>
+
+    <!-- ═══════════════ IN-GROUP FEEDBACK MODE ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="in-group">In-Group Feedback Mode</h2>
+
+    <p>
+      <strong>In-Group Feedback</strong> is a second mode inside the Prompt Designer, built for courses with
+      group assignments or group projects. Instead of asking about the course overall, the bot asks each team
+      how <em>their own team</em> is going — collaboration, workload, friction, what's working — so you can
+      spot team issues early enough to step in.
+    </p>
+
+    <p>
+      It lives alongside General Course Feedback, not in place of it. You switch between the two with the tabs
+      at the top of the Prompt Designer. A green badge next to the page title (<code>&bull; IN-GROUP MODE</code>)
+      is always visible in this mode so you know which world you're designing in.
+    </p>
+
+    <h3 class="sub-heading">Design values</h3>
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>You never enter student names.</strong> You configure team counts and sizes only. Students pick their own team from a dropdown when they respond.</li>
+      <li><strong>Anonymous to you, always.</strong> Results are team-level. You see which team said what, never which student on that team said what.</li>
+      <li><strong>Teammates stay anonymous too.</strong> If a student flags a specific teammate, the bot refers to them as Teammate A, B, or C &mdash; never by a real name.</li>
+      <li><strong>Small-team warning.</strong> With 2 or fewer members, teammate-level comments can be traceable. The setup UI warns you if any team is that small.</li>
+    </ul>
+
+    <h3 class="sub-heading">Setting up your teams (once per course)</h3>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Switch to In-Group mode</strong><p>In Prompt Designer, click the <strong>In-Group Feedback</strong> tab at the top of the page. The tabs and active badge change to a forest-green accent so you can see at a glance which mode you're in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Fill in the "Your Teams" card</strong><p>Enter <em>how many teams</em>, <em>default team size</em>, and what label students see (Team / Group / Lab Group / Project Group). A grid of team-size inputs appears below, pre-filled with the default.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Adjust individual teams only where needed</strong><p>If one team has a different size (say Team 7 has 3 members instead of 4), change just that one input &mdash; it highlights so you can see at a glance which sizes are exceptions.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Save the configuration</strong><p>Click <strong>Save configuration</strong>. The setup form collapses to a summary row showing the count, average size, and a colored dot. This is your <em>team configuration</em>.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Multiple team configurations per course</h3>
+
+    <p>
+      Some courses re-group students mid-quarter &mdash; for example, lab teams for the first month, then
+      project teams for the rest. You can keep both in the same course:
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Add a new configuration</strong><p>Click <strong>+ Another</strong> on the summary row, or <strong>+ New team configuration</strong> in the tab strip. A fresh setup form appears.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Name it clearly</strong><p>Give it a recognizable name like "Lab Teams" or "Final Project Teams" so you know which is which when you create a survey.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Each configuration gets its own color</strong><p>The first configuration is green, the second purple, then amber, teal, rose, indigo, brown, slate, then cycling back at the ninth. The color follows that configuration everywhere &mdash; the tab, the summary row, the survey builder banner, the student pre-chat screens, and the analyzer grid &mdash; so you always know which team set a survey is tied to.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Clicking a sub-tab switches focus everywhere</strong><p>When you click a team configuration sub-tab (e.g. <em>Lab Teams</em>), the entire In-Group surface follows: the <em>Your Teams</em> card, the survey builder's <em>Creating a survey for: &hellip;</em> banner, and the primary Create button all flip to that configuration's color. There's nothing else to click &mdash; switching sub-tabs is how you switch which teams the next survey targets.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Creating an in-group survey</h3>
+
+    <p>
+      Below the Your Teams card is the <strong>In-Group Survey</strong> builder. It looks similar to the general
+      builder but asks a different set of questions.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Pick the target configuration</strong><p>If you have more than one configuration, a dropdown lets you choose which one applies. A colored banner at the top of the builder (<em>Creating a survey for: Lab Teams</em>) reminds you at all times which teams this survey targets.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Fill in the basics</strong><p>Week number, survey label, bot name, what the team is currently working on (e.g. "Midterm Group Project &mdash; Game Prototype").</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Pick the dynamics questions</strong><p>Pre-checked questions cover collaboration, workload fairness, what's working, and whether there's any concern worth flagging. Uncheck anything that doesn't fit.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Create &amp; share the link</strong><p>Click <strong>Create Survey &amp; Get Link</strong>. A shareable link appears. Send it to students through whichever channel you already use (Canvas announcement, email, Slack).</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Managing your in-group surveys</h3>
+
+    <p>
+      The right-hand card in the In-Group tab, <strong>Your In-Group Surveys</strong>, lists every
+      in-group survey you've created for this course. Each row mirrors what the General survey list
+      gives you, and a small colored badge on the left shows which team configuration the survey
+      targets &mdash; so at a glance you know whether a row belongs to your Lab Teams, Final Project
+      Teams, or another grouping.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open or copy the link</strong><p>Click the arrow to open the survey in a new tab, or <strong>Copy</strong> to drop the link on your clipboard for sharing.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Close a survey when the window is over</strong><p><strong>Close</strong> stops students from submitting new responses without deleting what they already said. Reopen whenever you want.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Duplicate for a repeat check-in</strong><p><strong>Duplicate</strong> clones the survey (and takes a fresh team snapshot from the current team configuration) so you can run the same check-in next week without retyping.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Edit the label, week, activity, or dates</strong><p><strong>Edit</strong> opens a modal to update the shown-to-students label, week number, activity context, and open/expire dates. Prompt wording stays locked after creation &mdash; if you need a bigger rewrite, Duplicate first so past responses stay anchored to their original prompt.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Delete permanently</strong><p><strong>Delete</strong> removes the survey, its team snapshot, all anonymous session assignments, and the stored conversation log. The shareable link stops working. Deletion is irreversible &mdash; the confirm dialog makes this explicit.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Export or import a JSON bundle</strong><p><strong>Export</strong> downloads every in-group survey for this course (plus its team snapshots and anonymous session assignments) as a single JSON file. <strong>Import</strong> reads such a file back. Duplicates (same survey id) are skipped on import. Useful for moving data between browsers or archiving a pilot.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">What students see</h3>
+    <ol style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li>A short <strong>anonymity notice</strong> (one screen, one click) explaining that their feedback is team-level only and that teammates will be referred to as Teammate A, B, or C. The screen wears the same color as the team configuration the survey targets.</li>
+      <li>A <strong>team picker</strong> &mdash; a dropdown listing the teams you configured. They pick their team and click Continue. A small <em>I don&rsquo;t see my team</em> link gives them a safe escape if the roster doesn't match.</li>
+      <li>The <strong>chat</strong> opens. A thin color strip at the top reads <em>Configuration Name &middot; Team N &middot; Anonymous</em>. The bot greets the student by team name ("You're sharing as a member of Team 3&hellip;") and asks the dynamics questions you configured.</li>
+      <li>If the student flags someone specific, the bot assigns that person a letter (<strong>"I&rsquo;ll refer to that person as Teammate A"</strong>) and stays with the letter label for the rest of the conversation &mdash; you never see real teammate names in the conversation log.</li>
+    </ol>
+
+    <h3 class="sub-heading">Reading in-group results</h3>
+
+    <p>
+      Open <strong>Feedback Analyzer</strong>. In-group surveys appear as colored chips at the top of the page
+      (above the regular scope bar). Each chip's color matches its team configuration, so you can see which
+      lab/project teams you're looking at without reading the label.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click an in-group chip</strong><p>The regular analyzer view collapses and a team grid appears. One card per team, top-bordered in the configuration's color, showing <em>X of Y responded</em>, a short auto-summary of common themes surfaced from student messages, and a <em>View conversations</em> button (disabled on teams with no responses).</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Drill into a team</strong><p>Click <strong>View conversations</strong> on any team with responses. You see the anonymous conversations from that team &mdash; "Anonymous response 1, 2, 3&hellip;" &mdash; with the bot's turns and student's turns clearly labelled, and the bot's letter-label references (<em>Teammate A</em>, <em>Teammate B</em>) preserved. No student identities anywhere in the UI.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Back to general analysis</strong><p>Click <strong>&larr; Back to General Analysis</strong> at the top of the in-group view to return to the regular dashboard. The regular scope chips and analysis sections come back unchanged.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">When a student drops, joins, or switches teams</h3>
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>A student drops.</strong> Edit the size for that team in the Your Teams card. Future surveys use the new size. Past surveys keep the sizes they were created with &mdash; a small footnote in the analyzer makes that clear.</li>
+      <li><strong>A student switches teams.</strong> You do nothing. Next time they open a survey link, they pick their new team in the dropdown.</li>
+      <li><strong>Restructuring teams mid-quarter.</strong> Add a second configuration ("Final Project Teams") instead of editing the existing one. Past surveys stay attached to the original configuration; new surveys target the new one.</li>
+    </ul>
 
     <!-- ═══════════════ FEEDBACK ANALYZER ═══════════════ -->
     <hr class="divider">
