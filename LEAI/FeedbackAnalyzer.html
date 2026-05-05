@@ -156,6 +156,53 @@
         }
         .convo-msg-bubble.ai { background: none; border-color: transparent; color: var(--muted); }
 
+        /* Form-mode insights panel (F5/F6) */
+        .insights-panel {
+            border: 1px solid var(--surface-border); border-radius: var(--radius-sm);
+            background: var(--surface-card); padding: 14px 16px; margin-bottom: 14px;
+        }
+        .insights-panel-header {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-variant);
+        }
+        .insights-panel-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            background: rgba(59,108,212,0.12); color: var(--primary);
+            font-size: 0.62rem; font-weight: 700; letter-spacing: 0.05em;
+        }
+        .insights-panel-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+        .insights-panel-meta { font-size: 0.7rem; color: var(--muted); }
+        .insights-panel-body {
+            font-size: 0.85rem; line-height: 1.55; color: var(--text);
+        }
+        .insights-panel-body h1,
+        .insights-panel-body h2,
+        .insights-panel-body h3 {
+            font-size: 0.92rem; margin: 14px 0 6px; color: var(--text);
+        }
+        .insights-panel-body h1 { font-size: 1rem; }
+        .insights-panel-body ul { margin: 6px 0 10px 18px; padding: 0; }
+        .insights-panel-body li { margin-bottom: 4px; }
+        .insights-panel-body strong { color: var(--text); }
+        .insights-panel-body p { margin: 0 0 8px; }
+        .insights-empty { font-size: 0.8rem; color: var(--muted); margin: 0; }
+        .insights-error { font-size: 0.8rem; color: var(--error); margin: 8px 0 0; }
+        .insights-audio-row {
+            display: flex; gap: 10px; align-items: center; margin-top: 12px;
+            padding-top: 10px; border-top: 1px dashed var(--surface-border);
+            flex-wrap: wrap;
+        }
+        .insights-audio-row audio { height: 32px; flex: 1; min-width: 240px; }
+        .insights-shimmer-line {
+            height: 9px; background: linear-gradient(90deg, var(--surface-low) 0%, var(--surface-mid) 50%, var(--surface-low) 100%);
+            background-size: 200% 100%; border-radius: 4px; margin: 6px 0;
+            animation: insights-shimmer 1.4s linear infinite;
+        }
+        @keyframes insights-shimmer {
+            0% { background-position: 200% 0; } 100% { background-position: -200% 0; }
+        }
+
         /* Verify codes section */
         .badge-no-data {
             display: inline-block; font-size: 0.66rem; font-weight: 700;
@@ -193,6 +240,146 @@
         @media (max-width: 767px) {
             .info-icon:hover::after, .info-icon:focus::after { max-width: 220px; }
         }
+
+        /* ===== IN-GROUP MODE: palette + chips + team grid =====
+           Keep in sync with leai-shared.css — 8 colors in cycle order. */
+        [data-config-color="forest"] { --config-color: #2E7D57; --config-color-dim: #256A49; --config-tint: rgba( 46,125, 87,0.12); }
+        [data-config-color="plum"]   { --config-color: #9333EA; --config-color-dim: #7A2BC2; --config-tint: rgba(147, 51,234,0.10); }
+        [data-config-color="amber"]  { --config-color: #D97706; --config-color-dim: #B36105; --config-tint: rgba(217,119,  6,0.10); }
+        [data-config-color="teal"]   { --config-color: #0F766E; --config-color-dim: #0B5E58; --config-tint: rgba( 15,118,110,0.12); }
+        [data-config-color="rose"]   { --config-color: #BE185D; --config-color-dim: #9D144E; --config-tint: rgba(190, 24, 93,0.10); }
+        [data-config-color="indigo"] { --config-color: #4338CA; --config-color-dim: #362CA5; --config-tint: rgba( 67, 56,202,0.10); }
+        [data-config-color="brown"]  { --config-color: #92400E; --config-color-dim: #78340B; --config-tint: rgba(146, 64, 14,0.10); }
+        [data-config-color="slate"]  { --config-color: #475569; --config-color-dim: #384252; --config-tint: rgba( 71, 85,105,0.10); }
+
+        .ingroup-section-label {
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.10em;
+            text-transform: uppercase; color: var(--muted);
+            margin: 0 0 10px;
+        }
+        .ingroup-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--surface-card);
+            border: 1px solid var(--outline);
+            color: var(--text-variant);
+            padding: 8px 14px; border-radius: 999px;
+            font-size: 0.82rem; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+            margin: 0 8px 8px 0;
+        }
+        .ingroup-chip::before {
+            content: ""; width: 10px; height: 10px; border-radius: 50%;
+            background: var(--config-color, var(--primary)); opacity: 0.7;
+        }
+        .ingroup-chip:hover { border-color: var(--config-color); color: var(--text); }
+        .ingroup-chip.active {
+            background: var(--config-tint); border-color: var(--config-color);
+            color: var(--config-color);
+        }
+        .ingroup-chip.active::before { opacity: 1; }
+
+        #ingroup-analysis-section { display: none; }
+        #ingroup-analysis-section.visible { display: block; }
+
+        .ingroup-analysis-header {
+            padding: 16px 20px; border-left: 4px solid var(--config-color, var(--primary));
+            background: var(--config-tint, var(--surface-low)); border-radius: var(--radius-md);
+            margin-bottom: 20px;
+        }
+        .ingroup-analysis-header h2 {
+            font-size: 1.2rem; font-weight: 700; color: var(--text); margin: 0 0 4px;
+        }
+        .ingroup-analysis-header .meta {
+            font-size: 0.78rem; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+
+        .team-grid {
+            display: grid; gap: 14px;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            margin-bottom: 24px;
+        }
+        .team-card {
+            background: var(--surface-card); border-radius: var(--radius-md);
+            padding: 16px 18px; border-top: 3px solid var(--config-color, var(--primary));
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .team-card .team-name {
+            font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 6px;
+        }
+        .team-card .team-stats {
+            font-size: 0.72rem; color: var(--muted); margin-bottom: 10px;
+            text-transform: uppercase; letter-spacing: 0.06em;
+        }
+        .team-card .team-themes {
+            font-size: 0.88rem; color: var(--text-variant);
+            line-height: 1.5; margin-bottom: 14px;
+        }
+        .team-card .team-actions {
+            display: flex; justify-content: flex-end;
+        }
+        .team-card .team-actions button {
+            background: none; border: 1px solid var(--config-color);
+            color: var(--config-color); padding: 5px 12px;
+            border-radius: var(--radius-sm); font-size: 0.78rem;
+            font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .team-card .team-actions button:hover { background: var(--config-tint); }
+
+        .team-drill-back {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: none; border: 1px solid var(--outline);
+            color: var(--muted); padding: 6px 12px;
+            border-radius: var(--radius-sm); font-size: 0.78rem;
+            cursor: pointer; font-family: inherit;
+        }
+        .team-drill-back:hover { color: var(--text); border-color: var(--text); }
+
+        .team-drill-heading {
+            font-size: 1.1rem; font-weight: 700;
+            color: var(--config-color, var(--primary));
+            margin: 18px 0 16px;
+        }
+
+        .team-convo {
+            background: var(--surface-card); border-radius: var(--radius-md);
+            padding: 16px 18px; margin-bottom: 12px;
+            border-left: 3px solid var(--config-color);
+        }
+        .team-convo .convo-label {
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
+        }
+        .team-convo .convo-line {
+            font-size: 0.90rem; line-height: 1.5; margin: 4px 0;
+        }
+        .team-convo .convo-line.bot { color: var(--muted); }
+        .team-convo .convo-line.user { color: var(--text); font-weight: 500; }
+
+        .ingroup-empty {
+            padding: 40px 20px; text-align: center; color: var(--muted);
+            background: var(--surface-low); border-radius: var(--radius-md);
+            font-size: 0.92rem;
+        }
+
+        /* ===== Mode tabs (General / In-Group / Structured Reflection) ===== */
+        .mode-tabs {
+            display: flex; gap: 0; margin: 0 0 24px;
+            border-bottom: 1px solid var(--outline);
+            flex-wrap: wrap;
+        }
+        .mode-tab {
+            background: none; border: none; cursor: pointer;
+            font-family: inherit; font-size: 0.85rem; font-weight: 600;
+            color: var(--muted); padding: 12px 22px;
+            border-bottom: 3px solid transparent; margin-bottom: -1px;
+            letter-spacing: 0.02em;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
+        }
+        .mode-tab:hover { color: var(--text); background: var(--surface-low); }
+        .mode-tab.active[data-mode="general"] { color: var(--primary); border-bottom-color: var(--primary); }
+        .mode-tab.active[data-mode="group"]   { color: #2E7D57; border-bottom-color: #2E7D57; }
+        .mode-tab.active[data-mode="form"]    { color: var(--formmode-primary); border-bottom-color: var(--formmode-primary); }
     </style>
 </head>
 <body>
@@ -286,14 +473,24 @@
                 <p>Review survey results and student engagement across your course.</p>
             </div>
 
-            <!-- Scope chip bar -->
-            <div class="scope-bar" id="scope-bar" style="margin-bottom:28px"></div>
+            <!-- Mode tabs -->
+            <div class="mode-tabs" role="tablist" aria-label="Survey mode">
+                <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
+                <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
+                <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
+            </div>
 
-            <!-- Stats row -->
-            <div class="stat-row" id="stats-row"></div>
+            <!-- Shared panel: General Course Feedback + Structured Reflection both render here.
+                 Mode determines survey filter and which sub-sections are visible. -->
+            <div id="mode-panel-shared" role="tabpanel">
+                <!-- Scope chip bar -->
+                <div class="scope-bar" id="scope-bar" style="margin-bottom:28px"></div>
 
-            <!-- Traditional Analysis -->
-            <div class="analysis-section" id="traditional-analysis-section">
+                <!-- Stats row -->
+                <div class="stat-row" id="stats-row"></div>
+
+                <!-- Traditional Analysis -->
+                <div class="analysis-section" id="traditional-analysis-section">
                 <div class="section-header">
                     <span class="section-title">Traditional Analysis</span>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -350,10 +547,34 @@
                     <div id="verify-codes-output" style="margin-top:16px"></div>
                 </div>
             </div>
+            </div><!-- /#mode-panel-shared -->
+
+            <!-- In-Group panel: chip strip + per-team drill-down. -->
+            <div id="mode-panel-group" role="tabpanel" style="display:none">
+                <div id="ingroup-surveys-wrap" style="margin-bottom:28px">
+                    <div class="ingroup-section-label">In-Group Feedback Surveys
+                        <span class="info-icon" tabindex="0" data-tooltip="Team-scoped surveys — each chip shows the team configuration it targets and its color. Click to see team-level summaries."></span>
+                    </div>
+                    <div id="ingroup-surveys-chips"></div>
+                    <div id="ingroup-empty-msg" class="ingroup-empty" style="display:none;margin-top:16px">No In-Group surveys for this course yet. Create one in the Prompt Designer.</div>
+                </div>
+
+                <!-- In-Group analysis panel (shown when a group survey chip is active) -->
+                <div id="ingroup-analysis-section">
+                    <div id="ingroup-analysis-header" class="ingroup-analysis-header">
+                        <h2 id="ingroup-analysis-title"></h2>
+                        <div class="meta" id="ingroup-analysis-meta"></div>
+                    </div>
+                    <div id="ingroup-analysis-body"></div>
+                </div>
+            </div><!-- /#mode-panel-group -->
         </div>
     </div>
 </div>
 
+<!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 <script src="leai-shared.js"></script>
 <script src="leai-version.js"></script>
 <script>
@@ -367,6 +588,23 @@
     var currentNgramN = 2;
     var currentSort = 'freq';
     var currentResponses = [];
+    // Mode tab — 'general' | 'group' | 'form'. Persisted so reload returns to the same tab.
+    var MODE_KEY = 'leai.fa.mode';
+    var currentMode = (function () {
+        try { var m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form') ? m : 'general'; }
+        catch (e) { return 'general'; }
+    })();
+
+    // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
+    function isFormSurvey(s) {
+        return !!(s && (s.form_schema_id || s.mode === 'form'));
+    }
+    function surveysForMode(mode) {
+        if (mode === 'form') return allSurveys.filter(isFormSurvey);
+        // General: exclude form-mode surveys (group surveys come from a different endpoint).
+        return allSurveys.filter(function (s) { return !isFormSurvey(s); });
+    }
+    function activeSurveys() { return surveysForMode(currentMode); }
     var currentNgrams = [];
     var ngramVisibleCount = 10;
     var activePinnedTerm = null;
@@ -438,10 +676,12 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             allSurveys = data;
-            renderScopeChips();
-            onScopeChange();
+            // Apply persisted mode now that data is in — drives chip rendering,
+            // panel visibility, and survey filter in one shot.
+            applyMode(currentMode);
+            loadInGroupSurveys();
         })
-        .catch(function () {});
+        .catch(function () { loadInGroupSurveys(); });
     }
 
     // ===== SCOPE KEY =====
@@ -468,7 +708,16 @@
         });
         bar.appendChild(courseChip);
 
-        allSurveys.forEach(function (s) {
+        var modeSurveys = activeSurveys();
+        if (!modeSurveys.length) {
+            var emptyChip = document.createElement('span');
+            emptyChip.style.cssText = 'font-size:0.78rem;color:var(--muted);margin-left:8px;align-self:center';
+            emptyChip.textContent = currentMode === 'form'
+                ? 'No structured-reflection surveys yet.'
+                : 'No general-feedback surveys yet.';
+            bar.appendChild(emptyChip);
+        }
+        modeSurveys.forEach(function (s) {
             var chip = document.createElement('button');
             chip.className = 'scope-chip';
             chip.textContent = s.survey_label || ('Week ' + s.week_number);
@@ -501,7 +750,7 @@
         document.getElementById('ngram-matches').style.display = 'none';
 
         currentResponses = leaiAnalysis.buildResponseIndex(
-            allSurveys,
+            activeSurveys(),
             currentScope.kind === 'course' ? 'course' : 'week',
             currentScope.weekNumber
         );
@@ -538,9 +787,9 @@
 
         var totalResponses = currentResponses.length;
 
-        // Participation: responses in scope / unique sessions across entire course
+        // Participation: responses in scope / unique sessions across the active mode's surveys.
         var allSessionIds = {};
-        allSurveys.forEach(function (s) {
+        activeSurveys().forEach(function (s) {
             Object.keys(s.sessions).forEach(function (sid) { allSessionIds[sid] = true; });
         });
         var totalUnique = Object.keys(allSessionIds).length;
@@ -605,11 +854,12 @@
 
         var sparkContainer = document.createElement('div');
         sparkContainer.className = 'sparkline';
+        var sparkSurveys = activeSurveys();
         var maxCount = 0;
-        allSurveys.forEach(function (s) {
+        sparkSurveys.forEach(function (s) {
             if (s.session_count > maxCount) maxCount = s.session_count;
         });
-        allSurveys.forEach(function (s) {
+        sparkSurveys.forEach(function (s) {
             var bar = document.createElement('div');
             bar.className = 'sparkline-bar';
             var h = maxCount > 0 ? Math.max(2, Math.round((s.session_count / maxCount) * 32)) : 2;
@@ -666,7 +916,7 @@
             var targetTotal = 0;
             ngrams.forEach(function (g) { targetCounts[g.term] = g.count; targetTotal += g.count; });
 
-            var baselineResponses = leaiAnalysis.buildResponseIndex(allSurveys, 'course', null)
+            var baselineResponses = leaiAnalysis.buildResponseIndex(activeSurveys(), 'course', null)
                 .filter(function (r) { return r.week_number !== currentScope.weekNumber; });
             var baselineNgrams = leaiAnalysis.computeNgrams(baselineResponses, currentNgramN);
             var baselineCounts = {};
@@ -1036,7 +1286,7 @@
                 (b.cited_ids || []).forEach(function (rid) { citedSet[rid] = true; });
             });
             var corpus = leaiAnalysis.buildResponseIndex(
-                allSurveys, currentScope.kind, currentScope.weekNumber
+                activeSurveys(), currentScope.kind, currentScope.weekNumber
             );
             qt.sources = corpus.filter(function (r) { return citedSet[r.rid]; });
         }
@@ -1314,9 +1564,10 @@
         list.textContent = '';
         document.getElementById('expand-all-btn').textContent = 'Expand All';
 
+        var modeSurveys = activeSurveys();
         var scopeSurveys = currentScope.kind === 'course'
-            ? allSurveys
-            : allSurveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
+            ? modeSurveys
+            : modeSurveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
 
         var entries = [];
         scopeSurveys.forEach(function (s) {
@@ -1375,6 +1626,14 @@
             var body = document.createElement('div');
             body.className = 'student-card-body';
 
+            // Form-mode submissions (HCI 271 Week 6 reflection) get the
+            // instructor insights panel — F5 (report) + F6 (TTS playback).
+            // Detection is signature-based (engine "Area N of N — " prefix in
+            // any AI message), so no survey-mode flag is needed.
+            if (window.leaiInsights && leaiInsights.isFormSession(msgs)) {
+                body.appendChild(buildInsightsPanel(entry.sessionId, msgs));
+            }
+
             if (!msgs.length) {
                 var noMsg = document.createElement('p');
                 noMsg.style.cssText = 'color:var(--muted);font-size:0.85rem;margin:0';
@@ -1412,6 +1671,255 @@
         });
     }
 
+    // ===== F5/F6: PER-SUBMISSION INSIGHTS REPORT + TTS =====
+    // Schema id is read from the survey's form_schema_id (server-driven).
+    // The legacy fallback is kept for any pre-migration form-mode submissions
+    // whose survey rows were saved before the form_schema_id field existed.
+    var INSIGHTS_SCHEMA_FALLBACK = 'hci271-week6-reflection';
+
+    function resolveSchemaIdForSession(sessionId) {
+        for (var i = 0; i < allSurveys.length; i++) {
+            var s = allSurveys[i];
+            var sessions = s.sessions || {};
+            if (sessions[sessionId]) {
+                if (s.form_schema_id) return s.form_schema_id;
+                if (s.mode === 'form') return INSIGHTS_SCHEMA_FALLBACK;
+            }
+        }
+        return INSIGHTS_SCHEMA_FALLBACK;
+    }
+
+    function buildInsightsPanel(sessionId, msgs) {
+        var panel = document.createElement('div');
+        panel.className = 'insights-panel';
+
+        var header = document.createElement('div');
+        header.className = 'insights-panel-header';
+
+        var title = document.createElement('span');
+        title.textContent = 'Instructor Insights';
+        header.appendChild(title);
+
+        var badge = document.createElement('span');
+        badge.className = 'insights-panel-badge';
+        badge.textContent = 'Form-mode';
+        header.appendChild(badge);
+
+        var info = document.createElement('button');
+        info.type = 'button';
+        info.className = 'info-icon info-icon--right';
+        info.setAttribute('aria-label', 'About Insights Report');
+        info.setAttribute('data-tooltip',
+            'Per-submission analytical brief (350–500 words) covering: TL;DR, ' +
+            'per-area findings with verbatim quotes, coverage flags, and team-process signals.\n\n' +
+            'Click "Listen" to hear it spoken (OpenAI TTS, voice: nova). Audio is generated on first play and cached.');
+        header.appendChild(info);
+
+        var actions = document.createElement('div');
+        actions.className = 'insights-panel-actions';
+        header.appendChild(actions);
+
+        panel.appendChild(header);
+
+        var body = document.createElement('div');
+        body.className = 'insights-panel-body';
+        panel.appendChild(body);
+
+        var existing = leaiInsights.getCachedReport(sessionId);
+        if (existing) {
+            renderInsightsLoaded(panel, body, actions, sessionId, existing);
+        } else {
+            renderInsightsCTA(panel, body, actions, sessionId, msgs);
+        }
+        return panel;
+    }
+
+    function renderInsightsCTA(panel, body, actions, sessionId, msgs) {
+        clearChildren(actions);
+        clearChildren(body);
+
+        var p = document.createElement('p');
+        p.className = 'insights-empty';
+        p.textContent = 'Generate a 350–500-word brief covering coverage, evidence, and team-process signals.';
+        body.appendChild(p);
+
+        var genBtn = document.createElement('button');
+        genBtn.className = 'btn btn-sm';
+        genBtn.style.cssText = 'font-size:0.7rem;padding:4px 12px';
+        genBtn.textContent = 'Generate report';
+        genBtn.setAttribute('tabindex', '0');
+        genBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            triggerInsightsGeneration(panel, body, actions, sessionId, msgs, false);
+        });
+        actions.appendChild(genBtn);
+    }
+
+    function renderInsightsShimmer(body) {
+        clearChildren(body);
+        for (var i = 0; i < 6; i++) {
+            var line = document.createElement('div');
+            line.className = 'insights-shimmer-line';
+            line.style.width = (55 + Math.random() * 40) + '%';
+            body.appendChild(line);
+        }
+    }
+
+    function triggerInsightsGeneration(panel, body, actions, sessionId, msgs, force) {
+        clearChildren(actions);
+        var status = document.createElement('span');
+        status.className = 'insights-panel-meta';
+        status.textContent = 'Generating…';
+        actions.appendChild(status);
+
+        renderInsightsShimmer(body);
+
+        leaiInsights.generateReport(resolveSchemaIdForSession(sessionId), msgs, {
+            sessionId: sessionId,
+            force: !!force,
+        })
+        .then(function (entry) {
+            renderInsightsLoaded(panel, body, actions, sessionId, entry);
+        })
+        .catch(function (err) {
+            clearChildren(actions);
+            clearChildren(body);
+            var errEl = document.createElement('p');
+            errEl.className = 'insights-error';
+            errEl.textContent = 'Failed to generate report: ' + (err && err.message ? err.message : 'unknown error');
+            body.appendChild(errEl);
+
+            var retry = document.createElement('button');
+            retry.className = 'btn btn-outline btn-sm';
+            retry.style.cssText = 'font-size:0.66rem;padding:4px 10px';
+            retry.textContent = 'Retry';
+            retry.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                triggerInsightsGeneration(panel, body, actions, sessionId, msgs, force);
+            });
+            actions.appendChild(retry);
+        });
+    }
+
+    function renderInsightsLoaded(panel, body, actions, sessionId, entry) {
+        clearChildren(actions);
+        clearChildren(body);
+
+        var meta = document.createElement('span');
+        meta.className = 'insights-panel-meta';
+        meta.textContent = entry.wordCount + ' words';
+        actions.appendChild(meta);
+
+        var listenBtn = document.createElement('button');
+        listenBtn.className = 'btn btn-outline btn-sm';
+        listenBtn.style.cssText = 'font-size:0.66rem;padding:4px 10px';
+        listenBtn.textContent = '▶ Listen';
+        listenBtn.setAttribute('tabindex', '0');
+        listenBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            triggerInsightsTTS(body, listenBtn, sessionId);
+        });
+        actions.appendChild(listenBtn);
+
+        var regenBtn = document.createElement('button');
+        regenBtn.className = 'btn btn-outline btn-sm';
+        regenBtn.style.cssText = 'font-size:0.66rem;padding:4px 10px';
+        regenBtn.textContent = 'Regenerate';
+        regenBtn.setAttribute('tabindex', '0');
+        regenBtn.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            triggerInsightsGeneration(panel, body, actions, sessionId, getMsgsForSession(sessionId), true);
+        });
+        actions.appendChild(regenBtn);
+
+        var content = document.createElement('div');
+        content.className = 'insights-content';
+        renderMarkdownInto(content, entry.markdown);
+        body.appendChild(content);
+    }
+
+    function triggerInsightsTTS(body, listenBtn, sessionId) {
+        // Replace any previous audio row.
+        var existingRow = body.querySelector('.insights-audio-row');
+        if (existingRow) existingRow.remove();
+
+        listenBtn.disabled = true;
+        var originalLabel = listenBtn.textContent;
+        listenBtn.textContent = 'Loading…';
+
+        leaiInsights.synthesizeAudio(sessionId, { voice: 'nova' })
+            .then(function (audio) {
+                listenBtn.disabled = false;
+                listenBtn.textContent = originalLabel;
+                renderInsightsAudioRow(body, audio, sessionId);
+            })
+            .catch(function (err) {
+                listenBtn.disabled = false;
+                listenBtn.textContent = originalLabel;
+                var msg = err && err.message ? err.message : 'unknown error';
+                var errEl = document.createElement('p');
+                errEl.className = 'insights-error';
+                errEl.textContent = 'TTS failed: ' + msg;
+                body.appendChild(errEl);
+                setTimeout(function () { errEl.remove(); }, 6000);
+            });
+    }
+
+    function renderInsightsAudioRow(body, audio, sessionId) {
+        var row = document.createElement('div');
+        row.className = 'insights-audio-row';
+
+        var label = document.createElement('span');
+        label.className = 'insights-panel-meta';
+        label.textContent = 'Voice: ' + audio.voice;
+        row.appendChild(label);
+
+        var audioEl = document.createElement('audio');
+        audioEl.controls = true;
+        audioEl.autoplay = true;
+        audioEl.src = audio.url;
+        row.appendChild(audioEl);
+
+        var dl = document.createElement('a');
+        dl.href = audio.url;
+        dl.download = 'insights-' + sessionId.slice(0, 8) + '.mp3';
+        dl.className = 'btn btn-outline btn-sm';
+        dl.style.cssText = 'font-size:0.66rem;padding:4px 10px;text-decoration:none';
+        dl.textContent = 'Download';
+        row.appendChild(dl);
+
+        body.appendChild(row);
+    }
+
+    // Lookup helper — finds messages for a session id from the loaded surveys.
+    function getMsgsForSession(sessionId) {
+        for (var i = 0; i < allSurveys.length; i++) {
+            var sessions = allSurveys[i].sessions || {};
+            if (sessions[sessionId]) return sessions[sessionId];
+        }
+        return [];
+    }
+
+    function clearChildren(el) {
+        while (el && el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    // Render markdown safely into a target node. Uses marked + DOMPurify
+    // with RETURN_DOM_FRAGMENT — same pattern as the in-group drill-down
+    // path in this file. Falls back to plain text if either lib is missing.
+    function renderMarkdownInto(target, md) {
+        if (window.marked && window.DOMPurify) {
+            try {
+                var html = window.marked.parse(md);
+                var frag = window.DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT: true });
+                while (target.firstChild) target.removeChild(target.firstChild);
+                target.appendChild(frag);
+                return;
+            } catch (e) { /* fall through to plain text */ }
+        }
+        target.textContent = md;
+    }
+
     // ===== EXPAND ALL =====
     document.getElementById('expand-all-btn').addEventListener('click', function () {
         var cards = document.querySelectorAll('.student-card');
@@ -1427,7 +1935,7 @@
     function renderVerifyCodes() {
         var section = document.getElementById('verify-codes-section');
         if (currentScope.kind === 'week') {
-            var survey = allSurveys.find(function (s) { return s.week_number === currentScope.weekNumber; });
+            var survey = activeSurveys().find(function (s) { return s.week_number === currentScope.weekNumber; });
             if (survey && survey.canvas_integration) {
                 section.style.display = 'block';
                 document.getElementById('verify-codes-input').value = '';
@@ -1450,7 +1958,7 @@
 
     function getActiveSurveyForVerify() {
         if (currentScope.kind !== 'week') return null;
-        return allSurveys.find(function (s) { return s.week_number === currentScope.weekNumber; }) || null;
+        return activeSurveys().find(function (s) { return s.week_number === currentScope.weekNumber; }) || null;
     }
 
     document.getElementById('verify-codes-btn').addEventListener('click', function () {
@@ -1523,6 +2031,302 @@
         var validCount = codes.filter(function (c) { return !!codeMap[c]; }).length;
         summary.textContent = validCount + ' of ' + codes.length + ' codes matched sessions in this survey.';
         out.appendChild(summary);
+    });
+
+    // ===== IN-GROUP ANALYSIS =====
+    // Fetched from /feedback_gpts_by_course/ which includes mode + snapshot color.
+    var inGroupSurveys = [];
+    var activeInGroupSurveyId = null;
+
+    function loadInGroupSurveys() {
+        if (!session || !session.courseId) return;
+        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(session.courseId))
+            .then(function (r) { return r.json(); })
+            .then(function (all) {
+                inGroupSurveys = (all || []).filter(function (s) { return s.mode === 'group'; });
+                renderInGroupChips();
+            })
+            .catch(function () { /* leave chips hidden on error */ });
+    }
+
+    function renderInGroupChips() {
+        var chips = document.getElementById('ingroup-surveys-chips');
+        var emptyMsg = document.getElementById('ingroup-empty-msg');
+        chips.textContent = '';
+        if (!inGroupSurveys.length) {
+            if (emptyMsg) emptyMsg.style.display = '';
+            return;
+        }
+        if (emptyMsg) emptyMsg.style.display = 'none';
+
+        inGroupSurveys.forEach(function (s) {
+            var btn = document.createElement('button');
+            btn.className = 'ingroup-chip' + (s.id === activeInGroupSurveyId ? ' active' : '');
+            btn.setAttribute('data-survey-id', String(s.id));
+            btn.textContent = s.survey_label || s.name || ('Week ' + (s.week_number || '?'));
+            if (s.team_snapshot_color) btn.setAttribute('data-config-color', s.team_snapshot_color);
+            btn.addEventListener('click', function () {
+                activeInGroupSurveyId = s.id;
+                renderInGroupChips();
+                openInGroupSurveyAnalysis(s);
+            });
+            chips.appendChild(btn);
+        });
+    }
+
+    function openInGroupSurveyAnalysis(survey) {
+        // The In-Group panel owns its own DOM; cross-panel elements stay
+        // hidden by the tab system, so no global section toggling here.
+        var snapP = leaiTeamsApi.getSurveyTeamSnapshot(survey.id);
+        var asgnP = leaiTeamsApi.listAssignmentsForSurvey(survey.id);
+        var msgsP = fetch(API + '/feedback_messages_by_gpt/?gpt_id=' + encodeURIComponent(survey.id))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                // Transform {sessions: {sid: [msg...]}, ...} into a flat chatLog
+                // matching the mock shape so renderInGroupAnalysis can reuse logic.
+                var log = [];
+                var sessions = (data && data.sessions) || {};
+                Object.keys(sessions).forEach(function (sid) {
+                    (sessions[sid] || []).forEach(function (m) {
+                        log.push({
+                            session: sid,
+                            role: (m.sent_by === 'user') ? 'user' : 'bot',
+                            text: m.content,
+                            ts: m.created_at,
+                        });
+                    });
+                });
+                return log;
+            })
+            .catch(function () { return []; });
+
+        Promise.all([snapP, asgnP, msgsP]).then(function (results) {
+            var snap = results[0];
+            var assignments = results[1] || [];
+            var chatLog = results[2] || [];
+            if (!snap) {
+                renderInGroupEmpty(survey, 'No team snapshot attached to this survey.');
+                return;
+            }
+            // Merge localStorage mirror if present (covers sessions run before this
+            // analyzer session loaded the backend data).
+            try {
+                var local = JSON.parse(localStorage.getItem('leai.mock.chatLog.' + survey.id) || '[]');
+                local.forEach(function (m) {
+                    if (!chatLog.some(function (x) { return x.session === m.session && x.text === m.text && x.role === m.role; })) {
+                        chatLog.push(m);
+                    }
+                });
+            } catch (e) {}
+            renderInGroupAnalysis(survey, snap, assignments, chatLog);
+        });
+    }
+
+    function renderInGroupAnalysis(survey, snap, assignments, chatLog) {
+        var section = document.getElementById('ingroup-analysis-section');
+        section.classList.add('visible');
+        section.setAttribute('data-config-color', snap.color || 'forest');
+
+        document.getElementById('ingroup-analysis-title').textContent =
+            survey.survey_label || survey.name || survey.label || ('Survey #' + survey.id);
+        var meta = document.getElementById('ingroup-analysis-meta');
+        meta.textContent = snap.name + ' · ' + snap.teams.length + ' teams · Anonymous · Team sizes reflect roster at survey creation';
+
+        var body = document.getElementById('ingroup-analysis-body');
+        body.textContent = '';
+
+        // Group sessions per team
+        var byTeam = {};
+        snap.teams.forEach(function (t) { byTeam[t.id] = { team: t, sessions: new Set() }; });
+        assignments.forEach(function (a) {
+            if (byTeam[a.survey_team_id]) byTeam[a.survey_team_id].sessions.add(a.session_id);
+        });
+
+        var backBtn = document.createElement('button');
+        backBtn.className = 'team-drill-back';
+        backBtn.textContent = '\u2190 Clear selection';
+        backBtn.addEventListener('click', exitInGroupAnalysis);
+        body.appendChild(backBtn);
+
+        var grid = document.createElement('div');
+        grid.className = 'team-grid';
+        grid.style.marginTop = '16px';
+        snap.teams.forEach(function (t) {
+            var sessionIds = Array.from(byTeam[t.id].sessions);
+            var responded = sessionIds.length;
+
+            var card = document.createElement('div');
+            card.className = 'team-card';
+
+            var nameEl = document.createElement('div');
+            nameEl.className = 'team-name';
+            nameEl.textContent = snap.label_prefix + ' ' + t.number;
+            card.appendChild(nameEl);
+
+            var stats = document.createElement('div');
+            stats.className = 'team-stats';
+            stats.textContent = responded + ' of ' + t.size + ' responded';
+            card.appendChild(stats);
+
+            var themes = document.createElement('div');
+            themes.className = 'team-themes';
+            themes.textContent = summarizeTeamMessages(chatLog, sessionIds);
+            card.appendChild(themes);
+
+            var actions = document.createElement('div');
+            actions.className = 'team-actions';
+            var drillBtn = document.createElement('button');
+            drillBtn.textContent = responded > 0 ? 'View conversations' : 'No responses';
+            drillBtn.disabled = (responded === 0);
+            if (responded > 0) {
+                drillBtn.addEventListener('click', function () {
+                    openTeamDrillDown(survey, snap, t, sessionIds, chatLog);
+                });
+            }
+            actions.appendChild(drillBtn);
+            card.appendChild(actions);
+
+            grid.appendChild(card);
+        });
+        body.appendChild(grid);
+    }
+
+    function summarizeTeamMessages(chatLog, sessionIds) {
+        if (!sessionIds.length) return 'No responses yet.';
+        var userTexts = chatLog
+            .filter(function (m) { return sessionIds.indexOf(m.session) !== -1 && m.role === 'user'; })
+            .map(function (m) { return m.text; });
+        if (!userTexts.length) return 'Students opened the survey but have not yet responded.';
+        // Naive "themes": top 3 meaningful words. Real impl will call the LLM summary endpoint.
+        var stopwords = { the:1,that:1,this:1,they:1,them:1,with:1,have:1,were:1,been:1,about:1,would:1,could:1,very:1,really:1,just:1,also:1,there:1,like:1,some:1,from:1,into:1,because:1,going:1,doing:1,still:1,when:1,what:1,then:1,than:1,more:1,other:1,only:1,feel:1,feels:1 };
+        var words = userTexts.join(' ').toLowerCase().match(/\b[a-z]{5,}\b/g) || [];
+        var freq = {};
+        words.forEach(function (w) { if (!stopwords[w]) freq[w] = (freq[w] || 0) + 1; });
+        var top = Object.keys(freq).sort(function (a, b) { return freq[b] - freq[a]; }).slice(0, 3);
+        return top.length ? 'Common themes: ' + top.join(', ') : 'Varied responses.';
+    }
+
+    function openTeamDrillDown(survey, snap, team, sessionIds, chatLog) {
+        var body = document.getElementById('ingroup-analysis-body');
+        body.textContent = '';
+
+        var backBtn = document.createElement('button');
+        backBtn.className = 'team-drill-back';
+        backBtn.textContent = '\u2190 Back to teams';
+        backBtn.addEventListener('click', function () {
+            openInGroupSurveyAnalysis(survey);
+        });
+        body.appendChild(backBtn);
+
+        var heading = document.createElement('h3');
+        heading.className = 'team-drill-heading';
+        heading.textContent = snap.label_prefix + ' ' + team.number + ' — ' + sessionIds.length + ' response' + (sessionIds.length === 1 ? '' : 's');
+        body.appendChild(heading);
+
+        sessionIds.forEach(function (sid, i) {
+            var convo = document.createElement('div');
+            convo.className = 'team-convo';
+
+            var label = document.createElement('div');
+            label.className = 'convo-label';
+            label.textContent = 'Anonymous response ' + (i + 1);
+            convo.appendChild(label);
+
+            var msgs = chatLog.filter(function (m) { return m.session === sid; });
+            msgs.forEach(function (m) {
+                var line = document.createElement('div');
+                line.className = 'convo-line ' + (m.role === 'bot' ? 'bot' : 'user');
+                var prefix = document.createElement('strong');
+                prefix.textContent = (m.role === 'bot' ? 'Bot: ' : 'Student: ');
+                line.appendChild(prefix);
+                // Render bot markdown (**bold**, lists) the same way feedback.html does:
+                // marked + DOMPurify → DOM fragment, never assigning innerHTML directly.
+                if (m.role === 'bot' && window.marked && window.DOMPurify) {
+                    var frag = window.DOMPurify.sanitize(
+                        window.marked.parseInline(m.text),
+                        { RETURN_DOM_FRAGMENT: true }
+                    );
+                    line.appendChild(frag);
+                } else {
+                    line.appendChild(document.createTextNode(m.text));
+                }
+                convo.appendChild(line);
+            });
+            body.appendChild(convo);
+        });
+    }
+
+    function renderInGroupEmpty(survey, msg) {
+        var section = document.getElementById('ingroup-analysis-section');
+        section.classList.add('visible');
+        document.getElementById('ingroup-analysis-title').textContent =
+            survey.survey_label || survey.name || survey.label || ('Survey #' + survey.id);
+        document.getElementById('ingroup-analysis-meta').textContent = 'In-Group survey';
+        var body = document.getElementById('ingroup-analysis-body');
+        body.textContent = '';
+        var back = document.createElement('button');
+        back.className = 'team-drill-back';
+        back.textContent = '\u2190 Clear selection';
+        back.addEventListener('click', exitInGroupAnalysis);
+        body.appendChild(back);
+        var empty = document.createElement('div');
+        empty.className = 'ingroup-empty';
+        empty.style.marginTop = '16px';
+        empty.textContent = msg;
+        body.appendChild(empty);
+    }
+
+    function exitInGroupAnalysis() {
+        activeInGroupSurveyId = null;
+        renderInGroupChips();
+        document.getElementById('ingroup-analysis-section').classList.remove('visible');
+    }
+
+    // ===== MODE TAB SWITCHING =====
+    function applyMode(mode) {
+        if (mode !== 'general' && mode !== 'group' && mode !== 'form') mode = 'general';
+        currentMode = mode;
+        try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+
+        // Tab visual state
+        document.querySelectorAll('.mode-tab').forEach(function (t) {
+            var isActive = t.dataset.mode === mode;
+            t.classList.toggle('active', isActive);
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+
+        // Panel visibility
+        var sharedPanel = document.getElementById('mode-panel-shared');
+        var groupPanel = document.getElementById('mode-panel-group');
+        if (sharedPanel) sharedPanel.style.display = (mode === 'group') ? 'none' : '';
+        if (groupPanel)  groupPanel.style.display  = (mode === 'group') ? '' : 'none';
+
+        // Form mode is per-submission analysis-driven (M9, spec §1 cross-submission deferred):
+        // hide n-gram + Quick Take in the Structured Reflection tab.
+        var trad = document.getElementById('traditional-analysis-section');
+        var qt = document.getElementById('quick-take-section');
+        if (trad) trad.style.display = (mode === 'form') ? 'none' : '';
+        if (qt)   qt.style.display   = (mode === 'form') ? 'none' : '';
+
+        if (mode === 'group') {
+            // Group panel is self-contained — chips loaded by loadInGroupSurveys();
+            // make sure analysis section starts collapsed when entering the tab.
+            document.getElementById('ingroup-analysis-section').classList.remove('visible');
+        } else {
+            // Reset scope to course on tab entry so stale week selection from the
+            // other mode never leaks through.
+            currentScope = { kind: 'course', weekNumber: null };
+            renderScopeChips();
+            onScopeChange();
+        }
+    }
+
+    document.querySelectorAll('.mode-tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var target = tab.dataset.mode;
+            if (target === currentMode) return;
+            applyMode(target);
+        });
     });
 
 })();

@@ -323,6 +323,7 @@
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
                 <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
+                <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
             </div>
 
             <div id="mode-panel-general" role="tabpanel">
@@ -368,7 +369,7 @@ After you introduce yourself, please start with a specific question to start the
 
 After the student is done talking about what they struggled with make sure to ask how and if the projects "Add a Negamax function to TicTacToe" and "Chess Movement" supported their learning.
 
-If the student responds that they have no more feedback to give, then please conclude the conversation. If the student specifically responds with "STOP", then conclude the conversation. In your introduction message, make sure to include that the student can end the conversation with "STOP" or once they do not have anymore feedback. When you are concluding a conversation, ask the student for feedback on yourself as a bot and how you can better gather feedback. Do not respond to the student after your concluding question/message. Keep every response in between 250-300 characters.</div>
+When the conversation has organically reached a natural close — i.e. the student's responses have become repetitive, brief acknowledgements, or clearly off-topic for several turns — gently wrap up by asking the student for feedback on yourself as a bot and how you could better gather feedback. Do not respond to the student after your concluding question/message. Do not ask the student to type a keyword to end. Keep every response between 250-300 characters.</div>
                         </div>
 
                         <!-- Guided Builder (primary) -->
@@ -436,7 +437,6 @@ If the student responds that they have no more feedback to give, then please con
                                     <label><input type="checkbox" id="b-rule-one-question" checked /> Ask at most one question per turn</label>
                                     <label><input type="checkbox" id="b-rule-no-explain" checked /> Don't explain topics to students</label>
                                     <label><input type="checkbox" id="b-rule-on-topic" checked /> Stay on topic, redirect off-topic messages</label>
-                                    <label><input type="checkbox" id="b-rule-stop" checked /> Allow students to end with STOP keyword</label>
                                 </div>
                             </div>
 
@@ -547,6 +547,12 @@ If the student responds that they have no more feedback to give, then please con
                             <input type="number" id="edit-week" min="1" />
                             <label>Prompt / Instructions</label>
                             <textarea id="edit-instructions" rows="6"></textarea>
+                            <label>Anonymity Mode</label>
+                            <select id="edit-anonymity" style="margin-bottom:12px">
+                                <option value="anonymous">Anonymous</option>
+                                <option value="identified">Identified (names allowed)</option>
+                                <option value="pseudonymous">Pseudonymous</option>
+                            </select>
                             <label>Opens At</label>
                             <input type="datetime-local" id="edit-opens-at" />
                             <label>Expires At</label>
@@ -713,7 +719,6 @@ If the student responds that they have no more feedback to give, then please con
                                     <label><input type="checkbox" id="ig-rule-short" checked /> Keep responses short</label>
                                     <label><input type="checkbox" id="ig-rule-one-question" checked /> Ask at most one question per turn</label>
                                     <label><input type="checkbox" id="ig-rule-on-topic" checked /> Stay on topic, redirect off-topic messages</label>
-                                    <label><input type="checkbox" id="ig-rule-stop" checked /> Allow students to end with STOP keyword</label>
                                 </div>
                             </div>
 
@@ -728,15 +733,22 @@ If the student responds that they have no more feedback to give, then please con
                                 <textarea id="ig-additional" rows="3" placeholder="Any extra rules or questions you want the bot to include..."></textarea>
                             </div>
 
-                            <button class="advanced-toggle" id="ig-settings-toggle" type="button">&#9654; Survey settings</button>
+                            <button class="advanced-toggle" id="ig-advanced-toggle" type="button">&#9654; Write or edit prompt directly</button>
+                            <div class="advanced-panel" id="ig-advanced-panel" style="display:none">
+                                <textarea id="ig-prompt-direct" placeholder="Paste or write a custom prompt here. This overrides the builder above."></textarea>
+                            </div>
+
+                            <button class="advanced-toggle" id="ig-settings-toggle" type="button" style="margin-top:16px">&#9654; Survey settings</button>
                             <div id="ig-settings-panel" style="display:none;margin-top:12px">
                                 <div class="builder-row">
                                     <div>
                                         <label>Anonymity Mode
-                                            <span class="info-icon" tabindex="0" data-tooltip="In-Group surveys are always anonymous — instructors only see team-level feedback."></span>
+                                            <span class="info-icon" tabindex="0" data-tooltip="Anonymous: instructors see team-level summaries only and the bot relabels teammates as A/B/C. Identified: graded reflections that need real names + roster + ratings (e.g. HCI 271 weekly reflection template). Pseudonymous: same as anonymous for now."></span>
                                         </label>
-                                        <select id="ig-anonymity" disabled>
-                                            <option value="anonymous">Anonymous (locked)</option>
+                                        <select id="ig-anonymity">
+                                            <option value="anonymous">Anonymous (default)</option>
+                                            <option value="identified">Identified (graded — names allowed)</option>
+                                            <option value="pseudonymous">Pseudonymous</option>
                                         </select>
                                     </div>
                                 </div>
@@ -749,6 +761,14 @@ If the student responds that they have no more feedback to give, then please con
                                         <label>Expires At <span style="font-weight:400">(leave blank = +14 days)</span></label>
                                         <input type="datetime-local" id="ig-expires-at" />
                                     </div>
+                                </div>
+                                <div style="margin-top:14px">
+                                    <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
+                                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey. The engine walks every section in order and won't let the conversation close until each one is covered. Useful for graded team-process reflections (e.g. HCI 271 Wk 6 Parts 2 + 3)."></span>
+                                    </label>
+                                    <select id="ig-schema-select">
+                                        <option value="">(none — free-form chat)</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -780,6 +800,91 @@ If the student responds that they have no more feedback to give, then please con
                 </div>
             </div><!-- /#mode-panel-group -->
 
+            <!-- ============================================================
+                 Structured Reflection (form mode) — read-only registry.
+                 Instructor picks a schema from /form_schemas/, writes the
+                 system prompt, saves. The survey carries mode='form' +
+                 form_schema_id on the backend so feedback.html activates the
+                 engine purely from the survey id (no URL params).
+                 Schema bodies live in the FormSchema DB table — edit via
+                 Django admin to revise without a redeploy.
+                 ============================================================ -->
+            <div id="mode-panel-form" class="formmode-scope" role="tabpanel" style="display:none">
+                <div class="layout">
+                    <div>
+                        <div class="card" id="form-survey-card">
+                            <div class="card-title">New Structured-Reflection Survey</div>
+
+                            <div class="builder-note">Pick a checked-in schema and write the bot's voice — the engine walks every section in order. Schemas are managed in the database; instructors don't author them in-app yet.</div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Survey Details</div>
+                                <div class="builder-row">
+                                    <div>
+                                        <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
+                                        <input type="number" id="form-survey-week" placeholder="6" min="1" />
+                                    </div>
+                                    <div>
+                                        <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
+                                        <input type="text" id="form-survey-label" placeholder="Week 6 Personal Reflection (HCI 271)" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Schema</div>
+                                <label>FormSchema
+                                    <span class="info-icon" tabindex="0" data-tooltip="Pick a checked-in schema. The schema defines the sections, prompts, probes, and field types the engine walks through. Schemas are managed in the database; instructors don't author them in-app yet."></span>
+                                </label>
+                                <select id="form-schema-select"></select>
+                                <div id="form-schema-preview" style="margin-top:8px;padding:10px 12px;background:var(--surface-low,#f4f5f6);border:1px solid var(--surface-mid,#e2e6ea);border-radius:6px;font-size:0.78rem;color:var(--text-variant);display:none">
+                                </div>
+                            </div>
+
+                            <div class="builder-section">
+                                <div class="builder-section-title">Instructions</div>
+                                <label>System Prompt
+                                    <span class="info-icon" tabindex="0" data-tooltip="Tone, posture, and domain rules — NOT structural enforcement. The engine handles section ordering, transitions, probe-once, and the closing [END]. Keep this prompt about voice and what NOT to do (e.g. don't define methods, don't write the reflection)."></span>
+                                </label>
+                                <textarea id="form-survey-instructions" rows="10" placeholder="Paste the matching prompt from LEAI/docs/prompts/wk6-hci271-form.md"></textarea>
+                            </div>
+
+                            <div class="builder-section" style="margin-bottom:0">
+                                <div class="builder-section-title">Schedule</div>
+                                <div class="builder-row" style="margin-bottom:0">
+                                    <div>
+                                        <label>Opens At <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                                        <input type="datetime-local" id="form-opens-at" />
+                                    </div>
+                                    <div>
+                                        <label>Expires At <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+                                        <input type="datetime-local" id="form-expires-at" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="form-survey-msg"></div>
+                            <div style="margin-top: 20px">
+                                <button class="btn btn-primary" id="form-create-btn">Create Survey &amp; Get Link</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="card" id="form-surveys-card">
+                            <div class="card-title" style="justify-content:space-between">
+                                Your Form Surveys
+                                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                                    <button class="btn btn-outline" id="form-refresh-btn">Refresh</button>
+                                </div>
+                            </div>
+                            <div id="form-survey-list-container">
+                                <div class="empty-state">No form-mode surveys yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /#mode-panel-form -->
+
             <!-- In-Group Edit modal -->
             <div class="modal-overlay" id="ig-edit-overlay">
                 <div class="modal-box">
@@ -791,6 +896,18 @@ If the student responds that they have no more feedback to give, then please con
                     <input type="number" id="ig-edit-week" min="1" />
                     <label>Activity Context</label>
                     <input type="text" id="ig-edit-activity" />
+                    <label>Instructions <span style="font-weight:400;color:var(--muted)">(system prompt — sent verbatim to the bot)</span>
+                        <span class="info-icon" tabindex="0" data-tooltip="Edit the full system prompt for this survey. Updates take effect on the student's next page load. Existing in-flight conversations keep the previous prompt in their chat history."></span>
+                    </label>
+                    <textarea id="ig-edit-instructions" rows="10" placeholder="Full system prompt for this in-group survey"></textarea>
+                    <label>Anonymity Mode
+                        <span class="info-icon" tabindex="0" data-tooltip="Anonymous (default): bot relabels teammates A/B/C and never asks for names. Identified: graded reflections that need real names + roster + ratings (e.g. HCI 271 weekly reflection template). Pseudonymous: same as anonymous for now. Changing this takes effect on the student's next page load."></span>
+                    </label>
+                    <select id="ig-edit-anonymity" style="margin-bottom:12px">
+                        <option value="anonymous">Anonymous</option>
+                        <option value="identified">Identified (names allowed)</option>
+                        <option value="pseudonymous">Pseudonymous</option>
+                    </select>
                     <label>Opens At</label>
                     <input type="datetime-local" id="ig-edit-opens-at" />
                     <label>Expires At</label>
@@ -938,37 +1055,50 @@ If the student responds that they have no more feedback to give, then please con
         });
         var generalPanel = document.getElementById('mode-panel-general');
         var groupPanel = document.getElementById('mode-panel-group');
+        var formPanel = document.getElementById('mode-panel-form');
         if (generalPanel) generalPanel.style.display = (mode === 'general') ? '' : 'none';
         if (groupPanel)   groupPanel.style.display = (mode === 'group') ? '' : 'none';
+        if (formPanel)    formPanel.style.display = (mode === 'form') ? '' : 'none';
         var badge = document.getElementById('mode-badge');
         if (badge) {
             badge.setAttribute('data-mode', mode);
-            badge.textContent = (mode === 'general') ? 'General Mode' : 'In-Group Mode';
+            badge.textContent = (mode === 'general') ? 'General Mode'
+                : (mode === 'group') ? 'In-Group Mode'
+                : 'Form Mode';
         }
         localStorage.setItem(MODE_KEY, mode);
+        if (mode === 'form') initFormModePanel();
+        if (mode === 'group') populateInGroupSchemaSelect();
     }
 
-    function isFormDirty() {
-        var active = document.querySelector('.mode-tab.active');
-        if (!active) return false;
-        var panel = (active.dataset.mode === 'general')
-            ? document.getElementById('mode-panel-general')
-            : document.getElementById('mode-panel-group');
-        if (!panel) return false;
-        var fields = panel.querySelectorAll('input[type="text"], input[type="number"], textarea');
-        for (var i = 0; i < fields.length; i++) {
-            if (fields[i].value && fields[i].value.trim().length > 0) return true;
-        }
-        return false;
+    var _igSchemaSelectLoaded = false;
+    function populateInGroupSchemaSelect() {
+        var sel = document.getElementById('ig-schema-select');
+        if (!sel || _igSchemaSelectLoaded) return;
+        _igSchemaSelectLoaded = true;
+        fetch(API + '/form_schemas/?active=1')
+            .then(function (r) { return r.json(); })
+            .then(function (rows) {
+                (rows || []).forEach(function (s) {
+                    var opt = document.createElement('option');
+                    opt.value = s.schema_id;
+                    var lbl = s.title || s.schema_id;
+                    if (s.course_label || s.week_number) {
+                        lbl += '  (' + (s.course_label || '') +
+                            (s.week_number ? ' Wk ' + s.week_number : '') + ')';
+                    }
+                    opt.textContent = lbl;
+                    sel.appendChild(opt);
+                });
+            })
+            .catch(function () { /* leave the (none) default */ });
     }
 
     document.querySelectorAll('.mode-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             var target = tab.dataset.mode;
             if (target === (localStorage.getItem(MODE_KEY) || 'general')) return;
-            if (isFormDirty()) {
-                if (!confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
-            }
+            if (!confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
             applyMode(target);
         });
     });
@@ -1288,7 +1418,7 @@ If the student responds that they have no more feedback to give, then please con
         if (d.rule_short)        lines.push('- Keep responses short.');
         if (d.rule_one_question) lines.push('- Ask at most one question per turn. Zero is fine (a simple acknowledgement with no question) — never bundle multiple questions into a single reply. No numbered or bulleted lists of questions, no "and also…" follow-ups, and never more than one "?" per message. If several topics matter, pick the single most relevant one and save the rest for later turns.');
         if (d.rule_on_topic)     lines.push('- Stay on topic. Redirect off-topic messages.');
-        if (d.rule_stop)         lines.push('- If the student says STOP or says they have no more feedback, conclude the conversation.');
+        lines.push('- Do not invite the student to type a keyword (like STOP) to end the conversation, and do not treat short replies like "no" / "that\'s all" / "I\'m done" as a request to end the entire survey — they typically mean "nothing more on this topic, move on." End the conversation only when the natural arc is finished and the student has covered the topics you were asked to gather feedback on.');
         if (d.max_chars)     lines.push('- Keep each response under ' + d.max_chars + ' characters.');
         if (d.additional)    lines.push('\n' + d.additional);
         lines.push('');
@@ -1303,6 +1433,16 @@ If the student responds that they have no more feedback to give, then please con
             igApplyConfigColor(picked);
             igRenderScopeBanner(picked);
         }
+    });
+
+    var igAdvancedToggle = document.getElementById('ig-advanced-toggle');
+    if (igAdvancedToggle) igAdvancedToggle.addEventListener('click', function () {
+        var p = document.getElementById('ig-advanced-panel');
+        var isHidden = (p.style.display === 'none' || p.style.display === '');
+        p.style.display = isHidden ? 'block' : 'none';
+        this.textContent = isHidden
+            ? '▼ Write or edit prompt directly'
+            : '▶ Write or edit prompt directly';
     });
 
     var igSettingsToggle = document.getElementById('ig-settings-toggle');
@@ -1343,11 +1483,15 @@ If the student responds that they have no more feedback to give, then please con
             rule_short:        document.getElementById('ig-rule-short').checked,
             rule_one_question: document.getElementById('ig-rule-one-question').checked,
             rule_on_topic:     document.getElementById('ig-rule-on-topic').checked,
-            rule_stop:         document.getElementById('ig-rule-stop').checked,
             max_chars:    document.getElementById('ig-max-chars').value,
             additional:   document.getElementById('ig-additional').value.trim(),
         };
-        var botPrompt = igBuildPrompt(promptData);
+        // Direct-prompt override: if the textarea is non-empty, send it
+        // verbatim as the survey's instructions and skip the builder. Lets
+        // instructors paste a hand-authored prompt (e.g. wk6-hci271-group.md).
+        var directPromptEl = document.getElementById('ig-prompt-direct');
+        var directPrompt = directPromptEl ? directPromptEl.value.trim() : '';
+        var botPrompt = directPrompt || igBuildPrompt(promptData);
 
         // Real backend: POST /create_feedback_gpt/ with mode=group + team_configuration_id.
         // Survey row and team snapshot are created atomically server-side.
@@ -1358,12 +1502,16 @@ If the student responds that they have no more feedback to give, then please con
             survey_label: label,
             instructions: botPrompt,
             week_number: parseInt(week, 10),
-            anonymity_mode: 'anonymous',
+            anonymity_mode: (document.getElementById('ig-anonymity') && document.getElementById('ig-anonymity').value) || 'anonymous',
             opens_at:   document.getElementById('ig-opens-at').value || null,
             expires_at: document.getElementById('ig-expires-at').value || null,
             mode: 'group',
             team_configuration_id: chosenId,
         };
+        // Optional: bind a FormSchema so the engine enforces section coverage
+        // on top of the team-aware prompt (e.g. HCI 271 Wk6 Parts 2 + 3).
+        var schemaSel = document.getElementById('ig-schema-select');
+        if (schemaSel && schemaSel.value) createPayload.form_schema_id = schemaSel.value;
         fetch(API + '/create_feedback_gpt/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1373,6 +1521,7 @@ If the student responds that they have no more feedback to give, then please con
             return body;
         }); }).then(function (resp) {
             if (typeof igLoadSurveys === 'function') igLoadSurveys();
+            if (directPromptEl) directPromptEl.value = '';
             var base = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
             // Use public_id (random alphanumeric) to match the shared link convention.
             var shareUrl = base + '?id=' + resp.public_id;
@@ -1626,6 +1775,10 @@ If the student responds that they have no more feedback to give, then please con
         // on the backend — leave the field blank for edits and let instructors add
         // standalone notes instead.
         document.getElementById('ig-edit-activity').value = '';
+        // Prefill the full system prompt so instructors can revise it directly.
+        document.getElementById('ig-edit-instructions').value = s.instructions || s.prompt || '';
+        var anonSel = document.getElementById('ig-edit-anonymity');
+        if (anonSel) anonSel.value = s.anonymity_mode || 'anonymous';
         document.getElementById('ig-edit-opens-at').value = igToLocalDatetime(s.opens_at);
         document.getElementById('ig-edit-expires-at').value = igToLocalDatetime(s.expires_at);
         document.getElementById('ig-edit-msg').textContent = '';
@@ -1641,23 +1794,33 @@ If the student responds that they have no more feedback to give, then please con
         var id = document.getElementById('ig-edit-id').value;
         var label = document.getElementById('ig-edit-label').value.trim();
         var week = document.getElementById('ig-edit-week').value;
+        var instructions = document.getElementById('ig-edit-instructions').value;
         var opensAt = document.getElementById('ig-edit-opens-at').value || null;
         var expiresAt = document.getElementById('ig-edit-expires-at').value || null;
         if (!label || !week) {
             setMsg('ig-edit-msg', 'Label and week are required.', 'error');
             return;
         }
+        var anonSelEdit = document.getElementById('ig-edit-anonymity');
+        var payload = {
+            survey_id: id,
+            survey_label: label,
+            name: label,
+            week_number: parseInt(week, 10),
+            opens_at: opensAt,
+            expires_at: expiresAt,
+            anonymity_mode: (anonSelEdit && anonSelEdit.value) || 'anonymous',
+        };
+        // Only send instructions if the textarea was changed to non-empty;
+        // empty means "don't touch the prompt", since there's no separate
+        // "clear prompt" affordance and an empty prompt would brick the bot.
+        if (instructions && instructions.trim()) {
+            payload.instructions = instructions;
+        }
         fetch(API + '/update_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                survey_id: id,
-                survey_label: label,
-                name: label,
-                week_number: parseInt(week, 10),
-                opens_at: opensAt,
-                expires_at: expiresAt,
-            }),
+            body: JSON.stringify(payload),
         }).then(function (r) { return r.json().then(function (b) {
             if (!r.ok || b.error) throw new Error(b.error || 'save failed');
             return b;
@@ -1919,9 +2082,7 @@ If the student responds that they have no more feedback to give, then please con
         if (document.getElementById('b-rule-on-topic').checked) {
             rules.push('If a student asks you to do anything outside of the class topic, do not engage and steer the conversation back to collecting feedback.');
         }
-        if (document.getElementById('b-rule-stop').checked) {
-            rules.push('If the student responds that they have no more feedback to give, then please conclude the conversation. If the student specifically responds with "STOP", then conclude the conversation. In your introduction message, make sure to include that the student can end the conversation with "STOP" or once they do not have any more feedback.');
-        }
+        rules.push('Do not invite the student to type a keyword (like "STOP") to end the conversation, and do not treat short replies like "no", "that\'s all", or "I\'m done" as a request to end the entire survey — those usually mean "nothing more on this topic, move on." End only when the natural arc of the conversation is complete and the student has covered the topics you were asked to gather feedback on.');
         if (document.getElementById('b-ask-bot-feedback').checked) {
             rules.push('When you are concluding a conversation, ask the student for feedback on yourself as a bot and how you can better gather feedback. Do not respond to the student after your concluding question/message.');
         }
@@ -2019,7 +2180,7 @@ If the student responds that they have no more feedback to give, then please con
                 ['b-bot-name','b-bot-role','b-week-range','b-course-desc','b-topics','b-projects','b-max-chars','b-additional'].forEach(function (id) {
                     document.getElementById(id).value = '';
                 });
-                ['b-ask-struggles','b-ask-well','b-ask-excited','b-ask-professor','b-ask-projects','b-ask-bot-feedback','b-rule-short','b-rule-no-explain','b-rule-on-topic','b-rule-stop'].forEach(function (id) {
+                ['b-ask-struggles','b-ask-well','b-ask-excited','b-ask-professor','b-ask-projects','b-ask-bot-feedback','b-rule-short','b-rule-no-explain','b-rule-on-topic'].forEach(function (id) {
                     document.getElementById(id).checked = true;
                 });
                 // Clear settings fields
@@ -2034,6 +2195,325 @@ If the student responds that they have no more feedback to give, then please con
     });
 
     document.getElementById('refresh-surveys-btn').addEventListener('click', loadSurveys);
+
+    // ============================================================
+    // FORM-MODE PANEL (Structured Reflection)
+    // ============================================================
+    var _formSchemas = null;
+    var _formPanelLoaded = false;
+
+    function clearChildren(el) { while (el && el.firstChild) el.removeChild(el.firstChild); }
+
+    function initFormModePanel() {
+        if (!activeCourse) return;
+        if (_formPanelLoaded) {
+            loadFormSurveys();
+            return;
+        }
+        _formPanelLoaded = true;
+        loadFormSchemaRegistry();
+        loadFormSurveys();
+    }
+
+    function loadFormSchemaRegistry() {
+        var sel = document.getElementById('form-schema-select');
+        if (!sel) return;
+        clearChildren(sel);
+        var loadingOpt = document.createElement('option');
+        loadingOpt.textContent = 'Loading schemas…';
+        loadingOpt.disabled = true;
+        sel.appendChild(loadingOpt);
+
+        fetch(API + '/form_schemas/?active=1')
+            .then(function (r) { return r.json(); })
+            .then(function (rows) {
+                _formSchemas = rows || [];
+                clearChildren(sel);
+                if (!_formSchemas.length) {
+                    var none = document.createElement('option');
+                    none.textContent = 'No schemas available';
+                    none.disabled = true;
+                    sel.appendChild(none);
+                    return;
+                }
+                _formSchemas.forEach(function (s) {
+                    var opt = document.createElement('option');
+                    opt.value = s.schema_id;
+                    var lbl = s.title || s.schema_id;
+                    if (s.course_label || s.week_number) {
+                        lbl += '  (' + (s.course_label || '') +
+                            (s.week_number ? ' Wk ' + s.week_number : '') + ')';
+                    }
+                    opt.textContent = lbl;
+                    sel.appendChild(opt);
+                });
+                renderFormSchemaPreview(sel.value);
+            })
+            .catch(function () {
+                clearChildren(sel);
+                var err = document.createElement('option');
+                err.textContent = 'Failed to load schemas';
+                err.disabled = true;
+                sel.appendChild(err);
+            });
+        sel.addEventListener('change', function () { renderFormSchemaPreview(sel.value); });
+    }
+
+    function renderFormSchemaPreview(schemaId) {
+        var box = document.getElementById('form-schema-preview');
+        if (!box) return;
+        if (!schemaId) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        clearChildren(box);
+        box.textContent = 'Loading preview…';
+        fetch(API + '/form_schemas/' + encodeURIComponent(schemaId) + '/')
+            .then(function (r) { return r.json(); })
+            .then(function (rec) {
+                clearChildren(box);
+                var body = rec.body || {};
+                var sections = body.sections || [];
+                var head = document.createElement('div');
+                head.style.cssText = 'font-weight:600;margin-bottom:6px';
+                head.textContent = (body.title || rec.title || rec.schema_id) +
+                    '  (' + sections.length + ' sections, v' + (body.version || rec.version || '?') + ')';
+                box.appendChild(head);
+                var ol = document.createElement('ol');
+                ol.style.cssText = 'margin:0;padding-left:18px;font-size:0.76rem';
+                sections.forEach(function (s) {
+                    var li = document.createElement('li');
+                    li.textContent = (s.id ? s.id + ' ' : '') + (s.title || '');
+                    ol.appendChild(li);
+                });
+                box.appendChild(ol);
+                if (body.intro) {
+                    var intro = document.createElement('div');
+                    intro.style.cssText = 'margin-top:8px;color:var(--muted);font-style:italic;font-size:0.74rem';
+                    intro.textContent = '“' + body.intro + '”';
+                    box.appendChild(intro);
+                }
+            })
+            .catch(function () { clearChildren(box); box.textContent = 'Preview unavailable.'; });
+    }
+
+    document.getElementById('form-create-btn').addEventListener('click', function () {
+        if (!activeCourse) return;
+        var label = document.getElementById('form-survey-label').value.trim();
+        var week = document.getElementById('form-survey-week').value.trim();
+        var schemaId = document.getElementById('form-schema-select').value;
+        var instructions = document.getElementById('form-survey-instructions').value.trim();
+        var opensAt = document.getElementById('form-opens-at').value;
+        var expiresAt = document.getElementById('form-expires-at').value;
+        var msgId = 'form-survey-msg';
+
+        if (!label)        { setMsg(msgId, 'Survey label is required.', 'error'); return; }
+        if (!schemaId)     { setMsg(msgId, 'Pick a schema.', 'error'); return; }
+        if (!instructions) { setMsg(msgId, 'Instructions (system prompt) are required.', 'error'); return; }
+
+        this.disabled = true;
+        fetch(API + '/create_feedback_gpt/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_id: activeCourse.id,
+                name: activeCourse.id + ' — ' + label,
+                week_number: week ? parseInt(week, 10) : null,
+                survey_label: label,
+                instructions: instructions,
+                instructor_name: activeCourse.name,
+                opens_at: opensAt ? new Date(opensAt).toISOString() : null,
+                expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+                anonymity_mode: 'anonymous',
+                mode: 'form',
+                form_schema_id: schemaId,
+            }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.error) {
+                setMsg(msgId, 'Could not create survey: ' + data.error, 'error');
+            } else {
+                setMsg(msgId, 'Form-mode survey created. public_id: ' + data.public_id, 'success');
+                document.getElementById('form-survey-label').value = '';
+                document.getElementById('form-survey-week').value = '';
+                document.getElementById('form-survey-instructions').value = '';
+                document.getElementById('form-opens-at').value = '';
+                document.getElementById('form-expires-at').value = '';
+                loadFormSurveys();
+            }
+        })
+        .catch(function () { setMsg(msgId, 'Network error.', 'error'); })
+        .finally(function () { document.getElementById('form-create-btn').disabled = false; });
+    });
+
+    var formRefreshBtn = document.getElementById('form-refresh-btn');
+    if (formRefreshBtn) formRefreshBtn.addEventListener('click', function () {
+        if (activeCourse) loadFormSurveys();
+    });
+
+    function buildFormSurveyItem(s) {
+        var publicId = s.public_id || s.id;
+        var link = BASE_URL + '?id=' + publicId;
+        var label = s.survey_label || s.name || ('Week ' + (s.week_number || '?'));
+        var weekLabel = s.week_number ? 'Week ' + s.week_number : '';
+        var status = surveyStatus(s);
+        var expiry = formatExpiry(s.expires_at);
+
+        var item = document.createElement('div');
+        item.className = 'survey-item';
+
+        var titleRow = document.createElement('div');
+        titleRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:2px;flex-wrap:wrap;';
+
+        var modeBadge = document.createElement('span');
+        modeBadge.className = 'survey-type-badge';
+        modeBadge.setAttribute('data-mode', 'form');
+        modeBadge.textContent = s.form_schema_id || 'Form';
+
+        var title = document.createElement('div');
+        title.className = 'survey-item-title';
+        title.textContent = label;
+
+        var badge = document.createElement('span');
+        badge.className = 'status-badge ' + status.cssClass;
+        badge.textContent = status.label;
+
+        titleRow.appendChild(modeBadge);
+        titleRow.appendChild(title);
+        titleRow.appendChild(badge);
+
+        var meta = document.createElement('div');
+        meta.className = 'survey-item-meta';
+        var metaParts = [];
+        if (weekLabel) metaParts.push(weekLabel);
+        if (expiry) metaParts.push('Expires ' + expiry);
+        if (typeof s.session_count === 'number') metaParts.push(s.session_count + ' session(s)');
+        meta.textContent = metaParts.join(' · ');
+
+        var linkBox = document.createElement('div');
+        linkBox.className = 'link-box';
+        var linkSpan = document.createElement('span');
+        linkSpan.className = 'link-text';
+        linkSpan.textContent = link;
+        linkSpan.title = link;
+        var openBtn = document.createElement('a');
+        openBtn.className = 'copy-btn';
+        openBtn.textContent = '↗';
+        openBtn.href = link;
+        openBtn.target = '_blank';
+        openBtn.rel = 'noopener';
+        openBtn.title = 'Open survey';
+        openBtn.style.textDecoration = 'none';
+        var copyBtn = document.createElement('button');
+        copyBtn.className = 'copy-btn';
+        copyBtn.textContent = 'Copy';
+        copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(link).then(function () {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(function () { copyBtn.textContent = 'Copy'; }, 2000);
+            });
+        });
+        linkBox.appendChild(linkSpan);
+        linkBox.appendChild(openBtn);
+        linkBox.appendChild(copyBtn);
+
+        var actionsRow = document.createElement('div');
+        actionsRow.style.cssText = 'display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;';
+
+        var toggleBtn = document.createElement('button');
+        toggleBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;text-transform:uppercase;letter-spacing:0.06em;';
+        if (s.is_closed) {
+            toggleBtn.textContent = 'Reopen';
+            toggleBtn.style.background = '#dcfce7';
+            toggleBtn.style.color = '#166534';
+        } else {
+            toggleBtn.textContent = 'Close';
+            toggleBtn.style.background = '#fee2e2';
+            toggleBtn.style.color = '#9f403d';
+        }
+        toggleBtn.addEventListener('click', function () {
+            toggleBtn.disabled = true;
+            fetch(API + '/set_survey_status/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ survey_id: s.id, action: s.is_closed ? 'reopen' : 'close' }),
+            }).then(function (r) { return r.json(); })
+              .then(function () { loadFormSurveys(); })
+              .catch(function () { toggleBtn.disabled = false; });
+        });
+
+        var dupBtn = document.createElement('button');
+        dupBtn.textContent = 'Duplicate';
+        dupBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#e8eff1;color:#566164;text-transform:uppercase;letter-spacing:0.06em;';
+        dupBtn.addEventListener('click', function () {
+            dupBtn.disabled = true;
+            fetch(API + '/clone_survey/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ survey_id: s.id }),
+            }).then(function (r) { return r.json(); })
+              .then(function () { loadFormSurveys(); })
+              .catch(function () { dupBtn.disabled = false; });
+        });
+
+        var editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit';
+        editBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#e8eff1;color:#006493;text-transform:uppercase;letter-spacing:0.06em;';
+        editBtn.addEventListener('click', function () { openEditModal(s); });
+
+        var deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.title = 'Permanently delete this survey and all its responses';
+        deleteBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#fee2e2;color:#b91c1c;text-transform:uppercase;letter-spacing:0.06em;';
+        deleteBtn.addEventListener('click', function () { openDeleteModal(s); });
+
+        actionsRow.appendChild(toggleBtn);
+        actionsRow.appendChild(dupBtn);
+        actionsRow.appendChild(editBtn);
+        actionsRow.appendChild(deleteBtn);
+
+        item.appendChild(titleRow);
+        item.appendChild(meta);
+        item.appendChild(linkBox);
+        item.appendChild(actionsRow);
+        return item;
+    }
+
+    function loadFormSurveys() {
+        if (!activeCourse) return;
+        var container = document.getElementById('form-survey-list-container');
+        clearChildren(container);
+        var loading = document.createElement('div');
+        loading.className = 'empty-state';
+        loading.textContent = 'Loading…';
+        container.appendChild(loading);
+
+        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+            .then(function (r) { return r.json(); })
+            .then(function (rows) {
+                clearChildren(container);
+                var formRows = (rows || []).filter(function (s) { return s.mode === 'form'; });
+                if (!formRows.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'empty-state';
+                    empty.textContent = 'No form-mode surveys yet.';
+                    container.appendChild(empty);
+                    return;
+                }
+                var list = document.createElement('div');
+                list.className = 'survey-list';
+                formRows.forEach(function (s) {
+                    list.appendChild(buildFormSurveyItem(s));
+                });
+                container.appendChild(list);
+            })
+            .catch(function () {
+                clearChildren(container);
+                var err = document.createElement('div');
+                err.className = 'empty-state';
+                err.textContent = 'Could not load surveys.';
+                container.appendChild(err);
+            });
+    }
 
     // ===== LOAD SURVEYS =====
     function loadSurveys() {
@@ -2239,6 +2719,8 @@ If the student responds that they have no more feedback to give, then please con
         document.getElementById('edit-label').value = s.survey_label || s.name;
         document.getElementById('edit-week').value = s.week_number || '';
         document.getElementById('edit-instructions').value = s.instructions || '';
+        var anonSelGen = document.getElementById('edit-anonymity');
+        if (anonSelGen) anonSelGen.value = s.anonymity_mode || 'anonymous';
         document.getElementById('edit-opens-at').value = toLocalDatetime(s.opens_at);
         document.getElementById('edit-expires-at').value = toLocalDatetime(s.expires_at);
         document.getElementById('edit-msg').textContent = '';
@@ -2268,6 +2750,7 @@ If the student responds that they have no more feedback to give, then please con
                 survey_label: label,
                 week_number: week ? parseInt(week, 10) : null,
                 instructions: instructions,
+                anonymity_mode: (document.getElementById('edit-anonymity') && document.getElementById('edit-anonymity').value) || 'anonymous',
                 opens_at: opensAt ? new Date(opensAt).toISOString() : null,
                 expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
             })
@@ -2279,6 +2762,7 @@ If the student responds that they have no more feedback to give, then please con
             } else {
                 document.getElementById('edit-modal').classList.remove('visible');
                 loadSurveys();
+                if (typeof loadFormSurveys === 'function' && _formPanelLoaded) loadFormSurveys();
             }
         })
         .catch(function () { document.getElementById('edit-msg').textContent = 'Network error.'; })
@@ -2320,6 +2804,7 @@ If the student responds that they have no more feedback to give, then please con
             } else {
                 document.getElementById('delete-modal').classList.remove('visible');
                 loadSurveys();
+                if (typeof loadFormSurveys === 'function' && _formPanelLoaded) loadFormSurveys();
             }
         })
         .catch(function () {
