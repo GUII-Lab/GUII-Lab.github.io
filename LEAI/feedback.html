@@ -1721,10 +1721,16 @@
 
         function storeData(content, sentBy) {
             window.sessionData.msgSeq = (window.sessionData.msgSeq || 0) + 1;
+            // Normalize the CSS-classname tag from appendMessage ('user-message' /
+            // 'ai-message') into the canonical role values the backend and
+            // analyzer expect ('user' / 'assistant'), matching the in-group flow.
+            var normalizedSentBy = (sentBy === 'user-message' || sentBy === 'user')
+                ? 'user'
+                : 'assistant';
             var data = {
                 session_id: window.sessionData.sessionID,
                 student_id: window.sessionData.sessionID,
-                sent_by: sentBy,
+                sent_by: normalizedSentBy,
                 content: content,
                 gpt_used: window.sessionData.selectedGPT,
                 gpt_id: window.sessionData.selectedGPTId,
