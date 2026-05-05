@@ -1230,27 +1230,6 @@
             headerLeft.appendChild(sep);
             headerLeft.appendChild(titleBlock);
             header.appendChild(headerLeft);
-
-            var headerRight = document.createElement('div');
-            headerRight.className = 'chat-header-right';
-            ['Terms', 'Privacy'].forEach(function (label) {
-                var a = document.createElement('a');
-                a.className = 'terms-link';
-                a.href = label === 'Terms' ? 'legal/terms.html' : 'legal/privacy.html';
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                a.title = 'View ' + label;
-                var full = document.createElement('span');
-                full.className = 'terms-link-full';
-                full.textContent = label;
-                var icon = document.createElement('span');
-                icon.className = 'terms-link-icon material-symbols-outlined';
-                icon.textContent = label === 'Terms' ? 'description' : 'shield';
-                a.appendChild(full);
-                a.appendChild(icon);
-                headerRight.appendChild(a);
-            });
-            header.appendChild(headerRight);
             app.appendChild(header);
 
             var mainContent = document.createElement('div');
