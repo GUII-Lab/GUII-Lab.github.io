@@ -1,0 +1,14 @@
+{
+    "name": "Maya",
+    "notes": "Engaged HCI 271 student, slightly anxious about doing it right. Capstone project: financial-aid navigation tool for community-college students. Did affinity diagramming, hit the interpretation step as the choke point. Has limited behavioral data (mostly attitudinal interviews).",
+    "turns": [
+        "ok so the whole insight funnel thing finally clicked for me. i kept writing 'observations' in my notes but realized none were actionable. like 'user paused for 5 seconds' is just data. the obs to interpretation to insight chain made me see we need to say WHY it matters for design",
+        "omg the interpretation step lol. we had this observation: 'user kept switching between the app and their browser', fine as data, but then we had like 3 competing interpretations and couldn't agree. trust issue? workflow friction? ended up going with 'users need a more integrated experience' which felt kinda vague tbh",
+        "we just voted lmao. not the most rigorous. in retrospect we should've gone back to other data to see which hypothesis had more evidence. triangulation or whatever",
+        "we're designing for community college students navigating financial aid. realized most of our interviews were attitudinal — what students say they do — barely any behavioral data of what they actually do in the moment. our insights feel kinda one-sided now",
+        "one person on our team kept wanting to jump straight to solutions. we'd be clustering notes and they'd go 'this clearly means we need a notification feature' and we had to keep pulling them back. frustrating but also revealed where we were solutioning before we had real insights",
+        "15 min standup at the start of each session where we explicitly state the question we're trying to answer, not the feature we want to build. should keep us in the problem space",
+        "whether we have enough data to actually validate our insights. 5 interviews, but some patterns only show up in 2 or 3 of them. feels risky to build a design direction on that",
+        "i think i'm good actually. this was way more useful than filling out the pdf ngl"
+    ]
+}

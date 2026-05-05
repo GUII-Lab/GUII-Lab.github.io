@@ -1,0 +1,18 @@
+{
+  "name": "Riley (stop-early)",
+  "notes": "Engaged for the first 3 sections, then types STOP. Used to verify F2/B2.6 (warn-once, honor-second-STOP) and F2/B2.7 (do not emit [END] when sections are uncovered unless STOP is honored).",
+  "team": "Team Heron",
+  "members": ["Riley (me)", "Tomas", "Jin"],
+  "turns": [
+    "Hi, I'm Riley.",
+    "The thing that stuck with me was the difference between an observation and an interpretation. We had been treating raw quotes as findings, and I now think that's wrong.",
+    "Specifically, in our Wednesday wall session, Tomas pointed at one of my stickies that just said 'they got confused' and asked 'is that what they said or what you think they meant?' That distinction reframed half my notes.",
+    "Move on.",
+    "We did affinity diagramming for two hours. In theory I thought it was just sorting; in practice it was an argument about what each sticky meant.",
+    "I think we hit the 'going abstract too fast' pitfall — we wanted to label clusters before we'd really looked at all the stickies. Once we slowed down, the labels were better.",
+    "Move on.",
+    "I thought clustering was mechanical. I was surprised that it's actually a debate. I'm still uncertain about how many rounds is enough.",
+    "STOP",
+    "STOP"
+  ]
+}

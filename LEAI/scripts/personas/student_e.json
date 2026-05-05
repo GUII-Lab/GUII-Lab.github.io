@@ -1,0 +1,22 @@
+{
+  "name": "Student E — engaged, gold path (Team 2, FORM survey)",
+  "notes": "FORM (individual) survey. Walks through Parts 1.1, 1.2, 1.3 (a/b/c), 1.4 with concrete examples, including NN/g pitfalls and behavior-vs-attitude shift. Designed to be the gold reference transcript for FORM mode.",
+  "team_number": 2,
+  "turns": [
+    "Hey — I'm on Team 2. Ready to reflect on Week 6.",
+    "The thing that stuck with me was the line between an observation and an insight. Specifically a moment in lecture where Magy contrasted 'the user clicked back' (observation) with 'the user lost trust in the page' (insight). I'd been writing all our field notes as observations and calling them findings, which now feels lazy.",
+    "Concrete moment: in our Tuesday synthesis session a teammate pointed at a sticky that said 'participant returned to homepage three times' and asked 'so what?' That phrase became our team's filter for the rest of the week — about 40% of our stickies got cut once we applied it.",
+    "Move on.",
+    "We did affinity diagramming on Wednesday for three hours with about 180 stickies from user interviews. Theory said cluster by behavior; in practice we kept defaulting to clustering by topic ('signup', 'navigation', 'errors') because that's how our notes were already organized.",
+    "We hit at least two NN/g pitfalls — clustering by topic instead of behavior for the first hour, and one teammate driving the wall while the rest of us watched. Once we rebalanced, the clusters got more honest. We also went too abstract on a cluster called 'frustration' and had to break it into three behavior-rooted ones.",
+    "Move on.",
+    "Before this week, I assumed affinity diagramming was basically grouping similar quotes — the kind of thing you could do in a spreadsheet in an hour. I treated it like coding qualitative data with a fancier name.",
+    "I was surprised by how much the *physical* act of moving the sticky mattered. A sticky in your hand on the wall is something you have to defend by where you put it. In a spreadsheet you just type a category and move on.",
+    "I'm still uncertain when to stop clustering. We did three rounds of regrouping and I genuinely could not tell whether round three was insight or just fatigue.",
+    "Move on.",
+    "It changes how I'm going to write our next round of interview questions. Up until now I was writing questions that surface attitudes — what users think — and treating those as primary. After this week I think we need at least half our questions to be behavioral probes that get them to walk through what they actually did, because the gap between say-vs-do is where the real insights are.",
+    "Smallest concrete change: in next week's interviews I'll add a 'walk me through the last time you actually did X' prompt to every question that currently asks 'what do you think about X'. Easy to check on Friday.",
+    "I think we're done.",
+    "Yes — this surfaced way more reflection than the PDF would have. The probes forced specifics. Improvement: maybe a small 'section 3 of 4' indicator so I know how much is left."
+  ]
+}

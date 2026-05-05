@@ -1,0 +1,15 @@
+{
+    "name": "Alex",
+    "notes": "Overloaded HCI 271 student, gives terse answers, but is genuinely engaged when pushed. Capstone: fitness app. Specifically tests whether the bot pushes back on vague answers (a known failure mode in reflection prompts). If the bot accepts 'it was fine' without probing, the prompt is broken.",
+    "turns": [
+        "the insight funnel ig. like observations aren't insights",
+        "we kept labeling things like 'user seems confused' as an insight. that's not an insight that's just an observation. insight would be WHY they're confused and what it means to fix",
+        "affinity diagramming",
+        "took way longer than expected. also our TA told us our cluster labels were basically just topic categories not insights. 'navigation issues' was the example",
+        "had to redo labels as full sentences. 'navigation issues' became 'users lose their place because the menu doesn't show where they are in the flow'. took forever but the labels were actually useful after that",
+        "fitness app. realized the problem isn't the menu, it's feedback. users need confirmation the app knows where they are in their workout. completely different design implication than we started with",
+        "worked: time box. didn't work: one person was mentally checked out and kept derailing. not sure how to address it without making it awkward",
+        "whether we have enough participants. 4 interviews and some insights are based on like 2 of them",
+        "ok stop done"
+    ]
+}

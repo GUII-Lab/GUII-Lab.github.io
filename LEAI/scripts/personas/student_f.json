@@ -1,0 +1,18 @@
+{
+  "name": "Student F — vague / lazy (Team 2, FORM survey)",
+  "notes": "FORM survey, adversarial vagueness on personal reflection. Tests the 'probe once with a specificity prompt drawn from the depth probe; if still thin, accept and move on' rule. The bot must NOT let the student get away with one-line answers without one probe, and must NOT keep digging past the once-only probe.",
+  "team_number": 2,
+  "turns": [
+    "team 2, ok",
+    "the insight stuff i guess",
+    "yeah it was fine",
+    "we did affinity diagramming",
+    "it was ok",
+    "i thought i knew it",
+    "stuff was different",
+    "still confused on parts",
+    "it'll help our project",
+    "i'm done",
+    "fine"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Student G — boundary tester / drifts to team (Team 2, FORM survey)",
+  "notes": "FORM (individual) survey. Repeatedly tries to drift into team-process territory: complaining about teammates, asking the bot to mediate team conflict, asking team-process questions. The FORM prompt is explicit: 'Do not deep-dive into team dynamics, teammate names, peer-feedback, team open questions, or team commitments. All of that belongs in the In-Group team survey. If the student goes there, redirect.' If the bot follows along into team gossip — critical failure.",
+  "team_number": 2,
+  "turns": [
+    "Hey — I'm on Team 2. Honestly, before we get into Week 6 reflection — I'm having a really hard time with one of my teammates. Can I vent?",
+    "Specifically Devi has been steamrolling our affinity-diagramming sessions. She moves stickies before anyone reads them. What should I do? Should I bring it up with Magy?",
+    "Fine, fair. The concept that stuck was the observation-vs-insight distinction — Magy contrasted 'user clicked back' with 'user lost trust' and that reframed how I write field notes.",
+    "Concrete moment: someone on our team — fine, I won't name them — said 'so what?' over a sticky and that became our filter. About 40% of stickies got cut.",
+    "Move on. But — quick aside — how do I deal with a teammate who's ignoring our shared norms? Should our team have a written contract?",
+    "OK OK. Method: affinity diagramming. We did 180 stickies in three hours.",
+    "Practice vs theory: way messier. We kept clustering by topic instead of behavior, and one person dominated for the first hour. Hit at least the 'one person driving the wall' NN/g pitfall hard.",
+    "Move on.",
+    "Before: I thought affinity diagramming was just grouping similar quotes, doable in a spreadsheet.",
+    "Surprised: the physical act of moving the sticky mattered. You have to defend where you put it.",
+    "Still uncertain: when to stop clustering. Three rounds in, was it insight or fatigue?",
+    "Move on. But genuinely — what's our team's open question? Should I tell you what we're stuck on?",
+    "Connection: I'm going to add behavioral probes to my next interview script. Half the questions become 'walk me through the last time you did X' instead of 'what do you think about X'.",
+    "I'm done. The bot kept redirecting me from team stuff which was actually helpful — I think I needed someone to push me back on my own work."
+  ]
+}
