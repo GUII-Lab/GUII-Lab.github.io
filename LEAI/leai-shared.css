@@ -35,6 +35,18 @@
 
     /* Ambient shadow — only for floating elements (modals, login card) */
     --shadow-float: 0 12px 32px -4px rgba(22, 28, 31, 0.08);
+
+    /* In-Group mode accent (team-scoped feedback) */
+    --ingroup-primary:      #2E7D57;
+    --ingroup-primary-dim:  #256A49;
+    --ingroup-tint:         rgba(46, 125, 87, 0.12);
+    --ingroup-tint-strong:  rgba(46, 125, 87, 0.20);
+
+    /* Structured-Reflection (form mode) accent — amber-orange */
+    --formmode-primary:      #D97706;
+    --formmode-primary-dim:  #B36105;
+    --formmode-tint:         rgba(217, 119, 6, 0.12);
+    --formmode-tint-strong:  rgba(217, 119, 6, 0.20);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -128,6 +140,18 @@ input[type="checkbox"], input[type="radio"] {
 }
 .btn-sm:hover { background: var(--primary-dim); }
 .btn-sm:disabled { background: var(--surface-mid); color: var(--muted); cursor: not-allowed; }
+
+/* When both .btn-outline and .btn-sm are applied, preserve the outlined look —
+   .btn-sm previously won on background because of source order, making the
+   intended outline button render as a filled primary block. */
+.btn-outline.btn-sm,
+.btn.btn-outline.btn-sm {
+    background: var(--surface-card);
+    color: var(--primary);
+    border: 1px solid var(--primary);
+}
+.btn-outline.btn-sm:hover,
+.btn.btn-outline.btn-sm:hover { background: var(--surface-low); color: var(--primary); }
 
 .btn-ghost {
     background: var(--surface-mid); color: var(--text-variant);
@@ -545,4 +569,266 @@ input[type="checkbox"], input[type="radio"] {
     .chat-header { padding: 10px 16px 8px; }
     .chat-msg-user { max-width: 90%; }
     .chat-msg-assistant { max-width: 95%; }
+}
+
+/* ===== IN-GROUP MODE: TABS + BADGE ===== */
+.mode-tabs {
+    display: flex; gap: 0; max-width: 1400px; margin: 0 auto 20px;
+    border-bottom: 1px solid var(--outline);
+}
+.mode-tab {
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; font-size: 0.85rem; font-weight: 600;
+    color: var(--muted); padding: 14px 24px;
+    border-bottom: 3px solid transparent; margin-bottom: -1px;
+    letter-spacing: 0.02em;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.mode-tab:hover { color: var(--text); background: var(--surface-low); }
+.mode-tab.active[data-mode="general"] {
+    color: var(--primary); border-bottom-color: var(--primary);
+}
+.mode-tab.active[data-mode="group"] {
+    color: var(--ingroup-primary); border-bottom-color: var(--ingroup-primary);
+}
+.mode-tab.active[data-mode="form"] {
+    color: var(--formmode-primary); border-bottom-color: var(--formmode-primary);
+}
+
+.mode-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px; border-radius: 999px;
+    margin-left: 12px; vertical-align: middle;
+}
+.mode-badge::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor;
+}
+.mode-badge[data-mode="general"] { background: rgba(0, 100, 147, 0.10); color: var(--primary); }
+.mode-badge[data-mode="group"]   { background: var(--ingroup-tint); color: var(--ingroup-primary); }
+.mode-badge[data-mode="form"]    { background: var(--formmode-tint); color: var(--formmode-primary); }
+
+.ingroup-scope .btn-primary { background: linear-gradient(135deg, var(--ingroup-primary), var(--ingroup-primary-dim)); }
+.ingroup-scope .btn-primary:hover { background: var(--ingroup-primary-dim); }
+.ingroup-scope .btn-outline,
+.ingroup-scope .btn.btn-outline.btn-sm {
+    color: var(--ingroup-primary); border-color: var(--ingroup-primary); background: var(--surface-card);
+}
+.ingroup-scope .btn-outline:hover,
+.ingroup-scope .btn.btn-outline.btn-sm:hover { background: var(--ingroup-tint); color: var(--ingroup-primary); }
+.ingroup-scope .builder-section-title { color: var(--ingroup-primary); }
+
+.formmode-scope .btn-primary { background: linear-gradient(135deg, var(--formmode-primary), var(--formmode-primary-dim)); }
+.formmode-scope .btn-primary:hover { background: var(--formmode-primary-dim); }
+.formmode-scope .btn-outline,
+.formmode-scope .btn.btn-outline.btn-sm {
+    color: var(--formmode-primary); border-color: var(--formmode-primary); background: var(--surface-card);
+}
+.formmode-scope .btn-outline:hover,
+.formmode-scope .btn.btn-outline.btn-sm:hover { background: var(--formmode-tint); color: var(--formmode-primary); }
+.formmode-scope .builder-section-title { color: var(--formmode-primary); }
+.formmode-scope .info-icon:hover,
+.formmode-scope .info-icon:focus { color: var(--formmode-primary); border-color: var(--formmode-primary); }
+
+/* ===== PER-CONFIG COLOR PALETTE =====
+   Eight named colors, ordered so adjacent slots sit opposite on the color wheel
+   (green → purple → orange → teal → rose → indigo → brown → slate). Anywhere
+   a configuration is referenced, a [data-config-color="…"] attribute sets
+   --config-color / --config-color-dim / --config-tint for downstream components. */
+[data-config-color="forest"] { --config-color: #2E7D57; --config-color-dim: #256A49; --config-tint: rgba( 46,125, 87,0.12); --config-tint-strong: rgba( 46,125, 87,0.20); }
+[data-config-color="plum"]   { --config-color: #9333EA; --config-color-dim: #7A2BC2; --config-tint: rgba(147, 51,234,0.10); --config-tint-strong: rgba(147, 51,234,0.18); }
+[data-config-color="amber"]  { --config-color: #D97706; --config-color-dim: #B36105; --config-tint: rgba(217,119,  6,0.10); --config-tint-strong: rgba(217,119,  6,0.18); }
+[data-config-color="teal"]   { --config-color: #0F766E; --config-color-dim: #0B5E58; --config-tint: rgba( 15,118,110,0.12); --config-tint-strong: rgba( 15,118,110,0.20); }
+[data-config-color="rose"]   { --config-color: #BE185D; --config-color-dim: #9D144E; --config-tint: rgba(190, 24, 93,0.10); --config-tint-strong: rgba(190, 24, 93,0.18); }
+[data-config-color="indigo"] { --config-color: #4338CA; --config-color-dim: #362CA5; --config-tint: rgba( 67, 56,202,0.10); --config-tint-strong: rgba( 67, 56,202,0.18); }
+[data-config-color="brown"]  { --config-color: #92400E; --config-color-dim: #78340B; --config-tint: rgba(146, 64, 14,0.10); --config-tint-strong: rgba(146, 64, 14,0.18); }
+[data-config-color="slate"]  { --config-color: #475569; --config-color-dim: #384252; --config-tint: rgba( 71, 85,105,0.10); --config-tint-strong: rgba( 71, 85,105,0.18); }
+
+/* When a surface opts into config-colored rendering via `config-scoped` + data-config-color,
+   buttons, summaries, accents, and borders pick up the config's color. */
+.config-scoped { --ingroup-primary: var(--config-color); --ingroup-primary-dim: var(--config-color-dim); --ingroup-tint: var(--config-tint); }
+.config-scoped .btn-primary { background: linear-gradient(135deg, var(--config-color), var(--config-color-dim)); }
+.config-scoped .btn-primary:hover { background: var(--config-color-dim); }
+.config-scoped .btn-outline,
+.config-scoped .btn.btn-outline.btn-sm {
+    color: var(--config-color); border-color: var(--config-color); background: var(--surface-card);
+}
+.config-scoped .btn-outline:hover,
+.config-scoped .btn.btn-outline.btn-sm:hover { background: var(--config-tint); color: var(--config-color); }
+.config-scoped .builder-section-title { color: var(--config-color); }
+.config-scoped .card-title { color: var(--config-color); }
+
+.survey-type-badge {
+    display: inline-block; font-size: 0.60rem; font-weight: 700;
+    letter-spacing: 0.10em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 4px; margin-right: 8px;
+    vertical-align: middle;
+}
+.survey-type-badge[data-mode="general"] { background: rgba(0, 100, 147, 0.10); color: var(--primary); }
+.survey-type-badge[data-mode="group"]   { background: var(--ingroup-tint); color: var(--ingroup-primary); }
+.survey-type-badge[data-mode="form"]    { background: var(--formmode-tint); color: var(--formmode-primary); }
+
+/* ===== IN-GROUP MODE: TEAM STRUCTURE CARD ===== */
+.team-structure-summary {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; background: var(--ingroup-tint);
+    border-radius: var(--radius-md); margin-bottom: 12px;
+    flex-wrap: wrap; gap: 8px;
+}
+.team-structure-summary .summary-text { font-size: 0.9rem; color: var(--text); font-weight: 500; }
+
+.team-size-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 10px; margin-top: 12px;
+}
+.team-size-item {
+    background: var(--surface-low); padding: 10px 12px;
+    border-radius: var(--radius-sm);
+}
+.team-size-item > label {
+    display: block; font-size: 0.72rem; color: var(--muted);
+    margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.06em;
+}
+.team-size-item > input {
+    width: 100%; padding: 6px 8px; font-size: 0.9rem;
+    border: 1px solid var(--outline); border-radius: var(--radius-xs);
+    margin-bottom: 0;
+}
+.team-size-item.exception > input {
+    border-color: var(--ingroup-primary); background: var(--ingroup-tint);
+}
+
+.team-config-tabs {
+    display: flex; gap: 2px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--surface-mid);
+    flex-wrap: wrap;
+}
+.team-config-tab {
+    background: none; border: none; cursor: pointer;
+    font-family: inherit; font-size: 0.80rem; font-weight: 600;
+    color: var(--muted); padding: 8px 14px;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.team-config-tab.active { color: var(--ingroup-primary); border-bottom-color: var(--ingroup-primary); }
+.team-config-tab.add-config { color: var(--primary); font-weight: 500; padding: 8px 10px; }
+
+/* Per-config colored tabs: active tab uses that config's color.
+   Inactive tabs get a small color-dot as a persistent identity cue. */
+.team-config-tab[data-config-color]::before {
+    content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--config-color); margin-right: 8px; vertical-align: middle;
+    opacity: 0.55;
+}
+.team-config-tab[data-config-color].active { color: var(--config-color); border-bottom-color: var(--config-color); }
+.team-config-tab[data-config-color].active::before { opacity: 1; }
+
+/* ===== IN-GROUP MODE: STUDENT PRE-CHAT SCREENS ===== */
+.transparency-screen,
+.team-picker-screen {
+    max-width: 520px; margin: 80px auto; padding: 32px;
+    background: var(--surface-card); border-radius: var(--radius-md);
+    box-shadow: var(--shadow-float);
+}
+.transparency-screen h2,
+.team-picker-screen h2 {
+    font-size: 1.25rem; font-weight: 700; color: var(--text);
+    margin-bottom: 16px; letter-spacing: -0.01em;
+}
+.transparency-screen p {
+    color: var(--text-variant); line-height: 1.6; margin-bottom: 20px;
+    font-size: 0.95rem;
+}
+.transparency-screen .btn-continue,
+.team-picker-screen .btn-continue {
+    background: var(--ingroup-primary); color: white; border: none;
+    padding: 12px 24px; border-radius: var(--radius-md);
+    font-size: 0.95rem; font-weight: 600; cursor: pointer;
+    width: 100%;
+}
+.transparency-screen .btn-continue:hover,
+.team-picker-screen .btn-continue:hover { background: var(--ingroup-primary-dim); }
+.team-picker-screen label {
+    display: block; font-size: 0.85rem; font-weight: 600;
+    color: var(--text); margin-bottom: 10px;
+}
+.team-picker-screen select {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--outline);
+    border-radius: var(--radius-md); font-size: 1rem; margin-bottom: 20px;
+    background: var(--surface-card);
+}
+.team-picker-screen .picker-help {
+    font-size: 0.80rem; color: var(--muted); margin-top: -12px;
+    margin-bottom: 20px; text-align: center;
+}
+.team-picker-screen .picker-missing {
+    text-align: center; margin-top: 16px;
+    color: var(--muted); font-size: 0.8rem;
+}
+
+/* ===== IN-GROUP MODE: ANALYZER TEAM GRID ===== */
+.team-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    margin-top: 20px;
+}
+.team-card {
+    background: var(--surface-card); border-radius: var(--radius-md);
+    padding: 20px; border-top: 3px solid var(--ingroup-primary);
+}
+.team-card .team-name {
+    font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 8px;
+}
+.team-card .team-stats {
+    font-size: 0.78rem; color: var(--muted); margin-bottom: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+}
+.team-card .team-themes {
+    font-size: 0.90rem; color: var(--text-variant);
+    line-height: 1.5; margin-bottom: 16px;
+}
+.team-card .team-actions button {
+    background: none; border: 1px solid var(--ingroup-primary);
+    color: var(--ingroup-primary); padding: 6px 12px;
+    border-radius: var(--radius-sm); font-size: 0.82rem;
+    font-weight: 600; cursor: pointer;
+}
+.team-card .team-actions button:hover { background: var(--ingroup-tint); }
+
+/* ===== INFO ICON =====
+   Canonical LEAI info-icon: a bordered italic "i" circle with a styled tooltip
+   triggered by the data-tooltip attribute. Matches the pattern from
+   FeedbackAnalyzer.html so all pages share one vocabulary. */
+.info-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid var(--outline); background: transparent;
+    color: var(--muted); cursor: help;
+    font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700;
+    font-style: italic; line-height: 1; padding: 0;
+    margin-left: 6px; vertical-align: middle; flex-shrink: 0;
+    position: relative; text-transform: none; letter-spacing: 0;
+}
+.info-icon::before { content: 'i'; }
+.info-icon:hover, .info-icon:focus { color: var(--primary); border-color: var(--primary); outline: none; }
+.ingroup-scope .info-icon:hover,
+.ingroup-scope .info-icon:focus { color: var(--ingroup-primary); border-color: var(--ingroup-primary); }
+.config-scoped .info-icon:hover,
+.config-scoped .info-icon:focus { color: var(--config-color); border-color: var(--config-color); }
+.info-icon:hover::after, .info-icon:focus::after {
+    content: attr(data-tooltip);
+    position: absolute; bottom: calc(100% + 8px); left: 0;
+    width: max-content; max-width: 280px;
+    background: var(--text); color: #fff;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 400;
+    font-style: normal; line-height: 1.5; letter-spacing: 0;
+    text-transform: none; text-align: left; white-space: pre-line;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    z-index: 100; pointer-events: none;
+}
+.info-icon--right:hover::after, .info-icon--right:focus::after { left: auto; right: 0; }
+@media (max-width: 767px) {
+    .info-icon:hover::after, .info-icon:focus::after { max-width: 220px; }
 }
