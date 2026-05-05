@@ -226,6 +226,60 @@
         #sendMessage:hover:not(:disabled) { background: var(--primary-dim); }
         #sendMessage:disabled { background: var(--surface-mid); color: var(--muted); cursor: not-allowed; }
 
+        /* ===== MIC (dictation) BUTTON ===== */
+        #micButton {
+            background: var(--surface-card);
+            color: var(--text);
+            border: 1px solid rgba(169,180,183,0.4);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 44px; min-height: 44px;
+        }
+        #micButton:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+        #micButton:disabled { opacity: 0.45; cursor: not-allowed; }
+        #micButton.is-recording {
+            background: #c0392b; color: #fff; border-color: #c0392b;
+            animation: micPulse 1.2s ease-in-out infinite;
+        }
+        #micButton.is-busy { opacity: 0.7; cursor: progress; }
+        @keyframes micPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.55); }
+            50%      { box-shadow: 0 0 0 6px rgba(192,57,43,0); }
+        }
+        #micButton svg { width: 18px; height: 18px; }
+
+        /* Visual cue: live dictation streams interim words into the input.
+           A subtle tinted background tells the student the words they see
+           may still update before being finalised. */
+        textarea.leai-dictating, input.leai-dictating {
+            background: rgba(192, 57, 43, 0.06);
+            transition: background 0.15s;
+        }
+        .leai-live-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #c0392b; color: #fff;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+            padding: 2px 6px; border-radius: 3px;
+            text-transform: uppercase;
+            position: absolute; top: -7px; right: -6px;
+            pointer-events: none;
+        }
+        .leai-live-badge::before {
+            content: ''; width: 5px; height: 5px; border-radius: 50%;
+            background: #fff;
+            animation: leaiLiveBlink 1s ease-in-out infinite;
+        }
+        @keyframes leaiLiveBlink {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.3; }
+        }
+        #micButton { position: relative; }
+
         /* ===== DOWNLOAD BUTTON (hidden in redesign, kept for JS compatibility) ===== */
         #download-btn { display: none; }
         .download-section { display: none; }
@@ -545,19 +599,6 @@
             color: var(--muted); font-size: 0.78rem; text-decoration: none;
         }
         .pre-chat-screen .pre-chat-secondary:hover { color: var(--text); }
-
-        /* In-group context strip shown above the chat header */
-        #ingroup-context-strip {
-            padding: 8px 16px; font-size: 0.72rem; font-weight: 700;
-            letter-spacing: 0.08em; text-transform: uppercase;
-            background: var(--config-tint); color: var(--config-color);
-            border-bottom: 1px solid var(--outline);
-            display: flex; align-items: center; gap: 8px;
-        }
-        #ingroup-context-strip::before {
-            content: ""; width: 8px; height: 8px; border-radius: 50%;
-            background: var(--config-color);
-        }
     </style>
 </head>
 
@@ -614,6 +655,14 @@
         <div class="chat-footer-inner">
             <div class="input-area">
                 <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
+                <button id="micButton" type="button" aria-label="Dictate" aria-pressed="false" title="Dictate (click to record, click again to stop)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
                 <button id="sendMessage" disabled>Send</button>
             </div>
         </div>
@@ -667,6 +716,10 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
     <script src="leai-shared.js"></script>
+    <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
+         Lazy-loaded only when form-mode is active to avoid the ~200KB cost
+         on non-form-mode survey pages. The actual <script> insertion happens
+         in feedback.html below — see ensureDocxLoaded(). -->
     <script src="leai-formmode.js"></script>
     <script src="leai-version.js"></script>
     <script>
@@ -741,6 +794,10 @@
             schemaId: null,
             teamId: null,
             teamName: null,
+            // Pointer to the active flow's chatHistory array. The in-group
+            // flow's history lives in a function-local var, so it sets this
+            // pointer at chat-start; the download/transcript code reads it.
+            chatHistory: null,
         };
 
         // Activate form mode using the schema body the backend inlined on the
@@ -1129,19 +1186,24 @@
                 });
             }
 
+            // Release any leftover dictation recognizers/streams before
+            // wiping the DOM — Chrome's Web Speech API only allows one active
+            // SpeechRecognition per origin, so the previous main-mode mic
+            // would silently block the in-group mic from starting.
+            if (typeof leaiSpeech !== 'undefined' && typeof leaiSpeech.destroyAll === 'function') {
+                leaiSpeech.destroyAll();
+            }
+
             document.body.textContent = '';
             document.body.setAttribute('data-config-color', snap.color || 'forest');
 
-            var contextStrip = document.createElement('div');
-            contextStrip.id = 'ingroup-context-strip';
-            contextStrip.textContent = snap.name + ' \u00b7 ' + teamContext + ' \u00b7 Anonymous';
-            document.body.appendChild(contextStrip);
-
+            // Build the same Discussion-Ledger DOM shell as the default/form-mode
+            // flow so the team-mode UI inherits identical styling (header, message
+            // column, footer/input area, mic, typing dots, area-progress strip).
             var app = document.createElement('div');
             app.id = 'chat-app';
-            app.style.cssText = 'display:flex;flex-direction:column;flex:1;min-height:0;';
 
-            var header = document.createElement('div');
+            var header = document.createElement('header');
             header.className = 'chat-header';
             var headerLeft = document.createElement('div');
             headerLeft.className = 'chat-header-left';
@@ -1150,91 +1212,277 @@
             logo.textContent = 'LEAI';
             var sep = document.createElement('span');
             sep.className = 'chat-header-sep';
-            sep.textContent = '/';
+            sep.textContent = '|';
+            var titleBlock = document.createElement('div');
+            titleBlock.className = 'chat-header-title-block';
             var titleH = document.createElement('h2');
+            titleH.id = 'chat-title';
             titleH.textContent = survey.label + ' \u2014 ' + teamContext;
+            var subtitle = document.createElement('div');
+            subtitle.className = 'chat-header-subtitle';
+            var isIdentified = (survey.anonymity_mode === 'identified');
+            subtitle.textContent = isIdentified
+                ? snap.name + ' \u00b7 Graded reflection'
+                : snap.name + ' \u00b7 Your responses are anonymous';
+            titleBlock.appendChild(titleH);
+            titleBlock.appendChild(subtitle);
             headerLeft.appendChild(logo);
             headerLeft.appendChild(sep);
-            headerLeft.appendChild(titleH);
+            headerLeft.appendChild(titleBlock);
             header.appendChild(headerLeft);
+
+            var headerRight = document.createElement('div');
+            headerRight.className = 'chat-header-right';
+            ['Terms', 'Privacy'].forEach(function (label) {
+                var a = document.createElement('a');
+                a.className = 'terms-link';
+                a.href = label === 'Terms' ? 'legal/terms.html' : 'legal/privacy.html';
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.title = 'View ' + label;
+                var full = document.createElement('span');
+                full.className = 'terms-link-full';
+                full.textContent = label;
+                var icon = document.createElement('span');
+                icon.className = 'terms-link-icon material-symbols-outlined';
+                icon.textContent = label === 'Terms' ? 'description' : 'shield';
+                a.appendChild(full);
+                a.appendChild(icon);
+                headerRight.appendChild(a);
+            });
+            header.appendChild(headerRight);
             app.appendChild(header);
 
+            var mainContent = document.createElement('div');
+            mainContent.className = 'main-content';
             var messages = document.createElement('div');
-            messages.id = 'ig-messages';
-            messages.style.cssText = 'flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:10px;';
-            app.appendChild(messages);
+            messages.id = 'transcription';
+            mainContent.appendChild(messages);
+            app.appendChild(mainContent);
 
+            var footer = document.createElement('footer');
+            footer.className = 'chat-footer';
+            var footerInner = document.createElement('div');
+            footerInner.className = 'chat-footer-inner';
             var inputArea = document.createElement('div');
-            inputArea.style.cssText = 'padding:14px 20px;border-top:1px solid var(--outline);display:flex;gap:10px;align-items:flex-end;background:var(--surface-card);';
+            inputArea.className = 'input-area';
             var textarea = document.createElement('textarea');
-            textarea.id = 'ig-input';
+            textarea.id = 'messageInput';
             textarea.placeholder = 'Type your response...';
             textarea.rows = 2;
-            textarea.style.cssText = 'flex:1;padding:10px 12px;border:1px solid var(--outline);border-radius:var(--radius-md);font-family:inherit;font-size:0.95rem;resize:none;';
+
+            // Mic dictation button — same UX as the general/form-mode flow.
+            // Hidden if the browser lacks MediaRecorder/getUserMedia.
+            var igMicBtn = document.createElement('button');
+            igMicBtn.id = 'micButton';
+            igMicBtn.type = 'button';
+            igMicBtn.setAttribute('aria-label', 'Dictate');
+            igMicBtn.setAttribute('aria-pressed', 'false');
+            igMicBtn.title = 'Dictate (click to record, click again to stop)';
+            // Build the mic SVG via DOM APIs (no innerHTML) to satisfy strict XSS hooks.
+            (function buildMicIcon() {
+                var SVG_NS = 'http://www.w3.org/2000/svg';
+                var svg = document.createElementNS(SVG_NS, 'svg');
+                svg.setAttribute('viewBox', '0 0 24 24');
+                svg.setAttribute('width', '18');
+                svg.setAttribute('height', '18');
+                svg.setAttribute('fill', 'none');
+                svg.setAttribute('stroke', 'currentColor');
+                svg.setAttribute('stroke-width', '2');
+                svg.setAttribute('stroke-linecap', 'round');
+                svg.setAttribute('stroke-linejoin', 'round');
+                svg.setAttribute('aria-hidden', 'true');
+                function el(tag, attrs) {
+                    var n = document.createElementNS(SVG_NS, tag);
+                    Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+                    return n;
+                }
+                svg.appendChild(el('path', { d: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z' }));
+                svg.appendChild(el('path', { d: 'M19 10v2a7 7 0 0 1-14 0v-2' }));
+                svg.appendChild(el('line', { x1: '12', y1: '19', x2: '12', y2: '23' }));
+                svg.appendChild(el('line', { x1: '8', y1: '23', x2: '16', y2: '23' }));
+                igMicBtn.appendChild(svg);
+            })();
+
             var sendBtn = document.createElement('button');
+            sendBtn.id = 'sendMessage';
             sendBtn.type = 'button';
-            sendBtn.className = 'pre-chat-btn';
-            sendBtn.style.cssText = 'width:auto;padding:10px 20px;';
             sendBtn.textContent = 'Send';
             inputArea.appendChild(textarea);
+            inputArea.appendChild(igMicBtn);
             inputArea.appendChild(sendBtn);
-            app.appendChild(inputArea);
+            footerInner.appendChild(inputArea);
+            footer.appendChild(footerInner);
+            app.appendChild(footer);
+
+            // Wire up dictation if supported; otherwise hide the button.
+            if (typeof leaiSpeech !== 'undefined' && leaiSpeech.isSupported()) {
+                function setIgBadge(label) {
+                    var existing = igMicBtn.querySelector('.leai-live-badge');
+                    if (!label) { if (existing) existing.remove(); return; }
+                    if (existing) { existing.textContent = label; return; }
+                    var b = document.createElement('span');
+                    b.className = 'leai-live-badge';
+                    b.textContent = label;
+                    igMicBtn.appendChild(b);
+                }
+                var igCtrl = leaiSpeech.attachMicButton({
+                    buttonEl: igMicBtn,
+                    targetEl: textarea,
+                    language: 'en-US',
+                    mode: 'live',
+                    prompt: 'Mid-course peer/team feedback from a university student.',
+                    onStart: function () {
+                        igMicBtn.title = 'Listening — words appear as you speak';
+                        setIgBadge(igCtrl && igCtrl.getMode && igCtrl.getMode() === 'live' ? 'LIVE' : 'REC');
+                    },
+                    onStop: function () {
+                        setIgBadge(null);
+                        if (igCtrl && igCtrl.getMode && igCtrl.getMode() === 'whisper') {
+                            igMicBtn.classList.add('is-busy');
+                            igMicBtn.title = 'Transcribing…';
+                        } else {
+                            igMicBtn.title = 'Dictate (click to record, click again to stop)';
+                        }
+                    },
+                    onText: function () {
+                        igMicBtn.classList.remove('is-busy');
+                        setIgBadge(null);
+                        igMicBtn.title = 'Dictate (click to record, click again to stop)';
+                    },
+                    onError: function (err) {
+                        igMicBtn.classList.remove('is-busy');
+                        setIgBadge(null);
+                        igMicBtn.title = 'Dictate (click to record, click again to stop)';
+                        console.warn('Dictation error:', err);
+                        alert('Dictation failed: ' + (err && err.message ? err.message : err));
+                    },
+                });
+            } else {
+                igMicBtn.style.display = 'none';
+            }
 
             document.body.appendChild(app);
 
-            function appendIgMessage(role, text) {
-                var m = document.createElement('div');
-                m.style.cssText =
-                    'max-width:75%;padding:10px 14px;border-radius:12px;line-height:1.5;font-size:0.95rem;' +
-                    (role === 'user'
-                        ? 'align-self:flex-end;background:var(--config-tint);color:var(--text);'
-                        : 'align-self:flex-start;background:var(--surface-low);color:var(--text);');
-                if (role !== 'user' && window.marked && window.DOMPurify) {
-                    // Bot text can contain markdown (**bold**, *italic*, lists, code).
-                    // Reuse the same sanitise-to-fragment pipeline the general flow uses
-                    // so we never assign untrusted innerHTML.
-                    var frag = window.DOMPurify.sanitize(
-                        window.marked.parse(text),
-                        { RETURN_DOM_FRAGMENT: true }
-                    );
-                    m.appendChild(frag);
-                } else {
-                    m.textContent = text;
-                }
-                messages.appendChild(m);
-                m.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            // Surface the form-mode area-progress strip ("Area X of N") above
+            // the messages, same as the default flow does after initGpt().
+            if (formMode.active && formMode.state) {
+                renderFormModeProgress();
             }
 
-            // Mirrors the general-flow typing indicator: a bot-styled bubble
-            // containing three pulsing dots while the LLM is generating.
+            // Build a Discussion-Ledger article matching the default flow's
+            // buildAiMessage / buildStudentMessage output, then append to the
+            // shared #transcription column so the same CSS applies.
+            function appendIgMessage(role, text) {
+                var timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                var article = document.createElement('article');
+                if (role === 'user') {
+                    article.className = 'msg-student';
+                    var meta = document.createElement('div');
+                    meta.className = 'msg-student-meta';
+                    var label = document.createElement('span');
+                    label.className = 'msg-student-label';
+                    label.textContent = 'You';
+                    var time = document.createElement('span');
+                    time.className = 'msg-student-time';
+                    time.textContent = timeStr;
+                    var dot = document.createElement('div');
+                    dot.className = 'msg-student-dot';
+                    meta.appendChild(label);
+                    meta.appendChild(time);
+                    meta.appendChild(dot);
+                    var body = document.createElement('div');
+                    body.className = 'msg-student-body';
+                    var p = document.createElement('p');
+                    p.className = 'msg-student-text';
+                    p.textContent = text;
+                    body.appendChild(p);
+                    article.appendChild(meta);
+                    article.appendChild(body);
+                } else {
+                    article.className = 'msg-ai';
+                    var aMeta = document.createElement('div');
+                    aMeta.className = 'msg-ai-meta';
+                    var aDot = document.createElement('div');
+                    aDot.className = 'msg-ai-dot';
+                    var aLabel = document.createElement('span');
+                    aLabel.className = 'msg-ai-label';
+                    aLabel.textContent = 'LEAI';
+                    var aTime = document.createElement('span');
+                    aTime.className = 'msg-ai-time';
+                    aTime.textContent = timeStr;
+                    aMeta.appendChild(aDot);
+                    aMeta.appendChild(aLabel);
+                    aMeta.appendChild(aTime);
+                    var aBody = document.createElement('div');
+                    aBody.className = 'msg-ai-body';
+                    var aText = document.createElement('div');
+                    aText.className = 'msg-ai-text md-content';
+                    if (window.marked && window.DOMPurify) {
+                        var frag = window.DOMPurify.sanitize(
+                            window.marked.parse(text),
+                            { RETURN_DOM_FRAGMENT: true }
+                        );
+                        aText.appendChild(frag);
+                    } else {
+                        aText.textContent = text;
+                    }
+                    aBody.appendChild(aText);
+                    article.appendChild(aMeta);
+                    article.appendChild(aBody);
+                }
+                messages.appendChild(article);
+                messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
+            }
+
+            // Match the default flow's typing indicator: a bot-styled article
+            // with the three pulsing dots in its body.
             var igChatLocked = false;
             function showIgTyping() {
-                if (document.getElementById('ig-typing')) return;
-                var m = document.createElement('div');
-                m.id = 'ig-typing';
-                m.style.cssText =
-                    'max-width:75%;padding:10px 14px;border-radius:12px;line-height:1.5;' +
-                    'font-size:0.95rem;align-self:flex-start;background:var(--surface-low);color:var(--text);';
+                if (document.getElementById('msg-ai-typing')) return;
+                var article = document.createElement('article');
+                article.className = 'msg-ai';
+                article.id = 'msg-ai-typing';
+                var meta = document.createElement('div');
+                meta.className = 'msg-ai-meta';
+                var dot = document.createElement('div');
+                dot.className = 'msg-ai-dot';
+                var label = document.createElement('span');
+                label.className = 'msg-ai-label';
+                label.textContent = 'LEAI';
+                meta.appendChild(dot);
+                meta.appendChild(label);
+                var body = document.createElement('div');
+                body.className = 'msg-ai-body';
                 var typing = document.createElement('div');
                 typing.className = 'typing-dots';
                 typing.appendChild(document.createElement('span'));
                 typing.appendChild(document.createElement('span'));
                 typing.appendChild(document.createElement('span'));
-                m.appendChild(typing);
-                messages.appendChild(m);
-                m.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                body.appendChild(typing);
+                article.appendChild(meta);
+                article.appendChild(body);
+                messages.appendChild(article);
+                messages.scrollTo({ top: messages.scrollHeight, behavior: 'smooth' });
             }
             function hideIgTyping() {
-                var el = document.getElementById('ig-typing');
+                var el = document.getElementById('msg-ai-typing');
                 if (el) el.remove();
             }
             function setIgInputBusy(busy) {
                 if (igChatLocked) return;
                 textarea.disabled = busy;
                 sendBtn.disabled = busy;
+                igMicBtn.disabled = busy;
             }
 
             var chatHistory = [{ role: 'system', content: filledPrompt }];
+            // Expose this flow's chatHistory to the form-mode download bar.
+            // Without this, collectFormModeTranscript() reads the outer (empty)
+            // chatHistory and the structured artifact comes out blank.
+            if (formMode.active && formMode.state) {
+                formMode.chatHistory = chatHistory;
+            }
             var sessionId = (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
 
             // Persist this student's anonymous session ↔ team link on the backend
@@ -1302,10 +1550,12 @@
                         chatHistory.push({ role: 'assistant', content: synthReply });
                         logMessageEverywhere('bot', synthReply);
                         appendIgMessage('bot', synthReply);
+                        renderFormModeProgress();
                         if (pre.ended) lockIgChat();
                         return;
                     }
                     directiveText = (pre && pre.directive && pre.directive.text) || null;
+                    renderFormModeProgress();
                 }
 
                 if (typeof leaiChat !== 'undefined' && leaiChat.chat) {
@@ -1326,6 +1576,7 @@
                             var post = leaiFormMode.afterTurn(formMode.state, raw);
                             displayed = (post && post.displayedMessage) ? post.displayedMessage : raw;
                             ended = !!(post && post.ended);
+                            renderFormModeProgress();
                         }
                         hideIgTyping();
                         chatHistory.push({ role: 'assistant', content: displayed });
@@ -1352,24 +1603,36 @@
                 }
             }
 
-            // Lock the in-group chat once the engine signals end. Mirrors
-            // lockChat() for the general/form flow so the student sees the
-            // "Conversation complete" notice and can download the artifact.
+            // Mark in-group chat complete. In form-mode we keep the input
+            // live so students can revise/add post-completion (the download
+            // re-reads the live transcript on each click). Idempotent —
+            // engine may re-signal completion if the student keeps chatting.
             function lockIgChat() {
-                igChatLocked = true;
-                textarea.disabled = true;
-                textarea.value = '';
-                sendBtn.disabled = true;
-                var notice = document.createElement('p');
-                notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 16px 0;';
-                notice.textContent = 'Conversation complete — thanks for reflecting!';
-                inputArea.parentNode.insertBefore(notice, inputArea.nextSibling);
+                if (document.getElementById('ig-completion-notice') ||
+                        document.getElementById('ig-formmode-completion-notice')) {
+                    return;
+                }
                 if (formMode.active && formMode.state &&
                         typeof renderFormModeDownloadBar === 'function') {
-                    var hostFooter = document.createElement('div');
-                    hostFooter.className = 'chat-footer-inner';
-                    inputArea.parentNode.insertBefore(hostFooter, inputArea.nextSibling);
-                    renderFormModeDownloadBar(hostFooter);
+                    var notice = document.createElement('p');
+                    notice.id = 'ig-formmode-completion-notice';
+                    notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
+                    notice.textContent =
+                        'All sections captured — your reflection is ready below. ' +
+                        'You can keep chatting if you want to revise or add anything before downloading.';
+                    footerInner.appendChild(notice);
+                    renderFormModeDownloadBar(footerInner);
+                } else {
+                    igChatLocked = true;
+                    textarea.disabled = true;
+                    textarea.value = '';
+                    sendBtn.disabled = true;
+                    igMicBtn.disabled = true;
+                    var notice2 = document.createElement('p');
+                    notice2.id = 'ig-completion-notice';
+                    notice2.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
+                    notice2.textContent = 'Conversation complete — thanks for reflecting!';
+                    footerInner.appendChild(notice2);
                 }
             }
 
@@ -1379,6 +1642,12 @@
                 if (!text) return;
                 appendIgMessage('user', text);
                 textarea.value = '';
+                // Flush the recognizer's results history so the next
+                // utterance starts fresh in the cleared textarea.
+                if (typeof igCtrl !== 'undefined' && igCtrl &&
+                        igCtrl.isRecording && igCtrl.isRecording()) {
+                    igCtrl.resetSession();
+                }
                 requestBotTurn(text);
             });
             textarea.addEventListener('keydown', function (e) {
@@ -1447,6 +1716,8 @@
                     msgs.push({ sent_by: 'system', content: pre.directive.text });
                 }
             }
+            setInputBusy(true);
+            showTypingIndicator();
             leaiChat.chat(openingUser, { chatHistory: msgs }).then(function(data) {
                 var raw = data.response.trim();
                 var introMessage = raw;
@@ -1455,11 +1726,17 @@
                     introMessage = post.displayedMessage;
                     renderFormModeProgress();
                 }
+                hideTypingIndicator();
                 appendMessage('ai-message', introMessage);
                 chatHistory.push({ role: 'assistant', content: introMessage });
             }).catch(function(err) {
                 console.error('Error generating introductory message:', err);
+                hideTypingIndicator();
                 appendMessage('ai-message', 'Welcome! How can I help you today?');
+            }).finally(function() {
+                hideTypingIndicator();
+                setInputBusy(false);
+                if (!chatLocked) $('#messageInput').trigger('focus');
             });
         }
 
@@ -1623,6 +1900,7 @@
             if (chatLocked) return;
             $('#messageInput').prop('disabled', busy);
             $('#sendMessage').prop('disabled', busy);
+            $('#micButton').prop('disabled', busy);
         }
 
         function appendMessage(className, message) {
@@ -1649,8 +1927,17 @@
             if (message) {
                 appendMessage('user-message', message);
                 getAIresponse(message);
-                chatHistory.push({ role: 'user', content: message });
                 $('#messageInput').val('').css('height', 'auto');
+                // If the mic is still listening, flush the recognizer's
+                // results history so the next utterance starts fresh —
+                // otherwise SpeechRecognition's accumulated event.results
+                // would replay the just-sent message into the cleared input.
+                if (typeof window.leaiMainMicCtrl !== 'undefined' &&
+                        window.leaiMainMicCtrl &&
+                        window.leaiMainMicCtrl.isRecording &&
+                        window.leaiMainMicCtrl.isRecording()) {
+                    window.leaiMainMicCtrl.resetSession();
+                }
             }
         }
 
@@ -1661,6 +1948,63 @@
                 handleSendMessage();
             }
         });
+
+        // Mic dictation — record, transcribe via backend Whisper proxy, insert
+        // transcript at the textarea caret. Hidden if browser lacks support.
+        (function initMicDictation() {
+            var micBtn = document.getElementById('micButton');
+            if (!micBtn) return;
+            if (typeof leaiSpeech === 'undefined' || !leaiSpeech.isSupported()) {
+                micBtn.style.display = 'none';
+                return;
+            }
+            var input = document.getElementById('messageInput');
+            // Helper: toggle a "LIVE" badge on the mic button so the student
+            // can confirm that interim transcription is firing.
+            function setMicBadge(label) {
+                var existing = micBtn.querySelector('.leai-live-badge');
+                if (!label) { if (existing) existing.remove(); return; }
+                if (existing) { existing.textContent = label; return; }
+                var b = document.createElement('span');
+                b.className = 'leai-live-badge';
+                b.textContent = label;
+                micBtn.appendChild(b);
+            }
+
+            var ctrl = window.leaiMainMicCtrl = leaiSpeech.attachMicButton({
+                buttonEl: micBtn,
+                targetEl: input,
+                language: 'en-US',
+                mode: 'live',     // force live (Web Speech) when supported
+                prompt: 'Mid-course classroom feedback from a university student.',
+                onStart: function () {
+                    micBtn.title = 'Listening — words appear as you speak';
+                    setMicBadge(ctrl && ctrl.getMode && ctrl.getMode() === 'live' ? 'LIVE' : 'REC');
+                },
+                onStop: function () {
+                    setMicBadge(null);
+                    if (ctrl && ctrl.getMode && ctrl.getMode() === 'whisper') {
+                        micBtn.classList.add('is-busy');
+                        micBtn.title = 'Transcribing…';
+                    } else {
+                        micBtn.title = 'Dictate (click to record, click again to stop)';
+                    }
+                },
+                onInterim: function () { /* handled inline via target.value */ },
+                onText: function () {
+                    micBtn.classList.remove('is-busy');
+                    setMicBadge(null);
+                    micBtn.title = 'Dictate (click to record, click again to stop)';
+                },
+                onError: function (err) {
+                    micBtn.classList.remove('is-busy');
+                    setMicBadge(null);
+                    micBtn.title = 'Dictate (click to record, click again to stop)';
+                    console.warn('Dictation error:', err);
+                    alert('Dictation failed: ' + (err && err.message ? err.message : err));
+                },
+            });
+        })();
 
         // Auto-resize textarea
         $('#messageInput').on('input', function () {
@@ -1774,19 +2118,38 @@
         }
 
         function lockChat() {
-            chatLocked = true;
-            $('#messageInput').prop('disabled', true).val('');
-            $('#sendMessage').prop('disabled', true);
+            // Idempotent — engine may signal completion more than once if
+            // the student keeps chatting after [END]. Don't double-append
+            // notices or download bars.
+            if (document.getElementById('formmode-completion-notice') ||
+                document.getElementById('chat-completion-notice')) {
+                return;
+            }
+
             var footer = document.querySelector('.chat-footer-inner');
             var notice = document.createElement('p');
             notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
-            notice.textContent = 'Conversation complete — thanks for reflecting!';
-            footer.appendChild(notice);
 
-            // In form-mode, surface the structured-reflection download here so
-            // the student has one click from "[END]" to "file ready for upload".
             if (formMode.active && formMode.state) {
+                // Form-mode: keep the input live so students can revise an
+                // earlier answer or add a clarification — the structured
+                // download reads the live transcript, so anything they add
+                // here flows into the next download click. Surface the
+                // download bar so they know they're free to submit.
+                notice.id = 'formmode-completion-notice';
+                notice.textContent =
+                    'All sections captured — your reflection is ready below. ' +
+                    'You can keep chatting if you want to revise or add anything before downloading.';
+                footer.appendChild(notice);
                 renderFormModeDownloadBar(footer);
+            } else {
+                chatLocked = true;
+                $('#messageInput').prop('disabled', true).val('');
+                $('#sendMessage').prop('disabled', true);
+                $('#micButton').prop('disabled', true);
+                notice.id = 'chat-completion-notice';
+                notice.textContent = 'Conversation complete — thanks for reflecting!';
+                footer.appendChild(notice);
             }
         }
 
@@ -1795,25 +2158,176 @@
             var bar = document.createElement('div');
             bar.id = 'formmode-download-bar';
             bar.className = 'formmode-download-bar';
-            var pdfBtn = document.createElement('button');
-            pdfBtn.type = 'button';
-            pdfBtn.textContent = 'Download my reflection (HTML / printable)';
-            pdfBtn.addEventListener('click', function () { downloadFormModeReflection('html'); });
-            var mdBtn = document.createElement('button');
-            mdBtn.type = 'button';
-            mdBtn.className = 'secondary';
-            mdBtn.textContent = 'Download as Markdown';
-            mdBtn.addEventListener('click', function () { downloadFormModeReflection('md'); });
-            bar.appendChild(pdfBtn);
-            bar.appendChild(mdBtn);
+            var docxBtn = document.createElement('button');
+            docxBtn.id = 'formmode-download-docx';
+            docxBtn.type = 'button';
+            docxBtn.textContent = 'Download my reflection (Word / .docx)';
+            docxBtn.addEventListener('click', function () { downloadFormModeReflection('docx'); });
+            bar.appendChild(docxBtn);
             footer.appendChild(bar);
+        }
+
+        // Lazy-load the docx UMD bundle the first time the user clicks
+        // "Download as .docx". ~200KB; not pulled on non-form-mode pages.
+        var _docxLoadPromise = null;
+        function ensureDocxLoaded() {
+            if (typeof window.docx !== 'undefined') return Promise.resolve();
+            if (_docxLoadPromise) return _docxLoadPromise;
+            _docxLoadPromise = new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://unpkg.com/docx@8.5.0/build/index.umd.js';
+                s.async = true;
+                s.onload = function () { resolve(); };
+                s.onerror = function () {
+                    _docxLoadPromise = null;
+                    reject(new Error('Could not load .docx generator (network/CDN issue)'));
+                };
+                document.head.appendChild(s);
+            });
+            return _docxLoadPromise;
+        }
+
+        // Build (once) a blocking generation-status modal. The student
+        // sees a clear "still working" panel so they don't close the tab,
+        // and on failure they get retry + raw-transcript fallback so
+        // they never end up with no artifact.
+        var formModeModal = null;
+        function ensureFormModeModal() {
+            if (formModeModal) return formModeModal;
+
+            function el(tag, attrs, parent) {
+                var n = document.createElement(tag);
+                if (attrs) {
+                    for (var k in attrs) {
+                        if (k === 'style' || k === 'id' || k === 'className') n[k === 'className' ? 'className' : k] = attrs[k];
+                        else if (k === 'text') n.textContent = attrs[k];
+                        else n.setAttribute(k, attrs[k]);
+                    }
+                }
+                if (parent) parent.appendChild(n);
+                return n;
+            }
+
+            var styleTag = el('style', null, document.head);
+            styleTag.textContent = '@keyframes fmm-spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}';
+
+            var overlay = el('div', {
+                id: 'formmode-genmodal',
+                style: 'position:fixed;inset:0;background:rgba(10,35,51,0.55);' +
+                    'display:none;align-items:center;justify-content:center;z-index:9999;' +
+                    'font-family:Inter,system-ui,sans-serif;',
+            }, document.body);
+            var panel = el('div', {
+                style: 'background:#fff;border-radius:12px;padding:28px 32px;' +
+                    'max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,0.25);text-align:center;',
+            }, overlay);
+            var spinner = el('div', {
+                id: 'fmm-spinner',
+                style: 'width:42px;height:42px;border:4px solid #e2e8eb;' +
+                    'border-top-color:#006493;border-radius:50%;margin:0 auto 16px;' +
+                    'animation:fmm-spin 0.9s linear infinite;',
+            }, panel);
+            var titleEl = el('h3', {
+                id: 'fmm-title',
+                style: 'margin:0 0 6px;font-size:1.05rem;color:#0a2333;',
+                text: 'Generating your reflection file…',
+            }, panel);
+            var msgEl = el('p', {
+                id: 'fmm-msg',
+                style: 'margin:0 0 4px;font-size:0.92rem;color:#374a52;line-height:1.45;',
+                text: 'This usually takes 20–40 seconds. Please don’t close this tab — we’re extracting your structured answers and packaging the file.',
+            }, panel);
+            var progressEl = el('p', {
+                id: 'fmm-progress',
+                style: 'margin:8px 0 0;font-size:0.78rem;color:#5a6669;',
+            }, panel);
+            var actions = el('div', {
+                id: 'fmm-actions',
+                style: 'margin-top:18px;display:none;gap:8px;justify-content:center;flex-wrap:wrap;',
+            }, panel);
+            var retryBtn = el('button', {
+                id: 'fmm-retry',
+                type: 'button',
+                style: 'background:#006493;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;',
+                text: 'Try again',
+            }, actions);
+            var fallbackBtn = el('button', {
+                id: 'fmm-fallback',
+                type: 'button',
+                style: 'background:#fff;color:#0a2333;border:1px solid #c8d2d6;padding:8px 16px;border-radius:6px;cursor:pointer;',
+                text: 'Save raw transcript instead',
+            }, actions);
+            var closeBtn = el('button', {
+                id: 'fmm-close',
+                type: 'button',
+                style: 'background:#fff;color:#5a6669;border:1px solid #c8d2d6;padding:8px 16px;border-radius:6px;cursor:pointer;',
+                text: 'Close',
+            }, actions);
+
+            var beforeUnloadHandler = function (ev) {
+                ev.preventDefault();
+                ev.returnValue = 'Your reflection file is still generating — closing now will lose it.';
+                return ev.returnValue;
+            };
+
+            formModeModal = {
+                el: overlay,
+                show: function () {
+                    overlay.style.display = 'flex';
+                    window.addEventListener('beforeunload', beforeUnloadHandler);
+                },
+                hide: function () {
+                    overlay.style.display = 'none';
+                    window.removeEventListener('beforeunload', beforeUnloadHandler);
+                },
+                setBusy: function (title, msg) {
+                    spinner.style.display = 'block';
+                    titleEl.textContent = title;
+                    msgEl.textContent = msg;
+                    actions.style.display = 'none';
+                    progressEl.textContent = '';
+                },
+                setProgress: function (text) { progressEl.textContent = text; },
+                setError: function (title, msg, handlers) {
+                    spinner.style.display = 'none';
+                    titleEl.textContent = title;
+                    msgEl.textContent = msg;
+                    actions.style.display = 'flex';
+                    progressEl.textContent = '';
+                    retryBtn.textContent = 'Try again';
+                    fallbackBtn.style.display = '';
+                    fallbackBtn.textContent = 'Save raw transcript instead';
+                    closeBtn.textContent = 'Close';
+                    retryBtn.onclick = handlers.retry;
+                    fallbackBtn.onclick = handlers.fallback;
+                    closeBtn.onclick = handlers.close;
+                    window.removeEventListener('beforeunload', beforeUnloadHandler);
+                },
+                setSuccess: function (title, msg, handlers) {
+                    spinner.style.display = 'none';
+                    titleEl.textContent = title;
+                    msgEl.textContent = msg;
+                    actions.style.display = 'flex';
+                    progressEl.textContent = '';
+                    retryBtn.textContent = 'Re-download';
+                    fallbackBtn.style.display = 'none';
+                    closeBtn.textContent = 'Done';
+                    retryBtn.onclick = handlers.retry;
+                    closeBtn.onclick = handlers.close;
+                    window.removeEventListener('beforeunload', beforeUnloadHandler);
+                },
+            };
+            return formModeModal;
         }
 
         function collectFormModeTranscript() {
             // chatHistory carries everything since session start; system messages
-            // are excluded from the user-facing transcript.
+            // are excluded from the user-facing transcript. The in-group flow
+            // keeps its history in formMode.chatHistory (its outer scope is
+            // function-local), so prefer that when present.
+            var src = (formMode && formMode.chatHistory) || chatHistory;
             var out = [];
-            chatHistory.forEach(function (m) {
+            src.forEach(function (m) {
                 if (m.role === 'system') return;
                 out.push({
                     role: m.role === 'user' ? 'user' : 'assistant',
@@ -1823,28 +2337,131 @@
             return out;
         }
 
-        function downloadFormModeReflection(format) {
-            if (!formMode.active || !formMode.state) return;
-            var transcript = collectFormModeTranscript();
-            var schema = formMode.schema;
-            var lastName = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
-            var base = 'HCI271_Reflection_Week' + (schema.week || '') + '_' + lastName;
-            var blob, filename;
-            if (format === 'md') {
-                var md = leaiFormMode.renderStructuredMarkdown(formMode.state, transcript);
-                blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-                filename = base + '.md';
-            } else {
-                var html = leaiFormMode.renderStructuredHtml(formMode.state, transcript, {});
-                blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-                filename = base + '.html';
-            }
+        function _triggerBlobDownload(blob, filename) {
             var a = document.createElement('a');
             a.href = window.URL.createObjectURL(blob);
             a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+        }
+
+        function _formModeFilenameBase() {
+            var schema = formMode.schema || {};
+            var lastName = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
+            return 'HCI271_Reflection_Week' + (schema.week || '') + '_' + lastName;
+        }
+
+        function _saveRawTranscriptFallback() {
+            var transcript = collectFormModeTranscript();
+            var lines = transcript.map(function (t) {
+                return (t.role === 'user' ? 'STUDENT' : 'REMI') + ': ' + t.text;
+            }).join('\n\n');
+            var blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
+            _triggerBlobDownload(blob, _formModeFilenameBase() + '_raw_transcript.txt');
+        }
+
+        // Build the rendered file as a Blob+filename for the chosen format.
+        // Assumes slots have already been extracted (or extraction was tried
+        // and partially failed — renderer falls back per-section).
+        function _buildFormModeBlob(format) {
+            var transcript = collectFormModeTranscript();
+            var base = _formModeFilenameBase();
+            if (format === 'docx') {
+                return leaiFormMode.renderStructuredDocx(formMode.state, transcript, {})
+                    .then(function (blob) { return { blob: blob, filename: base + '.docx' }; });
+            }
+            if (format === 'md') {
+                var md = leaiFormMode.renderStructuredMarkdown(formMode.state, transcript, {});
+                return Promise.resolve({
+                    blob: new Blob([md], { type: 'text/markdown;charset=utf-8' }),
+                    filename: base + '.md',
+                });
+            }
+            var html = leaiFormMode.renderStructuredHtml(formMode.state, transcript, {});
+            return Promise.resolve({
+                blob: new Blob([html], { type: 'text/html;charset=utf-8' }),
+                filename: base + '.html',
+            });
+        }
+
+        function downloadFormModeReflection(format) {
+            if (!formMode.active || !formMode.state) return;
+            var modal = ensureFormModeModal();
+            var transcript = collectFormModeTranscript();
+
+            var prettyFormat = format === 'docx' ? 'Word document' : (format === 'md' ? 'Markdown' : 'HTML');
+
+            modal.show();
+            modal.setBusy(
+                'Generating your ' + prettyFormat + '…',
+                'This usually takes 20–40 seconds. Please don’t close this tab — we’re extracting your structured answers and packaging the file.'
+            );
+
+            // Step 1: ensure docx library is loaded if needed.
+            var loadDeps = format === 'docx' ? ensureDocxLoaded() : Promise.resolve();
+
+            // Step 2: extract slots (or reuse cached). If a previous run
+            // already filled formMode.state.slots, skip the LLM round-trip.
+            function runExtract() {
+                if (formMode.state.slots) return Promise.resolve(formMode.state.slots);
+                modal.setProgress('Reading 10 sections from your conversation…');
+                return leaiFormMode.extractSlots(formMode.state, transcript, function (prompt, jsonSchema, opts) {
+                    return leaiChat.structured(prompt, jsonSchema, opts);
+                });
+            }
+
+            // Step 3: render + download.
+            function runRenderAndDownload() {
+                modal.setProgress('Building file…');
+                return _buildFormModeBlob(format).then(function (out) {
+                    _triggerBlobDownload(out.blob, out.filename);
+                    modal.setSuccess(
+                        'Your reflection has been downloaded',
+                        'File saved to your Downloads folder: ' + out.filename + '. Open it in Word or Google Docs to make any final edits before you upload to Canvas.',
+                        {
+                            retry: function () {
+                                _triggerBlobDownload(out.blob, out.filename);
+                            },
+                            close: function () { modal.hide(); },
+                        }
+                    );
+                });
+            }
+
+            function showError(err) {
+                console.error('download flow failed:', err);
+                var msg = err && err.message ? err.message : String(err);
+                modal.setError(
+                    'We couldn’t finish generating your file',
+                    'Something went wrong: ' + msg + '. Your conversation is still saved on our side, so you can retry, or download the raw transcript as a backup and upload that.',
+                    {
+                        retry: function () { downloadFormModeReflection(format); },
+                        fallback: function () {
+                            try {
+                                _saveRawTranscriptFallback();
+                                modal.setSuccess(
+                                    'Raw transcript saved',
+                                    'You can upload the raw transcript to Canvas while we sort out the structured file. Try the .docx download again whenever you have a stable connection.',
+                                    {
+                                        retry: function () { downloadFormModeReflection(format); },
+                                        fallback: function () { _saveRawTranscriptFallback(); },
+                                        close: function () { modal.hide(); },
+                                    }
+                                );
+                            } catch (e) {
+                                modal.setError('Even the fallback failed.',
+                                    'Please screenshot this chat and email it as a backup: ' + (e && e.message ? e.message : e),
+                                    { retry: function () { downloadFormModeReflection(format); }, fallback: function () {}, close: function () { modal.hide(); } }
+                                );
+                            }
+                        },
+                        close: function () { modal.hide(); },
+                    }
+                );
+            }
+
+            loadDeps.then(runExtract).then(runRenderAndDownload).catch(showError);
         }
 
         document.getElementById('download-btn').addEventListener('click', function () {
