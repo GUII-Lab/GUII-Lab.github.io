@@ -515,55 +515,6 @@ When the conversation has organically reached a natural close — i.e. the stude
                         </div>
                     </div>
 
-                    <!-- Delete Survey confirmation modal -->
-                    <div class="modal-overlay" id="delete-modal">
-                        <div class="modal-box" style="max-width:460px">
-                            <h3>Delete survey?</h3>
-                            <p>
-                                You are about to permanently delete
-                                <strong id="delete-survey-label"></strong>.
-                                This will also remove every student response
-                                collected for this survey.
-                                <br><br>
-                                <strong style="color:var(--error)">This action cannot be undone.</strong>
-                            </p>
-                            <input type="hidden" id="delete-survey-id" />
-                            <div id="delete-msg"></div>
-                            <div class="modal-actions" style="margin-top:4px">
-                                <button class="btn btn-ghost" id="delete-cancel">Cancel</button>
-                                <button class="btn btn-sm" id="delete-confirm" style="background:#b91c1c;color:#fff;border:none">Permanently Delete</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Edit Survey modal -->
-                    <div class="modal-overlay" id="edit-modal">
-                        <div class="modal-box" style="max-width:520px">
-                            <h3>Edit Survey</h3>
-                            <input type="hidden" id="edit-survey-id" />
-                            <label>Survey Label<span class="field-hint" id="edit-label-hint"></span></label>
-                            <input type="text" id="edit-label" />
-                            <label>Week Number</label>
-                            <input type="number" id="edit-week" min="1" />
-                            <label>Prompt / Instructions</label>
-                            <textarea id="edit-instructions" rows="6"></textarea>
-                            <label>Anonymity Mode</label>
-                            <select id="edit-anonymity" style="margin-bottom:12px">
-                                <option value="anonymous">Anonymous</option>
-                                <option value="identified">Identified (names allowed)</option>
-                                <option value="pseudonymous">Pseudonymous</option>
-                            </select>
-                            <label>Opens At</label>
-                            <input type="datetime-local" id="edit-opens-at" />
-                            <label>Expires At</label>
-                            <input type="datetime-local" id="edit-expires-at" />
-                            <div id="edit-msg"></div>
-                            <div class="modal-actions" style="margin-top:4px">
-                                <button class="btn btn-ghost" id="edit-cancel">Cancel</button>
-                                <button class="btn btn-sm" id="edit-save">Save Changes</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Survey list -->
@@ -885,6 +836,56 @@ When the conversation has organically reached a natural close — i.e. the stude
                 </div>
             </div><!-- /#mode-panel-form -->
 
+            <!-- Delete Survey confirmation modal (shared across all modes — must live outside the mode panels so it's visible regardless of which tab is active) -->
+            <div class="modal-overlay" id="delete-modal">
+                <div class="modal-box" style="max-width:460px">
+                    <h3>Delete survey?</h3>
+                    <p>
+                        You are about to permanently delete
+                        <strong id="delete-survey-label"></strong>.
+                        This will also remove every student response
+                        collected for this survey.
+                        <br><br>
+                        <strong style="color:var(--error)">This action cannot be undone.</strong>
+                    </p>
+                    <input type="hidden" id="delete-survey-id" />
+                    <div id="delete-msg"></div>
+                    <div class="modal-actions" style="margin-top:4px">
+                        <button class="btn btn-ghost" id="delete-cancel">Cancel</button>
+                        <button class="btn btn-sm" id="delete-confirm" style="background:#b91c1c;color:#fff;border:none">Permanently Delete</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Survey modal (shared across all modes) -->
+            <div class="modal-overlay" id="edit-modal">
+                <div class="modal-box" style="max-width:520px">
+                    <h3>Edit Survey</h3>
+                    <input type="hidden" id="edit-survey-id" />
+                    <label>Survey Label<span class="field-hint" id="edit-label-hint"></span></label>
+                    <input type="text" id="edit-label" />
+                    <label>Week Number</label>
+                    <input type="number" id="edit-week" min="1" />
+                    <label>Prompt / Instructions</label>
+                    <textarea id="edit-instructions" rows="6"></textarea>
+                    <label>Anonymity Mode</label>
+                    <select id="edit-anonymity" style="margin-bottom:12px">
+                        <option value="anonymous">Anonymous</option>
+                        <option value="identified">Identified (names allowed)</option>
+                        <option value="pseudonymous">Pseudonymous</option>
+                    </select>
+                    <label>Opens At</label>
+                    <input type="datetime-local" id="edit-opens-at" />
+                    <label>Expires At</label>
+                    <input type="datetime-local" id="edit-expires-at" />
+                    <div id="edit-msg"></div>
+                    <div class="modal-actions" style="margin-top:4px">
+                        <button class="btn btn-ghost" id="edit-cancel">Cancel</button>
+                        <button class="btn btn-sm" id="edit-save">Save Changes</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- In-Group Edit modal -->
             <div class="modal-overlay" id="ig-edit-overlay">
                 <div class="modal-box">
@@ -1026,6 +1027,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var isTestCourse = activeCourse && activeCourse.id.indexOf('test-') === 0;
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
+        if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
     }
 
     function lockCourse(courseId, courseName) {
