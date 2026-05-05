@@ -345,6 +345,21 @@ input[type="checkbox"], input[type="radio"] {
 }
 .modal-box p  { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
 .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Tall edit modals: cap height, scroll body, pin actions to bottom */
+#edit-modal .modal-box,
+#ig-edit-overlay .modal-box {
+    max-height: 80vh;
+    overflow-y: auto;
+}
+#edit-modal .modal-actions,
+#ig-edit-overlay .modal-actions {
+    position: sticky;
+    bottom: -28px;
+    background: var(--surface-card);
+    padding: 12px 0 28px;
+    margin-bottom: -28px;
+}
 .modal-actions button { font-family: inherit; }
 
 /* ===== TAG CHIP INPUT ===== */
