@@ -1295,13 +1295,16 @@
 
     function dirOpening(state, area) {
         var schema = state.schema;
+        var partsBlurb = (typeof schema.parts_blurb === 'string' && schema.parts_blurb.trim())
+            ? schema.parts_blurb.trim()
+            : 'from this week\'s template';
         return {
             kind: 'opening',
             text: [
                 '[DIRECTIVE FOR THIS TURN]',
                 'This is the OPENING turn.',
                 '1. Greet the student briefly.',
-                '2. Tell them: "I\'ll walk you through ' + schema.sections.length + ' reflection areas covering Parts 1, 2, and 3 of your template. You can ask to revise an earlier answer at any time, and you\'ll get a downloadable artifact at the end."',
+                '2. Tell them: "I\'ll walk you through ' + schema.sections.length + ' reflection areas ' + partsBlurb + '. You can ask to revise an earlier answer at any time, and you\'ll get a downloadable artifact at the end."',
                 '3. Then ask the opening question for Area 1: ' + area.title + '. Use this question or rephrase tightly: "' + area.opening_prompt + '"',
                 'Do NOT include the "Area 1 of ' + schema.sections.length + ' — ' + area.title + '." prefix yourself — engine will prepend it.',
                 'One question only. Under 350 characters.',

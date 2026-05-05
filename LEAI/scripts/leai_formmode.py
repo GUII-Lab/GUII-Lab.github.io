@@ -535,13 +535,18 @@ def _count_remaining(state: EngineState) -> int:
 
 def _dir_opening(state: EngineState, area: dict[str, Any]) -> dict[str, Any]:
     n = len(state.schema["sections"])
+    parts_blurb = state.schema.get("parts_blurb")
+    if not (isinstance(parts_blurb, str) and parts_blurb.strip()):
+        parts_blurb = "from this week's template"
+    else:
+        parts_blurb = parts_blurb.strip()
     return {
         "kind": "opening",
         "text": (
             "[DIRECTIVE FOR THIS TURN]\n"
             "This is the OPENING turn.\n"
             "1. Greet the student briefly.\n"
-            f"2. Tell them: \"I'll walk you through {n} reflection areas covering Parts 1, 2, and 3 of your template. You can ask to revise an earlier answer at any time, and you'll get a downloadable artifact at the end.\"\n"
+            f"2. Tell them: \"I'll walk you through {n} reflection areas {parts_blurb}. You can ask to revise an earlier answer at any time, and you'll get a downloadable artifact at the end.\"\n"
             f"3. Then ask the opening question for Area 1: {area['title']}. Use this question or rephrase tightly: \"{area['opening_prompt']}\"\n"
             f"Do NOT include the \"Area 1 of {n} — {area['title']}.\" prefix yourself — engine will prepend it.\n"
             "One question only. Under 350 characters."
