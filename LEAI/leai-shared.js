@@ -617,23 +617,15 @@ var leaiInsights = (function () {
 
     function loadSchema(schemaId) {
         if (_schemaCache[schemaId]) return Promise.resolve(_schemaCache[schemaId]);
-        // Registry-first (DB-backed, admin-editable), with the static
-        // docs/forms/ JSON as a deploy-time fallback.
-        var registryP = fetch(API + '/form_schemas/' + encodeURIComponent(schemaId) + '/').then(function (r) {
-            if (!r.ok) throw new Error('registry ' + r.status);
+        // Registry is the sole source of truth (DB-backed, admin-editable).
+        // The legacy docs/forms/ JSON fallback was retired with migration 0025.
+        return fetch(API + '/form_schemas/' + encodeURIComponent(schemaId) + '/').then(function (r) {
+            if (!r.ok) throw new Error('form_schemas registry ' + r.status + ' for ' + schemaId);
             return r.json();
         }).then(function (rec) {
-            if (!rec || !rec.body) throw new Error('registry missing body');
+            if (!rec || !rec.body) throw new Error('form_schemas registry returned no body for ' + schemaId);
+            _schemaCache[schemaId] = rec.body;
             return rec.body;
-        });
-        return registryP.catch(function () {
-            return fetch('docs/forms/' + schemaId + '.json').then(function (r) {
-                if (!r.ok) throw new Error('schema fetch failed: ' + r.status);
-                return r.json();
-            });
-        }).then(function (schema) {
-            _schemaCache[schemaId] = schema;
-            return schema;
         });
     }
 

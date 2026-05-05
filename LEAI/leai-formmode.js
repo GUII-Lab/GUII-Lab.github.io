@@ -31,28 +31,22 @@
     // ─── public surface ────────────────────────────────────────────────────
 
     var leaiFormMode = {
-        // Resolve a schema id to its JSON definition. Tries the backend
-        // registry first (so admin edits propagate without a redeploy), then
-        // falls back to the legacy static JSON file under docs/forms/. Pages
-        // should fetch once and cache.
+        // Resolve a schema id to its JSON definition by fetching from the
+        // backend FormSchema registry. Pages should fetch once and cache.
         loadSchema: function (schemaId) {
+            // Schemas are owned by the FormSchema registry on the Django
+            // backend; the legacy ship-time JSON fallback was retired in
+            // favor of a single source of truth (see migration 0024 / 0025).
             var apiBase = (typeof API !== 'undefined') ? API : null;
-            var registryP = apiBase
-                ? fetch(apiBase + '/form_schemas/' + encodeURIComponent(schemaId) + '/').then(function (r) {
-                    if (!r.ok) throw new Error('registry ' + r.status);
-                    return r.json();
-                }).then(function (rec) {
-                    if (!rec || !rec.body) throw new Error('registry missing body');
-                    return rec.body;
-                })
-                : Promise.reject(new Error('no API'));
-            return registryP.catch(function () {
-                // Fallback: ship-time JSON file (used in pure-static demos or
-                // when the registry endpoint is unreachable).
-                return fetch('docs/forms/' + schemaId + '.json').then(function (r) {
-                    if (!r.ok) throw new Error('schema fetch failed: ' + r.status);
-                    return r.json();
-                });
+            if (!apiBase) {
+                return Promise.reject(new Error('cannot load form schema: API base URL is not configured'));
+            }
+            return fetch(apiBase + '/form_schemas/' + encodeURIComponent(schemaId) + '/').then(function (r) {
+                if (!r.ok) throw new Error('form_schemas registry ' + r.status + ' for ' + schemaId);
+                return r.json();
+            }).then(function (rec) {
+                if (!rec || !rec.body) throw new Error('form_schemas registry returned no body for ' + schemaId);
+                return rec.body;
             });
         },
 

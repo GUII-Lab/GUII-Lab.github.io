@@ -1,0 +1,23 @@
+{
+  "name": "Priya (engaged grad student) — individual / Part 1",
+  "notes": "Drives Remi through Part 1 only (1.1 Key Concepts, 1.2 Methods in Practice, 1.3 Knowledge Shift, 1.4 Capstone Connection). Keep examples concrete. If the bot probes once on a thin answer, the next turn deepens it. The 1.3 area has three sub-fields (thought / surprised / uncertain) so we provide three turns in that block.",
+  "team": "Team Coyote",
+  "members": ["Priya (me)", "Marco", "Devi", "Yusuf"],
+  "turns": [
+    "Hi! I'm Priya from Team Coyote. Yeah, ready to walk through Part 1.",
+    "The most important concept this week was the line between an observation and an insight. In my own words: an observation describes what the user did ('the user clicked the back button'), while an insight names what that behavior means about their model of the product ('the user lost trust in the page after the error'). I had been treating observations as findings, which is lazy.",
+    "It stood out to me because in our Tuesday synthesis Marco kept asking 'so what?' on every sticky. That filter forced every observation to earn the right to become an insight, and we threw out about 40% of our stickies once we applied it. I currently understand it as a discipline: don't let the description of the behavior end the sentence — make it answer 'and therefore…'",
+    "Nothing more on that one — let's move on.",
+    "I applied affinity diagramming on Wednesday with my capstone team. Concretely: roughly 180 stickies from our user interviews, three hours, on a physical wall. We started by clustering by behavior the way it was described in theory.",
+    "Practice felt very different from theory. Theory says cluster by behavior; in practice we kept defaulting to clustering by topic — signup flow, navigation, errors — because that's how our raw notes were already organized. Result was that round one looked tidy but didn't surface anything new. Round two we explicitly relabeled clusters by the behavior the user was performing, and that's when stickies started pulling apart into clusters like 'tries the same wrong path twice before asking for help'. Big learning: organizing by topic feels like progress because it looks neat, but it doesn't generate insight — only behavior-rooted clustering does.",
+    "Move on, yeah.",
+    "Before this week I thought affinity diagramming was basically grouping similar quotes — the kind of thing you could do in a spreadsheet in an hour. I treated it like coding qualitative data with a fancier name.",
+    "I was surprised by how much the *physical* act of moving the sticky mattered — a sticky in your hand on the wall is something you have to defend by where you put it. In a spreadsheet you just type a category and move on. The friction of moving the sticky forced us to actually argue, and the arguments were where the real reframing happened.",
+    "I'm still uncertain when to stop clustering. We made it through three rounds of regrouping and I genuinely could not tell whether round three was a real insight gain or just fatigue making us willing to move on.",
+    "Move on.",
+    "This week's learning will change how I write our next round of interview questions. Up until now I was writing questions that surface attitudes — what users *think* — and treating those as primary. After this week I think we need at least half our questions to be behavioral probes that get them to walk through what they actually did, because the gap between say-vs-do is where the real insights live.",
+    "Smallest concrete change: in next week's interviews I'll add a 'walk me through the last time you actually did X' prompt to every question that currently asks 'what do you think about X'. Concrete, measurable, easy to check on Friday.",
+    "I think we're done with Part 1.",
+    "On the bot — yeah, the conversation surfaced more honest reflection than the PDF would have because the bot kept asking specifics where the PDF would have let me get away with vague. To make it work better next week, show me a small 'section 2 of 4' indicator at all times so I always know how much is left."
+  ]
+}

@@ -9,7 +9,9 @@ Spec: LEAI/docs/instructor-clarifications/wk6-form-mode-SPEC.md §4 / §6
 from __future__ import annotations
 
 import json
+import os
 import re
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -18,13 +20,36 @@ from typing import Any, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+# FormSchema registry is the sole source of truth (see Django migrations 0024
+# and 0025). The legacy LEAI/docs/forms/ JSON fallback was retired with 0025.
+DEFAULT_API_BASE = "https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api"
+
+
+def _api_base() -> str:
+    return (os.environ.get("LEAI_API_BASE") or DEFAULT_API_BASE).rstrip("/")
+
 
 def load_schema(schema_id: str) -> dict[str, Any]:
-    """Load a form schema by id from LEAI/docs/forms/<id>.json."""
-    p = REPO_ROOT / "LEAI" / "docs" / "forms" / f"{schema_id}.json"
-    if not p.exists():
-        raise FileNotFoundError(f"schema not found: {p}")
-    return json.loads(p.read_text())
+    """Fetch a form schema by id from the FormSchema registry endpoint.
+
+    Honors the ``LEAI_API_BASE`` env var so local development against
+    ``http://localhost:8000/datapipeline/api`` works without code edits.
+    """
+    import urllib.request
+    import urllib.error
+
+    url = f"{_api_base()}/form_schemas/{urllib.parse.quote(schema_id, safe='')}/"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"form_schemas registry HTTP {e.code} for {schema_id}") from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"form_schemas registry unreachable at {url}: {e}") from e
+    body = payload.get("body") if isinstance(payload, dict) else None
+    if not body:
+        raise RuntimeError(f"form_schemas registry returned no body for {schema_id}")
+    return body
 
 
 # ─── engine state ────────────────────────────────────────────────────────
