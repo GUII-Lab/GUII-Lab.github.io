@@ -767,8 +767,26 @@
     }
 
     // ===== SCOPE KEY =====
+    // Cache-key prefix differs per mode so the AI Quick Take cached for
+    // (mode=general, entire-course) never overwrites the one for
+    // (mode=form, entire-course). The default 'general' mode keeps its
+    // historical keys ('entire-course' / 'week-N') so existing cached
+    // takes remain addressable.
     function scopeKey() {
-        return currentScope.kind === 'course' ? 'entire-course' : 'week-' + currentScope.weekNumber;
+        var base = currentScope.kind === 'course' ? 'entire-course' : 'week-' + currentScope.weekNumber;
+        if (currentMode === 'general') return base;
+        return currentMode + ':' + base;
+    }
+
+    // Survey IDs in the active mode, optionally further restricted to the
+    // currently selected week. Used to scope AI Quick Take to only the
+    // mode's surveys (backend kind='custom' + survey_ids).
+    function activeSurveyIds() {
+        var surveys = activeSurveys();
+        if (currentScope.kind === 'week' && currentScope.weekNumber != null) {
+            surveys = surveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
+        }
+        return surveys.map(function (s) { return s.gpt_id; });
     }
 
     // ===== SCOPE CHIPS =====
@@ -1338,9 +1356,11 @@
         renderQuickTakeShimmer(container);
 
         var sk = scopeKey();
-        var scope = currentScope.kind === 'course'
-            ? { kind: 'course' }
-            : { kind: 'week', week_number: currentScope.weekNumber };
+        // Always send a 'custom' scope with mode-filtered survey IDs so the
+        // backend corpus matches what the instructor sees on this tab —
+        // otherwise scope 'course' or 'week' would mix in surveys from the
+        // other modes.
+        var scope = { kind: 'custom', survey_ids: activeSurveyIds() };
 
         leaiChat.generateQuickTake(session.courseId, sk, scope)
             .then(function () {
@@ -1594,11 +1614,10 @@
             if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
             ev.preventDefault();
             followUp.textContent = 'Opening chat\u2026';
-            var scope;
             var sk = scopeKey();
-            if (sk === 'entire-course') scope = { kind: 'course' };
-            else if (sk.indexOf('week-') === 0) scope = { kind: 'week', week_number: parseInt(sk.replace('week-', ''), 10) };
-            else scope = { kind: 'course' };
+            // Scope the follow-up chat to exactly the surveys backing this
+            // Quick Take so the LLM can resolve every citation.
+            var scope = { kind: 'custom', survey_ids: activeSurveyIds() };
 
             // Build the pill-numbered text + cited array from the current
             // render state (pillAssignment already computed above).
@@ -1621,8 +1640,10 @@
                 return { rid: rid, pill_index: pillAssignment.ridToPill[rid], verdict: verdict };
             });
 
+            var modeLabel = ({ general: 'General', group: 'In-Group', form: 'Structured Reflection' })[currentMode] || 'Course';
+            var weekLabel = currentScope.kind === 'week' && currentScope.weekNumber != null ? ' · Week ' + currentScope.weekNumber : '';
             leaiChat.createSession(session.courseId, {
-                title: 'Follow-up: ' + (sk === 'entire-course' ? 'Course' : ('Week ' + (scope.week_number || ''))),
+                title: 'Follow-up: ' + modeLabel + weekLabel,
                 scope: scope,
                 seedAssistantMessage: { text: seedText, cited: seedCited },
             })
@@ -2414,12 +2435,14 @@
         if (sharedPanel) sharedPanel.style.display = '';
         if (groupPanel)  groupPanel.style.display  = (mode === 'group') ? '' : 'none';
 
-        // Form mode is per-submission analysis-driven (M9, spec §1 cross-submission deferred):
-        // hide n-gram + Quick Take in the Structured Reflection tab.
+        // All three modes (general/group/form) now render the cross-submission
+        // Traditional Analysis + AI Quick Take, scoped to only the surveys in
+        // the active mode. Form mode additionally renders per-submission
+        // insights inside each student card via buildInsightsPanel().
         var trad = document.getElementById('traditional-analysis-section');
         var qt = document.getElementById('quick-take-section');
-        if (trad) trad.style.display = (mode === 'form') ? 'none' : '';
-        if (qt)   qt.style.display   = (mode === 'form') ? 'none' : '';
+        if (trad) trad.style.display = '';
+        if (qt)   qt.style.display   = '';
 
         // Reset scope to course on tab entry so stale week selection from the
         // other mode never leaks through, then re-render aggregate panel.
