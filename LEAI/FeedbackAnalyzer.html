@@ -126,11 +126,16 @@
         }
         .student-card-header:hover { background: var(--surface-mid); }
         .student-card-label {
-            font-weight: 600; font-size: 0.85rem; color: var(--text); flex: 1;
+            font-weight: 600; font-size: 0.85rem; color: var(--text);
+        }
+        .student-card-date {
+            font-size: 0.75rem; color: var(--muted); white-space: nowrap;
+            margin-right: auto;
         }
         .student-card-meta {
             font-size: 0.75rem; color: var(--muted); white-space: nowrap;
         }
+        .student-card-header > .student-card-meta:nth-child(2) { margin-left: auto; }
         .student-card-chevron {
             font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; flex-shrink: 0;
         }
@@ -628,6 +633,39 @@
         } catch (e) {
             return '';
         }
+    }
+
+    function formatShortDate(ts) {
+        if (!ts) return '';
+        var s = String(ts).trim();
+        var iso = s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
+        if (!/[zZ]|[+\-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        try {
+            return d.toLocaleString('en-US', {
+                timeZone: 'America/Los_Angeles',
+                month: 'short', day: 'numeric', year: 'numeric',
+            });
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function sessionStartTimestamp(msgs) {
+        if (!msgs || !msgs.length) return null;
+        var earliest = null;
+        for (var i = 0; i < msgs.length; i++) {
+            var ts = msgs[i] && msgs[i].created_at;
+            if (!ts) continue;
+            var s = String(ts).trim();
+            var iso = s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
+            if (!/[zZ]|[+\-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
+            var t = new Date(iso).getTime();
+            if (isNaN(t)) continue;
+            if (earliest === null || t < earliest) earliest = t;
+        }
+        return earliest;
     }
 
     // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
@@ -1656,6 +1694,12 @@
             // student's [R3] card label reads "R3".
             label.textContent = 'R' + (idx + 1);
 
+            var startTs = sessionStartTimestamp(msgs);
+            var startDateText = startTs ? formatShortDate(new Date(startTs).toISOString()) : '';
+            var startDate = document.createElement('span');
+            startDate.className = 'student-card-date';
+            if (startDateText) startDate.textContent = startDateText;
+
             var meta = document.createElement('span');
             meta.className = 'student-card-meta';
             var weekTag = currentScope.kind === 'course' ? entry.surveyLabel + ' \u00b7 ' : '';
@@ -1666,6 +1710,7 @@
             chevron.textContent = '\u25bc';
 
             header.appendChild(label);
+            if (startDateText) header.appendChild(startDate);
             header.appendChild(meta);
             header.appendChild(chevron);
 
