@@ -1101,7 +1101,9 @@
             snap.teams.forEach(function (t) {
                 var opt = document.createElement('option');
                 opt.value = String(t.id);
-                opt.textContent = snap.label_prefix + ' ' + t.number;
+                opt.textContent = (t.display_name && t.display_name.trim())
+                    ? t.display_name
+                    : (snap.label_prefix + ' ' + t.number);
                 sel.appendChild(opt);
             });
             screen.appendChild(sel);
@@ -1145,7 +1147,11 @@
         }
 
         function startInGroupChat(survey, snap, team) {
-            var teamContext = snap.label_prefix + ' ' + team.number;
+            // Custom display name (e.g., sponsor team name) takes precedence over
+            // "<label_prefix> <number>" when the instructor has set one.
+            var teamContext = (team.display_name && team.display_name.trim())
+                ? team.display_name
+                : (snap.label_prefix + ' ' + team.number);
             var filledPrompt = String(survey.prompt || '').split('{TEAM_CONTEXT}').join(teamContext);
             // Runtime anonymity guardrail is conditional on the survey's
             // anonymity_mode. Default 'anonymous' appends the strict guardrail

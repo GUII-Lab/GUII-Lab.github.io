@@ -695,7 +695,7 @@ input[type="checkbox"], input[type="radio"] {
 .team-structure-summary .summary-text { font-size: 0.9rem; color: var(--text); font-weight: 500; }
 
 .team-size-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 10px; margin-top: 12px;
 }
 .team-size-item {
@@ -711,7 +711,16 @@ input[type="checkbox"], input[type="radio"] {
     border: 1px solid var(--outline); border-radius: var(--radius-xs);
     margin-bottom: 0;
 }
-.team-size-item.exception > input {
+.team-size-item .team-size-row {
+    display: flex; gap: 6px; align-items: center;
+}
+.team-size-item .team-size-row > input.team-name-input {
+    flex: 1 1 auto; min-width: 0;
+}
+.team-size-item .team-size-row > input.team-size-number {
+    width: 56px; flex: 0 0 auto;
+}
+.team-size-item.exception .team-size-number {
     border-color: var(--ingroup-primary); background: var(--ingroup-tint);
 }
 
