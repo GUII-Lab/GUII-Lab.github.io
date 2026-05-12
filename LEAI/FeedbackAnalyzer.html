@@ -155,6 +155,10 @@
             flex: 1; border: 1px solid var(--surface-border);
         }
         .convo-msg-bubble.ai { background: none; border-color: transparent; color: var(--muted); }
+        .convo-msg-time {
+            font-size: 0.65rem; color: var(--muted); margin-top: 4px;
+            letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+        }
 
         /* Form-mode insights panel (F5/F6) */
         .insights-panel {
@@ -601,6 +605,29 @@
     function isStudentMsg(m) {
         var r = m && m.sent_by;
         return r === 'user' || r === 'user-message';
+    }
+
+    // Backend stores message timestamps in UTC and serializes them as
+    // 'YYYY-MM-DD HH:MM:SS' (no tz suffix). Some browsers parse that as local
+    // time, so normalize to ISO+Z before handing to Date, then format in
+    // America/Los_Angeles for the instructor view.
+    function formatMessageTime(ts) {
+        if (!ts) return '';
+        var s = String(ts).trim();
+        var iso = s.indexOf('T') === -1 ? s.replace(' ', 'T') : s;
+        if (!/[zZ]|[+\-]\d{2}:?\d{2}$/.test(iso)) iso += 'Z';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        try {
+            return d.toLocaleString('en-US', {
+                timeZone: 'America/Los_Angeles',
+                month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit',
+                hour12: true,
+            }) + ' PT';
+        } catch (e) {
+            return '';
+        }
     }
 
     // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
@@ -1668,12 +1695,26 @@
                     lbl.className = 'convo-msg-label ' + (isStudent ? 'student' : 'ai');
                     lbl.textContent = isStudent ? 'Student' : 'AI';
 
+                    // Bubble + timestamp share a column so the time sits under
+                    // the message, right-aligned to the bubble.
+                    var bubbleCol = document.createElement('div');
+                    bubbleCol.style.cssText = 'flex:1;display:flex;flex-direction:column;align-items:stretch;';
+
                     var bubble = document.createElement('div');
                     bubble.className = 'convo-msg-bubble' + (isStudent ? '' : ' ai');
                     bubble.textContent = m.content;
+                    bubbleCol.appendChild(bubble);
+
+                    var timeText = formatMessageTime(m.created_at);
+                    if (timeText) {
+                        var time = document.createElement('div');
+                        time.className = 'convo-msg-time';
+                        time.textContent = timeText;
+                        bubbleCol.appendChild(time);
+                    }
 
                     row.appendChild(lbl);
-                    row.appendChild(bubble);
+                    row.appendChild(bubbleCol);
                     body.appendChild(row);
                 });
             }
