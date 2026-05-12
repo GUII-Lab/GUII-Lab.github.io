@@ -491,6 +491,9 @@
     </div>
 </div>
 
+<!-- Markdown rendering for assistant messages (same pipeline as feedback.html). -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 <script src="leai-shared.js"></script>
 <script src="leai-version.js"></script>
 <script>
@@ -995,26 +998,32 @@
             var drawer = createSourcesDrawer(msg.sources);
             wrapper.appendChild(drawer);
 
-            // Wire citation pill clicks to expand drawer (overrides the
-            // default popover handler wired in renderTextWithCitations).
+            // Wire citation pill clicks. Always show the popover (R-id,
+            // week, verdict, source text) \u2014 matches the AI Quick Take pill
+            // behavior on FeedbackAnalyzer. If the drawer is already open,
+            // also flash the matching card in place.
             var ridByPillLocal = {};
-            (msg.cited || []).forEach(function (c) { ridByPillLocal[c.pill_index] = c.rid; });
+            var verdictByPillLocal = {};
+            (msg.cited || []).forEach(function (c) {
+                ridByPillLocal[c.pill_index] = c.rid;
+                verdictByPillLocal[c.pill_index] = c.verdict;
+            });
             var pills = textDiv.querySelectorAll('.cite');
             pills.forEach(function (pill) {
                 pill.dataset.drawerBound = '1';
-                pill.addEventListener('click', function () {
-                    var drawerList = drawer.querySelector('.sources-list');
-                    if (drawerList && drawerList.style.display === 'none') {
-                        drawerList.style.display = 'block';
-                        var toggleBtn = drawer.querySelector('.sources-toggle');
-                        toggleBtn.textContent = '\u25be ' + msg.sources.length + ' source' + (msg.sources.length !== 1 ? 's' : '');
-                    }
+                pill.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
                     var pillIdx = parseInt(pill.textContent.trim(), 10);
                     var rid = ridByPillLocal[pillIdx];
-                    var card = rid ? drawer.querySelector('[data-cite="' + rid + '"]') : null;
-                    if (card) {
-                        card.classList.add('source-card-flash');
-                        setTimeout(function () { card.classList.remove('source-card-flash'); }, 1200);
+                    var verdict = verdictByPillLocal[pillIdx] || null;
+                    showCitationPopover(pill, rid, verdict);
+                    var drawerList = drawer.querySelector('.sources-list');
+                    if (drawerList && drawerList.style.display !== 'none') {
+                        var card = rid ? drawer.querySelector('[data-cite="' + rid + '"]') : null;
+                        if (card) {
+                            card.classList.add('source-card-flash');
+                            setTimeout(function () { card.classList.remove('source-card-flash'); }, 1200);
+                        }
                     }
                 });
             });
@@ -1040,8 +1049,12 @@
             return 'LEAICITE' + n + 'END';
         });
 
-        // Parse Markdown → HTML
-        var html = leaiMarkdown.render(pillified);
+        // Parse Markdown → HTML. Prefer the full marked + DOMPurify pipeline
+        // (headings, links, code blocks, tables, blockquotes) and fall back to
+        // the lightweight leaiMarkdown shim only if the CDN libs failed to load.
+        var html = (window.marked && window.DOMPurify)
+            ? window.DOMPurify.sanitize(window.marked.parse(pillified))
+            : leaiMarkdown.render(pillified);
 
         // Replace text placeholders with real <span> elements in the HTML string
         html = html.replace(/LEAICITE(\d+)END/g, function (_, n) {
@@ -1071,31 +1084,63 @@
     }
 
     var _openPopover = null;
+    // Click-to-show citation popover. Mirrors the AI Quick Take popover on
+    // FeedbackAnalyzer: R-id, week tag, verdict badge, and the full source
+    // response text pulled from responsesByRid.
     function showCitationPopover(anchor, rid, verdict) {
         if (_openPopover) { _openPopover.remove(); _openPopover = null; }
-        var verdictLabel = ({
-            supported: 'Verified — response supports this claim.',
-            verified:  'Verified — response supports this claim.',
-            partial:   'Partial — response only weakly supports this claim.',
-            unsupported: 'Unsupported — cited response does not clearly support this claim.'
-        })[verdict] || 'Cited but not verified against the response text.';
+
+        var verdictMeta = ({
+            supported:   { label: 'Verified',   color: '#1e7d36' },
+            verified:    { label: 'Verified',   color: '#1e7d36' },
+            partial:     { label: 'Partial',    color: '#8a6d00' },
+            unsupported: { label: 'Unsupported', color: '#b22222' }
+        })[verdict] || { label: 'Unverified', color: '#5c6b73' };
+
+        var source = rid ? responsesByRid[rid] : null;
 
         var pop = document.createElement('div');
         pop.className = 'cite-popover';
-        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:8px 12px;font-size:0.78rem;line-height:1.4;color:#1a1f22;box-shadow:0 4px 12px rgba(0,0,0,0.12);max-width:260px';
-        var ridLine = document.createElement('div');
-        ridLine.style.cssText = 'font-weight:600;margin-bottom:4px';
-        ridLine.textContent = rid || 'Citation';
-        var vLine = document.createElement('div');
-        vLine.style.color = '#5c6b73';
-        vLine.textContent = verdictLabel;
-        pop.appendChild(ridLine);
-        pop.appendChild(vLine);
+        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:360px;min-width:220px';
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
+        var ridEl = document.createElement('span');
+        ridEl.style.cssText = 'font-weight:700;font-size:0.78rem;letter-spacing:0.02em';
+        ridEl.textContent = rid || 'Citation';
+        header.appendChild(ridEl);
+        if (source && source.week_number) {
+            var weekEl = document.createElement('span');
+            weekEl.style.cssText = 'font-size:0.7rem;color:#5c6b73;text-transform:uppercase;letter-spacing:0.06em';
+            weekEl.textContent = '· Week ' + source.week_number;
+            header.appendChild(weekEl);
+        }
+        var verdictBadge = document.createElement('span');
+        verdictBadge.style.cssText = 'margin-left:auto;padding:1px 8px;border-radius:10px;font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:' + verdictMeta.color + '14;color:' + verdictMeta.color;
+        verdictBadge.textContent = verdictMeta.label;
+        header.appendChild(verdictBadge);
+        pop.appendChild(header);
+
+        var body = document.createElement('div');
+        if (source && source.text) {
+            body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + verdictMeta.color + ';padding:2px 0 2px 8px;font-size:0.78rem';
+            body.textContent = source.text;
+        } else {
+            body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
+            body.textContent = 'Response text not available for this citation.';
+        }
+        pop.appendChild(body);
+
         document.body.appendChild(pop);
 
         var r = anchor.getBoundingClientRect();
-        pop.style.left = (window.scrollX + r.left) + 'px';
-        pop.style.top = (window.scrollY + r.bottom + 6) + 'px';
+        var left = window.scrollX + r.left;
+        var top = window.scrollY + r.bottom + 6;
+        var maxRight = window.scrollX + document.documentElement.clientWidth - 8;
+        var popWidth = pop.offsetWidth;
+        if (left + popWidth > maxRight) left = Math.max(window.scrollX + 8, maxRight - popWidth);
+        pop.style.left = left + 'px';
+        pop.style.top = top + 'px';
         _openPopover = pop;
 
         var dismiss = function (ev) {
