@@ -273,7 +273,7 @@ var leaiAnalysis = {
             sids.forEach(function(sid) {
                 var msgs = s.sessions[sid];
                 var studentMsgs = msgs.filter(function(m) {
-                    return m.sent_by === 'user-message';
+                    return m.sent_by === 'user-message' || m.sent_by === 'user';
                 }).map(function(m) { return m.content; });
                 if (studentMsgs.length) {
                     responses.push({

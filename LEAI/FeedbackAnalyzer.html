@@ -595,6 +595,14 @@
         catch (e) { return 'general'; }
     })();
 
+    // sent_by role detection — backend stores 'user'/'assistant' for new
+    // submissions (post-commit 105a7f9) but legacy rows still carry the
+    // CSS-class tags 'user-message'/'ai-message'. Treat both as student.
+    function isStudentMsg(m) {
+        var r = m && m.sent_by;
+        return r === 'user' || r === 'user-message';
+    }
+
     // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
     // Backend `feedback_messages_by_course/` now returns `mode` and
     // `form_schema_id` per survey so we can split:
@@ -1606,7 +1614,7 @@
 
         entries.forEach(function (entry, idx) {
             var msgs = entry.msgs;
-            var studentMsgs = msgs.filter(function (m) { return m.sent_by === 'user-message'; });
+            var studentMsgs = msgs.filter(isStudentMsg);
 
             var card = document.createElement('div');
             card.className = 'student-card';
@@ -1652,7 +1660,7 @@
                 body.appendChild(noMsg);
             } else {
                 msgs.forEach(function (m) {
-                    var isStudent = m.sent_by === 'user-message';
+                    var isStudent = isStudentMsg(m);
                     var row = document.createElement('div');
                     row.className = 'convo-msg';
 
@@ -2027,7 +2035,7 @@
             var tdMsgs = tr.insertCell();
             if (sid) {
                 var msgs = surveyData.sessions[sid] || [];
-                var studentCount = msgs.filter(function (m) { return m.sent_by === 'user-message'; }).length;
+                var studentCount = msgs.filter(isStudentMsg).length;
                 tdMsgs.textContent = studentCount;
             } else {
                 tdMsgs.textContent = '\u2014';
@@ -2101,7 +2109,7 @@
                     (sessions[sid] || []).forEach(function (m) {
                         log.push({
                             session: sid,
-                            role: (m.sent_by === 'user') ? 'user' : 'bot',
+                            role: isStudentMsg(m) ? 'user' : 'bot',
                             text: m.content,
                             ts: m.created_at,
                         });
