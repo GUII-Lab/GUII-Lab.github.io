@@ -2633,10 +2633,12 @@ When the conversation has organically reached a natural close — i.e. the stude
         .then(function (r) { return r.json(); })
         .then(function (surveys) {
             container.textContent = '';
-            // General tab shows individual-mode surveys only — exclude group + form,
-            // mirroring the segmentation in FeedbackAnalyzer.
+            // General tab shows individual-mode surveys only — exclude group + form.
+            // Tab membership is decided by `mode` alone; form_schema_id can ride
+            // along on a group survey (coverage schema) and must not influence
+            // which tab it lands on.
             var generalSurveys = (surveys || []).filter(function (s) {
-                return s && s.mode !== 'group' && s.mode !== 'form' && !s.form_schema_id;
+                return s && s.mode !== 'group' && s.mode !== 'form';
             });
             if (!generalSurveys.length) {
                 var empty = document.createElement('div');

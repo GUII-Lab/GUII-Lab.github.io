@@ -604,13 +604,13 @@
     }
 
     // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
-    // Backend `feedback_messages_by_course/` now returns `mode` and
-    // `form_schema_id` per survey so we can split:
-    //   general → individual mode surveys only (no team mode, no form mode)
-    //   group   → team-mode surveys (mode === 'group')
-    //   form    → structured-reflection surveys (mode === 'form' or has form_schema_id)
+    // Tab membership is decided by `mode` ALONE. A group survey may also carry a
+    // `form_schema_id` (optional coverage schema) — that does NOT make it a
+    // form-tab survey. The form tab is reserved for surveys explicitly created
+    // in mode='form'; treating form_schema_id as a tab signal leaks group
+    // surveys into the structured-reflection tab.
     function isFormSurvey(s) {
-        return !!(s && (s.form_schema_id || s.mode === 'form'));
+        return !!(s && s.mode === 'form');
     }
     function isGroupSurvey(s) {
         return !!(s && s.mode === 'group');
