@@ -160,17 +160,39 @@
             .scope-bar { flex-wrap: wrap; }
         }
 
-        /* Scope picker — clickable chip + modal */
+        /* Scope picker — clickable chip + modal.
+           The chip carries an explicit "Change" affix and dropdown caret so
+           instructors recognise it as the entry point to the mode-scoped
+           survey picker (the bare badge styling was being read as a status
+           label, not a control). */
         .scope-chip.scope-chip-editable {
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
+            padding-right: 10px;
+            border: 1px solid currentColor;
+            background: var(--surface);
+            color: var(--primary);
+            transition: background 0.12s, box-shadow 0.12s;
         }
-        .scope-chip-editable::after {
-            content: '\25BE';
+        .scope-chip.scope-chip-editable:hover {
+            background: var(--surface-mid);
+            box-shadow: var(--shadow-soft);
+        }
+        .scope-chip-editable .scope-chip-affix {
             font-size: 0.7rem;
-            opacity: 0.7;
+            font-weight: 600;
+            opacity: 0.8;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            border-left: 1px solid currentColor;
+            padding-left: 8px;
+        }
+        .scope-chip-editable .scope-chip-caret {
+            font-size: 0.7rem;
+            opacity: 0.85;
+            margin-left: -2px;
         }
         .scope-picker-box {
             background: var(--surface-card);
@@ -848,8 +870,23 @@
         var chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'scope-chip active scope-chip-editable';
-        chip.title = 'Click to change which surveys this chat draws from';
-        chip.textContent = describeScope(data.scope);
+        chip.title = 'Choose mode and surveys this chat draws from';
+
+        var scopeLabel = document.createElement('span');
+        scopeLabel.className = 'scope-chip-label';
+        scopeLabel.textContent = describeScope(data.scope);
+
+        var affix = document.createElement('span');
+        affix.className = 'scope-chip-affix';
+        affix.textContent = 'Change';
+
+        var caret = document.createElement('span');
+        caret.className = 'scope-chip-caret';
+        caret.textContent = '▾';
+
+        chip.appendChild(scopeLabel);
+        chip.appendChild(affix);
+        chip.appendChild(caret);
         chip.addEventListener('click', function () {
             openScopePicker(data.scope || { kind: 'course' }, 'session');
         });
@@ -1383,6 +1420,25 @@
         pickerTarget = target || 'session';
         pickerSelected = new Set();
         pickerMode = 'all';
+
+        // If the initial fetch hadn't completed (or quietly failed), kick it
+        // again so the modal isn't perpetually empty. We open the modal
+        // immediately with a loading state so the click feels responsive.
+        if (!allSurveys.length) {
+            document.getElementById('scope-modal').classList.add('visible');
+            var listEl = document.getElementById('scope-picker-list');
+            listEl.textContent = '';
+            var loading = document.createElement('div');
+            loading.className = 'scope-picker-empty';
+            loading.textContent = 'Loading surveys…';
+            listEl.appendChild(loading);
+            loadResponsesIndex().finally(function () {
+                if (!document.getElementById('scope-modal').classList.contains('visible')) return;
+                // Re-run with freshly populated allSurveys.
+                openScopePicker(scope, target);
+            });
+            return;
+        }
 
         if (scope && scope.kind === 'custom' && Array.isArray(scope.survey_ids)) {
             scope.survey_ids.forEach(function (id) { pickerSelected.add(id); });
