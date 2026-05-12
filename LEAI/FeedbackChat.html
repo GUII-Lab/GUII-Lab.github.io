@@ -159,6 +159,110 @@
             .mobile-new-chat-btn { display: flex; align-items: center; }
             .scope-bar { flex-wrap: wrap; }
         }
+
+        /* Scope picker — clickable chip + modal */
+        .scope-chip.scope-chip-editable {
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .scope-chip-editable::after {
+            content: '\25BE';
+            font-size: 0.7rem;
+            opacity: 0.7;
+        }
+        .scope-picker-box {
+            background: var(--surface-card);
+            border-radius: var(--radius-md);
+            padding: 24px;
+            max-width: 560px;
+            width: 92%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-float);
+        }
+        .scope-picker-box h3 {
+            font-size: 1rem; font-weight: 700; margin-bottom: 4px;
+            letter-spacing: -0.01em;
+        }
+        .scope-picker-box .modal-subtitle {
+            font-size: 0.78rem; color: var(--muted);
+            margin-bottom: 16px; line-height: 1.5;
+        }
+        .scope-picker-modes {
+            display: flex; gap: 6px; flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        .scope-picker-mode-btn {
+            background: var(--surface);
+            border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm);
+            padding: 6px 12px;
+            font-family: inherit;
+            font-size: 0.74rem;
+            font-weight: 600;
+            color: var(--text-variant);
+            cursor: pointer;
+        }
+        .scope-picker-mode-btn:hover { border-color: var(--primary); }
+        .scope-picker-mode-btn.active {
+            background: var(--primary);
+            color: var(--on-primary);
+            border-color: var(--primary);
+        }
+        .scope-picker-toolbar {
+            display: flex; gap: 12px;
+            font-size: 0.72rem;
+            margin-bottom: 8px;
+        }
+        .scope-picker-toolbar button {
+            background: none; border: none;
+            color: var(--primary);
+            cursor: pointer; padding: 0;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        .scope-picker-toolbar button:hover { text-decoration: underline; }
+        .scope-picker-list {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm);
+            padding: 8px;
+            min-height: 120px;
+            max-height: 320px;
+        }
+        .scope-picker-row {
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 4px;
+            font-size: 0.82rem;
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+        }
+        .scope-picker-row:hover { background: var(--surface); }
+        .scope-picker-row input[type="checkbox"] { flex-shrink: 0; }
+        .scope-picker-row .row-label { flex: 1; color: var(--text); }
+        .scope-picker-row .row-meta {
+            font-size: 0.7rem; color: var(--muted);
+            flex-shrink: 0;
+        }
+        .scope-picker-empty {
+            padding: 20px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.78rem;
+        }
+        .scope-picker-footer {
+            display: flex; align-items: center; gap: 8px;
+            margin-top: 14px;
+        }
+        .scope-picker-count {
+            flex: 1;
+            font-size: 0.74rem;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body>
@@ -329,6 +433,30 @@
     </div>
 </div>
 
+<!-- Scope picker modal -->
+<div class="modal-overlay" id="scope-modal">
+    <div class="scope-picker-box">
+        <h3>Choose chat context</h3>
+        <p class="modal-subtitle">Pick which surveys this chat draws from. The AI only sees responses from the selected surveys.</p>
+        <div class="scope-picker-modes" id="scope-picker-modes">
+            <button type="button" class="scope-picker-mode-btn" data-mode="all">All modes</button>
+            <button type="button" class="scope-picker-mode-btn" data-mode="general">General Feedback</button>
+            <button type="button" class="scope-picker-mode-btn" data-mode="group">In-Group</button>
+            <button type="button" class="scope-picker-mode-btn" data-mode="form">Structured Reflection</button>
+        </div>
+        <div class="scope-picker-toolbar">
+            <button type="button" id="scope-picker-select-all">Select all in mode</button>
+            <button type="button" id="scope-picker-clear">Clear</button>
+        </div>
+        <div class="scope-picker-list" id="scope-picker-list"></div>
+        <div class="scope-picker-footer">
+            <span class="scope-picker-count" id="scope-picker-count"></span>
+            <button class="btn-ghost" id="scope-picker-cancel">Cancel</button>
+            <button class="btn btn-sm" id="scope-picker-save">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Delete confirmation modal -->
 <div class="modal-overlay" id="delete-modal">
     <div class="modal-box">
@@ -359,6 +487,76 @@
     // but not source text).
     var responsesByRid = {};
     var responsesLoaded = false;
+
+    // Course-wide list of surveys, kept so the scope picker can let the
+    // instructor narrow chat context to specific surveys (form/group/general
+    // modes, or arbitrary multi-select). Each entry mirrors what
+    // feedback_messages_by_course returns: { gpt_id, name, mode, week_number,
+    // survey_label, session_count, ... }.
+    var allSurveys = [];
+
+    // Scope picker draft state, only meaningful while the modal is open.
+    // pickerMode is the active mode tab ('all'|'general'|'group'|'form').
+    // pickerSelected is the Set of gpt_ids checked in the current draft.
+    var pickerMode = 'all';
+    var pickerSelected = new Set();
+    var pickerTarget = 'session'; // 'session' = save to active session; 'new' = save & start a new chat
+
+    function modeOf(s) {
+        if (s && s.mode === 'form') return 'form';
+        if (s && s.mode === 'group') return 'group';
+        return 'general';
+    }
+    function modeLabel(mode) {
+        return ({ general: 'General', group: 'In-Group', form: 'Structured Reflection' })[mode] || mode;
+    }
+    function surveyLabel(s) {
+        return s.survey_label || s.name || ('Week ' + (s.week_number != null ? s.week_number : '?'));
+    }
+    function lsScopeKey(courseId) { return 'leai.chat.lastScope.' + courseId; }
+    function loadLastScope() {
+        try {
+            var raw = localStorage.getItem(lsScopeKey(session.courseId));
+            if (!raw) return null;
+            var parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && parsed.kind) return parsed;
+        } catch (e) {}
+        return null;
+    }
+    function saveLastScope(scope) {
+        try {
+            localStorage.setItem(lsScopeKey(session.courseId), JSON.stringify(scope));
+        } catch (e) {}
+    }
+    function defaultNewChatScope() {
+        var last = loadLastScope();
+        return last || { kind: 'course' };
+    }
+    function describeScope(scope) {
+        if (!scope) return 'Entire course';
+        if (scope.kind === 'course') return 'Entire course';
+        if (scope.kind === 'week' && scope.week_number != null) return 'Week ' + scope.week_number;
+        if (scope.kind === 'custom') {
+            var ids = scope.survey_ids || [];
+            if (!ids.length) return 'No surveys selected';
+            // If every survey in a single mode is selected and nothing outside it, summarise as "<Mode> · all".
+            var byMode = { general: 0, group: 0, form: 0 };
+            var totalByMode = { general: 0, group: 0, form: 0 };
+            allSurveys.forEach(function (s) {
+                var m = modeOf(s);
+                totalByMode[m]++;
+                if (ids.indexOf(s.gpt_id) !== -1) byMode[m]++;
+            });
+            var activeModes = Object.keys(byMode).filter(function (m) { return byMode[m] > 0; });
+            if (activeModes.length === 1) {
+                var m = activeModes[0];
+                if (byMode[m] === totalByMode[m]) return modeLabel(m) + ' · all (' + byMode[m] + ')';
+                return modeLabel(m) + ' · ' + byMode[m] + ' of ' + totalByMode[m];
+            }
+            return ids.length + ' surveys selected';
+        }
+        return 'Entire course';
+    }
 
     // ===== LOGIN =====
     document.getElementById('login-btn').addEventListener('click', function () {
@@ -425,6 +623,7 @@
             .then(function (r) { return r.json(); })
             .then(function (surveys) {
                 if (!Array.isArray(surveys)) return;
+                allSurveys = surveys;
                 var idx = leaiAnalysis.buildResponseIndex(surveys, 'course', null);
                 responsesByRid = {};
                 idx.forEach(function (r) { responsesByRid[r.rid] = r; });
@@ -560,13 +759,7 @@
             var meta = document.createElement('div');
             meta.className = 'chat-session-meta';
             var parts = [];
-            if (s.scope) {
-                if (s.scope.kind === 'week' && s.scope.week_number != null) {
-                    parts.push('Week ' + s.scope.week_number);
-                } else {
-                    parts.push('Course');
-                }
-            }
+            if (s.scope) parts.push(describeScope(s.scope));
             var turnCount = s.turn_count || s.message_count || 0;
             parts.push(turnCount + ' turn' + (turnCount !== 1 ? 's' : ''));
             parts.push(relativeTime(s.updated_at || s.created_at));
@@ -652,16 +845,15 @@
 
         var scopeBar = document.getElementById('chat-scope-bar');
         scopeBar.textContent = '';
-        if (data.scope) {
-            var chip = document.createElement('span');
-            chip.className = 'scope-chip active';
-            if (data.scope.kind === 'week' && data.scope.week_number != null) {
-                chip.textContent = 'Week ' + data.scope.week_number;
-            } else {
-                chip.textContent = 'Entire course';
-            }
-            scopeBar.appendChild(chip);
-        }
+        var chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'scope-chip active scope-chip-editable';
+        chip.title = 'Click to change which surveys this chat draws from';
+        chip.textContent = describeScope(data.scope);
+        chip.addEventListener('click', function () {
+            openScopePicker(data.scope || { kind: 'course' }, 'session');
+        });
+        scopeBar.appendChild(chip);
     }
 
     // ===== RENDER MESSAGES =====
@@ -1020,7 +1212,7 @@
     function createNewChat() {
         leaiChat.createSession(session.courseId, {
             title: 'New chat',
-            scope: { kind: 'course' }
+            scope: defaultNewChatScope()
         })
         .then(function (newSession) {
             var newId = newSession.id || newSession.session_id;
@@ -1036,7 +1228,7 @@
         var title = leaiChat.cheapAutoTitle ? leaiChat.cheapAutoTitle(text) : text.slice(0, 40);
         leaiChat.createSession(session.courseId, {
             title: title,
-            scope: { kind: 'course' }
+            scope: defaultNewChatScope()
         })
         .then(function (newSession) {
             var newId = newSession.id || newSession.session_id;
@@ -1181,6 +1373,147 @@
         }
     }
 
+    // ===== SCOPE PICKER =====
+    // Opens the modal seeded with `scope`. `target` is 'session' to PATCH the
+    // active session on save, or 'new' to create a new chat with the chosen
+    // scope (used when starting from a quick-prompt / new-chat button with a
+    // custom scope flow — currently new chats just inherit the last scope
+    // automatically).
+    function openScopePicker(scope, target) {
+        pickerTarget = target || 'session';
+        pickerSelected = new Set();
+        pickerMode = 'all';
+
+        if (scope && scope.kind === 'custom' && Array.isArray(scope.survey_ids)) {
+            scope.survey_ids.forEach(function (id) { pickerSelected.add(id); });
+            // Auto-pick a mode tab if the selection is all in one mode.
+            var modes = {};
+            allSurveys.forEach(function (s) {
+                if (pickerSelected.has(s.gpt_id)) modes[modeOf(s)] = true;
+            });
+            var modeKeys = Object.keys(modes);
+            if (modeKeys.length === 1) pickerMode = modeKeys[0];
+        } else if (scope && scope.kind === 'week' && scope.week_number != null) {
+            // Pre-select all surveys in that week so the user sees what
+            // "Week N" used to mean and can refine from there.
+            allSurveys.forEach(function (s) {
+                if (s.week_number === scope.week_number) pickerSelected.add(s.gpt_id);
+            });
+        } else {
+            // 'course' (or unspecified): pre-select everything.
+            allSurveys.forEach(function (s) { pickerSelected.add(s.gpt_id); });
+        }
+
+        renderScopePicker();
+        document.getElementById('scope-modal').classList.add('visible');
+    }
+
+    function closeScopePicker() {
+        document.getElementById('scope-modal').classList.remove('visible');
+    }
+
+    function renderScopePicker() {
+        // Mode tabs
+        var modeButtons = document.querySelectorAll('#scope-picker-modes .scope-picker-mode-btn');
+        modeButtons.forEach(function (btn) {
+            btn.classList.toggle('active', btn.dataset.mode === pickerMode);
+        });
+
+        var visible = pickerMode === 'all'
+            ? allSurveys.slice()
+            : allSurveys.filter(function (s) { return modeOf(s) === pickerMode; });
+
+        // Sort by week_number ascending (nulls last), then survey label.
+        visible.sort(function (a, b) {
+            var aw = a.week_number == null ? Infinity : a.week_number;
+            var bw = b.week_number == null ? Infinity : b.week_number;
+            if (aw !== bw) return aw - bw;
+            return surveyLabel(a).localeCompare(surveyLabel(b));
+        });
+
+        var listEl = document.getElementById('scope-picker-list');
+        listEl.textContent = '';
+
+        if (!visible.length) {
+            var empty = document.createElement('div');
+            empty.className = 'scope-picker-empty';
+            empty.textContent = pickerMode === 'all'
+                ? 'No surveys in this course yet.'
+                : 'No ' + modeLabel(pickerMode) + ' surveys in this course yet.';
+            listEl.appendChild(empty);
+        }
+
+        visible.forEach(function (s) {
+            var row = document.createElement('label');
+            row.className = 'scope-picker-row';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = pickerSelected.has(s.gpt_id);
+            cb.addEventListener('change', function () {
+                if (cb.checked) pickerSelected.add(s.gpt_id);
+                else pickerSelected.delete(s.gpt_id);
+                updateScopePickerCount();
+            });
+            var label = document.createElement('span');
+            label.className = 'row-label';
+            label.textContent = surveyLabel(s);
+            var meta = document.createElement('span');
+            meta.className = 'row-meta';
+            var parts = [];
+            parts.push(modeLabel(modeOf(s)));
+            if (s.week_number != null) parts.push('Wk ' + s.week_number);
+            parts.push((s.session_count || 0) + ' resp');
+            meta.textContent = parts.join(' · ');
+            row.appendChild(cb);
+            row.appendChild(label);
+            row.appendChild(meta);
+            listEl.appendChild(row);
+        });
+
+        updateScopePickerCount();
+    }
+
+    function updateScopePickerCount() {
+        var el = document.getElementById('scope-picker-count');
+        var n = pickerSelected.size;
+        el.textContent = n + ' survey' + (n === 1 ? '' : 's') + ' selected';
+    }
+
+    function selectedToScope() {
+        // If every survey in the course is selected, use 'course' so the
+        // session keeps the simpler scope (and stays compatible with older
+        // course-wide caches).
+        if (pickerSelected.size === allSurveys.length && allSurveys.length > 0) {
+            return { kind: 'course' };
+        }
+        return { kind: 'custom', survey_ids: Array.from(pickerSelected) };
+    }
+
+    function saveScopePicker() {
+        var scope = selectedToScope();
+        saveLastScope(scope);
+
+        if (pickerTarget === 'session' && activeSessionId) {
+            leaiChat.updateSession(activeSessionId, { scope: scope })
+                .then(function () {
+                    closeScopePicker();
+                    // Refresh the session detail so header + meta reflect the new scope.
+                    return leaiChat.getSession(activeSessionId);
+                })
+                .then(function (data) {
+                    if (!data) return;
+                    activeSessionData = data;
+                    renderChatHeader(data);
+                    loadSessionsQuiet();
+                })
+                .catch(function () {
+                    closeScopePicker();
+                });
+        } else {
+            closeScopePicker();
+        }
+    }
+
     // ===== EVENT BINDINGS =====
     document.getElementById('new-chat-btn').addEventListener('click', createNewChat);
     document.getElementById('mobile-new-chat-btn').addEventListener('click', createNewChat);
@@ -1219,6 +1552,33 @@
 
     document.getElementById('delete-modal').addEventListener('click', function (e) {
         if (e.target === this) hideDeleteModal();
+    });
+
+    // Scope picker bindings
+    document.querySelectorAll('#scope-picker-modes .scope-picker-mode-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            pickerMode = btn.dataset.mode;
+            renderScopePicker();
+        });
+    });
+    document.getElementById('scope-picker-select-all').addEventListener('click', function () {
+        var inMode = pickerMode === 'all'
+            ? allSurveys
+            : allSurveys.filter(function (s) { return modeOf(s) === pickerMode; });
+        inMode.forEach(function (s) { pickerSelected.add(s.gpt_id); });
+        renderScopePicker();
+    });
+    document.getElementById('scope-picker-clear').addEventListener('click', function () {
+        var inMode = pickerMode === 'all'
+            ? allSurveys
+            : allSurveys.filter(function (s) { return modeOf(s) === pickerMode; });
+        inMode.forEach(function (s) { pickerSelected.delete(s.gpt_id); });
+        renderScopePicker();
+    });
+    document.getElementById('scope-picker-save').addEventListener('click', saveScopePicker);
+    document.getElementById('scope-picker-cancel').addEventListener('click', closeScopePicker);
+    document.getElementById('scope-modal').addEventListener('click', function (e) {
+        if (e.target === this) closeScopePicker();
     });
 
 })();
