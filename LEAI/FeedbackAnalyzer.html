@@ -596,13 +596,22 @@
     })();
 
     // Filter rules per tab — keeps each mode's data fully isolated to its own tab.
+    // Backend `feedback_messages_by_course/` now returns `mode` and
+    // `form_schema_id` per survey so we can split:
+    //   general → individual mode surveys only (no team mode, no form mode)
+    //   group   → team-mode surveys (mode === 'group')
+    //   form    → structured-reflection surveys (mode === 'form' or has form_schema_id)
     function isFormSurvey(s) {
         return !!(s && (s.form_schema_id || s.mode === 'form'));
     }
+    function isGroupSurvey(s) {
+        return !!(s && s.mode === 'group');
+    }
     function surveysForMode(mode) {
-        if (mode === 'form') return allSurveys.filter(isFormSurvey);
-        // General: exclude form-mode surveys (group surveys come from a different endpoint).
-        return allSurveys.filter(function (s) { return !isFormSurvey(s); });
+        if (mode === 'form')  return allSurveys.filter(isFormSurvey);
+        if (mode === 'group') return allSurveys.filter(isGroupSurvey);
+        // General: only normal individual feedback — exclude group and form mode.
+        return allSurveys.filter(function (s) { return !isFormSurvey(s) && !isGroupSurvey(s); });
     }
     function activeSurveys() { return surveysForMode(currentMode); }
     var currentNgrams = [];
@@ -714,6 +723,8 @@
             emptyChip.style.cssText = 'font-size:0.78rem;color:var(--muted);margin-left:8px;align-self:center';
             emptyChip.textContent = currentMode === 'form'
                 ? 'No structured-reflection surveys yet.'
+                : currentMode === 'group'
+                ? 'No in-group surveys yet.'
                 : 'No general-feedback surveys yet.';
             bar.appendChild(emptyChip);
         }
@@ -2160,7 +2171,9 @@
 
             var nameEl = document.createElement('div');
             nameEl.className = 'team-name';
-            nameEl.textContent = snap.label_prefix + ' ' + t.number;
+            nameEl.textContent = (t.display_name && t.display_name.trim())
+                ? t.display_name
+                : (snap.label_prefix + ' ' + t.number);
             card.appendChild(nameEl);
 
             var stats = document.createElement('div');
@@ -2218,9 +2231,12 @@
         });
         body.appendChild(backBtn);
 
+        var teamLabel = (team.display_name && team.display_name.trim())
+            ? team.display_name
+            : (snap.label_prefix + ' ' + team.number);
         var heading = document.createElement('h3');
         heading.className = 'team-drill-heading';
-        heading.textContent = snap.label_prefix + ' ' + team.number + ' — ' + sessionIds.length + ' response' + (sessionIds.length === 1 ? '' : 's');
+        heading.textContent = teamLabel + ' — ' + sessionIds.length + ' response' + (sessionIds.length === 1 ? '' : 's');
         body.appendChild(heading);
 
         sessionIds.forEach(function (sid, i) {
@@ -2295,10 +2311,13 @@
             t.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
 
-        // Panel visibility
+        // Panel visibility — all three tabs render through the shared panel
+        // (stats, n-grams, AI Quick Take, responses). The In-Group tab also
+        // shows its per-team drill-down section underneath so instructors can
+        // both see aggregate trends AND dig into individual teams.
         var sharedPanel = document.getElementById('mode-panel-shared');
         var groupPanel = document.getElementById('mode-panel-group');
-        if (sharedPanel) sharedPanel.style.display = (mode === 'group') ? 'none' : '';
+        if (sharedPanel) sharedPanel.style.display = '';
         if (groupPanel)  groupPanel.style.display  = (mode === 'group') ? '' : 'none';
 
         // Form mode is per-submission analysis-driven (M9, spec §1 cross-submission deferred):
@@ -2308,16 +2327,15 @@
         if (trad) trad.style.display = (mode === 'form') ? 'none' : '';
         if (qt)   qt.style.display   = (mode === 'form') ? 'none' : '';
 
+        // Reset scope to course on tab entry so stale week selection from the
+        // other mode never leaks through, then re-render aggregate panel.
+        currentScope = { kind: 'course', weekNumber: null };
+        renderScopeChips();
+        onScopeChange();
+
         if (mode === 'group') {
-            // Group panel is self-contained — chips loaded by loadInGroupSurveys();
-            // make sure analysis section starts collapsed when entering the tab.
+            // Per-team drill-down starts collapsed; chips loaded by loadInGroupSurveys()
             document.getElementById('ingroup-analysis-section').classList.remove('visible');
-        } else {
-            // Reset scope to course on tab entry so stale week selection from the
-            // other mode never leaks through.
-            currentScope = { kind: 'course', weekNumber: null };
-            renderScopeChips();
-            onScopeChange();
         }
     }
 
