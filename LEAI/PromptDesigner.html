@@ -1696,7 +1696,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 var list = document.createElement('div');
                 list.className = 'survey-list';
                 groupSurveys.slice().sort(function (a, b) {
-                    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+                    return new Date(b.opens_at || b.created_at || 0) - new Date(a.opens_at || a.created_at || 0);
                 }).forEach(function (s) {
                     list.appendChild(igBuildSurveyItem(s));
                 });
@@ -2598,6 +2598,11 @@ When the conversation has organically reached a natural close — i.e. the stude
                     container.appendChild(empty);
                     return;
                 }
+                // Rank by survey start date (opens_at), falling back to created_at —
+                // most recently started first.
+                formRows.sort(function (a, b) {
+                    return new Date(b.opens_at || b.created_at || 0) - new Date(a.opens_at || a.created_at || 0);
+                });
                 var list = document.createElement('div');
                 list.className = 'survey-list';
                 formRows.forEach(function (s) {
@@ -2628,16 +2633,26 @@ When the conversation has organically reached a natural close — i.e. the stude
         .then(function (r) { return r.json(); })
         .then(function (surveys) {
             container.textContent = '';
-            if (!surveys.length) {
+            // General tab shows individual-mode surveys only — exclude group + form,
+            // mirroring the segmentation in FeedbackAnalyzer.
+            var generalSurveys = (surveys || []).filter(function (s) {
+                return s && s.mode !== 'group' && s.mode !== 'form' && !s.form_schema_id;
+            });
+            if (!generalSurveys.length) {
                 var empty = document.createElement('div');
                 empty.className = 'empty-state';
                 empty.textContent = 'No surveys yet. Create one to get started.';
                 container.appendChild(empty);
                 return;
             }
+            // Rank by survey start date (opens_at), falling back to created_at —
+            // most recently started first.
+            generalSurveys.sort(function (a, b) {
+                return new Date(b.opens_at || b.created_at || 0) - new Date(a.opens_at || a.created_at || 0);
+            });
             var list = document.createElement('div');
             list.className = 'survey-list';
-            surveys.forEach(function (s) {
+            generalSurveys.forEach(function (s) {
                 var link = BASE_URL + '?id=' + (s.public_id || s.id);
                 var label = s.survey_label || s.name;
                 var weekLabel = s.week_number ? 'Week ' + s.week_number : '';
