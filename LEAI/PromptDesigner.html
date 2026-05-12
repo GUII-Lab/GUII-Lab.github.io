@@ -910,6 +910,12 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <option value="identified">Identified (names allowed)</option>
                         <option value="pseudonymous">Pseudonymous</option>
                     </select>
+                    <div id="ig-edit-config-wrap" style="display:none;margin-bottom:12px">
+                        <label>Team configuration
+                            <span class="info-icon" tabindex="0" data-tooltip="Switch this survey to a different team configuration. Disabled once students start picking teams — duplicate the survey instead in that case."></span>
+                        </label>
+                        <select id="ig-edit-config-picker"></select>
+                    </div>
                     <label>Opens At</label>
                     <input type="datetime-local" id="ig-edit-opens-at" />
                     <label>Expires At</label>
@@ -1880,6 +1886,26 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (anonSel) anonSel.value = s.anonymity_mode || 'anonymous';
         document.getElementById('ig-edit-opens-at').value = igToLocalDatetime(s.opens_at);
         document.getElementById('ig-edit-expires-at').value = igToLocalDatetime(s.expires_at);
+        // Team-configuration swap: only meaningful for group-mode surveys when
+        // the course has more than one config to choose from.
+        var cfgWrap = document.getElementById('ig-edit-config-wrap');
+        var cfgSel = document.getElementById('ig-edit-config-picker');
+        cfgSel.textContent = '';
+        var canSwap = (s.mode === 'group') && (lastLoadedConfigs.length >= 2);
+        if (canSwap) {
+            lastLoadedConfigs.forEach(function (c) {
+                var opt = document.createElement('option');
+                opt.value = String(c.id);
+                opt.textContent = c.name + ' (' + c.teams.length + ' teams)';
+                cfgSel.appendChild(opt);
+            });
+            if (s.team_configuration_id) cfgSel.value = String(s.team_configuration_id);
+            cfgSel.dataset.original = cfgSel.value;
+            cfgWrap.style.display = '';
+        } else {
+            cfgWrap.style.display = 'none';
+            cfgSel.dataset.original = '';
+        }
         document.getElementById('ig-edit-msg').textContent = '';
         document.getElementById('ig-edit-overlay').classList.add('visible');
     }
@@ -1915,6 +1941,15 @@ When the conversation has organically reached a natural close — i.e. the stude
         // "clear prompt" affordance and an empty prompt would brick the bot.
         if (instructions && instructions.trim()) {
             payload.instructions = instructions;
+        }
+        // Team-config swap: include only when the picker is visible and the
+        // instructor actually picked a different config. Backend rejects the
+        // swap if students have already self-assigned to teams.
+        var cfgWrap = document.getElementById('ig-edit-config-wrap');
+        var cfgSel = document.getElementById('ig-edit-config-picker');
+        if (cfgWrap && cfgWrap.style.display !== 'none' && cfgSel && cfgSel.value &&
+            cfgSel.value !== cfgSel.dataset.original) {
+            payload.team_configuration_id = parseInt(cfgSel.value, 10);
         }
         fetch(API + '/update_survey/', {
             method: 'POST',
