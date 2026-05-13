@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js"></script>
-    <link rel="stylesheet" href="leai-shared.css">
+    <script src="leai-tailwind-config.js?v=v0.2.4"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.4">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -529,7 +529,6 @@
                 <div class="section-header">
                     <span class="section-title">AI Quick Take</span>
                     <button type="button" class="info-icon info-icon--right" aria-label="About AI Quick Take" data-tooltip="AI Quick Take synthesises the student responses in the current scope into a concise set of themed bullet points, each with inline citations (e.g. [R17]) to the supporting responses.&#10;&#10;Prompt used:&#10;&quot;You are an educational data analyst helping an instructor understand patterns in anonymous student feedback. Synthesise the key themes, concerns, and insights into a concise set of bullet points. Each bullet must cite the specific response IDs that support it using [R<n>] notation. Be objective, accurate, and avoid over-generalisation.&quot;&#10;&#10;Minimum 5 responses required. 20+ recommended for reliable themes — below that, summaries may overgeneralise from a small sample.&#10;&#10;For very large scopes, responses are chunked and merged so the full corpus is considered."></button>
-                    <button type="button" class="info-icon info-icon--right" aria-label="About citation pill colours" data-tooltip="Citation pill colours show how well each bullet is grounded in its cited responses:&#10;&#10;• Grey (default): cited but not yet verified against the response text.&#10;&#10;• Green: verified — the cited response clearly supports the bullet&apos;s claim.&#10;&#10;• Yellow: partial or unsupported — the cited response only weakly supports the claim, or contradicts it. Review the source before quoting.&#10;&#10;Click any pill to jump to the cited response below."></button>
                 </div>
                 <div id="quick-take-container"></div>
             </div>
@@ -584,7 +583,7 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js"></script>
+<script src="leai-shared.js?v=v0.2.4"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -1226,19 +1225,14 @@
     }
 
     var _quickTakePopover = null;
-    function showQuickTakeCitePopover(anchor, rid, verdict, source) {
+    function showQuickTakeCitePopover(anchor, rid, source, quote) {
         if (_quickTakePopover) { _quickTakePopover.remove(); _quickTakePopover = null; }
 
-        var verdictMeta = ({
-            supported:   { label: 'Verified',   color: '#1e7d36' },
-            verified:    { label: 'Verified',   color: '#1e7d36' },
-            partial:     { label: 'Partial',    color: '#8a6d00' },
-            unsupported: { label: 'Unsupported', color: '#b22222' }
-        })[verdict] || { label: 'Unverified', color: '#5c6b73' };
+        var accentColor = '#5c6b73';
 
         var pop = document.createElement('div');
         pop.className = 'cite-popover';
-        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:360px;min-width:220px';
+        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:380px;min-width:240px';
 
         var header = document.createElement('div');
         header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
@@ -1252,21 +1246,40 @@
             weekEl.textContent = '\u00b7 Week ' + source.week_number;
             header.appendChild(weekEl);
         }
-        var verdictBadge = document.createElement('span');
-        verdictBadge.style.cssText = 'margin-left:auto;padding:1px 8px;border-radius:10px;font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:' + verdictMeta.color + '14;color:' + verdictMeta.color;
-        verdictBadge.textContent = verdictMeta.label;
-        header.appendChild(verdictBadge);
         pop.appendChild(header);
 
-        var body = document.createElement('div');
-        if (source && source.text) {
-            body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + verdictMeta.color + ';padding:2px 0 2px 8px;font-size:0.78rem';
-            body.textContent = source.text;
-        } else {
-            body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
-            body.textContent = 'Response text not available for this citation.';
+        if (quote) {
+            var quoteEl = document.createElement('div');
+            quoteEl.style.cssText = 'border-left:3px solid ' + accentColor + ';padding:4px 0 4px 10px;margin-bottom:6px;font-size:0.84rem;color:#1a1f22';
+            quoteEl.textContent = '\u201c' + quote + '\u201d';
+            pop.appendChild(quoteEl);
         }
-        pop.appendChild(body);
+
+        if (source && source.text) {
+            if (quote) {
+                var disclosure = document.createElement('details');
+                disclosure.style.cssText = 'margin-top:4px;font-size:0.76rem';
+                var summary = document.createElement('summary');
+                summary.style.cssText = 'cursor:pointer;color:#5c6b73;font-weight:600';
+                summary.textContent = 'Full response';
+                disclosure.appendChild(summary);
+                var pre = document.createElement('div');
+                pre.style.cssText = 'color:#1a1f22;max-height:200px;overflow:auto;white-space:pre-wrap;padding:6px 0 0 0;font-size:0.76rem';
+                pre.textContent = source.text;
+                disclosure.appendChild(pre);
+                pop.appendChild(disclosure);
+            } else {
+                var body = document.createElement('div');
+                body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + accentColor + ';padding:2px 0 2px 8px;font-size:0.78rem';
+                body.textContent = source.text;
+                pop.appendChild(body);
+            }
+        } else if (!quote) {
+            var body2 = document.createElement('div');
+            body2.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
+            body2.textContent = 'Response text not available for this citation.';
+            pop.appendChild(body2);
+        }
 
         document.body.appendChild(pop);
 
@@ -1381,6 +1394,39 @@
     function renderQuickTakeLoaded(container, qt) {
         container.textContent = '';
 
+        // Drop citations that the verification pass judged as unsupported
+        // (or never returned a verdict for). Keeps supported / verified /
+        // partial. If no verification ran, leave everything untouched.
+        if (qt.verification && qt.verification.length) {
+            var KEEP_VERDICT = { supported: 1, verified: 1, partial: 1 };
+            var keepMap = {};
+            qt.verification.forEach(function (v) {
+                keepMap[v.bullet_index + ':' + v.source_id] = !!KEEP_VERDICT[v.verdict];
+            });
+            (qt.bullets || []).forEach(function (b, bi) {
+                var kept = (b.cited_ids || []).filter(function (rid) {
+                    return keepMap[bi + ':' + rid];
+                });
+                var keptSet = {};
+                kept.forEach(function (rid) { keptSet[rid] = 1; });
+                b.cited_ids = kept;
+                if (b.quotes) {
+                    b.quotes = b.quotes.filter(function (q) {
+                        return q && q.rid && keptSet[q.rid];
+                    });
+                }
+            });
+            if (qt.sources) {
+                var stillCited = {};
+                (qt.bullets || []).forEach(function (b) {
+                    (b.cited_ids || []).forEach(function (rid) { stillCited[rid] = 1; });
+                });
+                qt.sources = qt.sources.filter(function (s) {
+                    return s && s.rid && stillCited[s.rid];
+                });
+            }
+        }
+
         // Backend persists bullets + verification but not the corpus snapshot,
         // so derive the cited source rows from the surveys already loaded.
         // Matches the numbering produced by buildResponseIndex on the server.
@@ -1411,35 +1457,6 @@
 
         var actions = document.createElement('div');
         actions.className = 'card-actions';
-
-        // Build a verdict lookup from qt.verification
-        var verdictMap = {};
-        if (qt.verification) {
-            qt.verification.forEach(function (v) {
-                verdictMap[v.bullet_index + ':' + v.source_id] = v.verdict;
-            });
-        }
-
-        // Verified count
-        if (qt.bullets) {
-            var verifiedCount = 0;
-            var totalCites = 0;
-            qt.bullets.forEach(function (b, bulletIdx) {
-                if (b.cited_ids && b.cited_ids.length) {
-                    b.cited_ids.forEach(function (rid) {
-                        totalCites++;
-                        var verdict = verdictMap[bulletIdx + ':' + rid] || null;
-                        if (verdict === 'supported' || verdict === 'verified') verifiedCount++;
-                    });
-                }
-            });
-            if (totalCites > 0) {
-                var vc = document.createElement('span');
-                vc.className = 'verified-count';
-                vc.textContent = verifiedCount + '/' + totalCites + ' verified';
-                actions.appendChild(vc);
-            }
-        }
 
         // Regenerate button
         var regenBtn = document.createElement('button');
@@ -1475,17 +1492,76 @@
                 var li = document.createElement('li');
                 var cleanText = b.text.replace(/\s*\[R\d+\]/g, '').trim();
                 li.appendChild(document.createTextNode(cleanText + ' '));
+                // Build a per-bullet rid → quote map so each pill's popover
+                // can show the specific verbatim span the model picked,
+                // rather than the full session transcript.
+                var quoteByRid = {};
+                (b.quotes || []).forEach(function (q) {
+                    if (q && q.rid && q.text && !quoteByRid[q.rid]) {
+                        quoteByRid[q.rid] = q.text;
+                    }
+                });
                 if (b.cited_ids && b.cited_ids.length) {
                     b.cited_ids.forEach(function (rid) {
-                        var verdict = verdictMap[bulletIdx + ':' + rid] || null;
                         var localIdx = pillAssignment.ridToPill[rid];
-                        var pill = leaiAnalysis.renderCitationPill(localIdx, verdict);
+                        var pill = leaiAnalysis.renderCitationPill(localIdx);
                         pill.title = rid;
                         pill.style.cursor = 'pointer';
                         li.appendChild(pill);
                         li.appendChild(document.createTextNode(' '));
-                        pillBindings.push({ pill: pill, rid: rid, verdict: verdict });
+                        pillBindings.push({
+                            pill: pill, rid: rid,
+                            quote: quoteByRid[rid] || '',
+                        });
                     });
+                }
+                // Quote-led evidence (Phase 3a). Each bullet now carries
+                // verbatim spans from the cited responses; render them
+                // directly under the claim. Dedupe identical-text quotes
+                // — when two near-duplicate sessions yield the same span,
+                // show one with a "+N more" affordance.
+                if (b.quotes && b.quotes.length) {
+                    function normKey(s) {
+                        return (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                    }
+                    var grouped = [];   // [{ text, rids:[rid,...] }]
+                    var byKey = {};
+                    b.quotes.forEach(function (q) {
+                        if (!q || !q.text) return;
+                        var k = normKey(q.text);
+                        if (!byKey[k]) {
+                            byKey[k] = { text: q.text, rids: [] };
+                            grouped.push(byKey[k]);
+                        }
+                        if (q.rid && byKey[k].rids.indexOf(q.rid) === -1) {
+                            byKey[k].rids.push(q.rid);
+                        }
+                    });
+                    var quotesEl = document.createElement('div');
+                    quotesEl.className = 'qt-quotes';
+                    grouped.forEach(function (g) {
+                        var qEl = document.createElement('div');
+                        qEl.className = 'qt-quote';
+                        var body = document.createElement('div');
+                        body.className = 'qt-quote-body';
+                        body.appendChild(document.createTextNode(g.text));
+                        var srcEl = document.createElement('span');
+                        srcEl.className = 'qt-quote-src';
+                        // Prefer the first rid's week label; if multiple
+                        // rids echoed the same span, surface that count.
+                        var lead = g.rids[0];
+                        var src = sourceByRid[lead];
+                        var srcParts = [lead];
+                        if (src && src.week_number != null) srcParts.push('Wk ' + src.week_number);
+                        if (g.rids.length > 1) {
+                            srcParts.push('+ ' + (g.rids.length - 1) + ' more echoed this');
+                        }
+                        srcEl.textContent = srcParts.join(' · ');
+                        body.appendChild(srcEl);
+                        qEl.appendChild(body);
+                        quotesEl.appendChild(qEl);
+                    });
+                    li.appendChild(quotesEl);
                 }
                 ul.appendChild(li);
             });
@@ -1495,6 +1571,178 @@
             textP.style.cssText = 'font-size:0.84rem;line-height:1.65;margin-top:8px';
             textP.textContent = qt.text;
             accent.appendChild(textP);
+        }
+
+        // Phase 8: per-section rollup for form-mode Quick Takes. Renders
+        // only when the backend supplied a non-empty `form_sections` array.
+        if (qt.form_sections && qt.form_sections.length) {
+            var fsSec = document.createElement('div');
+            fsSec.className = 'qt-section';
+            var fsTitle = document.createElement('p');
+            fsTitle.className = 'qt-section-title';
+            fsTitle.textContent = 'Per-section breakdown';
+            fsSec.appendChild(fsTitle);
+            qt.form_sections.forEach(function (f) {
+                var card = document.createElement('div');
+                card.className = 'qt-fsec';
+                var ttl = document.createElement('div');
+                ttl.className = 'title';
+                ttl.textContent = f.section_title || '';
+                card.appendChild(ttl);
+                if (f.summary) {
+                    var sm = document.createElement('div');
+                    sm.className = 'summary';
+                    sm.textContent = f.summary;
+                    card.appendChild(sm);
+                }
+                if (f.quote && f.quote.text) {
+                    var q = document.createElement('div');
+                    q.className = 'quote';
+                    q.textContent = '“' + f.quote.text + '”';
+                    if (f.quote.rid) {
+                        var src = document.createElement('span');
+                        src.className = 'quote-src';
+                        var srcRow = sourceByRid[f.quote.rid];
+                        var parts = [f.quote.rid];
+                        if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
+                        src.textContent = parts.join(' · ');
+                        q.appendChild(src);
+                    }
+                    card.appendChild(q);
+                }
+                fsSec.appendChild(card);
+            });
+            accent.appendChild(fsSec);
+        }
+
+        // Phase 7: team health map (group-mode scope). Renders only when
+        // the backend supplied a non-empty `team_health` array.
+        if (qt.team_health && qt.team_health.length) {
+            var teamSec = document.createElement('div');
+            teamSec.className = 'qt-section';
+            var teamTitle = document.createElement('p');
+            teamTitle.className = 'qt-section-title';
+            teamTitle.textContent = 'Team health';
+            teamSec.appendChild(teamTitle);
+            var grid = document.createElement('div');
+            grid.className = 'qt-team-grid';
+            // Sort: at_risk → watch → healthy → no_response (attention order)
+            var order = { at_risk: 0, watch: 1, healthy: 2, no_response: 3 };
+            qt.team_health.slice().sort(function (a, b) {
+                return (order[a.status] || 9) - (order[b.status] || 9);
+            }).forEach(function (t) {
+                var c = document.createElement('div');
+                c.className = 'qt-team-card ' + (t.status || 'healthy');
+                var name = document.createElement('div');
+                name.className = 'name';
+                name.textContent = t.team_name || '';
+                c.appendChild(name);
+                if (t.summary) {
+                    var sm = document.createElement('div');
+                    sm.className = 'summary';
+                    sm.textContent = t.summary;
+                    c.appendChild(sm);
+                }
+                if (t.quote && t.quote.text && t.status !== 'no_response') {
+                    var q = document.createElement('div');
+                    q.className = 'quote';
+                    q.textContent = '“' + t.quote.text + '”';
+                    if (t.quote.rid) {
+                        var src = document.createElement('span');
+                        src.className = 'quote-src';
+                        var srcRow = sourceByRid[t.quote.rid];
+                        var parts = [t.quote.rid];
+                        if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
+                        src.textContent = parts.join(' · ');
+                        q.appendChild(src);
+                    }
+                    c.appendChild(q);
+                }
+                grid.appendChild(c);
+            });
+            teamSec.appendChild(grid);
+            accent.appendChild(teamSec);
+        }
+
+        // Phase 5: tensions (disagreements) and gaps (notable absences).
+        // Rendered only when the backend supplied them; older Quick Takes
+        // without these fields simply skip these sections.
+        if (qt.tensions && qt.tensions.length) {
+            var tensionsSec = document.createElement('div');
+            tensionsSec.className = 'qt-section';
+            var tTitle = document.createElement('p');
+            tTitle.className = 'qt-section-title';
+            var star = document.createElement('span');
+            star.className = 'star';
+            star.textContent = '★';
+            tTitle.appendChild(star);
+            tTitle.appendChild(document.createTextNode(' Tensions — students disagree'));
+            tensionsSec.appendChild(tTitle);
+            qt.tensions.forEach(function (t) {
+                var card = document.createElement('div');
+                card.className = 'qt-tension';
+                var ttl = document.createElement('div');
+                ttl.className = 'qt-tension-title';
+                ttl.textContent = t.title || '';
+                card.appendChild(ttl);
+                if (t.sides && t.sides.length) {
+                    var grid = document.createElement('div');
+                    grid.className = 'qt-tension-sides';
+                    t.sides.forEach(function (s) {
+                        var side = document.createElement('div');
+                        side.className = 'qt-tension-side';
+                        var count = document.createElement('span');
+                        count.className = 'count';
+                        var label = (s.count != null ? s.count + ' · ' : '') + (s.stance || '');
+                        count.textContent = label;
+                        side.appendChild(count);
+                        if (s.quote && s.quote.text) {
+                            var qt2 = document.createElement('span');
+                            qt2.className = 'quote-text';
+                            qt2.textContent = '“' + s.quote.text + '”';
+                            side.appendChild(qt2);
+                            if (s.quote.rid) {
+                                var src = document.createElement('span');
+                                src.className = 'src';
+                                var srcRow = sourceByRid[s.quote.rid];
+                                var parts = [s.quote.rid];
+                                if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
+                                src.textContent = parts.join(' · ');
+                                side.appendChild(src);
+                            }
+                        }
+                        grid.appendChild(side);
+                    });
+                    card.appendChild(grid);
+                }
+                tensionsSec.appendChild(card);
+            });
+            accent.appendChild(tensionsSec);
+        }
+
+        if (qt.gaps && qt.gaps.length) {
+            var gapsSec = document.createElement('div');
+            gapsSec.className = 'qt-section';
+            var gTitle = document.createElement('p');
+            gTitle.className = 'qt-section-title';
+            gTitle.textContent = "Gaps — what students didn't talk about";
+            gapsSec.appendChild(gTitle);
+            qt.gaps.forEach(function (g) {
+                var card = document.createElement('div');
+                card.className = 'qt-gap';
+                var topic = document.createElement('span');
+                topic.className = 'topic';
+                topic.textContent = g.topic || '';
+                card.appendChild(topic);
+                if (g.note) {
+                    var note = document.createElement('span');
+                    note.className = 'note';
+                    note.textContent = '— ' + g.note;
+                    card.appendChild(note);
+                }
+                gapsSec.appendChild(card);
+            });
+            accent.appendChild(gapsSec);
         }
 
         // Sources drawer
@@ -1547,14 +1795,14 @@
         }
 
         // Wire citation pill clicks. Always show an inline popover anchored
-        // to the pill with the R-id, week, verdict, and the full response
-        // text that backs the citation. If the drawer is already expanded,
-        // flash the matching card in place (no page scroll).
+        // to the pill with the R-id, week, and the full response text that
+        // backs the citation. If the drawer is already expanded, flash the
+        // matching card in place (no page scroll).
         pillBindings.forEach(function (binding) {
             binding.pill.addEventListener('click', function (ev) {
                 ev.stopPropagation();
                 var src = binding.rid ? sourceByRid[binding.rid] : null;
-                showQuickTakeCitePopover(binding.pill, binding.rid, binding.verdict, src);
+                showQuickTakeCitePopover(binding.pill, binding.rid, src, binding.quote);
                 if (sourcesList && binding.rid && sourcesList.style.display !== 'none') {
                     var cardEl = sourcesList.querySelector('[data-cite="' + binding.rid + '"]');
                     if (cardEl) {
@@ -1631,13 +1879,7 @@
             });
             var seedText = lines.join('\n') || (qt.text || 'Quick Take (no summary text).');
             var seedCited = pillAssignment.orderedRids.map(function (rid) {
-                var verdict = null;
-                for (var k in verdictMap) {
-                    if (verdictMap.hasOwnProperty(k) && k.split(':')[1] === rid) {
-                        verdict = verdictMap[k]; break;
-                    }
-                }
-                return { rid: rid, pill_index: pillAssignment.ridToPill[rid], verdict: verdict };
+                return { rid: rid, pill_index: pillAssignment.ridToPill[rid] };
             });
 
             var modeLabel = ({ general: 'General', group: 'In-Group', form: 'Structured Reflection' })[currentMode] || 'Course';

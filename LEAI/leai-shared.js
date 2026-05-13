@@ -290,10 +290,9 @@ var leaiAnalysis = {
         return responses;
     },
 
-    renderCitationPill: function(pillIndex, verdict) {
+    renderCitationPill: function(pillIndex) {
         var span = document.createElement('span');
-        span.className = 'cite' + (verdict === 'verified' ? ' verified' :
-            verdict === 'partial' || verdict === 'unsupported' ? ' warn' : '');
+        span.className = 'cite';
         span.textContent = pillIndex;
         span.setAttribute('tabindex', '0');
         return span;

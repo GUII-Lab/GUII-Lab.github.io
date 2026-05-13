@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js"></script>
-    <link rel="stylesheet" href="leai-shared.css">
+    <script src="leai-tailwind-config.js?v=v0.2.4"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.4">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -494,7 +494,7 @@
 <!-- Markdown rendering for assistant messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js"></script>
+<script src="leai-shared.js?v=v0.2.4"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -639,22 +639,37 @@
         loadResponsesIndex().finally(function () { handleDeepLink(); });
     }
 
-    // Fetch the course's feedback list and build a rid → response map using
-    // the same scoping rules the backend uses for chat corpora (course-wide
-    // ordering). If a chat session narrows scope to a week, the rids still
-    // resolve because the map is a superset.
+    // Fetch the course's feedback list. Used to populate the scope picker
+    // (allSurveys) and as a fallback rid map for any code path that needs
+    // a course-wide lookup. The authoritative rid map for citation popovers
+    // is the session's own `data.corpus`, set in loadSession() below — the
+    // backend computes it with the session's exact scope, so it always
+    // agrees with the rids the assistant emitted.
     function loadResponsesIndex() {
         return fetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
             .then(function (r) { return r.json(); })
             .then(function (surveys) {
                 if (!Array.isArray(surveys)) return;
                 allSurveys = surveys;
+                // Fallback course-wide map. Overwritten per-session in loadSession.
                 var idx = leaiAnalysis.buildResponseIndex(surveys, 'course', null);
                 responsesByRid = {};
                 idx.forEach(function (r) { responsesByRid[r.rid] = r; });
                 responsesLoaded = true;
             })
             .catch(function () { /* drawer just stays collapsed without sources */ });
+    }
+
+    // Replace the rid lookup with the session's authoritative corpus from
+    // the backend. This eliminates the scope-mismatch bug where a week-
+    // scoped chat session emits R5 referring to "5th session of week 7"
+    // but the frontend's course-wide map resolves R5 to a totally
+    // different session.
+    function adoptSessionCorpus(sessionData) {
+        if (!sessionData || !Array.isArray(sessionData.corpus)) return;
+        responsesByRid = {};
+        sessionData.corpus.forEach(function (r) { responsesByRid[r.rid] = r; });
+        responsesLoaded = true;
     }
 
     // Synthesize a sources array for an assistant message by looking up each
@@ -839,6 +854,7 @@
         leaiChat.getSession(sessionId)
             .then(function (data) {
                 activeSessionData = data;
+                adoptSessionCorpus(data);
                 renderChatHeader(data);
                 renderMessages(data.messages || []);
                 renderSystemPromptEditor(data);
@@ -975,38 +991,62 @@
         // Label
         var label = document.createElement('div');
         label.className = 'chat-msg-label';
-        var labelText = 'LEAI';
-        if (msg.cited && msg.cited.length) {
-            var verified = msg.cited.filter(function (c) { return c.verdict === 'supported' || c.verdict === 'verified'; }).length;
-            labelText += ' \u00b7 Verified ' + verified + '/' + msg.cited.length;
-        }
-        label.textContent = labelText;
+        label.textContent = 'LEAI';
         wrapper.appendChild(label);
+
+        // Drop citations the verification pass flagged as unsupported
+        // (or never returned a verdict for). Keeps supported / verified /
+        // partial. Renumbers remaining pills contiguously and rewrites the
+        // [N] markers in the text accordingly. When no verdicts are present
+        // at all (no verification ran on this turn), leave everything alone.
+        var rawText = msg.text || msg.content || '';
+        var cited = msg.cited || [];
+        var anyVerdict = cited.some(function (c) { return !!c.verdict; });
+        if (anyVerdict) {
+            var KEEP_VERDICT = { supported: 1, verified: 1, partial: 1 };
+            var kept = cited.filter(function (c) { return KEEP_VERDICT[c.verdict]; });
+            var remap = {};
+            kept.forEach(function (c, i) { remap[c.pill_index] = i + 1; });
+            cited = kept.map(function (c, i) {
+                var copy = {};
+                for (var k in c) { if (c.hasOwnProperty(k)) copy[k] = c[k]; }
+                copy.pill_index = i + 1;
+                return copy;
+            });
+            rawText = rawText.replace(/\[(\d+)\]/g, function (_, n) {
+                var nn = parseInt(n, 10);
+                return remap[nn] ? '[' + remap[nn] + ']' : '';
+            });
+            msg.cited = cited;
+            msg.text = rawText;
+            if (msg.sources && msg.sources.length) {
+                var keptRids = {};
+                cited.forEach(function (c) { if (c.rid) keptRids[c.rid] = 1; });
+                msg.sources = msg.sources.filter(function (s) {
+                    return s && s.rid && keptRids[s.rid];
+                });
+            }
+        }
 
         // Message text with inline citations
         var textDiv = document.createElement('div');
-        var rawText = msg.text || msg.content || '';
-        renderTextWithCitations(textDiv, rawText, msg.cited || []);
+        renderTextWithCitations(textDiv, rawText, cited);
         wrapper.appendChild(textDiv);
 
         // Sources drawer — backend only returns cited[], so synthesize
         // source text from the course's response index.
         if (!msg.sources || !msg.sources.length) {
-            msg.sources = synthesizeSources(msg.cited || []);
+            msg.sources = synthesizeSources(cited);
         }
         if (msg.sources && msg.sources.length) {
             var drawer = createSourcesDrawer(msg.sources);
             wrapper.appendChild(drawer);
 
-            // Wire citation pill clicks. Always show the popover (R-id,
-            // week, verdict, source text) \u2014 matches the AI Quick Take pill
-            // behavior on FeedbackAnalyzer. If the drawer is already open,
-            // also flash the matching card in place.
             var ridByPillLocal = {};
-            var verdictByPillLocal = {};
-            (msg.cited || []).forEach(function (c) {
+            var quoteByPillLocal = {};
+            cited.forEach(function (c) {
                 ridByPillLocal[c.pill_index] = c.rid;
-                verdictByPillLocal[c.pill_index] = c.verdict;
+                quoteByPillLocal[c.pill_index] = c.quote_text || '';
             });
             var pills = textDiv.querySelectorAll('.cite');
             pills.forEach(function (pill) {
@@ -1015,8 +1055,8 @@
                     ev.stopPropagation();
                     var pillIdx = parseInt(pill.textContent.trim(), 10);
                     var rid = ridByPillLocal[pillIdx];
-                    var verdict = verdictByPillLocal[pillIdx] || null;
-                    showCitationPopover(pill, rid, verdict);
+                    var quote = quoteByPillLocal[pillIdx] || '';
+                    showCitationPopover(pill, rid, quote);
                     var drawerList = drawer.querySelector('.sources-list');
                     if (drawerList && drawerList.style.display !== 'none') {
                         var card = rid ? drawer.querySelector('[data-cite="' + rid + '"]') : null;
@@ -1033,13 +1073,14 @@
     }
 
     function renderTextWithCitations(container, text, cited) {
-        // Build maps from pill_index and rid to verdict
-        var verdictByPill = {};
+        // Build maps from pill_index to rid + verbatim quote text
+        // (populated on chat turns since Phase 6).
         var ridByPill = {};
+        var quoteByPill = {};
         if (cited && cited.length) {
             cited.forEach(function (c) {
-                verdictByPill[c.pill_index] = c.verdict;
                 ridByPill[c.pill_index] = c.rid;
+                quoteByPill[c.pill_index] = c.quote_text || '';
             });
         }
 
@@ -1067,9 +1108,9 @@
         // Replace placeholder spans with real citation pill elements
         container.querySelectorAll('[data-cite-pill]').forEach(function (span) {
             var pillIndex = parseInt(span.getAttribute('data-cite-pill'), 10);
-            var verdict = verdictByPill[pillIndex] || null;
             var rid = ridByPill[pillIndex] || null;
-            var pill = leaiAnalysis.renderCitationPill(pillIndex, verdict);
+            var quote = quoteByPill[pillIndex] || '';
+            var pill = leaiAnalysis.renderCitationPill(pillIndex);
             if (rid) pill.title = rid;
             pill.style.cursor = 'pointer';
             // Default click shows an inline popover. createAssistantBubble may
@@ -1077,7 +1118,7 @@
             pill.addEventListener('click', function (ev) {
                 if (pill.dataset.drawerBound === '1') return; // drawer handler will take over
                 ev.stopPropagation();
-                showCitationPopover(pill, rid, verdict);
+                showCitationPopover(pill, rid, quote);
             });
             span.parentNode.replaceChild(pill, span);
         });
@@ -1085,23 +1126,18 @@
 
     var _openPopover = null;
     // Click-to-show citation popover. Mirrors the AI Quick Take popover on
-    // FeedbackAnalyzer: R-id, week tag, verdict badge, and the full source
-    // response text pulled from responsesByRid.
-    function showCitationPopover(anchor, rid, verdict) {
+    // FeedbackAnalyzer: R-id, week tag, and the full source response text
+    // pulled from responsesByRid.
+    function showCitationPopover(anchor, rid, quote) {
         if (_openPopover) { _openPopover.remove(); _openPopover = null; }
 
-        var verdictMeta = ({
-            supported:   { label: 'Verified',   color: '#1e7d36' },
-            verified:    { label: 'Verified',   color: '#1e7d36' },
-            partial:     { label: 'Partial',    color: '#8a6d00' },
-            unsupported: { label: 'Unsupported', color: '#b22222' }
-        })[verdict] || { label: 'Unverified', color: '#5c6b73' };
+        var accentColor = '#5c6b73';
 
         var source = rid ? responsesByRid[rid] : null;
 
         var pop = document.createElement('div');
         pop.className = 'cite-popover';
-        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:360px;min-width:220px';
+        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:380px;min-width:240px';
 
         var header = document.createElement('div');
         header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
@@ -1115,21 +1151,39 @@
             weekEl.textContent = '· Week ' + source.week_number;
             header.appendChild(weekEl);
         }
-        var verdictBadge = document.createElement('span');
-        verdictBadge.style.cssText = 'margin-left:auto;padding:1px 8px;border-radius:10px;font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;background:' + verdictMeta.color + '14;color:' + verdictMeta.color;
-        verdictBadge.textContent = verdictMeta.label;
-        header.appendChild(verdictBadge);
         pop.appendChild(header);
+
+        if (quote) {
+            var quoteEl = document.createElement('div');
+            quoteEl.style.cssText = 'border-left:3px solid ' + accentColor + ';padding:4px 0 4px 10px;margin-bottom:6px;font-size:0.84rem;color:#1a1f22';
+            quoteEl.textContent = '“' + quote + '”';
+            pop.appendChild(quoteEl);
+        }
 
         var body = document.createElement('div');
         if (source && source.text) {
-            body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + verdictMeta.color + ';padding:2px 0 2px 8px;font-size:0.78rem';
-            body.textContent = source.text;
-        } else {
+            if (quote) {
+                var disclosure = document.createElement('details');
+                disclosure.style.cssText = 'margin-top:4px;font-size:0.76rem';
+                var summary = document.createElement('summary');
+                summary.style.cssText = 'cursor:pointer;color:#5c6b73;font-weight:600';
+                summary.textContent = 'Full response';
+                disclosure.appendChild(summary);
+                var pre = document.createElement('div');
+                pre.style.cssText = 'color:#1a1f22;max-height:200px;overflow:auto;white-space:pre-wrap;padding:6px 0 0 0;font-size:0.76rem';
+                pre.textContent = source.text;
+                disclosure.appendChild(pre);
+                pop.appendChild(disclosure);
+            } else {
+                body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + accentColor + ';padding:2px 0 2px 8px;font-size:0.78rem';
+                body.textContent = source.text;
+                pop.appendChild(body);
+            }
+        } else if (!quote) {
             body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
             body.textContent = 'Response text not available for this citation.';
+            pop.appendChild(body);
         }
-        pop.appendChild(body);
 
         document.body.appendChild(pop);
 
@@ -1317,6 +1371,7 @@
             return leaiChat.getSession(newId).then(function (data) {
                 activeSessionId = newId;
                 activeSessionData = data;
+                adoptSessionCorpus(data);
                 sessionStorage.setItem('leai_chat_active_' + session.courseId, newId);
                 document.getElementById('chat-header').style.display = 'block';
                 document.getElementById('chat-input-area').style.display = 'block';
@@ -1604,6 +1659,7 @@
                 .then(function (data) {
                     if (!data) return;
                     activeSessionData = data;
+                    adoptSessionCorpus(data);
                     renderChatHeader(data);
                     loadSessionsQuiet();
                 })

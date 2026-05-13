@@ -447,8 +447,6 @@ input[type="checkbox"], input[type="radio"] {
     vertical-align: text-top; line-height: 1;
 }
 .cite:hover { background: var(--surface-mid); }
-.cite.verified { background: #dcfce7; color: #166534; border-color: #86efac; }
-.cite.warn { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
 
 /* ===== QUICK TAKE CARD ===== */
 .quick-take .card-accent { background: var(--surface-card);
@@ -456,12 +454,89 @@ input[type="checkbox"], input[type="radio"] {
 .quick-take .card-header { display: flex; justify-content: space-between;
     align-items: flex-start; margin-bottom: 12px; }
 .quick-take .card-actions { display: flex; align-items: center; gap: 8px; }
-.quick-take .verified-count { font-size: 0.62rem; color: var(--success-text);
-    font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
 .quick-take-bullets { list-style: none; padding: 0; margin: 0;
     font-size: 0.84rem; line-height: 1.7; }
-.quick-take-bullets li { margin-bottom: 8px; }
+.quick-take-bullets li { margin-bottom: 12px; }
 .quick-take-bullets li::before { content: '\2022 '; font-weight: 700; }
+
+/* Phase 3a / 4a: quote-led evidence inline under each bullet. Renders only
+   when the bullet carries the new `quotes[]` field; older bullets fall back
+   to the citation-pill-only layout. */
+.qt-quotes { margin: 6px 0 4px 18px; display: flex; flex-direction: column;
+    gap: 5px; }
+.qt-quote { display: flex; gap: 6px; align-items: flex-start;
+    font-size: 0.8rem; line-height: 1.5; color: var(--text); }
+.qt-quote::before { content: '\201C'; font-size: 1.2rem; line-height: 0.8;
+    color: var(--primary); flex-shrink: 0; }
+.qt-quote-body { flex: 1; }
+.qt-quote-src { display: block; color: var(--muted); font-size: 0.66rem;
+    margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Phase 5: tensions + gaps sections inside the Quick Take card. */
+.qt-section { margin-top: 14px; padding-top: 12px;
+    border-top: 1px dashed var(--surface-high); }
+.qt-section-title { font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-variant); margin: 0 0 8px; display: flex; gap: 6px;
+    align-items: center; }
+.qt-section-title .star { color: #6f2dbd; }
+
+.qt-tension { padding: 10px 12px; border: 1px solid var(--surface-mid);
+    border-left: 3px solid #6f2dbd; border-radius: 8px;
+    background: var(--surface-card); margin-bottom: 8px; }
+.qt-tension-title { font-size: 0.86rem; font-weight: 600; margin-bottom: 6px; }
+.qt-tension-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.qt-tension-side { background: var(--surface-low); padding: 8px 10px;
+    border-radius: 6px; font-size: 0.78rem; line-height: 1.45; }
+.qt-tension-side .count { display: block; font-weight: 700;
+    font-size: 0.72rem; color: var(--text-variant); margin-bottom: 3px; }
+.qt-tension-side .stance { font-weight: 600; color: var(--text); }
+.qt-tension-side .quote-text { display: block; margin-top: 4px;
+    color: var(--text); }
+.qt-tension-side .src { display: block; color: var(--muted);
+    font-size: 0.64rem; margin-top: 3px; text-transform: uppercase;
+    letter-spacing: 0.05em; }
+
+.qt-gap { padding: 8px 12px; background: var(--surface-low);
+    border: 1px dashed var(--surface-high); border-radius: 6px;
+    font-size: 0.8rem; margin-bottom: 6px; }
+.qt-gap .topic { font-weight: 600; }
+.qt-gap .note { color: var(--muted); margin-left: 6px; }
+
+/* Phase 7: team-health rollup. Renders as a grid of small cards. */
+.qt-team-grid { display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px; margin-bottom: 10px; }
+.qt-team-card { padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--surface-mid);
+    background: var(--surface-card); }
+.qt-team-card.healthy { border-left: 3px solid #1e7d36; }
+.qt-team-card.watch   { border-left: 3px solid #8a6d00; background: #fffdf6; }
+.qt-team-card.at_risk { border-left: 3px solid #b22222; background: #fdf6f6; }
+.qt-team-card.no_response { opacity: 0.6; }
+.qt-team-card .name { font-weight: 700; font-size: 0.86rem;
+    margin-bottom: 2px; }
+.qt-team-card .summary { font-size: 0.76rem; color: var(--text-variant);
+    line-height: 1.4; margin-bottom: 6px; }
+.qt-team-card .quote { font-size: 0.74rem; color: var(--text);
+    border-left: 2px solid var(--surface-high); padding-left: 6px; }
+.qt-team-card .quote-src { display: block; font-size: 0.64rem;
+    color: var(--muted); margin-top: 3px; text-transform: uppercase;
+    letter-spacing: 0.05em; }
+
+/* Phase 8: per-form-section rollup for form-mode Quick Takes. */
+.qt-fsec { padding: 10px 12px; border: 1px solid var(--surface-mid);
+    border-left: 3px solid #0b62a4; border-radius: 8px;
+    background: var(--surface-card); margin-bottom: 8px; }
+.qt-fsec .title { font-weight: 700; font-size: 0.86rem;
+    color: #0b62a4; margin-bottom: 4px; }
+.qt-fsec .summary { font-size: 0.82rem; color: var(--text);
+    line-height: 1.5; margin-bottom: 6px; }
+.qt-fsec .quote { font-size: 0.78rem; color: var(--text);
+    border-left: 2px solid var(--surface-high); padding-left: 8px; }
+.qt-fsec .quote-src { display: block; font-size: 0.66rem;
+    color: var(--muted); margin-top: 3px; text-transform: uppercase;
+    letter-spacing: 0.05em; }
 
 /* ===== SOURCES DRAWER ===== */
 .sources-drawer { margin-top: 6px; }
