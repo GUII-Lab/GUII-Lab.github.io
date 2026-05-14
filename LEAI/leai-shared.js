@@ -450,9 +450,78 @@ var leaiChat = {
     },
 
     sendTurn: function(sessionId, userText) {
+        // Returns 202 with the placeholder assistant message
+        // (status === 'pending'); callers must then pollMessage() until
+        // status flips to 'ready' or 'failed'. The 30s Heroku router
+        // budget rules out a synchronous turn for multi-survey scopes.
         return leaiChat._fetch('/leai_chat_sessions/' + sessionId + '/turn/', {
             method: 'POST',
             body: JSON.stringify({ user_text: userText }),
+        });
+    },
+
+    getMessage: function(sessionId, messageId) {
+        return leaiChat._fetch(
+            '/leai_chat_sessions/' + sessionId + '/messages/' + messageId + '/',
+        );
+    },
+
+    pollMessage: function(sessionId, messageId, opts) {
+        // Poll getMessage until status is ready/failed, then resolve/reject.
+        // opts: { intervalMs=1500, timeoutMs=180000, onTick(msg) }
+        opts = opts || {};
+        var intervalMs = opts.intervalMs || 1500;
+        var timeoutMs = opts.timeoutMs || 180000;
+        var onTick = typeof opts.onTick === 'function' ? opts.onTick : null;
+        var startedAt = Date.now();
+        return new Promise(function (resolve, reject) {
+            function tick() {
+                leaiChat.getMessage(sessionId, messageId)
+                    .then(function (msg) {
+                        if (onTick) {
+                            try { onTick(msg); } catch (_) {}
+                        }
+                        if (msg.status === 'ready') { resolve(msg); return; }
+                        if (msg.status === 'failed') {
+                            reject(new Error(msg.error || 'Generation failed'));
+                            return;
+                        }
+                        if (Date.now() - startedAt > timeoutMs) {
+                            reject(new Error('Generation timed out'));
+                            return;
+                        }
+                        setTimeout(tick, intervalMs);
+                    })
+                    .catch(function (err) {
+                        if (Date.now() - startedAt > timeoutMs) {
+                            reject(err);
+                            return;
+                        }
+                        // Transient fetch error: retry on next tick.
+                        setTimeout(tick, intervalMs);
+                    });
+            }
+            tick();
+        });
+    },
+
+    sendTurnAndWait: function(sessionId, userText, opts) {
+        // Convenience wrapper: POST the turn, then poll the placeholder
+        // until ready/failed. Resolves with the same shape callers used
+        // to receive from the (formerly synchronous) sendTurn:
+        // { user_message, message, session_updated_at }.
+        return leaiChat.sendTurn(sessionId, userText).then(function (result) {
+            if (!result || !result.message || !result.message.id) {
+                throw new Error('Turn submission did not return a message');
+            }
+            return leaiChat.pollMessage(sessionId, result.message.id, opts)
+                .then(function (readyMsg) {
+                    return {
+                        user_message: result.user_message,
+                        message: readyMsg,
+                        session_updated_at: result.session_updated_at,
+                    };
+                });
         });
     },
 
