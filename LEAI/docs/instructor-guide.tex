@@ -2,11 +2,19 @@
 
 \usepackage[margin=1in]{geometry}
 \usepackage{graphicx}
+
+% Resolve image references whether the build runs from LEAI/docs/ (the
+% intended cwd) or from the repository root (e.g. when latexmk is fired
+% by an editor task from the project root). Listing both prefixes makes
+% \includegraphics{screenshots/foo.png} resolve in either case.
+\graphicspath{{./}{LEAI/docs/}}
+
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{enumitem}
 \usepackage{fancyvrb}
+\usepackage{fvextra}  % gives Verbatim the breaklines / breaksymbol options
 \usepackage{tcolorbox}
 \usepackage{titlesec}
 \usepackage{parskip}
