@@ -1309,6 +1309,15 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px; font-weight: 500; color: #92400e; background: #fef3c7;
     padding: 2px 8px; border-radius: 999px;
 }
+/* AI-assisted badge — pop colour to draw the eye for verification */
+.leai-pdf-review-cell__aibadge {
+    font-size: 10.5px; font-weight: 600; color: #6d28d9; background: #ede9fe;
+    padding: 2px 8px; border-radius: 999px; cursor: help;
+    border: 1px solid #ddd6fe; line-height: 1.4;
+}
+.leai-pdf-review-cell__aibadge:hover, .leai-pdf-review-cell__aibadge:focus {
+    background: #ddd6fe; outline: none;
+}
 /* Review search bar (only shown for batches >= 8) */
 .leai-pdf-review-search {
     width: 100%; padding: 8px 12px; font-size: 13px;

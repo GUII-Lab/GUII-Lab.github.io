@@ -1648,11 +1648,23 @@
             var current = state.edits[item.filename] && state.edits[item.filename][pid];
             if (current == null) current = (item.mapping && item.mapping[pid]) || '';
             var isLow = (item.low_conf_prompts || []).indexOf(pid) !== -1;
+            var isAi = (item.ai_assisted_prompts || []).indexOf(pid) !== -1;
             // Stable id pair so the textarea's aria-labelledby points at
             // the visible label — screen readers announce 'Methods in
             // Practice, low confidence' when the textarea is focused.
             var labelId = 'leai-pdf-cell-label-' + safeFilename + '-' + pid;
             var labelChildren = [p.title || pid];
+            if (isAi) {
+                // Sparkle badge — instructor knows the parser's regex
+                // missed this one and the AI second-pass guessed it.
+                // Worth a closer look + tooltip explaining the source.
+                labelChildren.push(el('span', {
+                    class: 'leai-pdf-review-cell__aibadge',
+                    title: 'The regex parser missed this section, so this answer was filled in by an AI second-pass. Worth a quick check.',
+                    'aria-label': 'AI-filled value, please verify',
+                    tabindex: '0',
+                }, ['✨ AI']));
+            }
             if (p.opening_prompt) {
                 labelChildren.push(el('button', {
                     type: 'button',
