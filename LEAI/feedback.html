@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js"></script>
+    <script src="leai-tailwind-config.js?v=v0.2.5"></script>
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -434,6 +434,31 @@
         }
         .ig-startover-link:hover { color: var(--text); }
 
+        /* "Copy resume link" pill — appears once a chat session is active so
+           the student can bookmark or email themselves a link that resumes the
+           exact conversation from any device, no localStorage required. */
+        .leai-resume-chip {
+            margin: 8px auto 0;
+            padding: 5px 11px;
+            font-size: 0.74rem; font-family: inherit;
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid rgba(169,180,183,0.45);
+            border-radius: 999px;
+            cursor: pointer;
+            align-self: center;
+            transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .leai-resume-chip:hover {
+            color: var(--text);
+            background: var(--surface-mid);
+            border-color: rgba(169,180,183,0.7);
+        }
+        .leai-resume-chip:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
         /* ===== HEADER ANONYMITY BADGE / SUBTITLE / TERMS LINK ===== */
         .chat-header-title-block { display: flex; flex-direction: column; min-width: 0; }
         .chat-header-subtitle {
@@ -850,7 +875,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js"></script>
+    <script src="leai-shared.js?v=v0.2.5"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
@@ -1033,8 +1058,88 @@
             }
             chatHistory = [{ role: 'system', content: sysPrompt }];
             $('#transcription').empty();
-            generateIntroductoryMessage(sysPrompt);
-            $('#sendMessage').prop('disabled', false);
+
+            // Server-side restore: if the URL fragment carried a #cid= and the
+            // backend has prior turns for (gpt.id, cid), replay them instead of
+            // generating a fresh opening. Falls through to the normal intro
+            // when no transcript exists for that cid+gpt pair, or when the
+            // fetch fails (network error, survey id mismatch, etc.).
+            var resumeCid = window.sessionData && window.sessionData.resumeCid;
+            renderResumeCopyChip();
+            if (resumeCid && gpt.id && typeof leaiSession !== 'undefined') {
+                leaiSession.resume(gpt.id, resumeCid).then(function (data) {
+                    if (data && data.messages && data.messages.length) {
+                        replayResumedConversation(data.messages);
+                        $('#sendMessage').prop('disabled', false);
+                    } else {
+                        // cid is valid syntactically but the backend has no
+                        // matching transcript — treat as a fresh session under
+                        // the URL's session id so subsequent turns persist.
+                        generateIntroductoryMessage(sysPrompt);
+                        $('#sendMessage').prop('disabled', false);
+                    }
+                }).catch(function (err) {
+                    console.warn('Server-side resume failed; starting fresh:', err);
+                    generateIntroductoryMessage(sysPrompt);
+                    $('#sendMessage').prop('disabled', false);
+                });
+            } else {
+                generateIntroductoryMessage(sysPrompt);
+                $('#sendMessage').prop('disabled', false);
+            }
+        }
+
+        // Replay a server-fetched transcript into the general-mode UI. Mirrors
+        // the in-group rehydrateChat path: rebuilds chatHistory, renders each
+        // turn with its original timestamp, and walks the form-mode engine so
+        // section coverage / progress label match the live state pre-refresh.
+        function replayResumedConversation(messages) {
+            if (!messages || !messages.length) return;
+            messages.forEach(function (m) {
+                var role = (m.sent_by === 'user') ? 'user' : 'assistant';
+                var className = (role === 'user') ? 'user-message' : 'ai-message';
+                chatHistory.push({ role: role, content: m.content });
+                appendMessage(className, m.content, {
+                    skipPersist: true,
+                    timestamp: m.created_at,
+                });
+                if (formMode.active && formMode.state) {
+                    try {
+                        if (role === 'user') {
+                            leaiFormMode.beforeTurn(formMode.state, m.content);
+                        } else {
+                            leaiFormMode.afterTurn(formMode.state, m.content);
+                        }
+                    } catch (e) { /* replay is best-effort */ }
+                }
+            });
+            if (formMode.active && formMode.state) {
+                renderFormModeProgress();
+            }
+        }
+
+        // Subtle "Copy resume link" pill appended to the chat footer. Shows
+        // a one-shot privacy warning the first time it's clicked so the
+        // student understands the share-by-link threat model.
+        function renderResumeCopyChip() {
+            if (document.getElementById('leai-resume-chip')) return;
+            var footerInner = document.querySelector('.chat-footer .chat-footer-inner');
+            if (!footerInner) return;
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.id = 'leai-resume-chip';
+            chip.className = 'leai-resume-chip';
+            chip.textContent = '🔗 Copy resume link';
+            chip.title = 'Bookmark or email this link to come back to this exact conversation from any device. Anyone with the link can read it — don’t share it on a public computer.';
+            chip.addEventListener('click', function () {
+                if (typeof leaiSession === 'undefined') return;
+                leaiSession.copyResumeLink().then(function () {
+                    var orig = chip.textContent;
+                    chip.textContent = '✓ Link copied — keep it private';
+                    setTimeout(function () { chip.textContent = orig; }, 2500);
+                });
+            });
+            footerInner.appendChild(chip);
         }
 
         function showInactive(reason) {
@@ -1658,7 +1763,26 @@
                 try { localStorage.removeItem(igHistoryKey(sid)); } catch (e) {}
             }
 
-            var sessionId = readIgSessionId();
+            // Server-side resume: a #cid= fragment overrides the localStorage
+            // session id so the student returns to the same backend conversation
+            // from any device. We mirror the chosen session id back into
+            // localStorage so the form-mode local snapshot keys line up, and
+            // back into the URL fragment so refresh keeps working.
+            var hashCid = (typeof leaiSession !== 'undefined')
+                ? leaiSession.parseHashCid()
+                : null;
+            var sessionId;
+            var resumingFromServer = false;
+            if (hashCid) {
+                sessionId = hashCid;
+                try { localStorage.setItem(SESSION_KEY, sessionId); } catch (e) {}
+                resumingFromServer = true;
+            } else {
+                sessionId = readIgSessionId();
+            }
+            if (typeof leaiSession !== 'undefined') {
+                leaiSession.setHashCid(sessionId);
+            }
             var priorSnapshot = loadIgHistorySnapshot(sessionId);
 
             var chatHistory = [{ role: 'system', content: filledPrompt }];
@@ -2037,12 +2161,37 @@
                     rehydrateChat(priorSnapshot);
                 }, function onFresh() {
                     clearIgHistorySnapshot(sessionId);
-                    mintIgSessionId();
+                    var freshId = mintIgSessionId();
+                    if (typeof leaiSession !== 'undefined') {
+                        leaiSession.setHashCid(freshId);
+                    }
                     window.location.reload();
+                });
+            } else if (resumingFromServer && survey.id && typeof leaiSession !== 'undefined') {
+                // No local snapshot but the URL says we should pick up an
+                // existing conversation — fetch from the backend and replay.
+                leaiSession.resume(survey.id, sessionId).then(function (data) {
+                    if (data && data.messages && data.messages.length) {
+                        rehydrateChat({
+                            ended: false,
+                            messages: data.messages.map(function (m) {
+                                return {
+                                    role: m.sent_by === 'user' ? 'user' : 'assistant',
+                                    content: m.content,
+                                };
+                            }),
+                        });
+                    } else {
+                        requestBotTurn(null);
+                    }
+                }).catch(function (err) {
+                    console.warn('Server-side resume failed; starting fresh:', err);
+                    requestBotTurn(null);
                 });
             } else {
                 requestBotTurn(null);
             }
+            renderResumeCopyChip();
         }
 
         // Anonymous, collision-resistant per-survey session id.
@@ -2071,7 +2220,16 @@
             const urlParams = new URLSearchParams(window.location.search);
             const directId = urlParams.get('id');
 
-            var uniqueID = getOrCreateAnonSessionId(directId);
+            // Server-side restore: when the URL fragment carries #cid=<uuid>,
+            // we adopt that as the session id and resume the existing
+            // conversation server-side once the survey is loaded. The
+            // fragment never reaches the network, so the conversation id
+            // stays out of Heroku access logs and Referer headers.
+            var resumeCid = (typeof leaiSession !== 'undefined')
+                ? leaiSession.parseHashCid()
+                : null;
+            var uniqueID = resumeCid || getOrCreateAnonSessionId(directId);
+
             window.sessionData = {
                 sessionID: uniqueID,
                 selectedGPT: '',
@@ -2079,8 +2237,16 @@
                 // Monotonic per-tab counter — guarantees stable intra-session
                 // ordering on the instructor side even if two messages share
                 // the same backend timestamp.
-                msgSeq: 0
+                msgSeq: 0,
+                resumeCid: resumeCid,
             };
+
+            // Always reflect the active session id back into the URL fragment
+            // so refresh / close-and-reopen on the same or a different device
+            // returns to the same conversation — no localStorage required.
+            if (typeof leaiSession !== 'undefined') {
+                leaiSession.setHashCid(uniqueID);
+            }
 
             if (directId) {
                 // Activation is fully server-driven: loadDirectGpt fetches the
@@ -2297,8 +2463,13 @@
             $('#micButton').prop('disabled', busy);
         }
 
-        function appendMessage(className, message) {
-            var timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        function appendMessage(className, message, opts) {
+            opts = opts || {};
+            // opts.timestamp lets a replay show the original turn time instead
+            // of "now" — important when a student resumes a multi-day-old
+            // conversation from a new device.
+            var ts = opts.timestamp ? new Date(opts.timestamp) : new Date();
+            var timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             var el;
             if (className === 'ai-message') {
                 el = buildAiMessage(message, timeStr);
@@ -2306,7 +2477,10 @@
                 el = buildStudentMessage(message, timeStr);
             }
             transcriptionDiv.appendChild(el);
-            storeData(message, className);
+            // opts.skipPersist suppresses storeData() so a server-side resume
+            // doesn't write duplicate FeedbackMessage rows for messages that
+            // already exist on the backend.
+            if (!opts.skipPersist) storeData(message, className);
 
             // Auto-scroll to the bottom with smooth behavior
             transcriptionDiv.scrollTo({

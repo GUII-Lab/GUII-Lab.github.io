@@ -618,6 +618,83 @@ var leaiChat = {
 };
 
 // ---------------------------------------------------------------------------
+// leaiSession \u2014 student-side conversation restore.
+//
+// The student session_id lives in the URL fragment (#cid=<uuid>), never in a
+// query string. Fragments are not sent to the server, so the conversation ID
+// never lands in Heroku access logs or Referer headers. resume() POSTs it in
+// the request body to the matching backend endpoint, which itself returns the
+// transcript with Cache-Control: no-store.
+// ---------------------------------------------------------------------------
+var leaiSession = {
+    resume: function (gptId, sessionId) {
+        return fetch(API + '/feedback_session_resume/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gpt_id: gptId, session_id: sessionId }),
+        }).then(function (r) {
+            if (!r.ok) {
+                throw new Error('Resume failed: HTTP ' + r.status);
+            }
+            return r.json();
+        });
+    },
+
+    parseHashCid: function () {
+        var hash = window.location.hash || '';
+        if (!hash) return null;
+        var clean = hash.charAt(0) === '#' ? hash.slice(1) : hash;
+        if (!clean) return null;
+        try {
+            var params = new URLSearchParams(clean);
+            var cid = params.get('cid');
+            if (cid && /^[A-Za-z0-9_\-]{8,80}$/.test(cid)) return cid;
+        } catch (e) {}
+        return null;
+    },
+
+    setHashCid: function (cid) {
+        if (!cid) return;
+        try {
+            var qs = window.location.search || '';
+            var newUrl = window.location.pathname + qs +
+                '#cid=' + encodeURIComponent(cid);
+            window.history.replaceState(null, '', newUrl);
+        } catch (e) {}
+    },
+
+    clearHashCid: function () {
+        try {
+            var qs = window.location.search || '';
+            window.history.replaceState(null, '', window.location.pathname + qs);
+        } catch (e) {}
+    },
+
+    // Copy the current page URL (which already carries #cid=...) and resolve
+    // with the link. Falls back to a hidden textarea + execCommand when the
+    // async Clipboard API is unavailable (e.g., insecure context).
+    copyResumeLink: function () {
+        var link = window.location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(link).then(function () {
+                return link;
+            });
+        }
+        return new Promise(function (resolve) {
+            var ta = document.createElement('textarea');
+            ta.value = link;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            resolve(link);
+        });
+    },
+};
+
+// ---------------------------------------------------------------------------
 // leaiInsights \u2014 per-submission instructor insights report (F5) + TTS (F6)
 // Spec: LEAI/docs/instructor-clarifications/wk6-form-mode-SPEC.md \u00a79
 //
