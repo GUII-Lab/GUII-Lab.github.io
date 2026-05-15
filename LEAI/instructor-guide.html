@@ -892,13 +892,55 @@
     <p>Available only on <strong>Structured Reflection</strong> (form-mode) surveys. The PDF must follow the same section headings as the survey's prompts — your template's section titles are the matcher, so keep wording consistent across cohorts.</p>
 
     <h3 class="sub-heading" id="pdf-ingest-flow">The five-step flow</h3>
-    <ol class="numbered-list">
-      <li><strong>Files & students.</strong> Click <em>Upload PDF reflections</em> on the Structured Reflection mode of the analyzer. Drop in any number of PDFs (up to 60 at a time, 10 MB each). Filenames auto-match against your existing course roster — fix any unmatched rows by typing in the dropdown.</li>
-      <li><strong>Process.</strong> The server reads each PDF and tries to align each section to your survey's prompts. The browser tab title shows live progress — you can close the drawer and come back when it's done.</li>
-      <li><strong>Review.</strong> The system shows a banner like "40 PDFs processed · 36 mapped cleanly · 4 need your attention." Only the rows that need work are expanded. For sections it couldn't auto-detect, paste the answer into the textarea (or leave it blank if the student didn't answer). If many PDFs missed the same section because of template wording drift, use the yellow <em>Bulk fill</em> bar to paste once and apply to all.</li>
-      <li><strong>Commit.</strong> A confirmation summary appears: "About to add N responses from M students." If any students already have a prior PDF on this survey, you'll see per-student "Keep existing / Add as additional / Replace existing" choices — the safe default is to keep existing data untouched.</li>
-      <li><strong>Done.</strong> Responses appear immediately in the analyzer below, with the 📄 badge. AI Quick Take regenerates on next view to include them. If anything looks wrong, the <em>Recent PDF uploads</em> panel above the analytics has a one-click <em>Revert</em> for each batch.</li>
-    </ol>
+
+    <p><strong>Step 1 — Open the drawer.</strong> In the Feedback Analyzer, switch to the <strong>Structured Reflection</strong> tab for the survey you want to add PDFs to, then click <em>Upload PDF reflections</em>. A slide-in drawer opens with a plain-language explainer and a dropzone. The header shows which survey you're uploading into so you can't accidentally land PDFs on the wrong week.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-drawer-open.png" alt="Upload PDF reflections drawer open with explainer paragraph and a dotted dropzone labelled DROP PDFS HERE OR CLICK TO BROWSE">
+      <div class="caption">The drawer slides in from the right with the explainer, dropzone, and the survey name + week pinned in the header so you can't drop PDFs on the wrong survey.</div>
+    </div>
+
+    <p><strong>Step 2 — Drop the PDFs and confirm student attribution.</strong> Drop in up to 60 PDFs at a time (10&nbsp;MB each). Each filename is matched against your course roster — fuzzy enough to catch <code>alice-doe.pdf</code>, <code>doe-alice.pdf</code>, and <code>AliceDoe_wk7.pdf</code> as the same student. Each row shows an <em>Auto-matched from filename — change if wrong</em> hint; click the dropdown to fix a mistake. Click <strong>Process N files</strong> when everyone is attributed. The browser tab title becomes <code>◐ Reading 0/N PDFs · LEAI</code> so you can monitor progress from another tab — you can also close the drawer; the job keeps running.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-files-attributed.png" alt="Two PDFs alice-doe.pdf and bob-smith.pdf attributed to roster student IDs, each with an Auto-matched from filename hint and a Process 2 files button">
+      <div class="caption">Filenames auto-match against your course roster. The per-row hint surfaces the inference so you can correct it before processing.</div>
+    </div>
+
+    <p><strong>Step 3 — Review by exception.</strong> When parsing completes, the drawer flips to a review screen. A banner summarises the result — e.g. "<strong>40 PDFs processed</strong> · 36 mapped cleanly · 4 need your attention." Only the rows that need work are expanded; cleanly-mapped PDFs are tucked into a collapsed accordion. For each section the system couldn't auto-detect, you'll see a highlighted <em>couldn't find a clear heading</em> tag and an empty textarea — paste the answer in, or leave it blank if the student didn't respond.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-review-by-exception.png" alt="Review screen banner reading 2 PDFs processed, 1 mapped cleanly, 1 needs your attention, with the Methods in Practice section highlighted yellow as couldn't find a clear heading">
+      <div class="caption">Review by exception: cleanly-mapped PDFs collapse into the accordion, while needs-attention cards stay open with their missing sections highlighted.</div>
+    </div>
+
+    <p><strong>Bulk fill across PDFs.</strong> If the same section is missing from multiple PDFs because of template-wording drift, a yellow bar appears above the Needs Attention group. Paste the corrected answer once and apply it to every empty cell across all affected PDFs. The bulk fill never overwrites a cell that already has content.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-bulk-fill.png" alt="Yellow bulk-fill bar with header Bulk fill — same answer, multiple students and a textarea to apply to 2 empty cells of the Knowledge Shift Before vs After prompt">
+      <div class="caption">When several students missed the same section heading, the bulk-fill bar lets you paste the answer once and apply it to every empty cell at the same time.</div>
+    </div>
+
+    <p><strong>Step 4 — Commit (with safe defaults for re-uploads).</strong> When you click <strong>Commit responses</strong>, you get a final summary: "About to add <strong>N</strong> responses from <strong>M</strong> students." If any of those students <em>already</em> have a PDF reflection on this survey (for example, you re-uploaded a corrected file), you'll see a per-student dedup choice. The default is always <strong>Keep existing</strong> — so a distracted instructor cannot silently overwrite prior data. To overwrite or add a second row, you must explicitly pick that option.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-commit-dedup.png" alt="Commit confirmation with About to commit summary and a yellow box showing 1 student already has a PDF reflection on this survey with three radio choices: Keep existing (default), Add as additional, Replace existing">
+      <div class="caption">"Keep existing" is the default when a student already has a PDF on this survey — replacing data requires a deliberate click, not a stray one.</div>
+    </div>
+
+    <p><strong>Step 5 — Done, with one-click revert if you misclicked.</strong> A success state confirms how many responses landed. The new responses appear immediately in the analyzer below, carrying a 📄 PDF badge so you can always tell PDF-derived responses from chat ones. AI Quick Take regenerates on next view to include them.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-success.png" alt="Success state with green check icon and the text Added 7 responses from 2 students, plus a Done button">
+      <div class="caption">After commit, a confirmation tells you exactly how many responses landed and from how many students.</div>
+    </div>
+
+    <p>Back in the analyzer, a <strong>Recent PDF uploads</strong> panel sits above the analytics. Every batch you commit lists there with a one-click <strong>Revert</strong> button — so if the wrong batch landed on the wrong week, you can undo the whole thing without touching the database.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-after-commit.png" alt="Feedback Analyzer after commit showing a Recent PDF uploads (1) panel with 2 students · 7 responses and a Revert button on the right">
+      <div class="caption">The Recent PDF uploads panel lists every batch with a Revert button. Quick Take refreshes on next view to include the new responses.</div>
+    </div>
 
     <h3 class="sub-heading" id="pdf-ingest-safety">Safety</h3>
     <ul class="bullet-list">

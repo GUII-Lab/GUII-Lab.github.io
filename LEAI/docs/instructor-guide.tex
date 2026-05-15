@@ -18,6 +18,9 @@
 \usepackage{tcolorbox}
 \usepackage{titlesec}
 \usepackage{parskip}
+\usepackage{placeins}  % \FloatBarrier — keep figures inside their section
+\usepackage{float}     % [H] placement specifier — pin a figure to its text
+\usepackage[hypcap=true]{caption}  % anchor hyperref links at top of figure, not caption
 
 % Colors
 \definecolor{linkblue}{HTML}{2563EB}
@@ -258,6 +261,110 @@ Click \textbf{Run Analysis} to generate themes and friction points from that sur
 \begin{tipbox}
 \textbf{Minimum for a useful analysis:} aim to collect at least \textbf{8--10 responses} before running analysis. Below that, themes may not be representative. The system will still run, but treat the output as early signal rather than a full report.
 \end{tipbox}
+
+\section{Part 4: Importing PDF Reflections}
+
+Some assignments still come in as PDF reflections rather than LEAI chats --- for example, a structured weekly reflection that students upload to Canvas. The Feedback Analyzer has a one-click upload path that reads each PDF, maps its sections to the survey's questions, and lands the responses next to the chat-collected ones --- with a \textbf{PDF} badge so you always know which is which.
+
+\subsection{When to use it}
+
+PDF ingest is available only on \textbf{Structured Reflection} (form-mode) surveys, where each prompt corresponds to a known section in the student's template. The PDF must follow the same section headings as the survey's prompts --- your template's section titles are the matcher, so keep wording consistent across cohorts. Scanned image PDFs (with no embedded text) cannot be read --- re-export from Word or Google Docs as a text PDF.
+
+\subsection{Step 1 --- Open the drawer}
+
+In the Feedback Analyzer, switch to the \textbf{Structured Reflection} tab for the survey you want to add PDFs to, then click \textbf{Upload PDF reflections}. A slide-in drawer opens with a plain-language explainer and a dropzone. The header shows which survey you're uploading into so you can't accidentally land PDFs on the wrong week.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/07-pdf-ingest-drawer-open.png}
+\caption{Upload drawer --- explainer, dropzone, and survey context in the header}
+\end{figure}
+
+\subsection{Step 2 --- Drop the PDFs and confirm student attribution}
+
+Drop in up to 60 PDFs at a time (10 MB each). The system reads each filename and auto-matches it against your course roster --- fuzzy enough to catch \texttt{alice-doe.pdf}, \texttt{doe-alice.pdf}, and \texttt{AliceDoe\_wk7.pdf} all as the same student. Each row shows a small \textit{``Auto-matched from filename --- change if wrong''} hint. If a name is wrong, click the dropdown and pick the correct student.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/08-pdf-ingest-files-attributed.png}
+\caption{Files attributed to roster --- each row auto-matches, with a dropdown for corrections}
+\end{figure}
+
+Click \textbf{Process N files}. The server parses each PDF in the background --- the browser tab title becomes \texttt{Reading 0/N PDFs $\cdot$ LEAI} so you can monitor progress from another tab. You can close the drawer and come back; the job keeps running.
+
+\subsection{Step 3 --- Review by exception}
+
+When parsing completes, the drawer flips to a review screen. A banner summarises the result --- e.g.\ ``\textbf{40 PDFs processed} · 36 mapped cleanly · 4 need your attention.''
+
+Only the rows that need work are expanded. PDFs that mapped cleanly are tucked away in a collapsed accordion. For each section the system couldn't auto-detect, you'll see a highlighted ``couldn't find a clear heading'' tag and an empty textarea --- paste the answer in, or leave it blank if the student didn't actually respond.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/09-pdf-ingest-review-by-exception.png}
+\caption{Review by exception --- needs-attention cards expanded, with a missing section highlighted in yellow}
+\end{figure}
+
+\textbf{Bulk fill across PDFs.} If the same section is missing from multiple PDFs because of template-wording drift, a yellow bar appears above the Needs Attention group. Paste the corrected answer once and apply it to every empty cell across all affected PDFs. The bulk fill never overwrites a cell that already has content.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/10-pdf-ingest-bulk-fill.png}
+\caption{Bulk-fill bar --- paste once, apply to all empty cells in the same prompt}
+\end{figure}
+
+\begin{tipbox}
+Your edits auto-save as you type. If you close the drawer mid-review, your typed corrections are preserved for up to 7 days and restored when you reopen --- handy if you start review on one device and finish on another.
+\end{tipbox}
+
+\subsection{Step 4 --- Commit (with safe defaults for re-uploads)}
+
+When you click \textbf{Commit responses}, you get a final summary: ``About to add \textbf{N} responses from \textbf{M} students.''
+
+If any of those students \emph{already} have a PDF reflection on this survey (for example, you re-uploaded a corrected file), you'll see a per-student dedup choice. The default is always \textbf{Keep existing} --- so a distracted instructor cannot silently overwrite prior data with one click. To overwrite or add a second row, you must explicitly select that option.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/11-pdf-ingest-commit-dedup.png}
+\caption{Commit confirmation --- ``Keep existing'' is the default to prevent accidental data loss}
+\end{figure}
+
+\subsection{Step 5 --- Done, with a one-click revert if you misclicked}
+
+After commit, a success state confirms how many responses landed and from how many students. The new responses appear immediately in the analyzer below, carrying a \textbf{PDF} badge so you can always tell PDF-derived responses apart from chat ones.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/12-pdf-ingest-success.png}
+\caption{Success state --- ``Added 7 responses from 2 students''}
+\end{figure}
+
+Back in the analyzer, a \textbf{Recent PDF uploads} panel appears above the analytics. Every batch you commit lists there with a one-click \textbf{Revert} button --- so if the wrong batch landed on the wrong week, you can undo the whole thing without touching the database. The AI Quick Take automatically refreshes on next view to include the new responses.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{screenshots/13-pdf-ingest-after-commit.png}
+\caption{Analyzer after commit --- Recent PDF uploads panel with one-click Revert per batch}
+\end{figure}
+
+\subsection{Safety summary}
+
+\begin{itemize}[nosep]
+    \item \textbf{Nothing destructive without your explicit choice.} ``Replace existing'' is never the default --- you have to pick it.
+    \item \textbf{Every batch is revertable.} Until you delete the manifest row, any commit can be undone in one click.
+    \item \textbf{Edits auto-save.} Mid-review corrections persist for up to 7 days across drawer closes.
+    \item \textbf{Original PDFs are never stored.} The server extracts the text and discards the binary; only per-student, per-prompt answers live in the database.
+\end{itemize}
+
+\subsection{Limits \& gotchas}
+
+\begin{itemize}[nosep]
+    \item Scanned image PDFs (no embedded text) cannot be read --- re-export as a text-based PDF.
+    \item Password-protected PDFs are rejected.
+    \item One PDF over 10 MB, or a batch over 50 MB, is refused --- split into smaller batches.
+    \item In General or In-Group survey modes, PDF ingest is unavailable; switch the survey to Structured Reflection mode if that's the right shape for it.
+\end{itemize}
+
+\FloatBarrier  % flush all PDF-ingest figures before next section
 
 \section{Weekly Workflow (5 min/week)}
 
