@@ -118,6 +118,10 @@
         .student-card {
             border: 1px solid var(--surface-border); border-radius: var(--radius-sm);
             margin-bottom: 10px; overflow: hidden;
+            /* Disable browser scroll-anchoring on the card so expanding one
+               card never shifts the page up to compensate — the body must
+               grow downward from the clicked header. */
+            overflow-anchor: none;
         }
         .student-card-header {
             display: flex; align-items: center; justify-content: space-between;
@@ -2326,10 +2330,25 @@
                 });
             }
 
-            header.addEventListener('click', function () { card.classList.toggle('open'); });
+            // Toggle open + pin header to the top of the viewport when
+            // expanding, so the conversation always grows downward from the
+            // clicked header. Without this, browser scroll-anchoring can pick
+            // an element below the card as the anchor, which shifts the page
+            // up and makes the body appear to grow "upward" above the header.
+            function toggleCard() {
+                var wasOpen = card.classList.contains('open');
+                card.classList.toggle('open');
+                if (!wasOpen) {
+                    // Defer to after layout so the now-visible body is measured.
+                    requestAnimationFrame(function () {
+                        header.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                    });
+                }
+            }
+            header.addEventListener('click', toggleCard);
             header.setAttribute('tabindex', '0');
             header.addEventListener('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.classList.toggle('open'); }
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCard(); }
             });
 
             card.appendChild(header);
