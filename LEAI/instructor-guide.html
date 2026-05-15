@@ -254,7 +254,8 @@
         <a href="#student-chat" class="toc-link">17. The Student Chat Interface</a>
         <a href="#consent-flow" class="toc-link">18. Consent &amp; Anonymity Notice</a>
         <a href="#inactive-states" class="toc-link">19. Closed &amp; Expired Surveys</a>
-        <a href="#faq" class="toc-link">20. Common Questions</a>
+        <a href="#pdf-ingest" class="toc-link">20. Importing PDF Reflections</a>
+        <a href="#faq" class="toc-link">21. Common Questions</a>
       </div>
     </div>
 
@@ -880,6 +881,40 @@
       <span class="callout-label">Warning</span>
       <p><strong>Students got a "closed" screen but the survey should be open?</strong> Go to the Prompt Designer, find the survey, and check the Opens At and Expires At dates. If the expiry date is in the past, click Reopen to reset it.</p>
     </div>
+
+    <!-- ═══════════════ PDF REFLECTION INGEST ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="pdf-ingest">Importing PDF Reflections</h2>
+
+    <p>Students who used your template-style PDF reflection (instead of submitting through LEAI chat) can still flow into your analysis surface. The Feedback Analyzer has a one-click upload path that parses each PDF, maps its sections to the survey's questions, and lands the responses alongside chat-collected ones — with a 📄 PDF badge so you always know what came from where.</p>
+
+    <h3 class="sub-heading" id="pdf-ingest-when">When to use it</h3>
+    <p>Available only on <strong>Structured Reflection</strong> (form-mode) surveys. The PDF must follow the same section headings as the survey's prompts — your template's section titles are the matcher, so keep wording consistent across cohorts.</p>
+
+    <h3 class="sub-heading" id="pdf-ingest-flow">The five-step flow</h3>
+    <ol class="numbered-list">
+      <li><strong>Files & students.</strong> Click <em>Upload PDF reflections</em> on the Structured Reflection mode of the analyzer. Drop in any number of PDFs (up to 60 at a time, 10 MB each). Filenames auto-match against your existing course roster — fix any unmatched rows by typing in the dropdown.</li>
+      <li><strong>Process.</strong> The server reads each PDF and tries to align each section to your survey's prompts. The browser tab title shows live progress — you can close the drawer and come back when it's done.</li>
+      <li><strong>Review.</strong> The system shows a banner like "40 PDFs processed · 36 mapped cleanly · 4 need your attention." Only the rows that need work are expanded. For sections it couldn't auto-detect, paste the answer into the textarea (or leave it blank if the student didn't answer). If many PDFs missed the same section because of template wording drift, use the yellow <em>Bulk fill</em> bar to paste once and apply to all.</li>
+      <li><strong>Commit.</strong> A confirmation summary appears: "About to add N responses from M students." If any students already have a prior PDF on this survey, you'll see per-student "Keep existing / Add as additional / Replace existing" choices — the safe default is to keep existing data untouched.</li>
+      <li><strong>Done.</strong> Responses appear immediately in the analyzer below, with the 📄 badge. AI Quick Take regenerates on next view to include them. If anything looks wrong, the <em>Recent PDF uploads</em> panel above the analytics has a one-click <em>Revert</em> for each batch.</li>
+    </ol>
+
+    <h3 class="sub-heading" id="pdf-ingest-safety">Safety</h3>
+    <ul class="bullet-list">
+      <li><strong>Nothing is destructive without your explicit choice.</strong> Replacing existing data requires you to pick "Replace existing" — the default is to keep what's already there.</li>
+      <li><strong>Every batch is revertable.</strong> Until you actually delete the manifest row, any commit can be undone with one click. Quick Take refreshes automatically.</li>
+      <li><strong>Edits auto-save.</strong> If you close the drawer mid-review, your typed corrections are preserved and restored when you reopen — for up to 7 days.</li>
+      <li><strong>Original PDFs are never stored.</strong> The server reads the text and discards the PDF binary; only the extracted answers (per-student, per-prompt) live in the database.</li>
+    </ul>
+
+    <h3 class="sub-heading" id="pdf-ingest-limits">Limits & gotchas</h3>
+    <ul class="bullet-list">
+      <li>Scanned image PDFs (no embedded text) cannot be read — re-export from Word/Pages as a text-based PDF.</li>
+      <li>Password-protected PDFs are rejected.</li>
+      <li>One PDF over 10 MB or batch over 50 MB will be refused — split into smaller batches.</li>
+      <li>If the survey is in General or In-Group mode rather than Structured Reflection, PDF ingest is unavailable; switch the survey to form mode if that's appropriate.</li>
+    </ul>
 
     <!-- ═══════════════ FAQ ═══════════════ -->
     <hr class="divider">

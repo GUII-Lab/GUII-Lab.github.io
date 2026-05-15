@@ -139,6 +139,66 @@
         while (node.firstChild) node.removeChild(node.firstChild);
     }
 
+    /** Small slide-in toast within the drawer. Replaces alert() so an
+     *  error doesn't yank the user out of the modal flow. variant:
+     *  'error' (red), 'success' (green), 'info' (blue). Auto-dismisses
+     *  after `ms` (default 4500), or never when ms === 0. */
+    function showToast(message, variant, ms) {
+        var existing = document.querySelector('.leai-pdf-toast');
+        if (existing) existing.remove();
+        variant = variant || 'info';
+        var toast = el('div', {
+            class: 'leai-pdf-toast leai-pdf-toast--' + variant,
+            role: variant === 'error' ? 'alert' : 'status',
+            'aria-live': variant === 'error' ? 'assertive' : 'polite',
+        }, [
+            el('span', { class: 'leai-pdf-toast__msg' }, [message]),
+            el('button', {
+                type: 'button', class: 'leai-pdf-toast__close', 'aria-label': 'Dismiss',
+                onclick: function () { toast.remove(); },
+            }, ['×']),
+        ]);
+        document.body.appendChild(toast);
+        requestAnimationFrame(function () { toast.classList.add('leai-pdf-toast--in'); });
+        if (ms !== 0) {
+            setTimeout(function () {
+                toast.classList.remove('leai-pdf-toast--in');
+                setTimeout(function () { toast.remove(); }, 220);
+            }, ms || 4500);
+        }
+    }
+
+    /** Map terse / generic backend error strings to friendlier copy at
+     *  the boundary so the rest of the UI stays clean. */
+    function humanizeError(err) {
+        var msg = (err && err.message) || String(err || 'Something went wrong');
+        if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+            return 'Couldn’t reach the server. Check your connection and try again.';
+        }
+        if (/Internal error/i.test(msg)) {
+            return 'The server hit an unexpected error. Try again — if it keeps happening, please report it.';
+        }
+        if (/Method not allowed/i.test(msg)) {
+            return 'This action isn’t available right now. Reload the page and try again.';
+        }
+        if (/Job not found/i.test(msg)) {
+            return 'This processing job is no longer available. Start a new upload.';
+        }
+        if (/Survey not found/i.test(msg)) {
+            return 'The survey was not found — it may have been deleted. Reload the page.';
+        }
+        if (/Batch already reverted/i.test(msg)) {
+            return 'This batch was already reverted.';
+        }
+        if (/exceeds 10 MB/i.test(msg)) {
+            return 'One of your PDFs is over 10 MB. Try splitting or compressing it.';
+        }
+        if (/Batch exceeds 50 MB/i.test(msg)) {
+            return 'The batch total is over 50 MB. Upload in two smaller batches.';
+        }
+        return msg;
+    }
+
     function fmtBytes(n) {
         if (n < 1024) return n + ' B';
         if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
@@ -766,7 +826,7 @@
             .catch(function (err) {
                 state.jobError = err.message;
                 ctx.transition('files');
-                alert('Couldn’t start processing: ' + err.message);
+                showToast(humanizeError(err), 'error');
             });
     }
 
@@ -1120,7 +1180,7 @@
             onclick: function () {
                 var value = (input.value || '').trim();
                 if (!value) {
-                    alert('Type an answer first, then click Apply.');
+                    showToast('Type an answer first, then click Apply.', 'info');
                     return;
                 }
                 if (!confirm('Apply this text to ' + emptyCount + ' empty "' +
@@ -1309,7 +1369,7 @@
             });
             ctx.transition('commit');
         }).catch(function (err) {
-            alert('Couldn’t check for existing reflections: ' + err.message);
+            showToast(humanizeError(err), 'error');
         });
     }
 
@@ -1436,7 +1496,7 @@
         }).catch(function (err) {
             state.commitInFlight = false;
             ctx.render();
-            alert('Commit failed: ' + err.message);
+            showToast('Commit failed: ' + humanizeError(err), 'error');
         });
     }
 
@@ -1481,8 +1541,11 @@
     // ────────────────────────────────────────────────────────────────────────
     // Recent batches panel
 
-    function renderRecentBatchesPanel(container, survey, opts) {
+    var RECENT_INITIAL_LIMIT = 10;
+
+    function renderRecentBatchesPanel(container, survey, opts, options) {
         opts = opts || {};
+        options = options || {};
         if (!container) return;
         clear(container);
         leaiPdfIngest.listBatches(survey.id).then(function (batches) {
@@ -1494,14 +1557,33 @@
             container.appendChild(el('div', { class: 'leai-pdf-recent__title' }, [
                 'Recent PDF uploads (' + batches.length + ')',
             ]));
-            batches.forEach(function (b) {
+            // Cap the panel to keep instructor pages tight when many
+            // batches accumulate; show-more reveals the rest in place.
+            var showAll = !!options.showAll;
+            var visible = showAll ? batches : batches.slice(0, RECENT_INITIAL_LIMIT);
+            visible.forEach(function (b) {
                 container.appendChild(renderRecentBatchRow(b, survey, opts));
             });
+            if (!showAll && batches.length > RECENT_INITIAL_LIMIT) {
+                container.appendChild(el('button', {
+                    class: 'leai-pdf-recent__more',
+                    onclick: function () {
+                        renderRecentBatchesPanel(container, survey, opts, { showAll: true });
+                    },
+                }, ['Show all ' + batches.length + ' batches']));
+            } else if (showAll && batches.length > RECENT_INITIAL_LIMIT) {
+                container.appendChild(el('button', {
+                    class: 'leai-pdf-recent__more',
+                    onclick: function () {
+                        renderRecentBatchesPanel(container, survey, opts, { showAll: false });
+                    },
+                }, ['Show fewer']));
+            }
         }).catch(function (e) {
             container.style.display = '';
             clear(container);
             container.appendChild(el('div', { class: 'leai-pdf-recent__error' }, [
-                'Couldn’t load recent uploads: ' + e.message,
+                'Couldn’t load recent uploads: ' + humanizeError(e),
             ]));
         });
     }
@@ -1522,11 +1604,14 @@
             onclick: function () {
                 if (!confirm('Revert this batch?\n\nThis will remove ' + batch.student_count + ' student’s PDF responses (' + batch.message_count + ' rows). AI Quick Take will refresh.')) return;
                 btn.disabled = true; btn.textContent = 'Reverting…';
-                leaiPdfIngest.revertBatch(batch.batch_id).then(function () {
+                leaiPdfIngest.revertBatch(batch.batch_id).then(function (resp) {
+                    var deleted = (resp && resp.deleted_count) || batch.message_count;
+                    showToast('Reverted — removed ' + deleted + ' response' +
+                        (deleted === 1 ? '' : 's') + '.', 'success');
                     opts.onReverted && opts.onReverted(batch);
                     renderRecentBatchesPanel(row.parentNode, survey, opts);
                 }).catch(function (e) {
-                    alert('Revert failed: ' + e.message);
+                    showToast('Revert failed: ' + humanizeError(e), 'error');
                     btn.disabled = false; btn.textContent = 'Revert';
                 });
             },

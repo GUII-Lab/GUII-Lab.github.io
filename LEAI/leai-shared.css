@@ -1373,6 +1373,43 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-recent__row-meta { font-size: 13px; color: var(--text, #1f2937); }
 .leai-pdf-recent__row-time { font-size: 11.5px; color: var(--text-muted, #6b7280); margin-top: 2px; }
 .leai-pdf-recent__error { font-size: 12.5px; color: #b91c1c; }
+.leai-pdf-recent__more {
+    margin-top: 8px; background: transparent; border: 0;
+    color: var(--primary, #2563eb); font-size: 12.5px; cursor: pointer;
+    padding: 6px 8px; border-radius: 4px;
+}
+.leai-pdf-recent__more:hover { background: rgba(37, 99, 235, 0.06); }
+
+/* Inline toast (replaces alert() inside the drawer flow). Slides in from
+   the bottom-right; auto-dismisses unless ms === 0. */
+.leai-pdf-toast {
+    position: fixed; right: 16px; bottom: 16px; z-index: 1200;
+    display: flex; align-items: center; gap: 12px;
+    max-width: min(440px, calc(100vw - 32px));
+    padding: 12px 14px; border-radius: 10px; font-size: 13.5px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+    background: #1f2937; color: #fff;
+    transform: translateY(20px); opacity: 0;
+    transition: transform 0.22s ease, opacity 0.22s ease;
+    border-left: 4px solid #6b7280;
+}
+.leai-pdf-toast--in { transform: translateY(0); opacity: 1; }
+.leai-pdf-toast__msg { flex: 1; line-height: 1.45; }
+.leai-pdf-toast__close {
+    background: transparent; border: 0; color: rgba(255, 255, 255, 0.75);
+    font-size: 18px; line-height: 1; cursor: pointer; padding: 4px 6px;
+    border-radius: 4px;
+}
+.leai-pdf-toast__close:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.leai-pdf-toast--success { background: #064e3b; border-left-color: #10b981; }
+.leai-pdf-toast--error   { background: #7f1d1d; border-left-color: #ef4444; }
+.leai-pdf-toast--info    { background: #1e3a8a; border-left-color: #3b82f6; }
+@media (max-width: 640px) {
+    .leai-pdf-toast { right: 12px; bottom: 12px; left: 12px; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .leai-pdf-toast { transition: none !important; }
+}
 
 /* Source badge — shown on responses sourced from PDFs */
 .leai-pdf-badge {
