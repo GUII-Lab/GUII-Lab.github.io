@@ -109,13 +109,40 @@
     }
 
     /** Debounced save — fires 600ms after the last edit so we don't
-     *  hammer localStorage on every keystroke. */
-    function scheduleDraftSave(state) {
+     *  hammer localStorage on every keystroke. Updates the
+     *  auto-saved-at indicator in the action bar so the instructor
+     *  can see their work is being preserved. */
+    function scheduleDraftSave(state, ctx) {
         if (state._draftTimer) clearTimeout(state._draftTimer);
+        // Show 'Saving…' immediately so the user feels the system
+        // responding to their typing; the actual write happens on the
+        // 600ms debounce.
+        var ind = document.querySelector('[data-role="autosave-indicator"]');
+        if (ind) {
+            ind.textContent = 'Saving…';
+            ind.classList.add('leai-pdf-autosave--pending');
+        }
         state._draftTimer = setTimeout(function () {
             writeDraft(state.survey.id, state.jobId, state.edits, state.skips);
+            state._lastSaveAt = Date.now();
             state._draftTimer = null;
+            if (ind) {
+                ind.textContent = 'Saved · ' + fmtClock(state._lastSaveAt);
+                ind.classList.remove('leai-pdf-autosave--pending');
+            }
+            // Trigger a soft re-render only if a card's reviewed state
+            // could have changed — i.e. on a low-conf cell going from
+            // empty to non-empty (or vice-versa). The user has paused
+            // typing 600ms, so caret-stealing is not a concern. We
+            // restore focus to the active textarea afterwards.
+            if (ctx && ctx.softRender) ctx.softRender();
         }, 600);
+    }
+
+    function fmtClock(ms) {
+        var d = new Date(ms);
+        var h = d.getHours(), m = d.getMinutes();
+        return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
     }
 
     function readInFlight() {
@@ -528,6 +555,30 @@
             startJob: function () { startJob(state, ctx); },
             commit: function () { commit(state, ctx, opts); },
             transition: function (phase) { state.phase = phase; render(); },
+            // Soft re-render: re-renders the current step but restores
+            // focus + selection to the active textarea so a re-render
+            // mid-edit doesn't yank the caret. Used by the autosave
+            // tail to refresh card-level reviewed state without
+            // disrupting typing.
+            softRender: function () {
+                var active = document.activeElement;
+                var sel = active && active.tagName === 'TEXTAREA'
+                    ? { val: active.value, start: active.selectionStart, end: active.selectionEnd,
+                        labelledby: active.getAttribute('aria-labelledby') }
+                    : null;
+                render();
+                if (sel && sel.labelledby) {
+                    var restored = document.querySelector(
+                        'textarea[aria-labelledby="' + sel.labelledby + '"]'
+                    );
+                    if (restored) {
+                        try {
+                            restored.focus();
+                            restored.setSelectionRange(sel.start, sel.end);
+                        } catch (e) {}
+                    }
+                }
+            },
         };
 
         var helpUrl = (opts.helpUrl) || 'instructor-guide.html#pdf-ingest';
@@ -871,9 +922,20 @@
 
         var attributedCount = state.files.filter(function (f) { return !!f.studentId; }).length;
         var ready = attributedCount === state.files.length && state.files.length > 0;
+        // Rough wall-clock estimate based on observed pypdf throughput
+        // (~2-3s per typical reflection PDF on Heroku) plus a small fixed
+        // overhead. Conveys 'this could take a couple minutes for 40
+        // files' without being misleadingly precise.
+        var estSec = Math.max(2, Math.round(state.files.length * 2.5 + 2));
+        var estText;
+        if (estSec < 60) estText = 'about ' + estSec + ' seconds';
+        else if (estSec < 120) estText = 'about a minute';
+        else estText = 'about ' + Math.round(estSec / 60) + ' minutes';
+
         var actionRow = el('div', { class: 'leai-pdf-actions' }, [
             el('div', { class: 'leai-pdf-actions__status' }, [
                 attributedCount + ' of ' + state.files.length + ' files attributed',
+                el('span', { class: 'leai-pdf-actions__estimate' }, [' · ', estText]),
             ]),
             el('button', {
                 class: 'leai-pdf-btn leai-pdf-btn--primary',
@@ -1365,11 +1427,19 @@
         }
 
         var commitable = state.jobItems.some(function (i) { return i.status !== 'failed'; });
+        var saveLabel = state._lastSaveAt
+            ? 'Saved · ' + fmtClock(state._lastSaveAt)
+            : 'Edits auto-save as you type';
         wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
             el('button', {
                 class: 'leai-pdf-btn leai-pdf-btn--ghost',
                 onclick: function () { ctx.transition('files'); },
             }, ['Back to files']),
+            el('span', {
+                class: 'leai-pdf-autosave',
+                dataset: { role: 'autosave-indicator' },
+                title: 'Your typed corrections persist for 7 days even if you close the drawer.',
+            }, [saveLabel]),
             el('button', {
                 class: 'leai-pdf-btn leai-pdf-btn--primary',
                 disabled: commitable ? false : 'disabled',
@@ -1526,13 +1596,35 @@
     }
 
     function renderReviewCard(item, state, ctx) {
-        var card = el('div', {
-            class: 'leai-pdf-review-card' + (item.status === 'low_conf' ? ' leai-pdf-review-card--low' : ''),
+        // 'Reviewed' if every previously-low-confidence cell now has a
+        // value (either via instructor edit or because the parser
+        // actually got it). Gives a sense of progress through a long
+        // batch — once all needs-attention cells are filled, the card
+        // earns a green ✓ in its header.
+        var lowPrompts = item.low_conf_prompts || [];
+        var edits = state.edits[item.filename] || {};
+        var allLowFilled = lowPrompts.length === 0 || lowPrompts.every(function (pid) {
+            var v = (edits[pid] != null ? edits[pid] : (item.mapping && item.mapping[pid])) || '';
+            return v.trim().length > 0;
         });
+        var isReviewed = item.status !== 'failed' && !state.skips[item.filename] && allLowFilled
+            && (lowPrompts.length > 0 || item.status === 'low_conf');
+
+        var cardClasses = 'leai-pdf-review-card'
+            + (item.status === 'low_conf' ? ' leai-pdf-review-card--low' : '')
+            + (isReviewed ? ' leai-pdf-review-card--reviewed' : '');
+        var card = el('div', { class: cardClasses });
         var skipState = !!state.skips[item.filename];
         var head = el('div', { class: 'leai-pdf-review-card__head' }, [
             el('div', {}, [
-                el('div', { class: 'leai-pdf-review-card__name' }, [item.filename]),
+                el('div', { class: 'leai-pdf-review-card__name' }, [
+                    item.filename,
+                    isReviewed ? el('span', {
+                        class: 'leai-pdf-review-card__check',
+                        title: 'All needs-attention cells are filled',
+                        'aria-label': 'Reviewed',
+                    }, ['✓']) : null,
+                ]),
                 el('div', { class: 'leai-pdf-review-card__student' }, ['Attributed to: ', el('strong', {}, [item.student_id || '—'])]),
             ]),
             el('label', { class: 'leai-pdf-review-card__skip' }, [
@@ -1594,7 +1686,7 @@
                 onclick: function () {
                     state.edits[item.filename] = state.edits[item.filename] || {};
                     state.edits[item.filename][pid] = serverValue;
-                    scheduleDraftSave(state);
+                    scheduleDraftSave(state, ctx);
                     ctx.render();
                 },
             }, ['↺']);
@@ -1618,7 +1710,7 @@
                         state.edits[item.filename][pid] = e.target.value;
                         // Debounced auto-save so even a partial paste is
                         // recoverable after an accidental close.
-                        scheduleDraftSave(state);
+                        scheduleDraftSave(state, ctx);
                         // Toggle the cell's --edited modifier so the
                         // restore button appears/hides without a full
                         // re-render (which would lose caret position).

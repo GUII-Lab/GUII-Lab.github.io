@@ -1193,6 +1193,30 @@ input[type="checkbox"], input[type="radio"] {
     z-index: 2;
 }
 .leai-pdf-actions__status { font-size: 12.5px; color: var(--text-muted, #6b7280); }
+.leai-pdf-actions__estimate { color: var(--text-muted, #9ca3af); font-style: italic; }
+
+/* Auto-save indicator inside the review action bar */
+.leai-pdf-autosave {
+    font-size: 11.5px; color: var(--text-muted, #6b7280);
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 0 8px; cursor: help; flex: 1; justify-content: center;
+}
+.leai-pdf-autosave--pending { color: var(--primary, #2563eb); }
+@media (max-width: 640px) {
+    .leai-pdf-autosave { width: 100%; padding: 4px 0; }
+}
+
+/* Per-card reviewed checkmark — green tick next to the filename
+   once every needs-attention cell on the card is non-empty. */
+.leai-pdf-review-card__check {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; margin-left: 8px;
+    border-radius: 50%; background: #d1fae5; color: #047857;
+    font-size: 11px; font-weight: 700; line-height: 1;
+    vertical-align: middle;
+}
+.leai-pdf-review-card--reviewed { border-left: 3px solid #10b981; padding-left: 13px; }
+.leai-pdf-review-card--reviewed.leai-pdf-review-card--low { background: #f0fdf4; }
 .leai-pdf-btn {
     padding: 8px 16px; border-radius: 6px; border: 1px solid transparent;
     font-size: 13.5px; font-weight: 500; cursor: pointer; transition: background 0.12s, border-color 0.12s, opacity 0.12s;
