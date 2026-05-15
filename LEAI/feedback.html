@@ -299,6 +299,141 @@
             background: var(--surface-mid); color: var(--text);
         }
 
+        /* ===== IN-GROUP PERSISTENT DOWNLOAD STRIP =====
+           Two states on the same DOM element so the student is never blocked
+           by an LLM that fails to emit [END]:
+           - .collapsed (default): muted single-line strip pinned under the input.
+             Always-functional "Save draft" download.
+           - .ready (engine confirmed end): celebratory bar with prominent CTA. */
+        .ig-download-strip {
+            margin-top: 10px; padding: 8px 12px;
+            border-radius: 10px;
+            background: rgba(0,100,147,0.05);
+            border: 1px solid rgba(0,100,147,0.12);
+            display: flex; align-items: center; gap: 10px;
+            font-size: 0.78rem; color: var(--muted);
+            transition: background 0.3s, padding 0.3s, border-color 0.3s;
+        }
+        .ig-download-strip .strip-status {
+            flex: 1 1 auto; min-width: 0;
+        }
+        .ig-download-strip .strip-status strong {
+            color: var(--text); font-weight: 600;
+        }
+        .ig-download-strip .strip-action {
+            background: transparent; border: 1px solid var(--primary);
+            color: var(--primary);
+            border-radius: 999px;
+            padding: 9px 18px;
+            font-size: 0.82rem; font-weight: 600; font-family: inherit;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            flex-shrink: 0;
+            min-height: 36px; /* keeps the touch target ≥36px in collapsed state */
+        }
+        .ig-download-strip .strip-action:hover {
+            background: var(--primary); color: #fff;
+        }
+        .ig-download-strip .strip-celebrate { display: none; }
+        .ig-download-strip .strip-help { display: none; }
+
+        .ig-download-strip.ready {
+            background: linear-gradient(135deg, rgba(0,100,147,0.10), rgba(0,100,147,0.03));
+            border: 1px solid rgba(0,100,147,0.35);
+            flex-direction: column; align-items: stretch;
+            gap: 8px;
+            padding: 16px 18px;
+            animation: ig-strip-pop 0.55s ease-out;
+        }
+        /* On restore-from-localStorage we already celebrated the first time —
+           skip the pop so the page doesn't look "fresh" when it isn't. */
+        .ig-download-strip.ready.no-pop { animation: none; }
+
+        /* Narrow viewports: stack the strip vertically so the action button
+           spans full-width and meets the 44px touch-target guideline. */
+        @media (max-width: 480px) {
+            .ig-download-strip.collapsed {
+                flex-direction: column; align-items: stretch; gap: 8px;
+                padding: 12px;
+            }
+            .ig-download-strip.collapsed .strip-status {
+                text-align: center;
+            }
+            .ig-download-strip.collapsed .strip-action {
+                align-self: stretch;
+                padding: 11px 18px;
+                min-height: 44px;
+            }
+        }
+        @keyframes ig-strip-pop {
+            0% { transform: scale(0.985); opacity: 0.5; }
+            55% { transform: scale(1.015); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .ig-download-strip.ready .strip-status { display: none; }
+        .ig-download-strip.ready .strip-celebrate {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.95rem; font-weight: 700; color: var(--primary);
+        }
+        .ig-download-strip.ready .strip-action {
+            background: var(--primary); color: #fff;
+            border: none;
+            border-radius: 999px;
+            padding: 12px 24px;
+            font-size: 0.92rem; font-weight: 700; letter-spacing: 0.01em;
+            align-self: center;
+        }
+        .ig-download-strip.ready .strip-action:hover { background: var(--primary-dim); }
+        .ig-download-strip.ready .strip-help {
+            display: block; font-size: 0.78rem; color: var(--muted);
+            text-align: center;
+        }
+
+        /* ===== IN-GROUP RESTORE BANNER ===== */
+        .ig-restore-banner {
+            margin: 14px 0 8px; padding: 14px 16px;
+            border-radius: 10px;
+            background: rgba(255,193,7,0.08);
+            border: 1px solid rgba(255,193,7,0.35);
+            display: flex; flex-direction: column; gap: 10px;
+            font-size: 0.88rem; color: var(--text);
+        }
+        .ig-restore-banner-title {
+            font-weight: 700; color: var(--text);
+        }
+        .ig-restore-banner-body {
+            font-size: 0.82rem; color: var(--muted); line-height: 1.45;
+        }
+        .ig-restore-banner-actions {
+            display: flex; gap: 8px; flex-wrap: wrap;
+        }
+        .ig-restore-banner-actions button {
+            border: none; border-radius: 999px;
+            padding: 8px 18px;
+            font-size: 0.82rem; font-weight: 600; font-family: inherit;
+            cursor: pointer; transition: background 0.15s, color 0.15s;
+        }
+        .ig-restore-continue {
+            background: var(--primary); color: #fff;
+        }
+        .ig-restore-continue:hover { background: var(--primary-dim); }
+        .ig-restore-fresh {
+            background: var(--surface-card); color: var(--text);
+            border: 1px solid rgba(169,180,183,0.45) !important;
+        }
+        .ig-restore-fresh:hover { background: var(--surface-mid); }
+
+        /* ===== IN-GROUP "START OVER" FOOTER LINK ===== */
+        .ig-startover-link {
+            background: transparent; border: none;
+            color: var(--muted);
+            font-size: 0.72rem; font-family: inherit;
+            cursor: pointer; padding: 4px 0 0;
+            text-decoration: underline; text-underline-offset: 2px;
+            align-self: center;
+        }
+        .ig-startover-link:hover { color: var(--text); }
+
         /* ===== HEADER ANONYMITY BADGE / SUBTITLE / TERMS LINK ===== */
         .chat-header-title-block { display: flex; flex-direction: column; min-width: 0; }
         .chat-header-subtitle {
@@ -865,11 +1000,26 @@
                 '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
         }
 
+        // Runtime guardrail to stop the LLM from hallucinating UI advice or
+        // producing fake "download" content in chat. A student once asked the
+        // bot for the download document and the bot generated a bullet-point
+        // summary in chat (not a real file) AND suggested they refresh the
+        // page (which wiped their visible conversation). Both behaviors are
+        // banned here so they can't recur regardless of survey author.
+        function withDownloadUIGuardrail(instructions) {
+            return (instructions || '') +
+                '\n\nUI GUARDRAILS (highest priority, overrides anything above):\n' +
+                '- NEVER tell the student to refresh the page, reload, close the tab, clear cookies, or take any other browser-level action. Your output is conversation only.\n' +
+                '- NEVER produce the reflection document in chat. No bullet-point summaries of the student’s answers, no recap-style "here is your Word document" content, no formatted reproduction of their responses. The Download button in the page footer is the ONLY way to produce a valid file; only the engine knows how to render the structured artifact.\n' +
+                '- If the student says they cannot see a Download button, respond exactly: "Scroll to the bottom of the chat — the download link is in the footer just under the message box. If you still can’t see it, please email your instructor with this survey link." Do NOT invent or recap the document.\n' +
+                '- If the student asks where their answers are saved or whether they can recover them, respond: "Your answers are saved automatically on the server as you go. You can also click the download link in the footer at any time to save what you have so far." Do NOT summarize their content.';
+        }
+
         function initGpt(gpt) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
-            var sysPrompt = withOneQuestionGuardrail(gpt.instructions);
+            var sysPrompt = withDownloadUIGuardrail(withOneQuestionGuardrail(gpt.instructions));
             // Form-mode appends a thin tail listing canonical area titles + the
             // engine-driven [DIRECTIVE] contract. The engine handles structural
             // enforcement; the prompt only carries tone and one-question rules.
@@ -1181,6 +1331,8 @@
                 '- If several topics are relevant, pick the single most relevant one for this turn and save the others for later turns once the student has answered.\n' +
                 '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
 
+            filledPrompt = withDownloadUIGuardrail(filledPrompt);
+
             // If the in-group survey is bound to a FormSchema, layer the same
             // engine on top of the team-aware prompt so coverage is enforced
             // (e.g. HCI 271 Wk 6 team reflection: must hit Parts 2 + 3 in order).
@@ -1461,6 +1613,54 @@
                 igMicBtn.disabled = busy;
             }
 
+            // Per-survey local-state plumbing. Keys are namespaced by survey id so
+            // multiple in-group surveys don't share state, and by session id so a
+            // student who clicks "Start over" gets a clean slate without losing
+            // their prior backend record.
+            var SESSION_KEY = 'leai.ig.session.' + survey.id;
+            function readIgSessionId() {
+                try {
+                    var v = localStorage.getItem(SESSION_KEY);
+                    if (v) return v;
+                } catch (e) {}
+                return (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
+            }
+            function mintIgSessionId() {
+                var fresh = (window.crypto && crypto.randomUUID)
+                    ? crypto.randomUUID()
+                    : 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+                try { localStorage.setItem(SESSION_KEY, fresh); } catch (e) {}
+                return fresh;
+            }
+            function igHistoryKey(sid) {
+                return 'leai.ig.history.' + survey.id + '.' + sid;
+            }
+            function loadIgHistorySnapshot(sid) {
+                try {
+                    var raw = localStorage.getItem(igHistoryKey(sid));
+                    if (!raw) return null;
+                    var parsed = JSON.parse(raw);
+                    if (!parsed || !Array.isArray(parsed.messages) || !parsed.messages.length) return null;
+                    return parsed;
+                } catch (e) { return null; }
+            }
+            function saveIgHistorySnapshot(sid, history, endedFlag) {
+                try {
+                    var msgs = history.filter(function (m) { return m.role !== 'system'; });
+                    localStorage.setItem(igHistoryKey(sid), JSON.stringify({
+                        updated: Date.now(),
+                        ended: !!endedFlag,
+                        messages: msgs,
+                    }));
+                } catch (e) {}
+            }
+            function clearIgHistorySnapshot(sid) {
+                try { localStorage.removeItem(igHistoryKey(sid)); } catch (e) {}
+            }
+
+            var sessionId = readIgSessionId();
+            var priorSnapshot = loadIgHistorySnapshot(sessionId);
+
             var chatHistory = [{ role: 'system', content: filledPrompt }];
             // Expose this flow's chatHistory to the form-mode download bar.
             // Without this, collectFormModeTranscript() reads the outer (empty)
@@ -1468,7 +1668,6 @@
             if (formMode.active && formMode.state) {
                 formMode.chatHistory = chatHistory;
             }
-            var sessionId = (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
 
             // Persist this student's anonymous session ↔ team link on the backend
             // so the analyzer can bucket conversations correctly. Fire-and-forget.
@@ -1483,16 +1682,218 @@
             // already opted in for this session.
             var researchConsent = typeof hasSessionConsent === 'function' ? !!hasSessionConsent() : false;
 
+            // Persistent download strip — always-on, always-functional, regardless
+            // of whether the LLM cooperates with [END]. Two visual states on the
+            // same DOM node: .collapsed (muted strip under input, draft download
+            // always available) and .ready (celebratory bar after engine confirms
+            // all sections captured). [END] is now a UI cue, not a gate.
+            var igStrip = null;
+            var igStripStatusEl = null;
+            var igStripActionEl = null;
+            var igReadyMarked = false;
+            function renderIgDownloadStrip() {
+                if (igStrip) return;
+                igStrip = document.createElement('div');
+                igStrip.id = 'ig-download-strip';
+                igStrip.className = 'ig-download-strip collapsed';
+
+                var celebrate = document.createElement('div');
+                celebrate.className = 'strip-celebrate';
+                celebrate.textContent = '✓ All sections captured — your reflection is ready';
+                igStrip.appendChild(celebrate);
+
+                igStripStatusEl = document.createElement('div');
+                igStripStatusEl.className = 'strip-status';
+                igStrip.appendChild(igStripStatusEl);
+
+                igStripActionEl = document.createElement('button');
+                igStripActionEl.type = 'button';
+                igStripActionEl.className = 'strip-action';
+                igStripActionEl.addEventListener('click', function () {
+                    if (formMode.active && formMode.state &&
+                            typeof downloadFormModeReflection === 'function') {
+                        downloadFormModeReflection('docx');
+                    } else {
+                        downloadIgRawTranscript();
+                    }
+                });
+                igStrip.appendChild(igStripActionEl);
+
+                var help = document.createElement('div');
+                help.className = 'strip-help';
+                help.textContent = 'You can keep chatting to revise or add anything — the file rebuilds from the latest transcript on every click.';
+                igStrip.appendChild(help);
+
+                footerInner.appendChild(igStrip);
+                updateIgStripCollapsedLabel();
+            }
+            function updateIgStripCollapsedLabel() {
+                if (!igStrip || igStrip.classList.contains('ready')) return;
+                if (formMode.active && formMode.state &&
+                        typeof leaiFormMode.progressLabel === 'function') {
+                    var label = leaiFormMode.progressLabel(formMode.state) || '';
+                    if (igStripStatusEl) {
+                        igStripStatusEl.textContent = '';
+                        var pre = document.createElement('strong');
+                        pre.textContent = 'Reflection in progress';
+                        igStripStatusEl.appendChild(pre);
+                        igStripStatusEl.appendChild(document.createTextNode(' · ' + label));
+                    }
+                    if (igStripActionEl) {
+                        igStripActionEl.textContent = 'Save draft (.docx) ↓';
+                    }
+                } else {
+                    if (igStripStatusEl) {
+                        igStripStatusEl.textContent = '';
+                        var pre2 = document.createElement('strong');
+                        pre2.textContent = 'Reflection in progress';
+                        igStripStatusEl.appendChild(pre2);
+                        igStripStatusEl.appendChild(document.createTextNode(' · save what you have so far'));
+                    }
+                    if (igStripActionEl) {
+                        igStripActionEl.textContent = 'Save transcript ↓';
+                    }
+                }
+            }
+            function markIgReady(opts) {
+                if (!igStrip || igReadyMarked) return;
+                igReadyMarked = true;
+                igStrip.classList.remove('collapsed');
+                igStrip.classList.add('ready');
+                if (opts && opts.silent) igStrip.classList.add('no-pop');
+                if (igStripActionEl) {
+                    igStripActionEl.textContent = (formMode.active && formMode.state)
+                        ? 'Download my reflection (Word / .docx)'
+                        : 'Download my transcript';
+                }
+                // Refresh the saved snapshot so the ready state survives reload.
+                saveIgHistorySnapshot(sessionId, chatHistory, true);
+                if (!opts || !opts.silent) {
+                    try { igStrip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+                }
+            }
+
+            // Raw-transcript fallback for in-group surveys without a bound schema.
+            // The student always has an artifact, even if no structured doc exists.
+            function downloadIgRawTranscript() {
+                var lines = chatHistory
+                    .filter(function (m) { return m.role !== 'system'; })
+                    .map(function (m) {
+                        return (m.role === 'user' ? 'YOU' : 'REMI') + ': ' + m.content;
+                    });
+                var header = 'Team reflection — ' + (survey.label || ('survey-' + survey.id)) +
+                    '\nTeam: ' + teamContext +
+                    '\nSaved: ' + new Date().toLocaleString() +
+                    '\nSession: ' + sessionId + '\n\n';
+                var blob = new Blob([header + lines.join('\n\n')], { type: 'text/plain;charset=utf-8' });
+                var a = document.createElement('a');
+                a.href = window.URL.createObjectURL(blob);
+                a.download = 'team_reflection_' + (survey.id || 'survey') + '_' + sessionId.slice(-8) + '.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+            function appendIgStartoverLink() {
+                if (document.getElementById('ig-startover-link')) return;
+                var btn = document.createElement('button');
+                btn.id = 'ig-startover-link';
+                btn.type = 'button';
+                btn.className = 'ig-startover-link';
+                btn.textContent = 'Start a fresh reflection';
+                btn.addEventListener('click', function () {
+                    var ok = window.confirm(
+                        'Start a fresh reflection? Your previous answers stay on the server (the instructor can still see them), but this will clear the conversation in this tab and begin a new one.'
+                    );
+                    if (!ok) return;
+                    clearIgHistorySnapshot(sessionId);
+                    mintIgSessionId();
+                    window.location.reload();
+                });
+                footerInner.appendChild(btn);
+            }
+
+            // Replay a restored conversation through the form-mode engine so its
+            // coverage state approximates the live state pre-refresh. Imperfect
+            // (beforeTurn directives don't fire exactly the same), but good
+            // enough to keep the progress label accurate. The persisted .ended
+            // flag is the source of truth for whether the strip shows .ready.
+            function rehydrateChat(snapshot) {
+                var prior = snapshot.messages || [];
+                for (var i = 0; i < prior.length; i++) {
+                    var m = prior[i];
+                    chatHistory.push({ role: m.role, content: m.content });
+                    appendIgMessage(m.role === 'user' ? 'user' : 'bot', m.content);
+                    if (formMode.active && formMode.state) {
+                        try {
+                            if (m.role === 'user') {
+                                leaiFormMode.beforeTurn(formMode.state, m.content);
+                            } else {
+                                leaiFormMode.afterTurn(formMode.state, m.content);
+                            }
+                        } catch (e) { /* replay best-effort */ }
+                    }
+                }
+                if (formMode.active && formMode.state) {
+                    renderFormModeProgress();
+                }
+                updateIgStripCollapsedLabel();
+                if (snapshot.ended) markIgReady({ silent: true });
+            }
+
+            // Restore banner — first-thing-on-page when prior conversation exists.
+            // Two clear choices: Continue (rehydrate) or Start fresh (new sessionId,
+            // wipe local snapshot, keep backend record intact for instructor view).
+            function showRestoreBanner(snapshot, onContinue, onFresh) {
+                var banner = document.createElement('div');
+                banner.id = 'ig-restore-banner';
+                banner.className = 'ig-restore-banner';
+
+                var title = document.createElement('div');
+                title.className = 'ig-restore-banner-title';
+                title.textContent = 'Picked up where you left off';
+                banner.appendChild(title);
+
+                var body = document.createElement('div');
+                body.className = 'ig-restore-banner-body';
+                var ts = new Date(snapshot.updated);
+                body.textContent = snapshot.messages.length + ' messages saved on this device, last updated ' +
+                    ts.toLocaleDateString() + ' at ' +
+                    ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+                    '. Your answers are also saved on the server. Continue from here, or start a fresh reflection.';
+                banner.appendChild(body);
+
+                var actions = document.createElement('div');
+                actions.className = 'ig-restore-banner-actions';
+                var cont = document.createElement('button');
+                cont.type = 'button';
+                cont.className = 'ig-restore-continue';
+                cont.textContent = '↩ Continue from here';
+                cont.addEventListener('click', function () { banner.remove(); onContinue(); });
+                actions.appendChild(cont);
+
+                var fresh = document.createElement('button');
+                fresh.type = 'button';
+                fresh.className = 'ig-restore-fresh';
+                fresh.textContent = 'Start fresh';
+                fresh.addEventListener('click', function () { banner.remove(); onFresh(); });
+                actions.appendChild(fresh);
+
+                banner.appendChild(actions);
+                messages.appendChild(banner);
+            }
+
             function logMessageEverywhere(role, text) {
                 // Single call site for turn persistence. Writes the mock chatlog (kept
-                // for the analyzer's existing in-group drill-down path) AND the backend
-                // FeedbackMessage row.
+                // for the analyzer's existing in-group drill-down path), the localStorage
+                // snapshot (refresh-survive restoration), AND the backend FeedbackMessage row.
                 try {
                     var k = 'leai.mock.chatLog.' + survey.id;
                     var log = JSON.parse(localStorage.getItem(k) || '[]');
                     log.push({ session: sessionId, role: role, text: text, ts: Date.now() });
                     localStorage.setItem(k, JSON.stringify(log));
                 } catch (e) {}
+                saveIgHistorySnapshot(sessionId, chatHistory, igReadyMarked);
                 persistBackendMessage(role, text);
             }
 
@@ -1536,11 +1937,13 @@
                         logMessageEverywhere('bot', synthReply);
                         appendIgMessage('bot', synthReply);
                         renderFormModeProgress();
-                        if (pre.ended) lockIgChat();
+                        updateIgStripCollapsedLabel();
+                        if (pre.ended) markIgReady();
                         return;
                     }
                     directiveText = (pre && pre.directive && pre.directive.text) || null;
                     renderFormModeProgress();
+                    updateIgStripCollapsedLabel();
                 }
 
                 if (typeof leaiChat !== 'undefined' && leaiChat.chat) {
@@ -1562,12 +1965,19 @@
                             displayed = (post && post.displayedMessage) ? post.displayedMessage : raw;
                             ended = !!(post && post.ended);
                             renderFormModeProgress();
+                        } else if (/\[END\]/i.test(raw)) {
+                            // Fallback parity with the default (non-team) flow: when no
+                            // form schema is bound, a stray [END] from the LLM is the
+                            // only completion signal we have.
+                            displayed = raw.replace(/\[END\]/gi, '').trim();
+                            ended = true;
                         }
                         hideIgTyping();
                         chatHistory.push({ role: 'assistant', content: displayed });
                         logMessageEverywhere('bot', displayed);
                         appendIgMessage('bot', displayed);
-                        if (ended) lockIgChat();
+                        updateIgStripCollapsedLabel();
+                        if (ended) markIgReady();
                     }).catch(function () {
                         hideIgTyping();
                         var reply = 'Thanks for sharing. (Tell me more about how the team has been going.)';
@@ -1588,37 +1998,13 @@
                 }
             }
 
-            // Mark in-group chat complete. In form-mode we keep the input
-            // live so students can revise/add post-completion (the download
-            // re-reads the live transcript on each click). Idempotent —
-            // engine may re-signal completion if the student keeps chatting.
+            // Kept as a thin compatibility shim — old call sites delegate to
+            // markIgReady() now. The persistent strip handles all download UI;
+            // the chat input stays live so students can keep revising. Engine
+            // re-signals on every post-end turn are absorbed by markIgReady's
+            // idempotence guard.
             function lockIgChat() {
-                if (document.getElementById('ig-completion-notice') ||
-                        document.getElementById('ig-formmode-completion-notice')) {
-                    return;
-                }
-                if (formMode.active && formMode.state &&
-                        typeof renderFormModeDownloadBar === 'function') {
-                    var notice = document.createElement('p');
-                    notice.id = 'ig-formmode-completion-notice';
-                    notice.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
-                    notice.textContent =
-                        'All sections captured — your reflection is ready below. ' +
-                        'You can keep chatting if you want to revise or add anything before downloading.';
-                    footerInner.appendChild(notice);
-                    renderFormModeDownloadBar(footerInner);
-                } else {
-                    igChatLocked = true;
-                    textarea.disabled = true;
-                    textarea.value = '';
-                    sendBtn.disabled = true;
-                    igMicBtn.disabled = true;
-                    var notice2 = document.createElement('p');
-                    notice2.id = 'ig-completion-notice';
-                    notice2.style.cssText = 'text-align:center;color:var(--muted);font-size:0.85rem;padding:8px 0 0;';
-                    notice2.textContent = 'Conversation complete — thanks for reflecting!';
-                    footerInner.appendChild(notice2);
-                }
+                markIgReady();
             }
 
             sendBtn.addEventListener('click', function () {
@@ -1639,7 +2025,24 @@
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
             });
 
-            requestBotTurn(null);
+            // Always-on UI affordances. The strip is functional from turn zero
+            // (raw transcript before any chat content); the start-over link is
+            // available at any time so a student who realizes mid-conversation
+            // they want to redo the reflection isn't trapped.
+            renderIgDownloadStrip();
+            appendIgStartoverLink();
+
+            if (priorSnapshot) {
+                showRestoreBanner(priorSnapshot, function onContinue() {
+                    rehydrateChat(priorSnapshot);
+                }, function onFresh() {
+                    clearIgHistorySnapshot(sessionId);
+                    mintIgSessionId();
+                    window.location.reload();
+                });
+            } else {
+                requestBotTurn(null);
+            }
         }
 
         // Anonymous, collision-resistant per-survey session id.
