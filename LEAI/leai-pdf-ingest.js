@@ -1197,9 +1197,15 @@
         // doesn't carry meaning here (worker processes in the order the
         // browser uploaded, which is itself unspecified).
         var byName = function (a, b) { return (a.filename || '').localeCompare(b.filename || ''); };
-        var ok = state.jobItems.filter(function (i) { return i.status === 'ok'; }).sort(byName);
-        var lowConf = state.jobItems.filter(function (i) { return i.status === 'low_conf'; }).sort(byName);
-        var failed = state.jobItems.filter(function (i) { return i.status === 'failed'; }).sort(byName);
+        var query = (state.reviewSearch || '').trim().toLowerCase();
+        var matches = function (item) {
+            if (!query) return true;
+            return (item.filename || '').toLowerCase().indexOf(query) !== -1
+                || (item.student_id || '').toLowerCase().indexOf(query) !== -1;
+        };
+        var ok = state.jobItems.filter(function (i) { return i.status === 'ok' && matches(i); }).sort(byName);
+        var lowConf = state.jobItems.filter(function (i) { return i.status === 'low_conf' && matches(i); }).sort(byName);
+        var failed = state.jobItems.filter(function (i) { return i.status === 'failed' && matches(i); }).sort(byName);
 
         var bannerClass = (failed.length || lowConf.length) ? 'leai-pdf-banner--warn' : 'leai-pdf-banner--ok';
         var banner = el('div', {
@@ -1219,6 +1225,34 @@
         });
         wrap.appendChild(banner);
 
+        // Search input — only when the batch is big enough for finding
+        // a specific student to be tedious. Filters by filename or
+        // student_id; matches across all status buckets.
+        if (state.jobItems.length >= 8) {
+            var searchInput = el('input', {
+                type: 'search',
+                class: 'leai-pdf-review-search',
+                placeholder: 'Find a file or student…',
+                value: state.reviewSearch || '',
+                'aria-label': 'Filter review cards by filename or student',
+                oninput: function (e) {
+                    state.reviewSearch = e.target.value;
+                    // Re-render preserves caret position because the
+                    // value attr is round-tripped through state and
+                    // re-applied before the input loses focus on the
+                    // immediate microtask. Big batches (40 cards) still
+                    // re-render in <30ms.
+                    ctx.render();
+                    var fresh = document.querySelector('.leai-pdf-review-search');
+                    if (fresh) {
+                        fresh.focus();
+                        fresh.setSelectionRange(state.reviewSearch.length, state.reviewSearch.length);
+                    }
+                },
+            });
+            wrap.appendChild(searchInput);
+        }
+
         if (lowConf.length) {
             // Bulk-fill bar: when the same prompt is missing across many
             // PDFs (template phrasing drift), instructor types once and
@@ -1231,6 +1265,11 @@
         }
         if (ok.length) {
             wrap.appendChild(renderReviewGroup('Looks good (' + ok.length + ')', ok, false, state, ctx));
+        }
+        if (query && !ok.length && !lowConf.length && !failed.length) {
+            wrap.appendChild(el('div', { class: 'leai-pdf-review-search__empty' }, [
+                'No files match "' + query + '". Clear the search to see all.',
+            ]));
         }
 
         var commitable = state.jobItems.some(function (i) { return i.status !== 'failed'; });
@@ -1449,7 +1488,30 @@
                     tabindex: '0',
                 }, ['needs your eyes']));
             }
-            var cell = el('div', { class: 'leai-pdf-review-cell' + (isLow ? ' leai-pdf-review-cell--low' : '') }, [
+            // Per-cell restore button: always rendered but hidden via
+            // the cell's --edited modifier when the textarea matches
+            // the server's original mapping. Toggling visibility via
+            // class lets us avoid a full re-render on every keystroke.
+            var serverValue = (item.mapping && item.mapping[pid]) || '';
+            var hasEdit = (current || '') !== serverValue;
+            var restoreBtn = el('button', {
+                type: 'button',
+                class: 'leai-pdf-review-cell__restore',
+                title: 'Restore the original value the parser proposed',
+                'aria-label': 'Restore original ' + (p.title || pid) + ' value',
+                onclick: function () {
+                    state.edits[item.filename] = state.edits[item.filename] || {};
+                    state.edits[item.filename][pid] = serverValue;
+                    scheduleDraftSave(state);
+                    ctx.render();
+                },
+            }, ['↺']);
+            labelChildren.push(restoreBtn);
+
+            var cellClass = 'leai-pdf-review-cell'
+                + (isLow ? ' leai-pdf-review-cell--low' : '')
+                + (hasEdit ? ' leai-pdf-review-cell--edited' : '');
+            var cell = el('div', { class: cellClass }, [
                 el('div', { class: 'leai-pdf-review-cell__label', id: labelId }, labelChildren),
                 el('textarea', {
                     class: 'leai-pdf-review-cell__textarea',
@@ -1465,6 +1527,11 @@
                         // Debounced auto-save so even a partial paste is
                         // recoverable after an accidental close.
                         scheduleDraftSave(state);
+                        // Toggle the cell's --edited modifier so the
+                        // restore button appears/hides without a full
+                        // re-render (which would lose caret position).
+                        var nowEdited = e.target.value !== serverValue;
+                        cell.classList.toggle('leai-pdf-review-cell--edited', nowEdited);
                     },
                 }, [current || '']),
             ]);

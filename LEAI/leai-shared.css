@@ -1180,10 +1180,17 @@ input[type="checkbox"], input[type="radio"] {
     .leai-pdf-bulkfill__row { grid-template-columns: 1fr; }
 }
 
-/* Action bar */
+/* Action bar — sticks to the bottom of the scroll area so Continue /
+   Back are always reachable on long review screens (40+ cards). The
+   inner step is the scrolling container; sticky is relative to it. */
 .leai-pdf-actions {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding-top: 8px; border-top: 1px solid var(--border, #e5e7eb); margin-top: 8px;
+    padding: 12px 0 8px;
+    border-top: 1px solid var(--border, #e5e7eb);
+    margin-top: 8px;
+    position: sticky; bottom: 0;
+    background: var(--surface, #fff);
+    z-index: 2;
 }
 .leai-pdf-actions__status { font-size: 12.5px; color: var(--text-muted, #6b7280); }
 .leai-pdf-btn {
@@ -1278,6 +1285,43 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px; font-weight: 500; color: #92400e; background: #fef3c7;
     padding: 2px 8px; border-radius: 999px;
 }
+/* Review search bar (only shown for batches >= 8) */
+.leai-pdf-review-search {
+    width: 100%; padding: 8px 12px; font-size: 13px;
+    border: 1px solid var(--border, #d1d5db); border-radius: 6px;
+    background: var(--surface, #fff);
+    box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+.leai-pdf-review-search:focus {
+    outline: 2px solid var(--primary, #2563eb); outline-offset: -1px; border-color: var(--primary, #2563eb);
+}
+.leai-pdf-review-search__empty {
+    padding: 24px; text-align: center; color: var(--text-muted, #6b7280);
+    font-size: 12.5px; background: var(--surface-low, #f9fafb); border-radius: 8px;
+}
+
+/* Per-cell restore-original mini button — hidden by default, shown
+   when the cell carries the --edited modifier (set/unset on input
+   without re-rendering, so caret stays put). */
+.leai-pdf-review-cell__restore {
+    display: none;
+    border: 0; background: transparent; padding: 0 4px; margin: 0;
+    color: var(--text-muted, #9ca3af); cursor: pointer; font-size: 14px;
+    line-height: 1; border-radius: 4px;
+}
+.leai-pdf-review-cell__restore:hover, .leai-pdf-review-cell__restore:focus {
+    color: var(--primary, #2563eb); background: var(--surface-low, #f3f4f6); outline: none;
+}
+.leai-pdf-review-cell--edited .leai-pdf-review-cell__restore { display: inline-block; }
+
+/* Edited cell indicator — subtle left border on the textarea so an
+   instructor can scan a long card and instantly see which cells
+   they've touched. */
+.leai-pdf-review-cell--edited .leai-pdf-review-cell__textarea {
+    border-left-width: 3px;
+    border-left-color: var(--primary, #2563eb);
+}
+
 .leai-pdf-review-cell__info {
     border: 0; background: transparent; padding: 0; margin: 0;
     color: var(--text-muted, #9ca3af); font-size: 13px; cursor: help;
