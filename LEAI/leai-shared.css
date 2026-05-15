@@ -1411,6 +1411,49 @@ input[type="checkbox"], input[type="radio"] {
     .leai-pdf-toast { transition: none !important; }
 }
 
+/* Styled confirm dialog (replaces window.confirm). Sits above the
+   drawer, with a backdrop and primary/secondary actions. */
+.leai-pdf-confirm-backdrop {
+    position: fixed; inset: 0; background: rgba(15, 23, 42, 0.55);
+    z-index: 1180; opacity: 0; transition: opacity 0.18s ease;
+    backdrop-filter: blur(2px);
+}
+.leai-pdf-confirm-backdrop--in { opacity: 1; }
+.leai-pdf-confirm {
+    position: fixed; left: 50%; top: 50%; z-index: 1181;
+    transform: translate(-50%, -48%) scale(0.96); opacity: 0;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    background: var(--surface, #fff); border-radius: 12px;
+    padding: 22px 24px; max-width: min(440px, calc(100vw - 32px));
+    width: 100%; box-shadow: 0 20px 60px rgba(15, 23, 42, 0.35);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+.leai-pdf-confirm--in { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.leai-pdf-confirm__title { font-size: 16px; font-weight: 700; color: var(--text, #111827); margin-bottom: 8px; }
+.leai-pdf-confirm__body  { font-size: 13.5px; color: var(--text-muted, #4b5563); line-height: 1.55; margin-bottom: 18px; }
+.leai-pdf-confirm__actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+}
+.leai-pdf-confirm__actions .leai-pdf-btn { min-width: 96px; }
+@media (max-width: 640px) {
+    .leai-pdf-confirm__actions { flex-direction: column-reverse; }
+    .leai-pdf-confirm__actions .leai-pdf-btn { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .leai-pdf-confirm-backdrop, .leai-pdf-confirm { transition: none !important; }
+}
+
+/* Optimistic 'reverting…' visual on a Recent Uploads row */
+.leai-pdf-recent__row--reverting {
+    opacity: 0.55; transition: opacity 0.18s ease;
+}
+.leai-pdf-recent__row--reverting .leai-pdf-recent__row-meta {
+    text-decoration: line-through;
+}
+@media (prefers-reduced-motion: reduce) {
+    .leai-pdf-recent__row--reverting { transition: none !important; }
+}
+
 /* Source badge — shown on responses sourced from PDFs */
 .leai-pdf-badge {
     display: inline-flex; align-items: center; gap: 3px;

@@ -168,6 +168,75 @@
         }
     }
 
+    /** Styled in-page confirm dialog (replaces window.confirm). Returns
+     *  a Promise<boolean>. Looks like the rest of the drawer instead of
+     *  the jarring OS-native modal. */
+    function showConfirm(opts) {
+        opts = opts || {};
+        return new Promise(function (resolve) {
+            var backdrop = el('div', { class: 'leai-pdf-confirm-backdrop' });
+            var card = el('div', {
+                class: 'leai-pdf-confirm', role: 'dialog', 'aria-modal': 'true',
+                'aria-labelledby': 'leai-pdf-confirm-title',
+            }, [
+                el('div', { class: 'leai-pdf-confirm__title', id: 'leai-pdf-confirm-title' }, [opts.title || 'Are you sure?']),
+                opts.body ? el('div', { class: 'leai-pdf-confirm__body' }, [opts.body]) : null,
+                el('div', { class: 'leai-pdf-confirm__actions' }, [
+                    el('button', {
+                        class: 'leai-pdf-btn leai-pdf-btn--ghost',
+                        onclick: function () { close(false); },
+                    }, [opts.cancelLabel || 'Cancel']),
+                    el('button', {
+                        class: 'leai-pdf-btn ' + (opts.danger ? 'leai-pdf-btn--danger' : 'leai-pdf-btn--primary'),
+                        onclick: function () { close(true); },
+                    }, [opts.confirmLabel || 'Confirm']),
+                ]),
+            ]);
+            function close(result) {
+                document.removeEventListener('keydown', onKey, true);
+                backdrop.remove();
+                card.remove();
+                resolve(result);
+            }
+            function onKey(e) {
+                if (e.key === 'Escape') { e.preventDefault(); close(false); }
+                if (e.key === 'Enter') { e.preventDefault(); close(true); }
+            }
+            backdrop.addEventListener('click', function () { close(false); });
+            document.addEventListener('keydown', onKey, true);
+            document.body.appendChild(backdrop);
+            document.body.appendChild(card);
+            requestAnimationFrame(function () {
+                backdrop.classList.add('leai-pdf-confirm-backdrop--in');
+                card.classList.add('leai-pdf-confirm--in');
+                var primary = card.querySelector(opts.danger ? '.leai-pdf-btn--danger' : '.leai-pdf-btn--primary');
+                if (primary) try { primary.focus(); } catch (e) {}
+            });
+        });
+    }
+
+    /** Format a timestamp as a relative phrase ('2 hours ago') for items
+     *  within the last 7 days, falling back to the absolute date for
+     *  older entries. Keeps the Recent Uploads panel scannable. */
+    function fmtRelative(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        var diffMs = Date.now() - d.getTime();
+        var sec = Math.floor(diffMs / 1000);
+        if (sec < 45) return 'just now';
+        if (sec < 90) return 'a minute ago';
+        var min = Math.floor(sec / 60);
+        if (min < 45) return min + ' minutes ago';
+        if (min < 90) return 'an hour ago';
+        var hr = Math.floor(min / 60);
+        if (hr < 24) return hr + ' hours ago';
+        if (hr < 36) return 'yesterday';
+        var days = Math.floor(hr / 24);
+        if (days < 7) return days + ' days ago';
+        return fmtDate(iso);
+    }
+
     /** Map terse / generic backend error strings to friendlier copy at
      *  the boundary so the rest of the UI stays clean. */
     function humanizeError(err) {
@@ -327,23 +396,31 @@
 
         function close(opts2) {
             opts2 = opts2 || {};
-            if (state.phase === 'review' && hasUnsavedEdits(state) && !opts2.skipConfirm) {
-                if (!confirm('You have unsaved edits in the review screen. Close without saving?')) {
-                    return;
+            var doClose = function () {
+                if (state.pollHandle) clearTimeout(state.pollHandle);
+                state.pollHandle = null;
+                document.removeEventListener('keydown', onKeydown, true);
+                restoreTitle(state);
+                backdrop.remove();
+                drawer.remove();
+                if (root._activeDrawer === handle) root._activeDrawer = null;
+                // Restore focus to whatever opened the drawer.
+                if (state.previouslyFocused && typeof state.previouslyFocused.focus === 'function') {
+                    try { state.previouslyFocused.focus(); } catch (e) {}
                 }
+                opts.onClose && opts.onClose(state.commitResult);
+            };
+            if (state.phase === 'review' && hasUnsavedEdits(state) && !opts2.skipConfirm) {
+                showConfirm({
+                    title: 'Close without saving your edits?',
+                    body: 'Your typed corrections are auto-saved as a draft for 7 days, so they\'ll come back when you reopen this drawer.',
+                    confirmLabel: 'Close anyway',
+                    cancelLabel: 'Keep editing',
+                    danger: true,
+                }).then(function (ok) { if (ok) doClose(); });
+                return;
             }
-            if (state.pollHandle) clearTimeout(state.pollHandle);
-            state.pollHandle = null;
-            document.removeEventListener('keydown', onKeydown, true);
-            restoreTitle(state);
-            backdrop.remove();
-            drawer.remove();
-            if (root._activeDrawer === handle) root._activeDrawer = null;
-            // Restore focus to whatever opened the drawer.
-            if (state.previouslyFocused && typeof state.previouslyFocused.focus === 'function') {
-                try { state.previouslyFocused.focus(); } catch (e) {}
-            }
-            opts.onClose && opts.onClose(state.commitResult);
+            doClose();
         }
 
         // True if the instructor has typed anything that differs from the
@@ -1590,29 +1667,48 @@
 
     function renderRecentBatchRow(batch, survey, opts) {
         var row = el('div', { class: 'leai-pdf-recent__row' });
+        var timeText = fmtRelative(batch.created_at);
         row.appendChild(el('div', { class: 'leai-pdf-recent__row-meta' }, [
             el('div', {}, [
                 el('strong', {}, [batch.student_count + ' student' + (batch.student_count === 1 ? '' : 's')]),
                 ' · ' + batch.message_count + ' response' + (batch.message_count === 1 ? '' : 's'),
             ]),
-            el('div', { class: 'leai-pdf-recent__row-time' }, [
-                fmtDate(batch.created_at) + (batch.committed_by ? ' · ' + batch.committed_by : ''),
-            ]),
+            el('div', {
+                class: 'leai-pdf-recent__row-time',
+                title: fmtDate(batch.created_at),  // hover reveals absolute time
+            }, [timeText + (batch.committed_by ? ' · ' + batch.committed_by : '')]),
         ]));
         var btn = el('button', {
             class: 'leai-pdf-btn leai-pdf-btn--danger leai-pdf-btn--sm',
             onclick: function () {
-                if (!confirm('Revert this batch?\n\nThis will remove ' + batch.student_count + ' student’s PDF responses (' + batch.message_count + ' rows). AI Quick Take will refresh.')) return;
-                btn.disabled = true; btn.textContent = 'Reverting…';
-                leaiPdfIngest.revertBatch(batch.batch_id).then(function (resp) {
-                    var deleted = (resp && resp.deleted_count) || batch.message_count;
-                    showToast('Reverted — removed ' + deleted + ' response' +
-                        (deleted === 1 ? '' : 's') + '.', 'success');
-                    opts.onReverted && opts.onReverted(batch);
-                    renderRecentBatchesPanel(row.parentNode, survey, opts);
-                }).catch(function (e) {
-                    showToast('Revert failed: ' + humanizeError(e), 'error');
-                    btn.disabled = false; btn.textContent = 'Revert';
+                showConfirm({
+                    title: 'Revert this batch?',
+                    body: 'Removes ' + batch.student_count + ' student' +
+                        (batch.student_count === 1 ? '’s' : 's’') +
+                        ' PDF responses (' + batch.message_count + ' row' +
+                        (batch.message_count === 1 ? '' : 's') + ') and refreshes AI Quick Take. ' +
+                        'This is logged as a reverted batch — the manifest stays for audit.',
+                    confirmLabel: 'Revert ' + batch.message_count + ' response' +
+                        (batch.message_count === 1 ? '' : 's'),
+                    cancelLabel: 'Keep them',
+                    danger: true,
+                }).then(function (confirmed) {
+                    if (!confirmed) return;
+                    // Optimistic UI: immediately style the row as in-flight
+                    // so the instructor knows their click registered.
+                    row.classList.add('leai-pdf-recent__row--reverting');
+                    btn.disabled = true; btn.textContent = 'Reverting…';
+                    leaiPdfIngest.revertBatch(batch.batch_id).then(function (resp) {
+                        var deleted = (resp && resp.deleted_count) || batch.message_count;
+                        showToast('Reverted — removed ' + deleted + ' response' +
+                            (deleted === 1 ? '' : 's') + '.', 'success');
+                        opts.onReverted && opts.onReverted(batch);
+                        renderRecentBatchesPanel(row.parentNode, survey, opts);
+                    }).catch(function (e) {
+                        row.classList.remove('leai-pdf-recent__row--reverting');
+                        showToast('Revert failed: ' + humanizeError(e), 'error');
+                        btn.disabled = false; btn.textContent = 'Revert';
+                    });
                 });
             },
         }, ['Revert']);
