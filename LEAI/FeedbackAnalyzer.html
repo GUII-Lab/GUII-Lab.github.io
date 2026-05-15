@@ -953,11 +953,22 @@
                 }
                 leaiPdfIngestUi.open({
                     survey: target,
-                    onCommitted: function () {
+                    onCommitted: function (resp) {
                         // Force a reload of the survey data so newly added
-                        // PDF responses appear in the list/Quick Take.
-                        if (typeof loadData === 'function') loadData();
-                        else location.reload();
+                        // PDF responses appear in the list/Quick Take. After
+                        // the data lands, briefly flash the new cards so the
+                        // instructor sees what was added at a glance.
+                        var newBatchId = resp && resp.batch && resp.batch.batch_id;
+                        if (typeof loadData === 'function') {
+                            loadData();
+                            if (newBatchId) {
+                                setTimeout(function () {
+                                    flashPdfBatchCards(newBatchId);
+                                }, 700);
+                            }
+                        } else {
+                            location.reload();
+                        }
                     },
                     onClose: function () {
                         renderPdfIngestRecentPanel(target);
@@ -1014,6 +1025,33 @@
 
     function sessionHasPdfMessage(msgs) {
         return (msgs || []).some(function (m) { return m && m.source === 'pdf'; });
+    }
+
+    /** Returns the PDF batch_id for a session if any of its messages
+     *  came from one (used to data-tag cards for post-commit flash). */
+    function sessionPdfBatchId(msgs) {
+        for (var i = 0; i < (msgs || []).length; i++) {
+            var m = msgs[i];
+            if (m && m.source === 'pdf' && m.pdf_batch_id) return m.pdf_batch_id;
+        }
+        return '';
+    }
+
+    /** Briefly flash all student cards belonging to a batch — visual
+     *  confirmation right after commit so the instructor can see what
+     *  landed without hunting through the response list. Self-removes
+     *  after the animation; respects prefers-reduced-motion. */
+    function flashPdfBatchCards(batchId) {
+        if (!batchId) return;
+        var cards = document.querySelectorAll('.student-card[data-pdf-batch="' + batchId + '"]');
+        if (!cards.length) return;
+        cards.forEach(function (card, idx) {
+            // Stagger slightly so a 40-row commit doesn't strobe.
+            setTimeout(function () {
+                card.classList.add('leai-pdf-flash');
+                setTimeout(function () { card.classList.remove('leai-pdf-flash'); }, 1800);
+            }, Math.min(idx * 40, 800));
+        });
     }
 
     // ===== STATS ROW =====
@@ -2089,6 +2127,10 @@
 
             var card = document.createElement('div');
             card.className = 'student-card';
+            // Tag cards backed by an ingest batch so flashPdfBatchCards()
+            // can target them post-commit for the visual confirmation.
+            var batchId = sessionPdfBatchId(msgs);
+            if (batchId) card.setAttribute('data-pdf-batch', batchId);
 
             var header = document.createElement('div');
             header.className = 'student-card-header';

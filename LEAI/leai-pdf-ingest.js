@@ -1021,12 +1021,30 @@
         var wrap = el('div', { class: 'leai-pdf-step__inner' });
 
         if (state.jobError) {
-            wrap.appendChild(el('div', { class: 'leai-pdf-banner leai-pdf-banner--error' }, [state.jobError]));
+            wrap.appendChild(el('div', { class: 'leai-pdf-banner leai-pdf-banner--error' }, [
+                el('strong', {}, ['Processing failed.']),
+                el('div', { style: { marginTop: '4px', fontSize: '12.5px' } }, [state.jobError]),
+            ]));
+            wrap.appendChild(el('div', { class: 'leai-pdf-banner__hint' }, [
+                'Common causes: a network blip mid-batch, a corrupted PDF that crashed the parser, ',
+                'or the server taking too long. Your files are still staged — retry will resubmit them.',
+            ]));
             wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
                 el('button', {
                     class: 'leai-pdf-btn leai-pdf-btn--ghost',
                     onclick: function () { state.jobError = ''; ctx.transition('files'); },
                 }, ['Back to files']),
+                el('button', {
+                    class: 'leai-pdf-btn leai-pdf-btn--primary',
+                    onclick: function () {
+                        // Clear the error and re-spawn the same files
+                        state.jobError = '';
+                        state.jobId = null;
+                        state.jobItems = [];
+                        clearInFlight(state.survey.id);
+                        ctx.startJob();
+                    },
+                }, ['Try again']),
             ]));
             return wrap;
         }
@@ -1658,6 +1676,38 @@
 
     var RECENT_INITIAL_LIMIT = 10;
 
+    /** Build + trigger download of a batch's items_summary as CSV.
+     *  Pure-client (no extra endpoint needed) since we already have
+     *  the manifest in hand from listBatches. */
+    function downloadBatchCsv(batch) {
+        var rows = [['filename', 'student_id', 'status', 'dedup', 'prompt_count']];
+        (batch.items_summary || []).forEach(function (it) {
+            rows.push([
+                it.filename || '',
+                it.student_id || '',
+                it.status || '',
+                it.dedup || '',
+                String(it.prompt_count == null ? '' : it.prompt_count),
+            ]);
+        });
+        var csv = rows.map(function (r) {
+            return r.map(function (cell) {
+                var s = String(cell == null ? '' : cell);
+                if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+                return s;
+            }).join(',');
+        }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var dt = (batch.created_at || '').slice(0, 10) || 'batch';
+        a.href = url;
+        a.download = 'pdf-ingest-' + dt + '-' + (batch.batch_id || '').slice(0, 8) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 100);
+    }
+
     function renderRecentBatchesPanel(container, survey, opts, options) {
         opts = opts || {};
         options = options || {};
@@ -1706,16 +1756,53 @@
     function renderRecentBatchRow(batch, survey, opts) {
         var row = el('div', { class: 'leai-pdf-recent__row' });
         var timeText = fmtRelative(batch.created_at);
-        row.appendChild(el('div', { class: 'leai-pdf-recent__row-meta' }, [
+        var summaryItems = (batch.items_summary || []).filter(function (it) {
+            return it.status === 'committed';
+        });
+        var hasDetails = summaryItems.length > 0;
+        var meta = el('div', { class: 'leai-pdf-recent__row-meta' }, [
             el('div', {}, [
                 el('strong', {}, [batch.student_count + ' student' + (batch.student_count === 1 ? '' : 's')]),
                 ' · ' + batch.message_count + ' response' + (batch.message_count === 1 ? '' : 's'),
+                hasDetails ? el('button', {
+                    type: 'button', class: 'leai-pdf-recent__expand',
+                    'aria-label': 'Show students in this batch',
+                    onclick: function () {
+                        var detail = row.querySelector('.leai-pdf-recent__detail');
+                        var expanded = detail.classList.toggle('leai-pdf-recent__detail--open');
+                        this.textContent = expanded ? '▾' : '▸';
+                        this.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                    },
+                }, ['▸']) : null,
             ]),
             el('div', {
                 class: 'leai-pdf-recent__row-time',
                 title: fmtDate(batch.created_at),  // hover reveals absolute time
             }, [timeText + (batch.committed_by ? ' · ' + batch.committed_by : '')]),
-        ]));
+            // Detail panel (hidden by default; expanded by the ▸ chevron).
+            hasDetails ? el('div', { class: 'leai-pdf-recent__detail' }, [
+                el('div', { class: 'leai-pdf-recent__detail-list' },
+                    summaryItems.map(function (it) {
+                        return el('span', { class: 'leai-pdf-recent__detail-item' }, [
+                            it.student_id + ' (' + it.prompt_count + ')',
+                        ]);
+                    })
+                ),
+            ]) : null,
+        ]);
+        row.appendChild(meta);
+
+        // CSV export — small icon-button left of the Revert action so an
+        // instructor can keep a record of what got committed (useful for
+        // dept compliance / sharing what was imported with TAs).
+        if (hasDetails) {
+            var exportBtn = el('button', {
+                class: 'leai-pdf-btn leai-pdf-btn--ghost leai-pdf-btn--sm',
+                title: 'Download a CSV of this batch (filename, student_id, status, prompt count)',
+                onclick: function () { downloadBatchCsv(batch); },
+            }, ['⬇ CSV']);
+            row.appendChild(exportBtn);
+        }
         var btn = el('button', {
             class: 'leai-pdf-btn leai-pdf-btn--danger leai-pdf-btn--sm',
             onclick: function () {

@@ -1380,6 +1380,48 @@ input[type="checkbox"], input[type="radio"] {
 }
 .leai-pdf-recent__more:hover { background: rgba(37, 99, 235, 0.06); }
 
+/* Recent uploads expand chevron + detail panel */
+.leai-pdf-recent__expand {
+    background: transparent; border: 0; color: var(--text-muted, #6b7280);
+    font-size: 11px; padding: 0 6px; margin-left: 6px; cursor: pointer;
+    border-radius: 4px;
+}
+.leai-pdf-recent__expand:hover { color: var(--text, #1f2937); background: var(--surface-low, #f3f4f6); }
+.leai-pdf-recent__detail {
+    display: none; margin-top: 8px; padding: 8px 10px;
+    background: var(--surface-low, #f9fafb); border-radius: 6px;
+    border: 1px solid var(--border, #e5e7eb);
+}
+.leai-pdf-recent__detail--open { display: block; }
+.leai-pdf-recent__detail-list {
+    display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow: auto;
+}
+.leai-pdf-recent__detail-item {
+    background: #fff; border: 1px solid var(--border, #e5e7eb);
+    border-radius: 4px; padding: 2px 8px; font-size: 11.5px;
+    font-family: ui-monospace, SFMono-Regular, monospace; color: var(--text, #1f2937);
+}
+
+/* Banner hint sub-paragraph (sits under the error banner with secondary text) */
+.leai-pdf-banner__hint {
+    font-size: 12px; color: var(--text-muted, #6b7280);
+    line-height: 1.5; padding: 0 4px;
+}
+
+/* Flash newly-added cards after a commit so the instructor sees what landed */
+.leai-pdf-flash {
+    animation: leai-pdf-card-flash 1.8s ease-out 1;
+    border-radius: 8px;
+}
+@keyframes leai-pdf-card-flash {
+    0%   { box-shadow: 0 0 0 0 rgba(91, 33, 182, 0.35); background: #f5f3ff; }
+    20%  { box-shadow: 0 0 0 6px rgba(91, 33, 182, 0.18); background: #ede9fe; }
+    100% { box-shadow: 0 0 0 0 rgba(91, 33, 182, 0); background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .leai-pdf-flash { animation: none !important; }
+}
+
 /* Inline toast (replaces alert() inside the drawer flow). Slides in from
    the bottom-right; auto-dismisses unless ms === 0. */
 .leai-pdf-toast {
