@@ -1423,6 +1423,29 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 12.5px; font-weight: 600; color: var(--text-muted, #6b7280);
     text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px;
 }
+/* Date-bucket label inside the recent-uploads panel */
+.leai-pdf-recent__group-label {
+    font-size: 11px; font-weight: 700; color: var(--text-muted, #9ca3af);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 12px 0 4px; padding-top: 8px;
+    border-top: 1px dashed var(--border, #e5e7eb);
+}
+.leai-pdf-recent__group-label:first-of-type {
+    margin-top: 0; padding-top: 0; border-top: 0;
+}
+
+/* Collapsed explainer (after 3+ ingest sessions). Same look as other
+   <details> in the drawer, just smaller. */
+.leai-pdf-explainer-collapsed { font-size: 12.5px; }
+.leai-pdf-explainer-collapsed > summary {
+    cursor: pointer; color: var(--text-muted, #6b7280);
+    padding: 4px 0; user-select: none;
+}
+.leai-pdf-explainer-collapsed > summary::before {
+    content: '▸ '; transition: transform 0.15s; display: inline-block;
+}
+.leai-pdf-explainer-collapsed[open] > summary::before { content: '▾ '; }
+.leai-pdf-explainer-collapsed[open] .leai-pdf-explainer { margin-top: 6px; }
 .leai-pdf-recent__row {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 8px 0; border-bottom: 1px solid var(--border, #f3f4f6);

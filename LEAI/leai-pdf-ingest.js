@@ -78,6 +78,36 @@
         try { localStorage.removeItem(_draftKey(surveyId)); } catch (e) {}
     }
 
+    /** Count how many times the instructor has successfully committed
+     *  via the drawer. Used to suppress the explainer + remember per-
+     *  survey preferences after the user is no longer a first-timer. */
+    var USE_COUNT_KEY = 'leai.pdfIngest.useCount';
+    function incrementUseCount() {
+        try {
+            var n = parseInt(localStorage.getItem(USE_COUNT_KEY) || '0', 10) || 0;
+            localStorage.setItem(USE_COUNT_KEY, String(n + 1));
+            return n + 1;
+        } catch (e) { return 0; }
+    }
+    function getUseCount() {
+        try { return parseInt(localStorage.getItem(USE_COUNT_KEY) || '0', 10) || 0; }
+        catch (e) { return 0; }
+    }
+
+    /** Per-survey dedup preference — if the instructor consistently
+     *  picks 'replace' for the same survey, we default to it on the
+     *  next ingest. Stored as a single value (not per-student) since
+     *  it's about workflow style, not specific students. */
+    var DEDUP_PREF_KEY_PREFIX = 'leai.pdfIngest.dedupPref.';
+    function getDedupPref(surveyId) {
+        try { return localStorage.getItem(DEDUP_PREF_KEY_PREFIX + surveyId) || ''; }
+        catch (e) { return ''; }
+    }
+    function setDedupPref(surveyId, choice) {
+        try { localStorage.setItem(DEDUP_PREF_KEY_PREFIX + surveyId, choice); }
+        catch (e) {}
+    }
+
     /** Debounced save — fires 600ms after the last edit so we don't
      *  hammer localStorage on every keystroke. */
     function scheduleDraftSave(state) {
@@ -670,12 +700,21 @@
             return wrap;
         }
 
-        wrap.appendChild(el('p', { class: 'leai-pdf-explainer' }, [
-            'Upload PDF reflections from students who used your template. We read each PDF, ',
-            'match its sections to this survey’s questions, and add the answers to your analysis ',
-            'below — alongside the chat responses. You’ll review the mapping before anything is saved, ',
-            'and every batch you commit can be reverted with one click.',
-        ]));
+        // First-time / occasional users see the full explainer; after a
+        // few successful commits it collapses to a small "How this works"
+        // expander so it stops competing with the dropzone for attention.
+        var EXPLAIN_TEXT = 'Upload PDF reflections from students who used your template. ' +
+            'We read each PDF, match its sections to this survey’s questions, and add the answers ' +
+            'to your analysis below — alongside the chat responses. You’ll review the mapping ' +
+            'before anything is saved, and every batch you commit can be reverted with one click.';
+        if (getUseCount() < 3) {
+            wrap.appendChild(el('p', { class: 'leai-pdf-explainer' }, [EXPLAIN_TEXT]));
+        } else {
+            wrap.appendChild(el('details', { class: 'leai-pdf-explainer-collapsed' }, [
+                el('summary', {}, ['How this works']),
+                el('p', { class: 'leai-pdf-explainer' }, [EXPLAIN_TEXT]),
+            ]));
+        }
 
         // Roster preview — sets expectations about who the system can
         // auto-match. Hidden until the roster fetch resolves so we don't
@@ -1630,10 +1669,14 @@
         var ids = Object.keys(committingStudents);
         leaiPdfIngest.dedupCheck(state.survey.id, ids).then(function (existing) {
             state.dedupExisting = existing;
-            // Default each conflicted student to 'skip' (preserve existing
-            // data) — never overwrite without an explicit instructor choice.
+            // Pre-fill from per-survey preference if available (instructor
+            // has consistently picked the same option before); otherwise
+            // default to 'skip' as the safest behaviour.
+            var pref = getDedupPref(state.survey.id);
             existing.forEach(function (sid) {
-                if (!state.dedupChoices[sid]) state.dedupChoices[sid] = 'skip';
+                if (!state.dedupChoices[sid]) {
+                    state.dedupChoices[sid] = pref || 'skip';
+                }
             });
             ctx.transition('commit');
         }).catch(function (err) {
@@ -1759,6 +1802,15 @@
             // Draft is no longer relevant — the data is now on the
             // server, and the success state is the source of truth.
             clearDraft(state.survey.id);
+            // Increment the global use counter (collapses the explainer
+            // after 3 successful commits).
+            incrementUseCount();
+            // If every dedup decision was the same, remember it as the
+            // per-survey preference so the next ingest pre-fills with it.
+            var dedupValues = Object.values(state.dedupChoices || {});
+            if (dedupValues.length && dedupValues.every(function (v) { return v === dedupValues[0]; })) {
+                setDedupPref(state.survey.id, dedupValues[0]);
+            }
             ctx.transition('success');
             opts.onCommitted && opts.onCommitted(resp);
         }).catch(function (err) {
@@ -1811,6 +1863,30 @@
 
     var RECENT_INITIAL_LIMIT = 10;
 
+    /** Bucket batches into Today / Yesterday / Earlier this week / Older
+     *  groups for the Recent Uploads panel. Preserves input order within
+     *  each group (server returns newest-first). */
+    function groupBatchesByDate(batches) {
+        var groups = { today: [], yesterday: [], earlier_week: [], older: [] };
+        var now = new Date();
+        var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        var ydayStart = todayStart - 86400000;
+        var weekStart = todayStart - 6 * 86400000;
+        batches.forEach(function (b) {
+            var ts = b.created_at ? new Date(b.created_at).getTime() : 0;
+            if (ts >= todayStart) groups.today.push(b);
+            else if (ts >= ydayStart) groups.yesterday.push(b);
+            else if (ts >= weekStart) groups.earlier_week.push(b);
+            else groups.older.push(b);
+        });
+        var out = [];
+        if (groups.today.length) out.push({ label: 'Today', items: groups.today });
+        if (groups.yesterday.length) out.push({ label: 'Yesterday', items: groups.yesterday });
+        if (groups.earlier_week.length) out.push({ label: 'Earlier this week', items: groups.earlier_week });
+        if (groups.older.length) out.push({ label: 'Older', items: groups.older });
+        return out;
+    }
+
     /** Build + trigger download of a batch's items_summary as CSV.
      *  Pure-client (no extra endpoint needed) since we already have
      *  the manifest in hand from listBatches. */
@@ -1861,8 +1937,15 @@
             // batches accumulate; show-more reveals the rest in place.
             var showAll = !!options.showAll;
             var visible = showAll ? batches : batches.slice(0, RECENT_INITIAL_LIMIT);
-            visible.forEach(function (b) {
-                container.appendChild(renderRecentBatchRow(b, survey, opts));
+            // Date-group the visible batches under Today/Yesterday/Earlier
+            // this week/Older — keeps the list scannable when several
+            // ingests pile up. Group order matches recency.
+            var groups = groupBatchesByDate(visible);
+            groups.forEach(function (group) {
+                container.appendChild(el('div', { class: 'leai-pdf-recent__group-label' }, [group.label]));
+                group.items.forEach(function (b) {
+                    container.appendChild(renderRecentBatchRow(b, survey, opts));
+                });
             });
             if (!showAll && batches.length > RECENT_INITIAL_LIMIT) {
                 container.appendChild(el('button', {
