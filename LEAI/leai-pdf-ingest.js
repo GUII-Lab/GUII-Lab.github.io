@@ -25,6 +25,27 @@
     var POLL_BACKOFF_MAX_MS = 8000;
     var ACCEPT_TYPES = '.pdf,application/pdf';
 
+    // Tab-title mutation helpers — let the instructor see processing
+    // progress at a glance from the browser tab while doing other work.
+    function updateTitle(state) {
+        if (!state || state.phase !== 'processing') return;
+        if (!state.originalTitle) state.originalTitle = document.title;
+        var p = state.jobProgress || {};
+        var total = p.total || (state.files || []).length;
+        var processed = p.processed || 0;
+        if (total > 0) {
+            document.title = '◐ Reading ' + processed + '/' + total + ' PDFs · LEAI';
+        } else {
+            document.title = '◐ Reading PDFs · LEAI';
+        }
+    }
+    function restoreTitle(state) {
+        if (state && state.originalTitle) {
+            document.title = state.originalTitle;
+            state.originalTitle = null;
+        }
+    }
+
     // localStorage key holding {surveyId: jobId} for in-flight ingest jobs.
     // Lets us resume polling when the instructor closes the drawer mid-job
     // and reopens it later (a 50-PDF batch can outlast a coffee run).
@@ -159,10 +180,17 @@
             else if (state.phase === 'success') stepContainer.appendChild(renderSuccessStep(state, ctx));
         }
 
-        function close() {
+        function close(opts2) {
+            opts2 = opts2 || {};
+            if (state.phase === 'review' && hasUnsavedEdits(state) && !opts2.skipConfirm) {
+                if (!confirm('You have unsaved edits in the review screen. Close without saving?')) {
+                    return;
+                }
+            }
             if (state.pollHandle) clearTimeout(state.pollHandle);
             state.pollHandle = null;
             document.removeEventListener('keydown', onKeydown, true);
+            restoreTitle(state);
             backdrop.remove();
             drawer.remove();
             if (root._activeDrawer === handle) root._activeDrawer = null;
@@ -171,6 +199,20 @@
                 try { state.previouslyFocused.focus(); } catch (e) {}
             }
             opts.onClose && opts.onClose(state.commitResult);
+        }
+
+        // True if the instructor has typed anything that differs from the
+        // server's proposed mapping or marked any file to skip — guards
+        // against losing review work via Esc / X.
+        function hasUnsavedEdits(state) {
+            if (Object.values(state.skips || {}).some(Boolean)) return true;
+            return (state.jobItems || []).some(function (item) {
+                var serverMap = item.mapping || {};
+                var localMap = state.edits[item.filename] || {};
+                return Object.keys(localMap).some(function (k) {
+                    return (localMap[k] || '') !== (serverMap[k] || '');
+                });
+            });
         }
 
         // Esc closes the drawer; Tab is allowed to cycle naturally inside it
@@ -185,6 +227,7 @@
 
         var ctx = {
             state: state,
+            opts: opts,
             render: render,
             close: close,
             startJob: function () { startJob(state, ctx); },
@@ -299,22 +342,47 @@
             style: { display: 'none' },
             onchange: function (ev) { addFiles(state, ctx, ev.target.files); ev.target.value = ''; },
         });
+        var dzTitle = el('div', { class: 'leai-pdf-dropzone__title' }, ['Drop PDFs here or click to browse']);
+        var dzHint = el('div', { class: 'leai-pdf-dropzone__hint' }, [
+            'Up to 60 files, 10 MB each. PDFs with text only — scanned image PDFs won’t work.',
+        ]);
+        var defaultTitle = dzTitle.textContent;
+        var defaultHint = dzHint.textContent;
+
         var dropzone = el('label', { class: 'leai-pdf-dropzone', tabindex: '0' }, [
             fileInput,
             el('div', { class: 'leai-pdf-dropzone__icon' }, ['📄']),
-            el('div', { class: 'leai-pdf-dropzone__title' }, ['Drop PDFs here or click to browse']),
-            el('div', { class: 'leai-pdf-dropzone__hint' }, [
-                'Up to 60 files, 10 MB each. PDFs with text only — scanned image PDFs won’t work.',
-            ]),
+            dzTitle,
+            dzHint,
         ]);
+
+        function setHoverState(hovering, fileCount) {
+            dropzone.classList.toggle('leai-pdf-dropzone--hover', !!hovering);
+            if (hovering && fileCount) {
+                dzTitle.textContent = 'Drop ' + fileCount + ' file' + (fileCount === 1 ? '' : 's') + ' to add';
+                dzHint.textContent = 'PDF files will be queued for review';
+            } else {
+                dzTitle.textContent = defaultTitle;
+                dzHint.textContent = defaultHint;
+            }
+        }
         ['dragenter', 'dragover'].forEach(function (evt) {
             dropzone.addEventListener(evt, function (e) {
-                e.preventDefault(); dropzone.classList.add('leai-pdf-dropzone--hover');
+                e.preventDefault();
+                // dataTransfer.items has counts during dragover; .files
+                // is empty until drop. Count items where kind==='file'.
+                var count = 0;
+                if (e.dataTransfer && e.dataTransfer.items) {
+                    for (var i = 0; i < e.dataTransfer.items.length; i++) {
+                        if (e.dataTransfer.items[i].kind === 'file') count++;
+                    }
+                }
+                setHoverState(true, count);
             });
         });
         ['dragleave', 'drop'].forEach(function (evt) {
             dropzone.addEventListener(evt, function (e) {
-                e.preventDefault(); dropzone.classList.remove('leai-pdf-dropzone--hover');
+                e.preventDefault(); setHoverState(false, 0);
             });
         });
         dropzone.addEventListener('drop', function (e) {
@@ -432,6 +500,7 @@
             return f.file;
         });
         ctx.transition('processing');
+        updateTitle(state);
         leaiPdfIngest.startJob(state.survey.id, files, attribs)
             .then(function (resp) {
                 state.jobId = resp.job_id;
@@ -444,6 +513,7 @@
                 } else {
                     state.currentPollDelay = POLL_INTERVAL_MS;
                     schedulePoll(state, ctx);
+                    updateTitle(state);
                 }
             })
             .catch(function (err) {
@@ -468,6 +538,7 @@
                 handleJobFinished(state, ctx, resp);
             } else {
                 updateProcessingProgress(state);
+                updateTitle(state);
                 state.currentPollDelay = Math.min(state.currentPollDelay + 500, POLL_BACKOFF_MAX_MS);
                 schedulePoll(state, ctx);
             }
@@ -481,6 +552,7 @@
         // Either way, the in-flight marker is no longer useful — the job
         // has reached a terminal state.
         clearInFlight(state.survey.id);
+        restoreTitle(state);
         if (resp.status === 'failed') {
             state.jobError = resp.error || 'Processing failed.';
             ctx.render();
@@ -751,6 +823,18 @@
             if (current == null) current = (item.mapping && item.mapping[pid]) || '';
             var isLow = (item.low_conf_prompts || []).indexOf(pid) !== -1;
             var labelChildren = [p.title || pid];
+            // ⓘ icon shows the survey's full opening_prompt so the
+            // instructor knows what answer this section is supposed to
+            // contain — critical when pasting a missing block by hand.
+            if (p.opening_prompt) {
+                labelChildren.push(el('button', {
+                    type: 'button',
+                    class: 'leai-pdf-review-cell__info',
+                    'aria-label': 'Show full prompt for ' + (p.title || pid),
+                    'data-tooltip': 'Survey prompt: ' + p.opening_prompt,
+                    tabindex: '0',
+                }, ['ⓘ']));
+            }
             if (isLow) {
                 labelChildren.push(el('span', { class: 'leai-pdf-review-cell__warn' }, ['couldn’t find a clear heading']));
             }
@@ -925,6 +1009,7 @@
     function renderSuccessStep(state, ctx) {
         var wrap = el('div', { class: 'leai-pdf-step__inner' });
         var r = state.commitResult || {};
+        var scrollTarget = (ctx.opts && ctx.opts.scrollToSelector) || '#student-responses-section';
         wrap.appendChild(el('div', { class: 'leai-pdf-success' }, [
             el('div', { class: 'leai-pdf-success__icon' }, ['✓']),
             el('div', { class: 'leai-pdf-success__title' }, [
@@ -941,8 +1026,17 @@
         wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
             el('button', {
                 class: 'leai-pdf-btn leai-pdf-btn--primary',
-                onclick: function () { ctx.close(); },
-            }, ['Done']),
+                onclick: function () {
+                    ctx.close({ skipConfirm: true });
+                    // Scroll the analyzer's response section into view so
+                    // the instructor sees the new rows immediately.
+                    var target = document.querySelector(scrollTarget);
+                    if (target) {
+                        try { target.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                        catch (e) { target.scrollIntoView(); }
+                    }
+                },
+            }, ['Done — show responses ↓']),
         ]));
         return wrap;
     }
