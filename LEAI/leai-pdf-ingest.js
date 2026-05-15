@@ -560,6 +560,25 @@
             render();
         });
 
+        // Prefetch the survey's FormSchema so we can detect a 0-prompts
+        // schema before the user even drops files. Best-effort — failure
+        // here is non-blocking; the worker will surface the same issue
+        // later if it really matters.
+        if (survey.form_schema_id || survey.schema_id) {
+            var schemaId = survey.form_schema_id || survey.schema_id;
+            fetch(API + '/form_schemas/' + encodeURIComponent(schemaId) + '/')
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (rec) {
+                    if (!rec || !rec.body) return;
+                    var sections = (rec.body.sections || []);
+                    if (!sections.length) {
+                        state.schemaEmpty = true;
+                        render();
+                    }
+                })
+                .catch(function () { /* non-blocking */ });
+        }
+
         // Resume an in-flight job for this survey (e.g. instructor closed
         // the drawer while the worker was still processing a large batch).
         // If no in-flight job, also check for an unconfirmed draft from
@@ -610,6 +629,18 @@
 
     function renderFilesStep(state, ctx) {
         var wrap = el('div', { class: 'leai-pdf-step__inner' });
+
+        // Defensive: if we know the survey's bound FormSchema has zero
+        // prompts (set asynchronously by the schema-prefetch on open),
+        // bail out with a clear message instead of silently rendering
+        // an empty review screen later.
+        if (state.schemaEmpty) {
+            wrap.appendChild(el('div', { class: 'leai-pdf-banner leai-pdf-banner--warn' }, [
+                'This survey’s structured-reflection schema has no prompts to match PDF sections against. ',
+                'Add prompts to the survey first (in the Prompt Designer), then come back here.',
+            ]));
+            return wrap;
+        }
 
         wrap.appendChild(el('p', { class: 'leai-pdf-explainer' }, [
             'Upload PDF reflections from students who used your template. We read each PDF, ',
@@ -1391,7 +1422,14 @@
                 }, ['ⓘ']));
             }
             if (isLow) {
-                labelChildren.push(el('span', { class: 'leai-pdf-review-cell__warn' }, ['couldn’t find a clear heading']));
+                // Tooltip explains what 'couldn't find' means in plain
+                // language so the instructor isn't left guessing whether
+                // it's a parser bug or an actual missing answer.
+                labelChildren.push(el('span', {
+                    class: 'leai-pdf-review-cell__warn',
+                    title: 'The PDF didn’t contain a heading that matches this question — paste the student’s answer here, or leave blank if they didn’t respond.',
+                    tabindex: '0',
+                }, ['needs your eyes']));
             }
             var cell = el('div', { class: 'leai-pdf-review-cell' + (isLow ? ' leai-pdf-review-cell--low' : '') }, [
                 el('div', { class: 'leai-pdf-review-cell__label', id: labelId }, labelChildren),
