@@ -1073,6 +1073,20 @@ input[type="checkbox"], input[type="radio"] {
     border-radius: 50%; animation: leai-pdf-spin 0.85s linear infinite;
 }
 
+/* Honor user's OS preference for reduced motion — disables the success
+   pop, dot pulse, spinner, and drawer slide so the experience is calm
+   for users with vestibular sensitivity or who prefer minimal motion. */
+@media (prefers-reduced-motion: reduce) {
+    .leai-pdf-backdrop,
+    .leai-pdf-drawer { transition: none !important; }
+    .leai-pdf-success__icon,
+    .leai-pdf-progress-dot,
+    .leai-pdf-progress-dot--now,
+    .leai-pdf-processing__spinner,
+    .leai-pdf-btn--loading::after { animation: none !important; }
+    .leai-pdf-progress__bar { transition: none !important; }
+}
+
 .leai-pdf-step { flex: 1 1 auto; overflow-y: auto; }
 .leai-pdf-step__inner { padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
 

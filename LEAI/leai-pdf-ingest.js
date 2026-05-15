@@ -300,13 +300,44 @@
             });
         }
 
-        // Esc closes the drawer; Tab is allowed to cycle naturally inside it
-        // (focus trap kept lightweight — full trap would be intrusive when
-        // the user wants to interact with the analyzer behind the modal).
+        // Esc closes the drawer; Tab/Shift+Tab cycles within the drawer
+        // (focus trap) so keyboard users can't accidentally land on
+        // analyzer elements behind the modal — standard a11y for dialogs.
         function onKeydown(e) {
             if (e.key === 'Escape' && state.phase !== 'processing') {
                 e.preventDefault();
                 close();
+                return;
+            }
+            if (e.key === 'Tab') {
+                trapTabKey(e);
+            }
+        }
+
+        function trapTabKey(e) {
+            var focusables = Array.prototype.slice.call(drawer.querySelectorAll(
+                'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), ' +
+                'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )).filter(function (el) {
+                // Hidden / zero-size elements should not be reachable.
+                return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+            });
+            if (!focusables.length) return;
+            var first = focusables[0];
+            var last = focusables[focusables.length - 1];
+            // If focus is currently outside the drawer, pull it back to the first
+            // focusable inside — covers the case where focus escaped via mouse.
+            if (!drawer.contains(document.activeElement)) {
+                e.preventDefault();
+                first.focus();
+                return;
+            }
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault();
+                last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault();
+                first.focus();
             }
         }
 
@@ -632,6 +663,7 @@
             type: 'text',
             value: entry.studentId || '',
             placeholder: 'Student ID or name',
+            'aria-label': 'Attribute "' + entry.file.name + '" to a student',
             list: datalistId,
             class: 'leai-pdf-file-row__input' + (entry.studentId ? '' : ' leai-pdf-file-row__input--empty'),
             oninput: function (e) {
@@ -836,17 +868,25 @@
         var pct = totalFiles ? Math.round(((p.processed || 0) / totalFiles) * 100) : 0;
 
         wrap.appendChild(el('div', { class: 'leai-pdf-processing' }, [
-            el('div', { class: 'leai-pdf-processing__spinner' }),
-            el('div', { class: 'leai-pdf-processing__title', dataset: { role: 'progress-title' } }, [
-                progressTitleText(state),
-            ]),
+            el('div', { class: 'leai-pdf-processing__spinner', 'aria-hidden': 'true' }),
+            el('div', {
+                class: 'leai-pdf-processing__title',
+                dataset: { role: 'progress-title' },
+                role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
+            }, [progressTitleText(state)]),
             el('div', { class: 'leai-pdf-processing__current', dataset: { role: 'progress-current' } }, [
                 progressCurrentText(state),
             ]),
             el('div', { class: 'leai-pdf-processing__hint' }, [
                 'You can close this window — your job will keep running and the result will be waiting next time you reopen the upload panel.',
             ]),
-            el('div', { class: 'leai-pdf-progress' }, [
+            el('div', {
+                class: 'leai-pdf-progress',
+                role: 'progressbar',
+                'aria-valuemin': '0', 'aria-valuemax': '100',
+                'aria-valuenow': String(pct),
+                'aria-valuetext': progressTitleText(state),
+            }, [
                 el('div', {
                     class: 'leai-pdf-progress__bar',
                     dataset: { role: 'progress-bar' },
@@ -920,14 +960,22 @@
     function updateProcessingProgress(state) {
         var p = state.jobProgress || {};
         var totalFiles = p.total || state.files.length;
+        var pct = totalFiles ? Math.round((p.processed / totalFiles) * 100) : 0;
         var bar = document.querySelector('[data-role="progress-bar"]');
         var title = document.querySelector('[data-role="progress-title"]');
         var current = document.querySelector('[data-role="progress-current"]');
         var dots = document.querySelector('[data-role="progress-dots"]');
-        if (bar && totalFiles) bar.style.width = Math.round((p.processed / totalFiles) * 100) + '%';
+        var progressbar = document.querySelector('.leai-pdf-progress');
+        if (bar && totalFiles) bar.style.width = pct + '%';
         if (title) title.textContent = progressTitleText(state);
         if (current) current.textContent = progressCurrentText(state);
         if (dots && dots.parentNode) dots.parentNode.replaceChild(renderProgressDots(state), dots);
+        // Keep the ARIA progressbar values in sync with the visual bar so
+        // screen readers announce 'X of Y' as it advances.
+        if (progressbar) {
+            progressbar.setAttribute('aria-valuenow', String(pct));
+            progressbar.setAttribute('aria-valuetext', progressTitleText(state));
+        }
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -968,7 +1016,10 @@
         var failed = state.jobItems.filter(function (i) { return i.status === 'failed'; }).sort(byName);
 
         var bannerClass = (failed.length || lowConf.length) ? 'leai-pdf-banner--warn' : 'leai-pdf-banner--ok';
-        var banner = el('div', { class: 'leai-pdf-banner ' + bannerClass });
+        var banner = el('div', {
+            class: 'leai-pdf-banner ' + bannerClass,
+            role: 'status', 'aria-live': 'polite',
+        });
         banner.appendChild(document.createTextNode(
             state.jobItems.length + ' PDF' + (state.jobItems.length === 1 ? '' : 's') + ' processed.'
         ));
@@ -1182,15 +1233,17 @@
         card.appendChild(head);
 
         var cells = el('div', { class: 'leai-pdf-review-card__cells' });
+        var safeFilename = (item.filename || '').replace(/[^a-z0-9]+/gi, '-');
         state.prompts.forEach(function (p) {
             var pid = p.prompt_id;
             var current = state.edits[item.filename] && state.edits[item.filename][pid];
             if (current == null) current = (item.mapping && item.mapping[pid]) || '';
             var isLow = (item.low_conf_prompts || []).indexOf(pid) !== -1;
+            // Stable id pair so the textarea's aria-labelledby points at
+            // the visible label — screen readers announce 'Methods in
+            // Practice, low confidence' when the textarea is focused.
+            var labelId = 'leai-pdf-cell-label-' + safeFilename + '-' + pid;
             var labelChildren = [p.title || pid];
-            // ⓘ icon shows the survey's full opening_prompt so the
-            // instructor knows what answer this section is supposed to
-            // contain — critical when pasting a missing block by hand.
             if (p.opening_prompt) {
                 labelChildren.push(el('button', {
                     type: 'button',
@@ -1204,9 +1257,11 @@
                 labelChildren.push(el('span', { class: 'leai-pdf-review-cell__warn' }, ['couldn’t find a clear heading']));
             }
             var cell = el('div', { class: 'leai-pdf-review-cell' + (isLow ? ' leai-pdf-review-cell--low' : '') }, [
-                el('div', { class: 'leai-pdf-review-cell__label' }, labelChildren),
+                el('div', { class: 'leai-pdf-review-cell__label', id: labelId }, labelChildren),
                 el('textarea', {
                     class: 'leai-pdf-review-cell__textarea',
+                    'aria-labelledby': labelId,
+                    'aria-describedby': isLow ? labelId + '-warn' : null,
                     placeholder: isLow
                         ? 'Paste this student’s answer here, or leave blank if they didn’t respond.'
                         : '',
