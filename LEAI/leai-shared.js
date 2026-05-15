@@ -1970,3 +1970,101 @@ const leaiTeamsApi = (function () {
         importMockInGroupSurveys: importMockInGroupSurveys,
     };
 })();
+
+// ===== LEAI PDF reflection ingest API =====
+// Wraps /api/leai_pdf_ingest/* — the instructor uploads template-style
+// PDFs, the worker proposes a section-by-section mapping, the
+// instructor confirms, and we commit as FeedbackMessage rows that
+// blend into the existing analyzer surface. Every commit yields a
+// batch the instructor can revert with one click.
+const leaiPdfIngest = (function () {
+    function _fetchJson(path, opts) {
+        opts = opts || {};
+        opts.headers = opts.headers || {};
+        if (opts.body && typeof opts.body === 'string' && !opts.headers['Content-Type']) {
+            opts.headers['Content-Type'] = 'application/json';
+        }
+        return fetch(API + path, opts).then(function (r) {
+            if (r.status === 204) return null;
+            if (!r.ok) {
+                return r.json().then(function (err) {
+                    throw new Error(err.error || ('Request failed: ' + r.status));
+                }).catch(function (e) {
+                    if (e instanceof SyntaxError) throw new Error('Request failed: ' + r.status);
+                    throw e;
+                });
+            }
+            return r.json();
+        });
+    }
+
+    function getRoster(surveyId) {
+        return _fetchJson('/leai_pdf_ingest/roster/?survey_id=' + encodeURIComponent(surveyId))
+            .then(function (resp) { return (resp && resp.students) || []; });
+    }
+
+    function startJob(surveyId, files, attributions, createdBy) {
+        // files: array of File objects. attributions: {filename: studentId}.
+        var fd = new FormData();
+        fd.append('survey_id', surveyId);
+        fd.append('attributions', JSON.stringify(attributions || {}));
+        if (createdBy) fd.append('created_by', createdBy);
+        files.forEach(function (f) { fd.append('files', f, f.name); });
+        return fetch(API + '/leai_pdf_ingest/start/', { method: 'POST', body: fd })
+            .then(function (r) {
+                if (!r.ok) return r.json().then(function (err) {
+                    throw new Error(err.error || 'Upload failed: ' + r.status);
+                });
+                return r.json();
+            });
+    }
+
+    function pollJob(jobId) {
+        return _fetchJson('/leai_pdf_ingest/' + encodeURIComponent(jobId) + '/');
+    }
+
+    function abandonJob(jobId) {
+        return _fetchJson('/leai_pdf_ingest/' + encodeURIComponent(jobId) + '/', { method: 'DELETE' });
+    }
+
+    function commitJob(jobId, items, dedupDecisions, committedBy) {
+        return _fetchJson('/leai_pdf_ingest/' + encodeURIComponent(jobId) + '/commit/', {
+            method: 'POST',
+            body: JSON.stringify({
+                items: items,
+                dedup_decisions: dedupDecisions || {},
+                committed_by: committedBy || '',
+            }),
+        });
+    }
+
+    function dedupCheck(surveyId, studentIds) {
+        return _fetchJson('/leai_pdf_ingest/dedup_check/', {
+            method: 'POST',
+            body: JSON.stringify({ survey_id: surveyId, student_ids: studentIds || [] }),
+        }).then(function (resp) { return (resp && resp.existing) || []; });
+    }
+
+    function listBatches(surveyId, includeReverted) {
+        var qs = '?survey_id=' + encodeURIComponent(surveyId);
+        if (includeReverted) qs += '&include_reverted=1';
+        return _fetchJson('/leai_pdf_ingest_batches/' + qs);
+    }
+
+    function revertBatch(batchId) {
+        return _fetchJson('/leai_pdf_ingest_batches/' + encodeURIComponent(batchId) + '/revert/', {
+            method: 'POST',
+        });
+    }
+
+    return {
+        getRoster: getRoster,
+        startJob: startJob,
+        pollJob: pollJob,
+        abandonJob: abandonJob,
+        commitJob: commitJob,
+        dedupCheck: dedupCheck,
+        listBatches: listBatches,
+        revertBatch: revertBatch,
+    };
+})();

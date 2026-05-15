@@ -495,6 +495,11 @@
                 <!-- Scope chip bar -->
                 <div class="scope-bar" id="scope-bar" style="margin-bottom:28px"></div>
 
+                <!-- PDF reflection ingest toolbar — only visible in Structured Reflection mode
+                     when the active week's survey has a bound FormSchema. Populated by JS. -->
+                <div id="pdf-ingest-toolbar" style="display:none;margin:-12px 0 24px;display:flex;flex-wrap:wrap;align-items:center;gap:12px"></div>
+                <div id="pdf-ingest-recent" class="leai-pdf-recent" style="display:none"></div>
+
                 <!-- Stats row -->
                 <div class="stat-row" id="stats-row"></div>
 
@@ -584,6 +589,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 <script src="leai-shared.js?v=v0.2.4"></script>
+<script src="leai-pdf-ingest.js?v=v0.2.4"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -879,6 +885,135 @@
         renderQuickTake();
         renderStudentResponses();
         renderVerifyCodes();
+        renderPdfIngestToolbar();
+    }
+
+    // ===== PDF reflection ingest toolbar (form-mode only) =====
+    // Source-of-truth filter for the analyzer; persists across sessions.
+    var pdfSourceFilter = (function () {
+        try { return localStorage.getItem('leai.pdfSourceFilter') || 'all'; }
+        catch (e) { return 'all'; }
+    })();
+
+    function setPdfSourceFilter(next) {
+        pdfSourceFilter = next || 'all';
+        try { localStorage.setItem('leai.pdfSourceFilter', pdfSourceFilter); } catch (e) {}
+    }
+
+    /** Returns the survey to ingest into for the current scope.
+     *  feedback_messages_by_course/ uses `gpt_id` as the survey identifier;
+     *  we normalise it to a `.id` field so the ingest module can stay
+     *  generic across LEAI surfaces. */
+    function ingestTargetSurvey() {
+        if (currentMode !== 'form') return null;
+        var modeSurveys = activeSurveys();
+        var target = null;
+        if (currentScope.kind === 'week') {
+            target = modeSurveys.find(function (s) { return s.week_number === currentScope.weekNumber; }) || null;
+        } else if (modeSurveys.length === 1) {
+            // 'course' scope: only safe to upload when there's exactly one form
+            // survey, otherwise the instructor must pick a week first to disambiguate.
+            target = modeSurveys[0];
+        }
+        if (target && !target.id) target.id = target.gpt_id;
+        return target;
+    }
+
+    function renderPdfIngestToolbar() {
+        var bar = document.getElementById('pdf-ingest-toolbar');
+        var recent = document.getElementById('pdf-ingest-recent');
+        if (!bar || !recent) return;
+        bar.textContent = '';
+        recent.style.display = 'none';
+
+        if (currentMode !== 'form') {
+            bar.style.display = 'none';
+            return;
+        }
+
+        var modeSurveys = activeSurveys();
+        if (!modeSurveys.length) {
+            bar.style.display = 'none';
+            return;
+        }
+
+        bar.style.display = 'flex';
+        var target = ingestTargetSurvey();
+
+        // Upload button
+        var uploadBtn = document.createElement('button');
+        uploadBtn.className = 'leai-pdf-open-btn';
+        if (target) {
+            uploadBtn.textContent = 'Upload PDF reflections';
+            uploadBtn.title = 'Upload PDF reflections for ' + (target.survey_label || ('Week ' + target.week_number));
+            uploadBtn.addEventListener('click', function () {
+                if (!window.leaiPdfIngestUi) {
+                    alert('PDF ingest module did not load. Try a hard refresh.');
+                    return;
+                }
+                leaiPdfIngestUi.open({
+                    survey: target,
+                    onCommitted: function () {
+                        // Force a reload of the survey data so newly added
+                        // PDF responses appear in the list/Quick Take.
+                        if (typeof loadData === 'function') loadData();
+                        else location.reload();
+                    },
+                    onClose: function () {
+                        renderPdfIngestRecentPanel(target);
+                    },
+                });
+            });
+        } else {
+            uploadBtn.textContent = 'Upload PDF reflections — pick a week first';
+            uploadBtn.disabled = true;
+            uploadBtn.title = 'Select a specific week chip above to upload PDFs into that survey.';
+            uploadBtn.style.opacity = '0.55';
+            uploadBtn.style.cursor = 'not-allowed';
+        }
+        bar.appendChild(uploadBtn);
+
+        // Source filter
+        var filterWrap = document.createElement('div');
+        filterWrap.className = 'leai-pdf-source-filter';
+        ['all', 'chat', 'pdf'].forEach(function (val) {
+            var btn = document.createElement('button');
+            btn.className = 'leai-pdf-source-filter__btn' + (pdfSourceFilter === val ? ' leai-pdf-source-filter__btn--on' : '');
+            btn.type = 'button';
+            btn.textContent = val === 'all' ? 'All sources' : (val === 'chat' ? 'Chat only' : 'PDF only');
+            btn.addEventListener('click', function () {
+                setPdfSourceFilter(val);
+                renderPdfIngestToolbar();
+                renderStudentResponses();
+            });
+            filterWrap.appendChild(btn);
+        });
+        bar.appendChild(filterWrap);
+
+        if (target) {
+            renderPdfIngestRecentPanel(target);
+        }
+    }
+
+    function renderPdfIngestRecentPanel(target) {
+        var recent = document.getElementById('pdf-ingest-recent');
+        if (!recent || !target || !window.leaiPdfIngestUi) return;
+        leaiPdfIngestUi.renderRecentBatchesPanel(recent, target, {
+            onReverted: function () {
+                if (typeof loadAllData === 'function') loadAllData();
+                else location.reload();
+            },
+        });
+    }
+
+    function messageMatchesSourceFilter(msg) {
+        if (pdfSourceFilter === 'all') return true;
+        var src = msg && msg.source ? msg.source : 'chat';
+        return src === pdfSourceFilter;
+    }
+
+    function sessionHasPdfMessage(msgs) {
+        return (msgs || []).some(function (m) { return m && m.source === 'pdf'; });
     }
 
     // ===== STATS ROW =====
@@ -1923,9 +2058,17 @@
             // so that the student-card R-labels line up with R-ids that AI
             // Quick Take / chat citations reference.
             Object.keys(s.sessions).sort().forEach(function (sid) {
+                var msgs = s.sessions[sid];
+                // Apply source filter: drop sessions that have nothing matching
+                // the current source toggle (Chat-only / PDF-only). 'all' keeps
+                // everything.
+                if (pdfSourceFilter !== 'all') {
+                    var keep = msgs.some(messageMatchesSourceFilter);
+                    if (!keep) return;
+                }
                 entries.push({
                     sessionId: sid,
-                    msgs: s.sessions[sid],
+                    msgs: msgs,
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number)
                 });
@@ -1973,6 +2116,15 @@
             chevron.textContent = '\u25bc';
 
             header.appendChild(label);
+            // 📄 PDF source badge — surfaced when this session's responses
+            // came from an instructor-uploaded PDF rather than chat.
+            if (sessionHasPdfMessage(msgs)) {
+                var badge = document.createElement('span');
+                badge.className = 'leai-pdf-badge';
+                badge.textContent = 'PDF';
+                badge.title = 'This response was uploaded from a PDF reflection — see the Recent PDF uploads panel above to revert.';
+                header.appendChild(badge);
+            }
             if (startDateText) header.appendChild(startDate);
             header.appendChild(meta);
             header.appendChild(chevron);
