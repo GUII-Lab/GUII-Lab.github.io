@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.5"></script>
+    <script src="leai-tailwind-config.js?v=v0.2.6"></script>
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -447,8 +447,12 @@
             border-radius: 999px;
             cursor: pointer;
             align-self: center;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
         }
+        .leai-resume-chip svg { flex: 0 0 auto; }
         .leai-resume-chip:hover {
             color: var(--text);
             background: var(--surface-mid);
@@ -875,7 +879,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js?v=v0.2.5"></script>
+    <script src="leai-shared.js?v=v0.2.6"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
@@ -1129,14 +1133,34 @@
             chip.type = 'button';
             chip.id = 'leai-resume-chip';
             chip.className = 'leai-resume-chip';
-            chip.textContent = '🔗 Copy resume link';
             chip.title = 'Bookmark or email this link to come back to this exact conversation from any device. Anyone with the link can read it — don’t share it on a public computer.';
+            var SVG_NS = 'http://www.w3.org/2000/svg';
+            var chipIcon = document.createElementNS(SVG_NS, 'svg');
+            chipIcon.setAttribute('width', '14');
+            chipIcon.setAttribute('height', '14');
+            chipIcon.setAttribute('viewBox', '0 0 24 24');
+            chipIcon.setAttribute('fill', 'none');
+            chipIcon.setAttribute('stroke', 'currentColor');
+            chipIcon.setAttribute('stroke-width', '2');
+            chipIcon.setAttribute('stroke-linecap', 'round');
+            chipIcon.setAttribute('stroke-linejoin', 'round');
+            chipIcon.setAttribute('aria-hidden', 'true');
+            ['M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71',
+             'M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'].forEach(function (d) {
+                var p = document.createElementNS(SVG_NS, 'path');
+                p.setAttribute('d', d);
+                chipIcon.appendChild(p);
+            });
+            var chipLabel = document.createElement('span');
+            chipLabel.textContent = 'Copy resume link';
+            chip.appendChild(chipIcon);
+            chip.appendChild(chipLabel);
             chip.addEventListener('click', function () {
                 if (typeof leaiSession === 'undefined') return;
                 leaiSession.copyResumeLink().then(function () {
-                    var orig = chip.textContent;
-                    chip.textContent = '✓ Link copied — keep it private';
-                    setTimeout(function () { chip.textContent = orig; }, 2500);
+                    var orig = chipLabel.textContent;
+                    chipLabel.textContent = '✓ Link copied — keep it private';
+                    setTimeout(function () { chipLabel.textContent = orig; }, 2500);
                 });
             });
             footerInner.appendChild(chip);
