@@ -400,6 +400,18 @@
                 if (state.pollHandle) clearTimeout(state.pollHandle);
                 state.pollHandle = null;
                 document.removeEventListener('keydown', onKeydown, true);
+                if (state._popStateHandler) {
+                    window.removeEventListener('popstate', state._popStateHandler);
+                    state._popStateHandler = null;
+                }
+                // Pop our sentinel history entry so back-nav returns to
+                // wherever the instructor was before opening the drawer.
+                // Skipped when the close was itself triggered by popstate
+                // (the browser already handled the navigation for us).
+                if (state._pushedHistory && !opts2.skipHistoryPop) {
+                    try { window.history.back(); } catch (e) {}
+                }
+                state._pushedHistory = false;
                 restoreTitle(state);
                 backdrop.remove();
                 drawer.remove();
@@ -526,6 +538,22 @@
         });
         // Remember the trigger element so we can restore focus on close.
         state.previouslyFocused = document.activeElement;
+
+        // Browser back-button trap: push a sentinel state so the next
+        // back nav fires popstate without leaving the analyzer. We
+        // close the drawer instead. On real close (button/Esc) we pop
+        // our own sentinel so back returns to wherever the user was.
+        try {
+            window.history.pushState({ leaiPdfDrawer: true }, '');
+            state._pushedHistory = true;
+        } catch (e) { /* sandboxed/no history */ }
+        function onPopState(e) {
+            if (root._activeDrawer === handle) {
+                close({ skipHistoryPop: true });
+            }
+        }
+        window.addEventListener('popstate', onPopState);
+        state._popStateHandler = onPopState;
 
         requestAnimationFrame(function () {
             backdrop.classList.add('leai-pdf-backdrop--open');
@@ -880,9 +908,17 @@
 
     function addFiles(state, ctx, fileList) {
         var existingNames = state.files.map(function (f) { return f.file.name; });
+        var rejected = [];
+        var duplicates = [];
         Array.prototype.forEach.call(fileList, function (file) {
-            if (!file.name.toLowerCase().endsWith('.pdf')) return;
-            if (existingNames.indexOf(file.name) !== -1) return;
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                rejected.push(file.name);
+                return;
+            }
+            if (existingNames.indexOf(file.name) !== -1) {
+                duplicates.push(file.name);
+                return;
+            }
             var suggested = suggestStudent(file.name, state.roster);
             state.files.push({
                 file: file,
@@ -890,6 +926,23 @@
                 suggested: !!suggested,
             });
         });
+        // Surface user-visible feedback for any files we silently
+        // dropped — non-PDFs and duplicates are easy to miss otherwise.
+        if (rejected.length) {
+            var preview = rejected.slice(0, 3).join(', ') +
+                (rejected.length > 3 ? ' and ' + (rejected.length - 3) + ' more' : '');
+            showToast(
+                'Only PDFs are supported — skipped: ' + preview,
+                'error', 5500
+            );
+        }
+        if (duplicates.length) {
+            showToast(
+                'Already staged — skipped duplicate: ' + duplicates[0] +
+                (duplicates.length > 1 ? ' (+' + (duplicates.length - 1) + ' more)' : ''),
+                'info', 4000
+            );
+        }
         ctx.render();
     }
 
@@ -1543,6 +1596,21 @@
             card.appendChild(el('details', { class: 'leai-pdf-review-card__preamble' }, [
                 el('summary', {}, ['Unmatched header text (cover page / instructions)']),
                 el('pre', {}, [item.preamble]),
+            ]));
+        }
+
+        // 'Show what we read' — full extracted text on demand. Useful
+        // when a section was flagged low-confidence and the instructor
+        // wants to see exactly what the parser saw before re-typing
+        // (or to copy-paste a chunk into a cell).
+        if (item.extracted_text) {
+            card.appendChild(el('details', { class: 'leai-pdf-review-card__extracted' }, [
+                el('summary', {}, ['Show what we read from this PDF']),
+                el('div', { class: 'leai-pdf-review-card__extracted-hint' }, [
+                    'The full extracted text below is what the parser worked with. ',
+                    'You can copy chunks from here into the answer cells above.',
+                ]),
+                el('pre', {}, [item.extracted_text]),
             ]));
         }
 
