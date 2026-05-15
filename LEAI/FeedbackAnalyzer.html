@@ -365,6 +365,13 @@
             padding: 16px 18px; margin-bottom: 12px;
             border-left: 3px solid var(--config-color);
         }
+        /* Alternating schema-tinted backgrounds so adjacent student responses read as distinct. */
+        .team-convo.team-convo--a {
+            background: color-mix(in srgb, var(--config-color) 5%, #ffffff);
+        }
+        .team-convo.team-convo--b {
+            background: color-mix(in srgb, var(--config-color) 14%, #ffffff);
+        }
         .team-convo .convo-label {
             font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
             text-transform: uppercase; color: var(--muted); margin-bottom: 8px;
@@ -2916,7 +2923,7 @@
 
         sessionIds.forEach(function (sid, i) {
             var convo = document.createElement('div');
-            convo.className = 'team-convo';
+            convo.className = 'team-convo ' + (i % 2 === 0 ? 'team-convo--a' : 'team-convo--b');
 
             var label = document.createElement('div');
             label.className = 'convo-label';
