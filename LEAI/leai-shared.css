@@ -1409,10 +1409,74 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-open-btn:hover { background: #ede9fe; border-color: #c4b5fd; }
 .leai-pdf-open-btn::before { content: '📄'; font-size: 12px; }
 
+/* ─── Mobile / narrow-viewport sweep for the PDF ingest drawer ─────────
+   Optimised for touch: 44px minimum tap targets per iOS HIG, content
+   stacks vertically rather than squeezing horizontally, and chrome
+   simplifies so the actual work surface gets all the screen. */
 @media (max-width: 640px) {
-    .leai-pdf-drawer { width: 100vw; }
-    .leai-pdf-file-row { grid-template-columns: 1fr 32px; }
-    .leai-pdf-file-row__meta { grid-column: 1 / -1; }
-    .leai-pdf-file-row__attrib { grid-column: 1; }
+    /* Drawer chrome */
+    .leai-pdf-drawer { width: 100vw; box-shadow: none; }
+    .leai-pdf-drawer__header { padding: 14px 16px 12px; }
+    .leai-pdf-drawer__title { font-size: 16px; }
+    .leai-pdf-drawer__subtitle { font-size: 12px; }
+    .leai-pdf-drawer__help {
+        font-size: 0; padding: 8px; min-width: 36px; min-height: 36px;
+        text-align: center; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .leai-pdf-drawer__help::before { content: '?'; font-size: 16px; font-weight: 700; }
+    .leai-pdf-step__inner { padding: 16px; gap: 12px; }
+    .leai-pdf-drawer__footer { display: none; }  /* footer hint takes valuable vertical space */
+
+    /* Touch-friendly close + remove buttons */
+    .leai-pdf-drawer__close,
+    .leai-pdf-file-row__remove { min-width: 44px; min-height: 44px; font-size: 22px; }
+
+    /* File rows stack: meta on top, then attribution input full-width, remove pinned right */
+    .leai-pdf-file-row {
+        grid-template-columns: 1fr 44px;
+        grid-template-rows: auto auto;
+        gap: 8px 8px;
+    }
+    .leai-pdf-file-row__meta { grid-column: 1 / 2; grid-row: 1; }
+    .leai-pdf-file-row__attrib { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+    .leai-pdf-file-row__remove { grid-column: 2 / 3; grid-row: 1; align-self: start; }
+    .leai-pdf-file-row__input { padding: 10px 12px; font-size: 14px; }
+
+    /* Action bars: stack vertically with primary on top so the thumb
+       reaches the most-likely action without sliding to the bottom. */
+    .leai-pdf-actions {
+        flex-direction: column-reverse; align-items: stretch;
+        gap: 8px; padding-top: 12px;
+    }
+    .leai-pdf-actions__status {
+        text-align: center; padding-bottom: 4px;
+    }
+    .leai-pdf-actions .leai-pdf-btn {
+        width: 100%; padding: 12px 16px; font-size: 14px; min-height: 44px;
+    }
+
+    /* Review card head: filename + skip checkbox stack instead of squeezing */
+    .leai-pdf-review-card__head { flex-direction: column; align-items: stretch; gap: 8px; }
+    .leai-pdf-review-card__skip { padding: 6px 0; min-height: 32px; }
+    .leai-pdf-review-card { padding: 12px; }
+    .leai-pdf-review-cell__textarea { font-size: 14px; }  /* avoids iOS auto-zoom on focus */
+
+    /* Dedup choices need bigger hit areas + more breathing room */
+    .leai-pdf-dedup__choice { padding: 10px 8px; gap: 10px; min-height: 44px; }
+
+    /* Roster preview chip — collapse the names by default to save space;
+       instructor expands if they need to peek. */
+    .leai-pdf-roster-chip { padding: 10px 12px; font-size: 12px; }
+
+    /* File filter chips: wrap nicely, larger tap area */
+    .leai-pdf-file-filter__chip { padding: 8px 14px; font-size: 12px; min-height: 36px; }
+
+    /* Source filter (lives outside the drawer, in the analyzer) */
+    .leai-pdf-source-filter__btn { padding: 6px 12px; min-height: 32px; }
 }
 
+@media (max-width: 380px) {
+    /* Phones below ~iPhone-mini width: shrink even further. */
+    .leai-pdf-drawer__title { font-size: 15px; }
+    .leai-pdf-explainer { font-size: 12px; padding: 10px 12px; }
+}
