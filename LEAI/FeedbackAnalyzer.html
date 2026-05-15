@@ -943,6 +943,8 @@
         // Upload button
         var uploadBtn = document.createElement('button');
         uploadBtn.className = 'leai-pdf-open-btn';
+        // TEMP: PDF upload entry hidden while we finalize the ingest flow. Remove this line to restore.
+        uploadBtn.style.display = 'none';
         if (target) {
             uploadBtn.textContent = 'Upload PDF reflections';
             uploadBtn.title = 'Upload PDF reflections for ' + (target.survey_label || ('Week ' + target.week_number));
