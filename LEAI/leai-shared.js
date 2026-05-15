@@ -670,27 +670,51 @@ var leaiSession = {
         } catch (e) {}
     },
 
-    // Copy the current page URL (which already carries #cid=...) and resolve
-    // with the link. Falls back to a hidden textarea + execCommand when the
-    // async Clipboard API is unavailable (e.g., insecure context).
-    copyResumeLink: function () {
-        var link = window.location.href;
+    // Copy arbitrary text to the clipboard with a hidden-textarea fallback
+    // for insecure contexts where the async Clipboard API isn't available.
+    copyText: function (text) {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-            return navigator.clipboard.writeText(link).then(function () {
-                return link;
+            return navigator.clipboard.writeText(text).then(function () {
+                return text;
             });
         }
         return new Promise(function (resolve) {
             var ta = document.createElement('textarea');
-            ta.value = link;
+            ta.value = text;
             ta.style.position = 'fixed';
             ta.style.opacity = '0';
             document.body.appendChild(ta);
             ta.select();
             try { document.execCommand('copy'); } catch (e) {}
             document.body.removeChild(ta);
-            resolve(link);
+            resolve(text);
         });
+    },
+
+    // Copy the current page URL (which already carries #cid=...) — used by
+    // feedback.html's footer chip on the student side.
+    copyResumeLink: function () {
+        return leaiSession.copyText(window.location.href);
+    },
+
+    // Build an absolute student-facing resume URL for a (publicId, cid) pair.
+    // Used by instructor surfaces (FeedbackAnalyzer) that need to share or
+    // bookmark the link to a specific student conversation. Returns null when
+    // either id is missing so callers can hide the affordance gracefully.
+    buildResumeLink: function (publicId, cid, opts) {
+        if (!publicId || !cid) return null;
+        opts = opts || {};
+        var page = opts.page || 'feedback.html';
+        try {
+            var u = new URL(
+                page + '?id=' + encodeURIComponent(publicId) +
+                    '#cid=' + encodeURIComponent(cid),
+                window.location.href,
+            );
+            return u.toString();
+        } catch (e) {
+            return null;
+        }
     },
 };
 

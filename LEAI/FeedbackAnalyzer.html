@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.5"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.5">
+    <script src="leai-tailwind-config.js?v=v0.2.6"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.6">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -173,6 +173,33 @@
         .convo-msg-time {
             font-size: 0.65rem; color: var(--muted); margin-top: 4px;
             letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
+        }
+
+        /* Per-response actions toolbar — small unobtrusive row that sits at
+           the top of an expanded student card. Currently holds only the
+           "Copy resume link" affordance. */
+        .response-toolbar {
+            display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+            margin: 0 0 12px; padding: 8px 10px;
+            background: var(--surface-bg); border: 1px dashed var(--surface-border);
+            border-radius: var(--radius-sm); font-size: 0.78rem; color: var(--muted);
+        }
+        .response-toolbar-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 4px 10px; font: inherit; font-size: 0.74rem; color: var(--muted);
+            background: var(--surface-card); border: 1px solid var(--surface-border);
+            border-radius: 999px; cursor: pointer;
+            transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .response-toolbar-btn:hover {
+            color: var(--text); background: var(--surface-mid);
+            border-color: rgba(0,0,0,0.18);
+        }
+        .response-toolbar-btn:focus-visible {
+            outline: 2px solid var(--primary); outline-offset: 2px;
+        }
+        .response-toolbar-hint {
+            font-size: 0.7rem; color: var(--muted);
         }
 
         /* Form-mode insights panel (F5/F6) */
@@ -605,8 +632,8 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.5"></script>
-<script src="leai-pdf-ingest.js?v=v0.2.5"></script>
+<script src="leai-shared.js?v=v0.2.6"></script>
+<script src="leai-pdf-ingest.js?v=v0.2.6"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -2205,7 +2232,10 @@
                     msgs: msgs,
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number),
-                    teamLabel: teamBySessionId[sid] || ''
+                    teamLabel: teamBySessionId[sid] || '',
+                    // Threaded through so the expanded card can build the
+                    // student-facing resume URL (feedback.html?id=…#cid=…).
+                    publicId: s.public_id || ''
                 });
             });
         });
@@ -2290,6 +2320,14 @@
             var body = document.createElement('div');
             body.className = 'student-card-body';
 
+            // Per-response toolbar — currently just the resume-link copy
+            // affordance, but a stable home for future per-card actions
+            // (e.g., "Open as student", "Export this conversation"). Hidden
+            // for PDF-source responses since there's no chat to resume.
+            if (entry.publicId && !sessionHasPdfMessage(msgs)) {
+                body.appendChild(buildResumeLinkToolbar(entry.publicId, entry.sessionId));
+            }
+
             // Form-mode submissions (HCI 271 Week 6 reflection) get the
             // instructor insights panel — F5 (report) + F6 (TTS playback).
             // Detection is signature-based (engine "Area N of N — " prefix in
@@ -2369,6 +2407,46 @@
     // The legacy fallback is kept for any pre-migration form-mode submissions
     // whose survey rows were saved before the form_schema_id field existed.
     var INSIGHTS_SCHEMA_FALLBACK = 'hci271-week6-reflection';
+
+    // Build the per-response toolbar with a "Copy resume link" button. The
+    // link points back at the student-facing feedback.html with the survey's
+    // public_id and the conversation's session_id in the URL fragment, so an
+    // instructor can hand it to a student (or open it themselves) and land
+    // directly in the matching restored conversation. Returns a DOM element.
+    function buildResumeLinkToolbar(publicId, sessionId) {
+        var bar = document.createElement('div');
+        bar.className = 'response-toolbar';
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'response-toolbar-btn';
+        btn.textContent = '🔗 Copy resume link';
+        btn.title = 'Copy a link that opens this exact conversation in the student feedback view. Treat it as private — anyone with the link can read the transcript.';
+
+        var hint = document.createElement('span');
+        hint.className = 'response-toolbar-hint';
+        hint.textContent = 'Opens this conversation in the student view';
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var url = (typeof leaiSession !== 'undefined')
+                ? leaiSession.buildResumeLink(publicId, sessionId)
+                : null;
+            if (!url) {
+                btn.textContent = '✗ Link unavailable';
+                setTimeout(function () { btn.textContent = '🔗 Copy resume link'; }, 2000);
+                return;
+            }
+            leaiSession.copyText(url).then(function () {
+                btn.textContent = '✓ Link copied';
+                setTimeout(function () { btn.textContent = '🔗 Copy resume link'; }, 2200);
+            });
+        });
+
+        bar.appendChild(btn);
+        bar.appendChild(hint);
+        return bar;
+    }
 
     function resolveSchemaIdForSession(sessionId) {
         for (var i = 0; i < allSurveys.length; i++) {
