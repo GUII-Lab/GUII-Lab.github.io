@@ -51,6 +51,43 @@
     // and reopens it later (a 50-PDF batch can outlast a coffee run).
     var INFLIGHT_KEY = 'leai.pdfIngest.inFlight';
 
+    // Per-(survey, job) draft of in-progress review edits + skip toggles.
+    // We restore this when the drawer reopens so an accidental close (or
+    // browser refresh) never loses typed corrections. Keyed by survey id
+    // so multiple surveys' drafts coexist.
+    var DRAFT_KEY_PREFIX = 'leai.pdfIngest.draft.';
+    var DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // 7 days
+
+    function _draftKey(surveyId) { return DRAFT_KEY_PREFIX + String(surveyId); }
+    function readDraft(surveyId, jobId) {
+        try {
+            var raw = JSON.parse(localStorage.getItem(_draftKey(surveyId)) || 'null');
+            if (!raw || raw.jobId !== jobId) return null;
+            if ((Date.now() - (raw.savedAt || 0)) > DRAFT_TTL_MS) return null;
+            return raw;
+        } catch (e) { return null; }
+    }
+    function writeDraft(surveyId, jobId, edits, skips) {
+        try {
+            localStorage.setItem(_draftKey(surveyId), JSON.stringify({
+                jobId: jobId, edits: edits, skips: skips, savedAt: Date.now(),
+            }));
+        } catch (e) { /* quota / private mode — ignore */ }
+    }
+    function clearDraft(surveyId) {
+        try { localStorage.removeItem(_draftKey(surveyId)); } catch (e) {}
+    }
+
+    /** Debounced save — fires 600ms after the last edit so we don't
+     *  hammer localStorage on every keystroke. */
+    function scheduleDraftSave(state) {
+        if (state._draftTimer) clearTimeout(state._draftTimer);
+        state._draftTimer = setTimeout(function () {
+            writeDraft(state.survey.id, state.jobId, state.edits, state.skips);
+            state._draftTimer = null;
+        }, 600);
+    }
+
     function readInFlight() {
         try { return JSON.parse(localStorage.getItem(INFLIGHT_KEY)) || {}; }
         catch (e) { return {}; }
@@ -116,23 +153,71 @@
         } catch (e) { return iso; }
     }
 
-    /** Auto-match a filename like "alice-doe.pdf" against a roster of student_ids. */
+    /** Auto-match a filename like "alice-doe.pdf" against a roster of student_ids.
+     *
+     *  Scoring is bidirectional and tolerant of:
+     *    - reordered names ('jane-doe.pdf' ↔ 'doe-jane')
+     *    - partial overlaps ('janedoe.pdf' ↔ 'jane-doe' or 'doejaneucsc')
+     *    - id-only filenames ('janed01.pdf' ↔ 'janed01')
+     *    - inserted IDs ('alice-d-cs101-wk7.pdf' ↔ 'alice-d')
+     *
+     *  Returns the best-matching student_id when confidence is meaningful;
+     *  '' if no roster entry shares enough signal with the filename.
+     */
     function suggestStudent(filename, roster) {
         if (!roster || !roster.length) return '';
-        var base = filename.toLowerCase().replace(/\.pdf$/, '').replace(/[^a-z0-9]+/g, '-');
-        var parts = base.split('-').filter(Boolean);
+        // Split camelCase / PascalCase before lowercasing so 'SmithBob'
+        // tokenises as ['smith','bob'] rather than fusing into one word.
+        var camelSplit = filename.replace(/\.pdf$/i, '')
+            .replace(/([a-z])([A-Z])/g, '$1 $2')
+            .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+            .toLowerCase();
+        var fileFlat = camelSplit.replace(/[^a-z0-9]+/g, '');
+        var fileTokens = camelSplit.split(/[^a-z0-9]+/g).filter(Boolean);
+
+        function score(sid) {
+            var sLow = sid.toLowerCase();
+            var sFlat = sLow.replace(/[^a-z0-9]+/g, '');
+            var sTokens = sLow.split(/[^a-z0-9]+/g).filter(Boolean);
+            if (!sFlat) return 0;
+
+            var s = 0;
+            // Strongest signal: the whole id appears as a substring of the
+            // flat filename (or vice-versa for very short ids).
+            if (fileFlat.indexOf(sFlat) !== -1) s += 6;
+            else if (sFlat.indexOf(fileFlat) !== -1 && fileFlat.length >= 3) s += 3;
+
+            // Per-token: each shared token (>=2 chars) counts. Length-3+ wins
+            // a bonus to stop two-letter coincidences from carrying a match.
+            sTokens.forEach(function (t) {
+                if (t.length < 2) return;
+                if (fileTokens.indexOf(t) !== -1) {
+                    s += t.length >= 3 ? 2 : 1;
+                } else if (t.length >= 4 && fileFlat.indexOf(t) !== -1) {
+                    s += 1;  // token appears within the filename string
+                }
+            });
+            return s;
+        }
+
         var best = '';
         var bestScore = 0;
-        roster.forEach(function (s) {
-            var sid = (s.student_id || '').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-            var sParts = sid.split('-').filter(Boolean);
-            var score = 0;
-            parts.forEach(function (p) {
-                if (p.length >= 3 && sParts.indexOf(p) !== -1) score += 1;
-            });
-            if (score > bestScore) { best = s.student_id; bestScore = score; }
+        var runnerUpScore = 0;
+        roster.forEach(function (entry) {
+            var s = score(entry.student_id || '');
+            if (s > bestScore) {
+                runnerUpScore = bestScore;
+                bestScore = s;
+                best = entry.student_id;
+            } else if (s > runnerUpScore) {
+                runnerUpScore = s;
+            }
         });
-        return bestScore > 0 ? best : '';
+
+        // Require a clear winner (at least 2 points and ahead of the runner-up)
+        // so two students who share a first name don't flip-flop ambiguously.
+        if (bestScore >= 2 && bestScore > runnerUpScore) return best;
+        return '';
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -309,13 +394,25 @@
 
         // Resume an in-flight job for this survey (e.g. instructor closed
         // the drawer while the worker was still processing a large batch).
+        // If no in-flight job, also check for an unconfirmed draft from
+        // a previously-completed job whose review the instructor abandoned.
         var inFlightJobId = getInFlight(survey.id);
-        if (inFlightJobId) {
-            state.jobId = inFlightJobId;
+        var draftRecord = null;
+        if (!inFlightJobId) {
+            try {
+                draftRecord = JSON.parse(localStorage.getItem(_draftKey(survey.id)) || 'null');
+                if (draftRecord && (Date.now() - (draftRecord.savedAt || 0)) > DRAFT_TTL_MS) {
+                    clearDraft(survey.id);
+                    draftRecord = null;
+                }
+            } catch (e) { draftRecord = null; }
+        }
+        var resumeJobId = inFlightJobId || (draftRecord && draftRecord.jobId);
+
+        if (resumeJobId) {
+            state.jobId = resumeJobId;
             state.phase = 'processing';
-            // Kick off a single poll to learn current status; the polling
-            // loop self-schedules from there.
-            leaiPdfIngest.pollJob(inFlightJobId).then(function (resp) {
+            leaiPdfIngest.pollJob(resumeJobId).then(function (resp) {
                 state.jobItems = resp.items || [];
                 state.jobProgress = resp.progress || state.jobProgress;
                 state.prompts = resp.prompts || [];
@@ -326,9 +423,10 @@
                     schedulePoll(state, ctx);
                 }
             }).catch(function () {
-                // Job vanished (server restart, manually deleted, etc.)
-                // — drop the marker and reset to files step.
+                // Job vanished (server restart, manually deleted, stale-
+                // expired). Drop the markers and reset to files step.
                 clearInFlight(survey.id);
+                clearDraft(survey.id);
                 state.jobId = null;
                 state.phase = 'files';
                 render();
@@ -604,11 +702,26 @@
             ctx.render();
             return;
         }
+        // Seed edits with the server mapping, then overlay any saved
+        // draft from a previous session on this same job — so an
+        // accidental close never costs typed corrections.
         state.edits = {};
         state.skips = {};
         state.jobItems.forEach(function (item) {
             state.edits[item.filename] = Object.assign({}, item.mapping || {});
         });
+        var draft = readDraft(state.survey.id, state.jobId);
+        if (draft) {
+            // Overlay draft.edits cell-by-cell (preserve any new prompts
+            // added since the draft was saved) and merge skips.
+            Object.keys(draft.edits || {}).forEach(function (fname) {
+                state.edits[fname] = Object.assign(
+                    state.edits[fname] || {}, draft.edits[fname] || {}
+                );
+            });
+            state.skips = Object.assign({}, draft.skips || {});
+            state.draftRestored = true;
+        }
         ctx.transition('review');
     }
 
@@ -748,6 +861,28 @@
     function renderReviewStep(state, ctx) {
         var wrap = el('div', { class: 'leai-pdf-step__inner' });
 
+        // One-time banner: tell the instructor we restored their work.
+        if (state.draftRestored) {
+            wrap.appendChild(el('div', { class: 'leai-pdf-banner leai-pdf-banner--info' }, [
+                'We restored the edits you had in progress when this drawer was last closed. ',
+                el('button', {
+                    class: 'leai-pdf-banner__action',
+                    onclick: function () {
+                        // Discard draft and re-seed from the server mapping.
+                        clearDraft(state.survey.id);
+                        state.edits = {};
+                        state.skips = {};
+                        state.jobItems.forEach(function (item) {
+                            state.edits[item.filename] = Object.assign({}, item.mapping || {});
+                        });
+                        state.draftRestored = false;
+                        ctx.render();
+                    },
+                }, ['Discard draft']),
+            ]));
+            // Show only once per render-flow; subsequent renders see fresh state.
+            state.draftRestored = false;
+        }
         var ok = state.jobItems.filter(function (i) { return i.status === 'ok'; });
         var lowConf = state.jobItems.filter(function (i) { return i.status === 'low_conf'; });
         var failed = state.jobItems.filter(function (i) { return i.status === 'failed'; });
@@ -768,6 +903,10 @@
         wrap.appendChild(banner);
 
         if (lowConf.length) {
+            // Bulk-fill bar: when the same prompt is missing across many
+            // PDFs (template phrasing drift), instructor types once and
+            // applies to every empty cell — turns 30 paste actions into 1.
+            wrap.appendChild(renderBulkFillBar(lowConf, state, ctx));
             wrap.appendChild(renderReviewGroup('Needs attention', lowConf, true, state, ctx));
         }
         if (failed.length) {
@@ -791,6 +930,88 @@
         ]));
 
         return wrap;
+    }
+
+    /** Counts of empty cells per prompt across the items in scope.
+     *  Used to drive the bulk-fill bar — only show prompts that are
+     *  empty in 2+ items, since 1-of-1 doesn't justify a bulk action. */
+    function countEmptyByPrompt(items, state) {
+        var counts = {};
+        items.forEach(function (item) {
+            var mapping = state.edits[item.filename] || {};
+            (item.low_conf_prompts || []).forEach(function (pid) {
+                if (!(mapping[pid] || '').trim()) {
+                    counts[pid] = (counts[pid] || 0) + 1;
+                }
+            });
+        });
+        return counts;
+    }
+
+    function renderBulkFillBar(lowConfItems, state, ctx) {
+        var emptyByPrompt = countEmptyByPrompt(lowConfItems, state);
+        var prompts = state.prompts.filter(function (p) {
+            return (emptyByPrompt[p.prompt_id] || 0) >= 2;
+        });
+        if (!prompts.length) return el('span', { style: { display: 'none' } }, []);
+
+        var wrap = el('div', { class: 'leai-pdf-bulkfill' }, [
+            el('div', { class: 'leai-pdf-bulkfill__title' }, [
+                'Bulk fill — same answer, multiple students',
+            ]),
+            el('div', { class: 'leai-pdf-bulkfill__hint' }, [
+                'If many students missed the same section because the template heading drifted, ',
+                'paste their answers once and apply to every empty cell at the same time.',
+            ]),
+        ]);
+        prompts.forEach(function (p) {
+            wrap.appendChild(renderBulkFillRow(p, emptyByPrompt[p.prompt_id], lowConfItems, state, ctx));
+        });
+        return wrap;
+    }
+
+    function renderBulkFillRow(prompt, emptyCount, lowConfItems, state, ctx) {
+        var row = el('div', { class: 'leai-pdf-bulkfill__row' });
+        var label = el('div', { class: 'leai-pdf-bulkfill__label' }, [
+            el('strong', {}, [prompt.title || prompt.prompt_id]),
+            el('span', { class: 'leai-pdf-bulkfill__count' }, [
+                emptyCount + ' empty',
+            ]),
+        ]);
+        var input = el('textarea', {
+            class: 'leai-pdf-bulkfill__textarea',
+            placeholder: 'Paste an answer to apply to every empty ' +
+                (prompt.title || prompt.prompt_id) + ' cell…',
+            rows: '2',
+        });
+        var apply = el('button', {
+            class: 'leai-pdf-btn leai-pdf-btn--ghost leai-pdf-btn--sm',
+            onclick: function () {
+                var value = (input.value || '').trim();
+                if (!value) {
+                    alert('Type an answer first, then click Apply.');
+                    return;
+                }
+                if (!confirm('Apply this text to ' + emptyCount + ' empty "' +
+                    (prompt.title || prompt.prompt_id) + '" cells?')) return;
+                var applied = 0;
+                lowConfItems.forEach(function (item) {
+                    if ((item.low_conf_prompts || []).indexOf(prompt.prompt_id) === -1) return;
+                    state.edits[item.filename] = state.edits[item.filename] || {};
+                    var existing = state.edits[item.filename][prompt.prompt_id] || '';
+                    if (existing.trim()) return; // never overwrite non-empty
+                    state.edits[item.filename][prompt.prompt_id] = value;
+                    applied++;
+                });
+                writeDraft(state.survey.id, state.jobId, state.edits, state.skips);
+                input.value = '';
+                ctx.render();
+            },
+        }, ['Apply to ' + emptyCount + ' empty']);
+        row.appendChild(label);
+        row.appendChild(input);
+        row.appendChild(apply);
+        return row;
     }
 
     function renderReviewGroup(label, items, expandedByDefault, state, ctx) {
@@ -872,6 +1093,7 @@
                     checked: skipState ? '' : false,
                     onchange: function (e) {
                         state.skips[item.filename] = !!e.target.checked;
+                        writeDraft(state.survey.id, state.jobId, state.edits, state.skips);
                     },
                 }),
                 'Skip this PDF',
@@ -912,6 +1134,9 @@
                     oninput: function (e) {
                         state.edits[item.filename] = state.edits[item.filename] || {};
                         state.edits[item.filename][pid] = e.target.value;
+                        // Debounced auto-save so even a partial paste is
+                        // recoverable after an accidental close.
+                        scheduleDraftSave(state);
                     },
                 }, [current || '']),
             ]);
@@ -1059,6 +1284,9 @@
             });
         leaiPdfIngest.commitJob(state.jobId, items, state.dedupChoices, '').then(function (resp) {
             state.commitResult = resp;
+            // Draft is no longer relevant — the data is now on the
+            // server, and the success state is the source of truth.
+            clearDraft(state.survey.id);
             ctx.transition('success');
             opts.onCommitted && opts.onCommitted(resp);
         }).catch(function (err) {

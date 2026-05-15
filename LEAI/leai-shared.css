@@ -1094,6 +1094,42 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-banner--ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .leai-pdf-banner--warn { background: #fffbeb; color: #78350f; border: 1px solid #fcd34d; }
 .leai-pdf-banner--error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.leai-pdf-banner--info { background: #eff6ff; color: #1e3a8a; border: 1px solid #bfdbfe; }
+.leai-pdf-banner__action {
+    margin-left: 8px; background: transparent; border: 0;
+    color: #1d4ed8; text-decoration: underline; cursor: pointer;
+    font-size: 12.5px; padding: 0;
+}
+.leai-pdf-banner__action:hover { color: #1e3a8a; }
+
+/* Bulk-fill toolbar (review step, when multiple students missed the same prompt) */
+.leai-pdf-bulkfill {
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.leai-pdf-bulkfill__title { font-size: 13px; font-weight: 700; color: #78350f; }
+.leai-pdf-bulkfill__hint { font-size: 12px; color: #92400e; line-height: 1.5; }
+.leai-pdf-bulkfill__row {
+    display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px;
+    align-items: center; padding: 8px; background: #fff;
+    border: 1px solid #fde68a; border-radius: 8px;
+}
+.leai-pdf-bulkfill__label { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; color: var(--text, #1f2937); }
+.leai-pdf-bulkfill__count {
+    font-size: 11px; color: #92400e; background: #fef3c7;
+    padding: 1px 6px; border-radius: 999px; align-self: flex-start; margin-top: 2px;
+}
+.leai-pdf-bulkfill__textarea {
+    width: 100%; padding: 6px 10px; font-size: 12.5px; line-height: 1.4;
+    border: 1px solid var(--border, #d1d5db); border-radius: 6px;
+    background: #fff; resize: vertical; font-family: inherit; min-height: 38px;
+}
+.leai-pdf-bulkfill__textarea:focus {
+    outline: 2px solid var(--primary, #2563eb); outline-offset: -1px; border-color: var(--primary, #2563eb);
+}
+@media (max-width: 640px) {
+    .leai-pdf-bulkfill__row { grid-template-columns: 1fr; }
+}
 
 /* Action bar */
 .leai-pdf-actions {
