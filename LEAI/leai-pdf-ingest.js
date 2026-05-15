@@ -25,6 +25,32 @@
     var POLL_BACKOFF_MAX_MS = 8000;
     var ACCEPT_TYPES = '.pdf,application/pdf';
 
+    // localStorage key holding {surveyId: jobId} for in-flight ingest jobs.
+    // Lets us resume polling when the instructor closes the drawer mid-job
+    // and reopens it later (a 50-PDF batch can outlast a coffee run).
+    var INFLIGHT_KEY = 'leai.pdfIngest.inFlight';
+
+    function readInFlight() {
+        try { return JSON.parse(localStorage.getItem(INFLIGHT_KEY)) || {}; }
+        catch (e) { return {}; }
+    }
+    function writeInFlight(map) {
+        try { localStorage.setItem(INFLIGHT_KEY, JSON.stringify(map)); }
+        catch (e) {}
+    }
+    function recordInFlight(surveyId, jobId) {
+        var m = readInFlight();
+        m[String(surveyId)] = jobId;
+        writeInFlight(m);
+    }
+    function clearInFlight(surveyId) {
+        var m = readInFlight();
+        if (m[String(surveyId)]) { delete m[String(surveyId)]; writeInFlight(m); }
+    }
+    function getInFlight(surveyId) {
+        return readInFlight()[String(surveyId)] || null;
+    }
+
     function el(tag, attrs, children) {
         var node = document.createElement(tag);
         if (attrs) {
@@ -136,10 +162,25 @@
         function close() {
             if (state.pollHandle) clearTimeout(state.pollHandle);
             state.pollHandle = null;
+            document.removeEventListener('keydown', onKeydown, true);
             backdrop.remove();
             drawer.remove();
             if (root._activeDrawer === handle) root._activeDrawer = null;
+            // Restore focus to whatever opened the drawer.
+            if (state.previouslyFocused && typeof state.previouslyFocused.focus === 'function') {
+                try { state.previouslyFocused.focus(); } catch (e) {}
+            }
             opts.onClose && opts.onClose(state.commitResult);
+        }
+
+        // Esc closes the drawer; Tab is allowed to cycle naturally inside it
+        // (focus trap kept lightweight — full trap would be intrusive when
+        // the user wants to interact with the analyzer behind the modal).
+        function onKeydown(e) {
+            if (e.key === 'Escape' && state.phase !== 'processing') {
+                e.preventDefault();
+                close();
+            }
         }
 
         var ctx = {
@@ -165,10 +206,29 @@
         drawer.appendChild(stepContainer);
         document.body.appendChild(backdrop);
         document.body.appendChild(drawer);
+        document.addEventListener('keydown', onKeydown, true);
+        // Backdrop click closes too, mirroring native modal behaviour.
+        backdrop.addEventListener('click', function () {
+            if (state.phase !== 'processing') close();
+        });
+        // Remember the trigger element so we can restore focus on close.
+        state.previouslyFocused = document.activeElement;
+
         requestAnimationFrame(function () {
             backdrop.classList.add('leai-pdf-backdrop--open');
             drawer.classList.add('leai-pdf-drawer--open');
         });
+        // Slight delay so the click that opened us has fully settled before
+        // we move focus — otherwise some browsers' default click-up action
+        // can yank focus back to <body>.
+        setTimeout(function () {
+            var preferred = drawer.querySelector('.leai-pdf-dropzone, .leai-pdf-step__inner input, .leai-pdf-step__inner button, .leai-pdf-step__inner textarea');
+            var fallback = drawer.querySelector('input, button, select, textarea, [tabindex]:not([tabindex="-1"])');
+            var target = preferred || fallback;
+            if (target) {
+                try { target.focus(); } catch (e) {}
+            }
+        }, 50);
 
         var handle = { state: state, close: close, render: render, survey: survey };
         root._activeDrawer = handle;
@@ -186,6 +246,34 @@
             state.rosterError = e.message;
             render();
         });
+
+        // Resume an in-flight job for this survey (e.g. instructor closed
+        // the drawer while the worker was still processing a large batch).
+        var inFlightJobId = getInFlight(survey.id);
+        if (inFlightJobId) {
+            state.jobId = inFlightJobId;
+            state.phase = 'processing';
+            // Kick off a single poll to learn current status; the polling
+            // loop self-schedules from there.
+            leaiPdfIngest.pollJob(inFlightJobId).then(function (resp) {
+                state.jobItems = resp.items || [];
+                state.jobProgress = resp.progress || state.jobProgress;
+                state.prompts = resp.prompts || [];
+                if (resp.status === 'ready' || resp.status === 'failed') {
+                    handleJobFinished(state, ctx, resp);
+                } else {
+                    state.currentPollDelay = POLL_INTERVAL_MS;
+                    schedulePoll(state, ctx);
+                }
+            }).catch(function () {
+                // Job vanished (server restart, manually deleted, etc.)
+                // — drop the marker and reset to files step.
+                clearInFlight(survey.id);
+                state.jobId = null;
+                state.phase = 'files';
+                render();
+            });
+        }
 
         render();
         return handle;
@@ -347,6 +435,7 @@
         leaiPdfIngest.startJob(state.survey.id, files, attribs)
             .then(function (resp) {
                 state.jobId = resp.job_id;
+                recordInFlight(state.survey.id, resp.job_id);
                 state.jobItems = resp.items || [];
                 state.jobProgress = resp.progress || state.jobProgress;
                 state.prompts = resp.prompts || [];
@@ -389,6 +478,9 @@
     }
 
     function handleJobFinished(state, ctx, resp) {
+        // Either way, the in-flight marker is no longer useful — the job
+        // has reached a terminal state.
+        clearInFlight(state.survey.id);
         if (resp.status === 'failed') {
             state.jobError = resp.error || 'Processing failed.';
             ctx.render();
@@ -417,12 +509,16 @@
         }
 
         var p = state.jobProgress || {};
-        var pct = p.total ? Math.round(((p.processed || 0) / p.total) * 100) : 0;
+        var totalFiles = p.total || state.files.length;
+        var pct = totalFiles ? Math.round(((p.processed || 0) / totalFiles) * 100) : 0;
 
         wrap.appendChild(el('div', { class: 'leai-pdf-processing' }, [
             el('div', { class: 'leai-pdf-processing__spinner' }),
             el('div', { class: 'leai-pdf-processing__title', dataset: { role: 'progress-title' } }, [
-                'Reading ' + (p.processed || 0) + ' of ' + (p.total || state.files.length) + '…',
+                progressTitleText(state),
+            ]),
+            el('div', { class: 'leai-pdf-processing__current', dataset: { role: 'progress-current' } }, [
+                progressCurrentText(state),
             ]),
             el('div', { class: 'leai-pdf-processing__hint' }, [
                 'You can close this window — your job will keep running and the result will be waiting next time you reopen the upload panel.',
@@ -434,6 +530,7 @@
                     style: { width: pct + '%' },
                 }),
             ]),
+            renderProgressDots(state),
         ]));
 
         wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
@@ -445,12 +542,69 @@
         return wrap;
     }
 
+    function progressTitleText(state) {
+        var p = state.jobProgress || {};
+        var totalFiles = p.total || state.files.length;
+        var processed = p.processed || 0;
+        if (processed >= totalFiles && totalFiles > 0) {
+            return 'Wrapping up…';
+        }
+        return 'Reading ' + processed + ' of ' + totalFiles + '…';
+    }
+
+    function progressCurrentText(state) {
+        // The next file the worker will process is at index `processed`
+        // (since we update progress after each item completes). Show its
+        // filename so the instructor sees concrete activity.
+        var p = state.jobProgress || {};
+        var processed = p.processed || 0;
+        var items = state.jobItems || [];
+        var pendingFile = items[processed];
+        if (pendingFile && pendingFile.filename) {
+            return pendingFile.filename;
+        }
+        // Fall back to the staged-files list when items haven't streamed back yet.
+        var pendingStaged = (state.files || [])[processed];
+        return pendingStaged ? pendingStaged.file.name : '';
+    }
+
+    function renderProgressDots(state) {
+        var wrap = el('div', { class: 'leai-pdf-progress-dots', dataset: { role: 'progress-dots' } });
+        var p = state.jobProgress || {};
+        var total = p.total || state.files.length;
+        var processed = p.processed || 0;
+        var items = state.jobItems || [];
+        for (var i = 0; i < total; i++) {
+            var status;
+            if (i < processed) {
+                var item = items[i];
+                status = item && item.status === 'failed' ? 'failed'
+                       : item && item.status === 'low_conf' ? 'low'
+                       : 'ok';
+            } else if (i === processed) {
+                status = 'now';
+            } else {
+                status = 'pending';
+            }
+            wrap.appendChild(el('span', {
+                class: 'leai-pdf-progress-dot leai-pdf-progress-dot--' + status,
+                title: (items[i] && items[i].filename) || (state.files[i] && state.files[i].file.name) || '',
+            }, []));
+        }
+        return wrap;
+    }
+
     function updateProcessingProgress(state) {
         var p = state.jobProgress || {};
+        var totalFiles = p.total || state.files.length;
         var bar = document.querySelector('[data-role="progress-bar"]');
         var title = document.querySelector('[data-role="progress-title"]');
-        if (bar && p.total) bar.style.width = Math.round((p.processed / p.total) * 100) + '%';
-        if (title) title.textContent = 'Reading ' + (p.processed || 0) + ' of ' + (p.total || state.files.length) + '…';
+        var current = document.querySelector('[data-role="progress-current"]');
+        var dots = document.querySelector('[data-role="progress-dots"]');
+        if (bar && totalFiles) bar.style.width = Math.round((p.processed / totalFiles) * 100) + '%';
+        if (title) title.textContent = progressTitleText(state);
+        if (current) current.textContent = progressCurrentText(state);
+        if (dots && dots.parentNode) dots.parentNode.replaceChild(renderProgressDots(state), dots);
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -524,11 +678,47 @@
                 el('div', { class: 'leai-pdf-failed-card__name' }, [item.filename]),
                 el('div', { class: 'leai-pdf-failed-card__error' }, [item.error || 'Unknown error']),
                 el('div', { class: 'leai-pdf-failed-card__hint' }, [
-                    'Re-export this student’s reflection as a text-based PDF (not a scanned image), then re-upload from the Files step.',
+                    'Try re-exporting as a text-based PDF (scanned images won’t work), then replace just this file:',
                 ]),
+                el('button', {
+                    class: 'leai-pdf-btn leai-pdf-btn--ghost leai-pdf-btn--sm',
+                    onclick: function () { reuploadSingleFile(item, state, ctx); },
+                }, ['Replace this file']),
             ]));
         });
         return wrap;
+    }
+
+    /** Open a file picker scoped to a single file, replace just that one
+     *  in state.files (preserving attribution), and re-process the batch.
+     *  Lets the instructor recover from a single bad PDF without redoing
+     *  the whole upload + attribution dance. */
+    function reuploadSingleFile(failedItem, state, ctx) {
+        var picker = document.createElement('input');
+        picker.type = 'file';
+        picker.accept = ACCEPT_TYPES;
+        picker.style.display = 'none';
+        picker.addEventListener('change', function (ev) {
+            var file = ev.target.files && ev.target.files[0];
+            if (!file) return;
+            // Wipe previous state.files and stage just the corrected file
+            // attributed to the failed item's student. Then jump back to
+            // the files step so the instructor sees the queued upload
+            // before processing.
+            state.files = [{
+                file: file,
+                studentId: failedItem.student_id || suggestStudent(file.name, state.roster),
+                suggested: !failedItem.student_id,
+            }];
+            state.jobItems = [];
+            state.jobId = null;
+            state.edits = {};
+            state.skips = {};
+            ctx.transition('files');
+            picker.remove();
+        });
+        document.body.appendChild(picker);
+        picker.click();
     }
 
     function renderReviewCard(item, state, ctx) {
@@ -605,8 +795,10 @@
         var ids = Object.keys(committingStudents);
         leaiPdfIngest.dedupCheck(state.survey.id, ids).then(function (existing) {
             state.dedupExisting = existing;
+            // Default each conflicted student to 'skip' (preserve existing
+            // data) — never overwrite without an explicit instructor choice.
             existing.forEach(function (sid) {
-                if (!state.dedupChoices[sid]) state.dedupChoices[sid] = 'replace';
+                if (!state.dedupChoices[sid]) state.dedupChoices[sid] = 'skip';
             });
             ctx.transition('commit');
         }).catch(function (err) {
@@ -675,14 +867,16 @@
     function renderDedupRow(sid, state, ctx) {
         var row = el('div', { class: 'leai-pdf-dedup__row' });
         row.appendChild(el('div', { class: 'leai-pdf-dedup__sid' }, [sid]));
+        // Order: safe default first. Keep existing PDF rows untouched
+        // unless the instructor explicitly picks Replace or Add.
         var choices = [
-            { value: 'replace', label: 'Replace existing', hint: 'Delete the previous PDF rows for this student before saving the new one' },
-            { value: 'add',     label: 'Add as additional', hint: 'Keep both old and new PDF rows side by side' },
-            { value: 'skip',    label: 'Skip this student', hint: 'Don’t save anything — keep the previous as-is' },
+            { value: 'skip',    label: 'Keep existing (default)', hint: 'Don’t save anything new — leave the previous PDF as-is' },
+            { value: 'add',     label: 'Add as additional',       hint: 'Keep both old and new PDF rows side by side' },
+            { value: 'replace', label: 'Replace existing',        hint: 'Delete the previous PDF rows for this student before saving the new one' },
         ];
         var sel = el('div', { class: 'leai-pdf-dedup__choices' });
         choices.forEach(function (c) {
-            var checked = (state.dedupChoices[sid] || 'replace') === c.value;
+            var checked = (state.dedupChoices[sid] || 'skip') === c.value;
             var label = el('label', { class: 'leai-pdf-dedup__choice' + (checked ? ' leai-pdf-dedup__choice--on' : '') }, [
                 el('input', {
                     type: 'radio',
