@@ -345,8 +345,8 @@
             padding: 16px 18px;
             animation: ig-strip-pop 0.55s ease-out;
         }
-        /* On restore-from-localStorage we already celebrated the first time —
-           skip the pop so the page doesn't look "fresh" when it isn't. */
+        /* On server-side restore we already celebrated the first time — skip
+           the pop so the page doesn't look "fresh" when it isn't. */
         .ig-download-strip.ready.no-pop { animation: none; }
 
         /* Narrow viewports: stack the strip vertically so the action button
@@ -389,64 +389,19 @@
             text-align: center;
         }
 
-        /* ===== IN-GROUP RESTORE BANNER ===== */
-        .ig-restore-banner {
-            margin: 14px 0 8px; padding: 14px 16px;
-            border-radius: 10px;
-            background: rgba(255,193,7,0.08);
-            border: 1px solid rgba(255,193,7,0.35);
-            display: flex; flex-direction: column; gap: 10px;
-            font-size: 0.88rem; color: var(--text);
-        }
-        .ig-restore-banner-title {
-            font-weight: 700; color: var(--text);
-        }
-        .ig-restore-banner-body {
-            font-size: 0.82rem; color: var(--muted); line-height: 1.45;
-        }
-        .ig-restore-banner-actions {
-            display: flex; gap: 8px; flex-wrap: wrap;
-        }
-        .ig-restore-banner-actions button {
-            border: none; border-radius: 999px;
-            padding: 8px 18px;
-            font-size: 0.82rem; font-weight: 600; font-family: inherit;
-            cursor: pointer; transition: background 0.15s, color 0.15s;
-        }
-        .ig-restore-continue {
-            background: var(--primary); color: #fff;
-        }
-        .ig-restore-continue:hover { background: var(--primary-dim); }
-        .ig-restore-fresh {
-            background: var(--surface-card); color: var(--text);
-            border: 1px solid rgba(169,180,183,0.45) !important;
-        }
-        .ig-restore-fresh:hover { background: var(--surface-mid); }
-
-        /* ===== IN-GROUP "START OVER" FOOTER LINK ===== */
-        .ig-startover-link {
-            background: transparent; border: none;
-            color: var(--muted);
-            font-size: 0.72rem; font-family: inherit;
-            cursor: pointer; padding: 4px 0 0;
-            text-decoration: underline; text-underline-offset: 2px;
-            align-self: center;
-        }
-        .ig-startover-link:hover { color: var(--text); }
-
-        /* "Copy resume link" pill — appears once a chat session is active so
-           the student can bookmark or email themselves a link that resumes the
-           exact conversation from any device, no localStorage required. */
+        /* "Copy resume link" pill — lives in the chat header next to Terms /
+           Privacy so the student can bookmark or email themselves a link that
+           resumes the exact conversation from any device. Sized to match the
+           neighboring .terms-link buttons. */
         .leai-resume-chip {
-            margin: 8px auto 0;
-            padding: 5px 11px;
-            font-size: 0.74rem; font-family: inherit;
+            padding: 6px 12px;
+            font-size: 0.72rem; font-weight: 600; font-family: inherit;
+            text-transform: uppercase; letter-spacing: 0.06em;
             background: transparent;
-            color: var(--muted);
+            color: var(--text-variant);
             border: 1px solid rgba(169,180,183,0.45);
-            border-radius: 999px;
+            border-radius: var(--radius-sm);
             cursor: pointer;
-            align-self: center;
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -454,9 +409,8 @@
         }
         .leai-resume-chip svg { flex: 0 0 auto; }
         .leai-resume-chip:hover {
-            color: var(--text);
-            background: var(--surface-mid);
-            border-color: rgba(169,180,183,0.7);
+            color: var(--primary);
+            border-color: var(--primary);
         }
         .leai-resume-chip:focus-visible {
             outline: 2px solid var(--primary);
@@ -677,6 +631,8 @@
             .terms-link { padding: 6px 8px; }
             .terms-link-full { display: none; }
             .terms-link-icon { display: inline-flex; }
+            .leai-resume-chip { padding: 6px 8px; }
+            .leai-resume-chip-label { display: none; }
             .consent-modal-card { max-height: 94vh; max-height: 94dvh; }
             .consent-modal-header { padding: 18px 20px 12px; }
             .consent-modal-header h3 { font-size: 1.02rem; }
@@ -1122,13 +1078,20 @@
             }
         }
 
-        // Subtle "Copy resume link" pill appended to the chat footer. Shows
-        // a one-shot privacy warning the first time it's clicked so the
-        // student understands the share-by-link threat model.
+        // "Copy resume link" pill mounted in the chat header next to Terms /
+        // Privacy. The in-group flow builds its header in JS without a
+        // .chat-header-right container — create one on the fly when missing
+        // so the chip has somewhere to land.
         function renderResumeCopyChip() {
             if (document.getElementById('leai-resume-chip')) return;
-            var footerInner = document.querySelector('.chat-footer .chat-footer-inner');
-            if (!footerInner) return;
+            var header = document.querySelector('.chat-header');
+            if (!header) return;
+            var headerRight = header.querySelector('.chat-header-right');
+            if (!headerRight) {
+                headerRight = document.createElement('div');
+                headerRight.className = 'chat-header-right';
+                header.appendChild(headerRight);
+            }
             var chip = document.createElement('button');
             chip.type = 'button';
             chip.id = 'leai-resume-chip';
@@ -1152,6 +1115,7 @@
                 chipIcon.appendChild(p);
             });
             var chipLabel = document.createElement('span');
+            chipLabel.className = 'leai-resume-chip-label';
             chipLabel.textContent = 'Copy resume link';
             chip.appendChild(chipIcon);
             chip.appendChild(chipLabel);
@@ -1163,7 +1127,7 @@
                     setTimeout(function () { chipLabel.textContent = orig; }, 2500);
                 });
             });
-            footerInner.appendChild(chip);
+            headerRight.appendChild(chip);
         }
 
         function showInactive(reason) {
@@ -1403,8 +1367,6 @@
                 if (!teamId) return;
                 var team = snap.teams.find(function (t) { return t.id === teamId; });
                 if (!team) return;
-                localStorage.setItem('leai.feedback.' + survey.id + '.team',
-                    JSON.stringify({ id: team.id, number: team.number, label_prefix: snap.label_prefix }));
                 if (window.sessionData && window.sessionData.sessionID) {
                     leaiTeamsApi.assignSessionToTeam(window.sessionData.sessionID, team.id);
                 }
@@ -1742,72 +1704,17 @@
                 igMicBtn.disabled = busy;
             }
 
-            // Per-survey local-state plumbing. Keys are namespaced by survey id so
-            // multiple in-group surveys don't share state, and by session id so a
-            // student who clicks "Start over" gets a clean slate without losing
-            // their prior backend record.
-            var SESSION_KEY = 'leai.ig.session.' + survey.id;
-            function readIgSessionId() {
-                try {
-                    var v = localStorage.getItem(SESSION_KEY);
-                    if (v) return v;
-                } catch (e) {}
-                return (window.sessionData && window.sessionData.sessionID) || ('sess-' + Date.now());
-            }
-            function mintIgSessionId() {
-                var fresh = (window.crypto && crypto.randomUUID)
-                    ? crypto.randomUUID()
-                    : 'sess-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
-                try { localStorage.setItem(SESSION_KEY, fresh); } catch (e) {}
-                return fresh;
-            }
-            function igHistoryKey(sid) {
-                return 'leai.ig.history.' + survey.id + '.' + sid;
-            }
-            function loadIgHistorySnapshot(sid) {
-                try {
-                    var raw = localStorage.getItem(igHistoryKey(sid));
-                    if (!raw) return null;
-                    var parsed = JSON.parse(raw);
-                    if (!parsed || !Array.isArray(parsed.messages) || !parsed.messages.length) return null;
-                    return parsed;
-                } catch (e) { return null; }
-            }
-            function saveIgHistorySnapshot(sid, history, endedFlag) {
-                try {
-                    var msgs = history.filter(function (m) { return m.role !== 'system'; });
-                    localStorage.setItem(igHistoryKey(sid), JSON.stringify({
-                        updated: Date.now(),
-                        ended: !!endedFlag,
-                        messages: msgs,
-                    }));
-                } catch (e) {}
-            }
-            function clearIgHistorySnapshot(sid) {
-                try { localStorage.removeItem(igHistoryKey(sid)); } catch (e) {}
-            }
-
-            // Server-side resume: a #cid= fragment overrides the localStorage
-            // session id so the student returns to the same backend conversation
-            // from any device. We mirror the chosen session id back into
-            // localStorage so the form-mode local snapshot keys line up, and
-            // back into the URL fragment so refresh keeps working.
-            var hashCid = (typeof leaiSession !== 'undefined')
-                ? leaiSession.parseHashCid()
-                : null;
-            var sessionId;
-            var resumingFromServer = false;
-            if (hashCid) {
-                sessionId = hashCid;
-                try { localStorage.setItem(SESSION_KEY, sessionId); } catch (e) {}
-                resumingFromServer = true;
-            } else {
-                sessionId = readIgSessionId();
-            }
+            // Single source of truth for the in-group session id: the
+            // top-level window.sessionData.sessionID, which already incorporates
+            // any #cid= URL fragment (resume) and falls back to the
+            // sessionStorage-backed anonymous id. No localStorage save —
+            // conversation state lives on the server, keyed by (gpt_id, cid).
+            var sessionId = (window.sessionData && window.sessionData.sessionID)
+                || ('sess-' + Date.now());
+            var resumingFromServer = !!(window.sessionData && window.sessionData.resumeCid);
             if (typeof leaiSession !== 'undefined') {
                 leaiSession.setHashCid(sessionId);
             }
-            var priorSnapshot = loadIgHistorySnapshot(sessionId);
 
             var chatHistory = [{ role: 'system', content: filledPrompt }];
             // Expose this flow's chatHistory to the form-mode download bar.
@@ -1862,7 +1769,7 @@
                             typeof downloadFormModeReflection === 'function') {
                         downloadFormModeReflection('docx');
                     } else {
-                        downloadIgRawTranscript();
+                        downloadIgChatDocx();
                     }
                 });
                 igStrip.appendChild(igStripActionEl);
@@ -1899,7 +1806,7 @@
                         igStripStatusEl.appendChild(document.createTextNode(' · save what you have so far'));
                     }
                     if (igStripActionEl) {
-                        igStripActionEl.textContent = 'Save transcript ↓';
+                        igStripActionEl.textContent = 'Save draft (.docx) ↓';
                     }
                 }
             }
@@ -1912,53 +1819,66 @@
                 if (igStripActionEl) {
                     igStripActionEl.textContent = (formMode.active && formMode.state)
                         ? 'Download my reflection (Word / .docx)'
-                        : 'Download my transcript';
+                        : 'Download my reflection (Word / .docx)';
                 }
-                // Refresh the saved snapshot so the ready state survives reload.
-                saveIgHistorySnapshot(sessionId, chatHistory, true);
                 if (!opts || !opts.silent) {
                     try { igStrip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
                 }
             }
 
-            // Raw-transcript fallback for in-group surveys without a bound schema.
-            // The student always has an artifact, even if no structured doc exists.
-            function downloadIgRawTranscript() {
-                var lines = chatHistory
-                    .filter(function (m) { return m.role !== 'system'; })
-                    .map(function (m) {
-                        return (m.role === 'user' ? 'YOU' : 'REMI') + ': ' + m.content;
-                    });
-                var header = 'Team reflection — ' + (survey.label || ('survey-' + survey.id)) +
-                    '\nTeam: ' + teamContext +
-                    '\nSaved: ' + new Date().toLocaleString() +
-                    '\nSession: ' + sessionId + '\n\n';
-                var blob = new Blob([header + lines.join('\n\n')], { type: 'text/plain;charset=utf-8' });
-                var a = document.createElement('a');
-                a.href = window.URL.createObjectURL(blob);
-                a.download = 'team_reflection_' + (survey.id || 'survey') + '_' + sessionId.slice(-8) + '.txt';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-            }
+            // In-group surveys without a bound schema still produce a .docx
+            // artifact from the raw chat so the student always has a Word
+            // file they can upload to Canvas.
+            function downloadIgChatDocx() {
+                ensureDocxLoaded().then(function () {
+                    var d = window.docx;
+                    var title = (survey.label || ('Survey ' + survey.id)) + ' — ' + teamContext;
+                    var savedAt = new Date().toLocaleString();
 
-            function appendIgStartoverLink() {
-                if (document.getElementById('ig-startover-link')) return;
-                var btn = document.createElement('button');
-                btn.id = 'ig-startover-link';
-                btn.type = 'button';
-                btn.className = 'ig-startover-link';
-                btn.textContent = 'Start a fresh reflection';
-                btn.addEventListener('click', function () {
-                    var ok = window.confirm(
-                        'Start a fresh reflection? Your previous answers stay on the server (the instructor can still see them), but this will clear the conversation in this tab and begin a new one.'
-                    );
-                    if (!ok) return;
-                    clearIgHistorySnapshot(sessionId);
-                    mintIgSessionId();
-                    window.location.reload();
+                    var children = [];
+                    children.push(new d.Paragraph({
+                        children: [new d.TextRun({ text: title, bold: true, size: 32 })],
+                        spacing: { after: 120 },
+                    }));
+                    children.push(new d.Paragraph({
+                        children: [new d.TextRun({ text: 'Saved: ' + savedAt, italics: true, size: 20, color: '5a6669' })],
+                        spacing: { after: 80 },
+                    }));
+                    children.push(new d.Paragraph({
+                        children: [new d.TextRun({ text: 'Session: ' + sessionId, italics: true, size: 20, color: '5a6669' })],
+                        spacing: { after: 280 },
+                    }));
+
+                    chatHistory
+                        .filter(function (m) { return m.role !== 'system'; })
+                        .forEach(function (m) {
+                            var who = m.role === 'user' ? 'YOU' : 'REMI';
+                            children.push(new d.Paragraph({
+                                children: [new d.TextRun({ text: who, bold: true, size: 22 })],
+                                spacing: { before: 160, after: 40 },
+                            }));
+                            var paragraphs = String(m.content || '').split(/\n+/);
+                            paragraphs.forEach(function (p) {
+                                children.push(new d.Paragraph({
+                                    children: [new d.TextRun({ text: p, size: 22 })],
+                                    spacing: { after: 80 },
+                                }));
+                            });
+                        });
+
+                    var doc = new d.Document({ sections: [{ children: children }] });
+                    return d.Packer.toBlob(doc).then(function (blob) {
+                        var a = document.createElement('a');
+                        a.href = window.URL.createObjectURL(blob);
+                        a.download = 'team_reflection_' + (survey.id || 'survey') + '_' + sessionId.slice(-8) + '.docx';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    });
+                }).catch(function (err) {
+                    console.error('docx download failed:', err);
+                    window.alert('Could not generate the .docx file (' + (err && err.message ? err.message : err) + '). Please check your connection and try again.');
                 });
-                footerInner.appendChild(btn);
             }
 
             // Replay a restored conversation through the form-mode engine so its
@@ -1989,59 +1909,7 @@
                 if (snapshot.ended) markIgReady({ silent: true });
             }
 
-            // Restore banner — first-thing-on-page when prior conversation exists.
-            // Two clear choices: Continue (rehydrate) or Start fresh (new sessionId,
-            // wipe local snapshot, keep backend record intact for instructor view).
-            function showRestoreBanner(snapshot, onContinue, onFresh) {
-                var banner = document.createElement('div');
-                banner.id = 'ig-restore-banner';
-                banner.className = 'ig-restore-banner';
-
-                var title = document.createElement('div');
-                title.className = 'ig-restore-banner-title';
-                title.textContent = 'Picked up where you left off';
-                banner.appendChild(title);
-
-                var body = document.createElement('div');
-                body.className = 'ig-restore-banner-body';
-                var ts = new Date(snapshot.updated);
-                body.textContent = snapshot.messages.length + ' messages saved on this device, last updated ' +
-                    ts.toLocaleDateString() + ' at ' +
-                    ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
-                    '. Your answers are also saved on the server. Continue from here, or start a fresh reflection.';
-                banner.appendChild(body);
-
-                var actions = document.createElement('div');
-                actions.className = 'ig-restore-banner-actions';
-                var cont = document.createElement('button');
-                cont.type = 'button';
-                cont.className = 'ig-restore-continue';
-                cont.textContent = '↩ Continue from here';
-                cont.addEventListener('click', function () { banner.remove(); onContinue(); });
-                actions.appendChild(cont);
-
-                var fresh = document.createElement('button');
-                fresh.type = 'button';
-                fresh.className = 'ig-restore-fresh';
-                fresh.textContent = 'Start fresh';
-                fresh.addEventListener('click', function () { banner.remove(); onFresh(); });
-                actions.appendChild(fresh);
-
-                banner.appendChild(actions);
-                messages.appendChild(banner);
-            }
-
             function logMessageEverywhere(role, text) {
-                // Single call site for turn persistence. Writes the mock chatlog (kept
-                // for the analyzer's existing in-group drill-down path), the localStorage
-                // snapshot (refresh-survive restoration), AND the backend FeedbackMessage row.
-                try {
-                    var k = 'leai.mock.chatLog.' + survey.id;
-                    var log = JSON.parse(localStorage.getItem(k) || '[]');
-                    log.push({ session: sessionId, role: role, text: text, ts: Date.now() });
-                    localStorage.setItem(k, JSON.stringify(log));
-                } catch (e) {}
-                saveIgHistorySnapshot(sessionId, chatHistory, igReadyMarked);
                 persistBackendMessage(role, text);
             }
 
@@ -2173,27 +2041,14 @@
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
             });
 
-            // Always-on UI affordances. The strip is functional from turn zero
-            // (raw transcript before any chat content); the start-over link is
-            // available at any time so a student who realizes mid-conversation
-            // they want to redo the reflection isn't trapped.
+            // Raw-transcript download strip is functional from turn zero so a
+            // student can grab their work-in-progress even before sending a
+            // message.
             renderIgDownloadStrip();
-            appendIgStartoverLink();
 
-            if (priorSnapshot) {
-                showRestoreBanner(priorSnapshot, function onContinue() {
-                    rehydrateChat(priorSnapshot);
-                }, function onFresh() {
-                    clearIgHistorySnapshot(sessionId);
-                    var freshId = mintIgSessionId();
-                    if (typeof leaiSession !== 'undefined') {
-                        leaiSession.setHashCid(freshId);
-                    }
-                    window.location.reload();
-                });
-            } else if (resumingFromServer && survey.id && typeof leaiSession !== 'undefined') {
-                // No local snapshot but the URL says we should pick up an
-                // existing conversation — fetch from the backend and replay.
+            if (resumingFromServer && survey.id && typeof leaiSession !== 'undefined') {
+                // The URL fragment says we should pick up an existing
+                // conversation — fetch from the backend and replay.
                 leaiSession.resume(survey.id, sessionId).then(function (data) {
                     if (data && data.messages && data.messages.length) {
                         rehydrateChat({
@@ -2843,12 +2698,6 @@
                 style: 'background:#006493;color:#fff;border:none;padding:8px 16px;border-radius:6px;font-weight:600;cursor:pointer;',
                 text: 'Try again',
             }, actions);
-            var fallbackBtn = el('button', {
-                id: 'fmm-fallback',
-                type: 'button',
-                style: 'background:#fff;color:#0a2333;border:1px solid #c8d2d6;padding:8px 16px;border-radius:6px;cursor:pointer;',
-                text: 'Save raw transcript instead',
-            }, actions);
             var closeBtn = el('button', {
                 id: 'fmm-close',
                 type: 'button',
@@ -2887,11 +2736,8 @@
                     actions.style.display = 'flex';
                     progressEl.textContent = '';
                     retryBtn.textContent = 'Try again';
-                    fallbackBtn.style.display = '';
-                    fallbackBtn.textContent = 'Save raw transcript instead';
                     closeBtn.textContent = 'Close';
                     retryBtn.onclick = handlers.retry;
-                    fallbackBtn.onclick = handlers.fallback;
                     closeBtn.onclick = handlers.close;
                     window.removeEventListener('beforeunload', beforeUnloadHandler);
                 },
@@ -2902,7 +2748,6 @@
                     actions.style.display = 'flex';
                     progressEl.textContent = '';
                     retryBtn.textContent = 'Re-download';
-                    fallbackBtn.style.display = 'none';
                     closeBtn.textContent = 'Done';
                     retryBtn.onclick = handlers.retry;
                     closeBtn.onclick = handlers.close;
@@ -2942,15 +2787,6 @@
             var schema = formMode.schema || {};
             var lastName = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
             return 'HCI271_Reflection_Week' + (schema.week || '') + '_' + lastName;
-        }
-
-        function _saveRawTranscriptFallback() {
-            var transcript = collectFormModeTranscript();
-            var lines = transcript.map(function (t) {
-                return (t.role === 'user' ? 'STUDENT' : 'REMI') + ': ' + t.text;
-            }).join('\n\n');
-            var blob = new Blob([lines], { type: 'text/plain;charset=utf-8' });
-            _triggerBlobDownload(blob, _formModeFilenameBase() + '_raw_transcript.txt');
         }
 
         // Build the rendered file as a Blob+filename for the chosen format.
@@ -3026,28 +2862,9 @@
                 var msg = err && err.message ? err.message : String(err);
                 modal.setError(
                     'We couldn’t finish generating your file',
-                    'Something went wrong: ' + msg + '. Your conversation is still saved on our side, so you can retry, or download the raw transcript as a backup and upload that.',
+                    'Something went wrong: ' + msg + '. Your conversation is still saved on our side — please retry.',
                     {
                         retry: function () { downloadFormModeReflection(format); },
-                        fallback: function () {
-                            try {
-                                _saveRawTranscriptFallback();
-                                modal.setSuccess(
-                                    'Raw transcript saved',
-                                    'You can upload the raw transcript to Canvas while we sort out the structured file. Try the .docx download again whenever you have a stable connection.',
-                                    {
-                                        retry: function () { downloadFormModeReflection(format); },
-                                        fallback: function () { _saveRawTranscriptFallback(); },
-                                        close: function () { modal.hide(); },
-                                    }
-                                );
-                            } catch (e) {
-                                modal.setError('Even the fallback failed.',
-                                    'Please screenshot this chat and email it as a backup: ' + (e && e.message ? e.message : e),
-                                    { retry: function () { downloadFormModeReflection(format); }, fallback: function () {}, close: function () { modal.hide(); } }
-                                );
-                            }
-                        },
                         close: function () { modal.hide(); },
                     }
                 );
