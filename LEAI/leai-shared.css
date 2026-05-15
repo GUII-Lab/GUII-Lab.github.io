@@ -980,15 +980,63 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-drawer__header {
     display: flex; align-items: flex-start; justify-content: space-between;
     padding: 20px 24px 16px; border-bottom: 1px solid var(--border, #e5e7eb);
-    flex: 0 0 auto;
+    flex: 0 0 auto; gap: 12px;
 }
+.leai-pdf-drawer__title-block { min-width: 0; flex: 1; }
 .leai-pdf-drawer__title { font-size: 18px; font-weight: 700; color: var(--text, #111827); }
 .leai-pdf-drawer__subtitle { font-size: 13px; color: var(--text-muted, #6b7280); margin-top: 2px; }
+.leai-pdf-drawer__header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.leai-pdf-drawer__help {
+    font-size: 12px; color: var(--primary, #2563eb); text-decoration: none;
+    padding: 6px 10px; border-radius: 6px; border: 1px solid transparent;
+}
+.leai-pdf-drawer__help:hover { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.18); }
 .leai-pdf-drawer__close {
     background: transparent; border: 0; font-size: 24px; line-height: 1; cursor: pointer;
     color: var(--text-muted, #6b7280); padding: 4px 8px; border-radius: 4px;
 }
 .leai-pdf-drawer__close:hover { background: var(--surface-low, #f3f4f6); color: var(--text, #111827); }
+.leai-pdf-drawer__footer {
+    flex: 0 0 auto; padding: 10px 24px; border-top: 1px solid var(--border, #e5e7eb);
+    background: var(--surface-low, #fafafa); font-size: 11.5px; color: var(--text-muted, #9ca3af);
+    text-align: center;
+}
+.leai-pdf-drawer__shortcut {
+    display: inline-block; font-family: ui-monospace, SFMono-Regular, monospace;
+    background: var(--surface, #fff); border: 1px solid var(--border, #e5e7eb);
+    border-radius: 4px; padding: 1px 6px; margin: 0 4px;
+    font-size: 10.5px; color: var(--text, #1f2937); box-shadow: 0 1px 0 #e5e7eb;
+}
+.leai-pdf-drawer__footer-sep { margin: 0 8px; opacity: 0.4; }
+
+/* Roster preview chip */
+.leai-pdf-roster-chip {
+    background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px;
+    padding: 10px 12px; font-size: 12.5px; color: #4c1d95; line-height: 1.5;
+}
+.leai-pdf-roster-chip__count { font-weight: 700; color: #5b21b6; }
+.leai-pdf-roster-chip__peek { margin-top: 6px; }
+.leai-pdf-roster-chip__peek summary {
+    cursor: pointer; font-size: 11.5px; color: #6d28d9;
+    list-style: none; user-select: none;
+}
+.leai-pdf-roster-chip__peek summary::-webkit-details-marker { display: none; }
+.leai-pdf-roster-chip__peek summary::before {
+    content: '▸ '; transition: transform 0.15s; display: inline-block;
+}
+.leai-pdf-roster-chip__peek[open] summary::before { content: '▾ '; }
+.leai-pdf-roster-chip__list {
+    margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;
+    max-height: 80px; overflow: auto;
+}
+.leai-pdf-roster-chip__item {
+    background: #fff; border: 1px solid #ddd6fe; border-radius: 4px;
+    padding: 1px 6px; font-size: 11px; font-family: ui-monospace, SFMono-Regular, monospace;
+    color: #5b21b6;
+}
+.leai-pdf-roster-chip__more {
+    font-size: 11px; color: #6d28d9; padding: 1px 6px;
+}
 
 .leai-pdf-step { flex: 1 1 auto; overflow-y: auto; }
 .leai-pdf-step__inner { padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
@@ -1213,6 +1261,12 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-success__icon {
     width: 48px; height: 48px; border-radius: 50%; background: #d1fae5; color: #047857;
     display: grid; place-items: center; font-size: 26px; font-weight: 700;
+    animation: leai-pdf-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes leai-pdf-pop {
+    0%   { transform: scale(0.4); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
 }
 .leai-pdf-success__title { font-size: 16px; font-weight: 600; color: var(--text, #111827); }
 .leai-pdf-success__hint { font-size: 13px; color: var(--text-muted, #6b7280); max-width: 380px; line-height: 1.55; }

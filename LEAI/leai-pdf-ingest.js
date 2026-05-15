@@ -235,18 +235,35 @@
             transition: function (phase) { state.phase = phase; render(); },
         };
 
+        var helpUrl = (opts.helpUrl) || 'instructor-guide.html#pdf-ingest';
         var header = el('div', { class: 'leai-pdf-drawer__header' }, [
-            el('div', {}, [
+            el('div', { class: 'leai-pdf-drawer__title-block' }, [
                 el('div', { class: 'leai-pdf-drawer__title' }, ['Upload PDF reflections']),
                 el('div', { class: 'leai-pdf-drawer__subtitle' }, [
                     survey.name + (survey.week_number ? ' · Week ' + survey.week_number : ''),
                 ]),
             ]),
-            el('button', { class: 'leai-pdf-drawer__close', 'aria-label': 'Close', onclick: close }, ['×']),
+            el('div', { class: 'leai-pdf-drawer__header-actions' }, [
+                el('a', {
+                    class: 'leai-pdf-drawer__help',
+                    href: helpUrl, target: '_blank', rel: 'noopener',
+                    title: 'Open the instructor guide in a new tab',
+                }, ['How does this work?']),
+                el('button', { class: 'leai-pdf-drawer__close', 'aria-label': 'Close (Esc)', onclick: close }, ['×']),
+            ]),
+        ]);
+
+        var footer = el('div', { class: 'leai-pdf-drawer__footer' }, [
+            el('span', { class: 'leai-pdf-drawer__shortcut' }, ['Esc']),
+            ' to close',
+            el('span', { class: 'leai-pdf-drawer__footer-sep' }, ['·']),
+            el('span', { class: 'leai-pdf-drawer__shortcut' }, ['Tab']),
+            ' to navigate',
         ]);
 
         drawer.appendChild(header);
         drawer.appendChild(stepContainer);
+        drawer.appendChild(footer);
         document.body.appendChild(backdrop);
         document.body.appendChild(drawer);
         document.addEventListener('keydown', onKeydown, true);
@@ -334,6 +351,31 @@
             'below — alongside the chat responses. You’ll review the mapping before anything is saved, ',
             'and every batch you commit can be reverted with one click.',
         ]));
+
+        // Roster preview — sets expectations about who the system can
+        // auto-match. Hidden until the roster fetch resolves so we don't
+        // flicker an empty count.
+        if (state.roster && state.roster.length) {
+            var preview = el('div', { class: 'leai-pdf-roster-chip' }, [
+                el('span', { class: 'leai-pdf-roster-chip__count' }, [
+                    String(state.roster.length) + ' student' + (state.roster.length === 1 ? '' : 's'),
+                ]),
+                ' available for auto-attribution from filenames.',
+                el('details', { class: 'leai-pdf-roster-chip__peek' }, [
+                    el('summary', {}, ['Preview names']),
+                    el('div', { class: 'leai-pdf-roster-chip__list' },
+                        state.roster.slice(0, 12).map(function (s) {
+                            return el('span', { class: 'leai-pdf-roster-chip__item' }, [s.student_id]);
+                        }).concat(state.roster.length > 12
+                            ? [el('span', { class: 'leai-pdf-roster-chip__more' }, [
+                                  '+' + (state.roster.length - 12) + ' more',
+                              ])]
+                            : [])
+                    ),
+                ]),
+            ]);
+            wrap.appendChild(preview);
+        }
 
         var fileInput = el('input', {
             type: 'file',
@@ -553,6 +595,10 @@
         // has reached a terminal state.
         clearInFlight(state.survey.id);
         restoreTitle(state);
+        // If the instructor switched tabs while waiting on a long batch,
+        // surface a system notification so they know to come back. Only
+        // fires when permission was already granted — never auto-prompts.
+        maybeNotifyComplete(state, resp);
         if (resp.status === 'failed') {
             state.jobError = resp.error || 'Processing failed.';
             ctx.render();
@@ -564,6 +610,23 @@
             state.edits[item.filename] = Object.assign({}, item.mapping || {});
         });
         ctx.transition('review');
+    }
+
+    function maybeNotifyComplete(state, resp) {
+        // Only when the tab is hidden AND the user has previously granted
+        // notification permission for this origin. We do NOT call
+        // requestPermission() — that would spawn an unwanted prompt.
+        try {
+            if (!('Notification' in window)) return;
+            if (!document.hidden) return;
+            if (Notification.permission !== 'granted') return;
+            var total = (resp && resp.items && resp.items.length) || 0;
+            var msg = resp && resp.status === 'failed'
+                ? 'PDF ingest failed — open the upload panel to retry.'
+                : 'Processed ' + total + ' PDF' + (total === 1 ? '' : 's') + ' — ready to review.';
+            // eslint-disable-next-line no-new
+            new Notification('LEAI · PDF reflections', { body: msg, silent: false });
+        } catch (e) { /* notifications are best-effort */ }
     }
 
     function renderProcessingStep(state, ctx) {
