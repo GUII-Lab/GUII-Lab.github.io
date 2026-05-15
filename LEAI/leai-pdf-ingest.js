@@ -454,24 +454,48 @@
         // auto-match. Hidden until the roster fetch resolves so we don't
         // flicker an empty count.
         if (state.roster && state.roster.length) {
-            var preview = el('div', { class: 'leai-pdf-roster-chip' }, [
+            var totalCount = state.roster.length;
+            var chatCount = state.roster.filter(function (s) {
+                return s.submitted_to_this_survey;
+            }).length;
+            var pdfCount = state.roster.filter(function (s) {
+                return s.has_pdf_on_this_survey;
+            }).length;
+            var statBits = [
                 el('span', { class: 'leai-pdf-roster-chip__count' }, [
-                    String(state.roster.length) + ' student' + (state.roster.length === 1 ? '' : 's'),
+                    String(totalCount) + ' student' + (totalCount === 1 ? '' : 's'),
                 ]),
-                ' available for auto-attribution from filenames.',
-                el('details', { class: 'leai-pdf-roster-chip__peek' }, [
-                    el('summary', {}, ['Preview names']),
-                    el('div', { class: 'leai-pdf-roster-chip__list' },
-                        state.roster.slice(0, 12).map(function (s) {
-                            return el('span', { class: 'leai-pdf-roster-chip__item' }, [s.student_id]);
-                        }).concat(state.roster.length > 12
-                            ? [el('span', { class: 'leai-pdf-roster-chip__more' }, [
-                                  '+' + (state.roster.length - 12) + ' more',
-                              ])]
-                            : [])
-                    ),
-                ]),
-            ]);
+            ];
+            // Detail bits only appear when meaningful (>0) so single-survey
+            // courses don't see noisy zeroes.
+            if (chatCount > 0) statBits.push(el('span', { class: 'leai-pdf-roster-chip__sub' }, [
+                ' · ', String(chatCount), ' already submitted via chat',
+            ]));
+            if (pdfCount > 0) statBits.push(el('span', { class: 'leai-pdf-roster-chip__sub leai-pdf-roster-chip__sub--pdf' }, [
+                ' · ', String(pdfCount), ' have a prior PDF on this survey',
+            ]));
+            var preview = el('div', { class: 'leai-pdf-roster-chip' },
+                statBits.concat([
+                    el('details', { class: 'leai-pdf-roster-chip__peek' }, [
+                        el('summary', {}, ['Preview names']),
+                        el('div', { class: 'leai-pdf-roster-chip__list' },
+                            state.roster.slice(0, 12).map(function (s) {
+                                var classes = 'leai-pdf-roster-chip__item';
+                                if (s.has_pdf_on_this_survey) classes += ' leai-pdf-roster-chip__item--pdf';
+                                return el('span', {
+                                    class: classes,
+                                    title: s.has_pdf_on_this_survey ? 'Already has a PDF reflection on this survey'
+                                        : (s.submitted_to_this_survey ? 'Already submitted via chat' : ''),
+                                }, [s.student_id]);
+                            }).concat(state.roster.length > 12
+                                ? [el('span', { class: 'leai-pdf-roster-chip__more' }, [
+                                      '+' + (state.roster.length - 12) + ' more',
+                                  ])]
+                                : [])
+                        ),
+                    ]),
+                ])
+            );
             wrap.appendChild(preview);
         }
 
@@ -540,9 +564,42 @@
             return wrap;
         }
 
+        // For batches over 5 files, surface a small filter so the
+        // instructor can focus on the rows that actually need attention
+        // (filename auto-match was empty or low-confidence).
+        if (state.files.length > 5) {
+            var unattributed = state.files.filter(function (f) { return !f.studentId; }).length;
+            var autoMatched = state.files.filter(function (f) { return f.suggested; }).length;
+            var currentFilter = state.fileFilter || 'all';
+            var chips = [
+                { value: 'all', label: 'All (' + state.files.length + ')' },
+                { value: 'unattributed', label: 'Needs attribution (' + unattributed + ')', disabled: !unattributed },
+                { value: 'auto', label: 'Auto-matched (' + autoMatched + ')', disabled: !autoMatched },
+            ];
+            var filterRow = el('div', { class: 'leai-pdf-file-filter' });
+            chips.forEach(function (chip) {
+                if (chip.disabled) return;
+                filterRow.appendChild(el('button', {
+                    type: 'button',
+                    class: 'leai-pdf-file-filter__chip' + (currentFilter === chip.value ? ' leai-pdf-file-filter__chip--on' : ''),
+                    onclick: function () { state.fileFilter = chip.value; ctx.render(); },
+                }, [chip.label]));
+            });
+            wrap.appendChild(filterRow);
+        }
+
         var fileList = el('div', { class: 'leai-pdf-file-list' });
-        state.files.forEach(function (entry, idx) {
-            fileList.appendChild(renderFileRow(entry, idx, state, ctx));
+        var visibleFiles = applyFileFilter(state.files, state.fileFilter || 'all');
+        if (visibleFiles.length === 0 && state.files.length > 0) {
+            fileList.appendChild(el('div', { class: 'leai-pdf-file-list__empty' }, [
+                'No files match this filter. Switch to "All" to see them.',
+            ]));
+        }
+        visibleFiles.forEach(function (entry) {
+            // Use the entry's index in the unfiltered list so remove/edit
+            // mutations target the right element.
+            var origIdx = state.files.indexOf(entry);
+            fileList.appendChild(renderFileRow(entry, origIdx, state, ctx));
         });
         wrap.appendChild(fileList);
 
@@ -615,6 +672,12 @@
         return row;
     }
 
+    function applyFileFilter(files, filter) {
+        if (filter === 'unattributed') return files.filter(function (f) { return !f.studentId; });
+        if (filter === 'auto') return files.filter(function (f) { return f.suggested && f.studentId; });
+        return files.slice();
+    }
+
     function addFiles(state, ctx, fileList) {
         var existingNames = state.files.map(function (f) { return f.file.name; });
         Array.prototype.forEach.call(fileList, function (file) {
@@ -639,6 +702,18 @@
             attribs[f.file.name] = f.studentId;
             return f.file;
         });
+        // Pre-flight confirmation for batches over a handful — gives the
+        // instructor one last chance to spot a wrong-survey upload before
+        // committing minutes of worker time.
+        var uniqueStudents = new Set(state.files.map(function (f) { return f.studentId; })).size;
+        if (state.files.length >= 4 && !state.preflightConfirmed) {
+            var msg = 'Process ' + state.files.length + ' PDF' + (state.files.length === 1 ? '' : 's') +
+                      ' for ' + uniqueStudents + ' student' + (uniqueStudents === 1 ? '' : 's') +
+                      ' into "' + state.survey.name + '"?\n\n' +
+                      'You\'ll review the section mappings before anything is saved.';
+            if (!confirm(msg)) return;
+            state.preflightConfirmed = true;
+        }
         ctx.transition('processing');
         updateTitle(state);
         leaiPdfIngest.startJob(state.survey.id, files, attribs)
@@ -883,9 +958,14 @@
             // Show only once per render-flow; subsequent renders see fresh state.
             state.draftRestored = false;
         }
-        var ok = state.jobItems.filter(function (i) { return i.status === 'ok'; });
-        var lowConf = state.jobItems.filter(function (i) { return i.status === 'low_conf'; });
-        var failed = state.jobItems.filter(function (i) { return i.status === 'failed'; });
+        // Stable alphabetical-by-filename sort within each status bucket
+        // so a 40-card review screen is scannable. Original arrival order
+        // doesn't carry meaning here (worker processes in the order the
+        // browser uploaded, which is itself unspecified).
+        var byName = function (a, b) { return (a.filename || '').localeCompare(b.filename || ''); };
+        var ok = state.jobItems.filter(function (i) { return i.status === 'ok'; }).sort(byName);
+        var lowConf = state.jobItems.filter(function (i) { return i.status === 'low_conf'; }).sort(byName);
+        var failed = state.jobItems.filter(function (i) { return i.status === 'failed'; }).sort(byName);
 
         var bannerClass = (failed.length || lowConf.length) ? 'leai-pdf-banner--warn' : 'leai-pdf-banner--ok';
         var banner = el('div', { class: 'leai-pdf-banner ' + bannerClass });
@@ -1222,15 +1302,20 @@
             ]));
         }
 
+        var inFlight = !!state.commitInFlight;
         wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
             el('button', {
                 class: 'leai-pdf-btn leai-pdf-btn--ghost',
-                onclick: function () { ctx.transition('review'); },
+                disabled: inFlight ? 'disabled' : false,
+                onclick: function () { if (!inFlight) ctx.transition('review'); },
             }, ['Back to review']),
             el('button', {
-                class: 'leai-pdf-btn leai-pdf-btn--primary',
+                class: 'leai-pdf-btn leai-pdf-btn--primary' + (inFlight ? ' leai-pdf-btn--loading' : ''),
+                disabled: inFlight ? 'disabled' : false,
                 onclick: function () { ctx.commit(); },
-            }, ['Commit ' + totalMessages + ' response' + (totalMessages === 1 ? '' : 's')]),
+            }, [inFlight
+                ? 'Saving ' + totalMessages + ' response' + (totalMessages === 1 ? '' : 's') + '…'
+                : 'Commit ' + totalMessages + ' response' + (totalMessages === 1 ? '' : 's')]),
         ]));
 
         return wrap;
@@ -1272,6 +1357,7 @@
     }
 
     function commit(state, ctx, opts) {
+        if (state.commitInFlight) return;  // double-click guard
         var items = state.jobItems
             .filter(function (i) { return i.status !== 'failed'; })
             .map(function (item) {
@@ -1282,14 +1368,19 @@
                     skip: !!state.skips[item.filename],
                 };
             });
+        state.commitInFlight = true;
+        ctx.render();  // re-render so the button shows the spinner
         leaiPdfIngest.commitJob(state.jobId, items, state.dedupChoices, '').then(function (resp) {
             state.commitResult = resp;
+            state.commitInFlight = false;
             // Draft is no longer relevant — the data is now on the
             // server, and the success state is the source of truth.
             clearDraft(state.survey.id);
             ctx.transition('success');
             opts.onCommitted && opts.onCommitted(resp);
         }).catch(function (err) {
+            state.commitInFlight = false;
+            ctx.render();
             alert('Commit failed: ' + err.message);
         });
     }

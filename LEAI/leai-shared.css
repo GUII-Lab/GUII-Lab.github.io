@@ -1037,6 +1037,41 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-roster-chip__more {
     font-size: 11px; color: #6d28d9; padding: 1px 6px;
 }
+.leai-pdf-roster-chip__sub { color: #6d28d9; font-weight: 500; font-size: 12px; }
+.leai-pdf-roster-chip__sub--pdf { color: #5b21b6; }
+.leai-pdf-roster-chip__item--pdf {
+    background: #ede9fe; border-color: #c4b5fd; color: #5b21b6; font-weight: 600;
+}
+
+/* Files-step filter chips (only shown when more than 5 files) */
+.leai-pdf-file-filter {
+    display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0;
+}
+.leai-pdf-file-filter__chip {
+    border: 1px solid var(--border, #d1d5db); background: var(--surface, #fff);
+    border-radius: 999px; padding: 4px 12px;
+    font-size: 11.5px; font-weight: 500;
+    color: var(--text-muted, #6b7280); cursor: pointer;
+}
+.leai-pdf-file-filter__chip:hover { background: var(--surface-low, #f3f4f6); color: var(--text, #1f2937); }
+.leai-pdf-file-filter__chip--on {
+    background: var(--primary, #2563eb); color: #fff; border-color: var(--primary, #2563eb);
+}
+.leai-pdf-file-list__empty {
+    padding: 24px; text-align: center; color: var(--text-muted, #6b7280);
+    font-size: 12.5px; background: var(--surface-low, #fafafa); border-radius: 8px;
+}
+
+/* Loading state on the primary button (commit in flight) */
+.leai-pdf-btn--loading {
+    position: relative; padding-right: 32px;
+}
+.leai-pdf-btn--loading::after {
+    content: ''; position: absolute; right: 12px; top: 50%;
+    width: 12px; height: 12px; margin-top: -7px;
+    border: 2px solid rgba(255, 255, 255, 0.4); border-top-color: #fff;
+    border-radius: 50%; animation: leai-pdf-spin 0.85s linear infinite;
+}
 
 .leai-pdf-step { flex: 1 1 auto; overflow-y: auto; }
 .leai-pdf-step__inner { padding: 20px 24px 32px; display: flex; flex-direction: column; gap: 16px; }
