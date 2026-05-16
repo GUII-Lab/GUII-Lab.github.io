@@ -970,6 +970,90 @@
                 host.insertBefore(el, host.firstChild);
             }
             el.textContent = label;
+            renderFormModeDownloadStrip();
+            updateFormModeDownloadStripLabel();
+        }
+
+        // Individual (non-team) form mode: persistent download strip mirroring
+        // the in-group UX — available from turn zero so students can save a
+        // draft .docx at any time, then expands to a celebratory "ready" state
+        // once the engine confirms all sections captured. Shares the
+        // .ig-download-strip CSS class so the two flows look identical.
+        var _fmStrip = null;
+        var _fmStripStatusEl = null;
+        var _fmStripActionEl = null;
+        var _fmStripReadyMarked = false;
+
+        function renderFormModeDownloadStrip() {
+            if (_fmStrip) return;
+            if (!formMode.active) return;
+            // The in-group flow renders its own strip (#ig-download-strip)
+            // and pipes form-mode through it. Don't double-render.
+            if (document.getElementById('ig-download-strip')) return;
+            var footer = document.querySelector('.chat-footer-inner');
+            if (!footer) return;
+            _fmStrip = document.createElement('div');
+            _fmStrip.id = 'formmode-download-strip';
+            _fmStrip.className = 'ig-download-strip collapsed';
+
+            var celebrate = document.createElement('div');
+            celebrate.className = 'strip-celebrate';
+            celebrate.textContent = '✓ All sections captured — your reflection is ready';
+            _fmStrip.appendChild(celebrate);
+
+            _fmStripStatusEl = document.createElement('div');
+            _fmStripStatusEl.className = 'strip-status';
+            _fmStrip.appendChild(_fmStripStatusEl);
+
+            _fmStripActionEl = document.createElement('button');
+            _fmStripActionEl.type = 'button';
+            _fmStripActionEl.className = 'strip-action';
+            _fmStripActionEl.addEventListener('click', function () {
+                downloadFormModeReflection('docx');
+            });
+            _fmStrip.appendChild(_fmStripActionEl);
+
+            var help = document.createElement('div');
+            help.className = 'strip-help';
+            help.textContent = 'You can keep chatting to revise or add anything — the file rebuilds from the latest transcript on every click.';
+            _fmStrip.appendChild(help);
+
+            footer.appendChild(_fmStrip);
+        }
+
+        function updateFormModeDownloadStripLabel() {
+            if (!_fmStrip || _fmStrip.classList.contains('ready')) return;
+            var label = (formMode.state && typeof leaiFormMode !== 'undefined' &&
+                         typeof leaiFormMode.progressLabel === 'function')
+                ? (leaiFormMode.progressLabel(formMode.state) || '')
+                : '';
+            if (_fmStripStatusEl) {
+                _fmStripStatusEl.textContent = '';
+                var pre = document.createElement('strong');
+                pre.textContent = 'Reflection in progress';
+                _fmStripStatusEl.appendChild(pre);
+                _fmStripStatusEl.appendChild(document.createTextNode(
+                    label ? ' · ' + label : ' · save what you have so far'
+                ));
+            }
+            if (_fmStripActionEl) {
+                _fmStripActionEl.textContent = 'Save draft (.docx) ↓';
+            }
+        }
+
+        function markFormModeDownloadReady(opts) {
+            renderFormModeDownloadStrip();
+            if (!_fmStrip || _fmStripReadyMarked) return;
+            _fmStripReadyMarked = true;
+            _fmStrip.classList.remove('collapsed');
+            _fmStrip.classList.add('ready');
+            if (opts && opts.silent) _fmStrip.classList.add('no-pop');
+            if (_fmStripActionEl) {
+                _fmStripActionEl.textContent = 'Download my reflection (Word / .docx)';
+            }
+            if (!opts || !opts.silent) {
+                try { _fmStrip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+            }
         }
 
         // Runtime guardrail appended to every non-group survey's system prompt.
@@ -1075,6 +1159,14 @@
             });
             if (formMode.active && formMode.state) {
                 renderFormModeProgress();
+                // Server-side restore: if the engine considers all sections
+                // captured based on the replayed turns, surface the strip in
+                // its celebratory "ready" state without the pop animation —
+                // the student already saw it the first time around.
+                if (typeof leaiFormMode.isComplete === 'function' &&
+                        leaiFormMode.isComplete(formMode.state)) {
+                    markFormModeDownloadReady({ silent: true });
+                }
             }
         }
 
@@ -2581,14 +2673,15 @@
                 // Form-mode: keep the input live so students can revise an
                 // earlier answer or add a clarification — the structured
                 // download reads the live transcript, so anything they add
-                // here flows into the next download click. Surface the
-                // download bar so they know they're free to submit.
+                // here flows into the next download click. The persistent
+                // strip already shows in-progress draft saving; flip it to
+                // its "ready" state to celebrate completion (mirrors the
+                // in-group flow's UX).
                 notice.id = 'formmode-completion-notice';
                 notice.textContent =
-                    'All sections captured — your reflection is ready below. ' +
-                    'You can keep chatting if you want to revise or add anything before downloading.';
+                    'All sections captured — you can keep chatting to revise or add anything before downloading.';
                 footer.appendChild(notice);
-                renderFormModeDownloadBar(footer);
+                markFormModeDownloadReady();
             } else {
                 chatLocked = true;
                 $('#messageInput').prop('disabled', true).val('');
