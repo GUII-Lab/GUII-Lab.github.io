@@ -2829,13 +2829,25 @@
             // Step 1: ensure docx library is loaded if needed.
             var loadDeps = format === 'docx' ? ensureDocxLoaded() : Promise.resolve();
 
-            // Step 2: extract slots (or reuse cached). If a previous run
-            // already filled formMode.state.slots, skip the LLM round-trip.
+            // Step 2: extract slots (or reuse cached). The cache is keyed by
+            // turn count so that if the student continues chatting between
+            // downloads, the next click re-extracts against the now-longer
+            // transcript instead of serving stale slots. Without this, a
+            // student who clicks "Save draft" early and then keeps talking
+            // would download a file missing their latest answers.
             function runExtract() {
+                var turnCount = transcript.length;
+                if (formMode.state._slots_extracted_turn_count !== turnCount) {
+                    formMode.state.slots = null;
+                }
                 if (formMode.state.slots) return Promise.resolve(formMode.state.slots);
-                modal.setProgress('Reading 10 sections from your conversation…');
+                var n = (formMode.schema && formMode.schema.sections) ? formMode.schema.sections.length : 0;
+                modal.setProgress('Reading ' + (n || 'all') + ' sections from your conversation…');
                 return leaiFormMode.extractSlots(formMode.state, transcript, function (prompt, jsonSchema, opts) {
                     return leaiChat.structured(prompt, jsonSchema, opts);
+                }).then(function (slots) {
+                    formMode.state._slots_extracted_turn_count = turnCount;
+                    return slots;
                 });
             }
 

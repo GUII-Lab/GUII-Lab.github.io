@@ -866,6 +866,14 @@
         var sections = schema.sections;
         var slots = {};
         var promise = Promise.resolve();
+        // One-shot diagnostic so it's obvious in the console whether the
+        // engine is using markered slicing or the no-markers full-transcript
+        // fallback for THIS extraction run.
+        if (typeof console !== 'undefined') {
+            if (!transcriptHasAnyMarkers(transcript)) {
+                console.info('[formmode] no section markers in transcript — extracting each section from the full conversation by topic');
+            }
+        }
         sections.forEach(function (s) {
             promise = promise.then(function () {
                 var jsonSchema = buildSectionJsonSchema(s);
@@ -882,7 +890,22 @@
                         } else if (result && typeof result === 'object' && !result.status) {
                             data = result;
                         }
-                        if (data && typeof data === 'object') slots[s.id] = data;
+                        if (data && typeof data === 'object') {
+                            slots[s.id] = data;
+                            // If this section captured a roster (kind=table on 2.2)
+                            // and the running state doesn't have one yet — e.g. the
+                            // conversation was conducted before this form schema was
+                            // bound, so afterTurn never built state.roster live —
+                            // promote the freshly extracted roster onto state now.
+                            // Subsequent section prompts then get the canonical
+                            // names line and produce consistent spellings.
+                            if (!state.roster && Array.isArray(data.roster) && data.roster.length) {
+                                var names = data.roster
+                                    .map(function (r) { return (r && r.name) || ''; })
+                                    .filter(function (n) { return n && n.trim(); });
+                                if (names.length) state.roster = names;
+                            }
+                        }
                     })
                     .catch(function (err) {
                         if (typeof console !== 'undefined') {
@@ -982,20 +1005,38 @@
             'Topic: ' + (section.topic || section.title),
             'Opening question: ' + (section.opening_prompt || ''),
             rosterLine,
-            'Below is the conversation excerpt for this section. Extract structured answers per the JSON schema.',
+            'Below is conversation content the engine pulled for this section. It is usually pre-sliced to just this section, but when the conversation lacks section markers (e.g. it predates this form schema being bound to the survey) the engine falls back to passing the FULL conversation here. In that case: ignore parts that clearly belong to other sections, and extract only content that addresses THIS section\'s topic and opening question. Match by meaning, not just by keyword — the student may answer this section\'s question without echoing the section\'s wording.',
             '',
             'Rules:',
             '- Use the student’s own words and meaning. Smooth voice-to-text disfluencies but do NOT invent content.',
-            '- For ratings: "four" or "4" both mean 4.',
-            '- If a required field cannot be determined from this excerpt, use a brief placeholder like "(not captured)".',
+            '- For ratings: "four" or "4" both mean 4. If the student gave the rating in a separate turn from the justification, pair them by which dimension the bot most recently asked about.',
+            '- If a required field cannot be determined from this conversation, use a brief placeholder like "(not captured)" for strings. For required integer ratings where the student never stated a number, still pair the nearest dimension/justification — only fall back to a placeholder rating if the student truly never gave any 1-5 number for that dimension.',
             '- Names: use the exact spellings the student used.',
-            '- Be inclusive when extracting: if the student says ANYTHING that addresses this section\'s opening question, capture it. The first substantive student turn after the section header is almost always the answer.',
+            '- Be inclusive when extracting: if the student says ANYTHING that addresses this section\'s opening question, capture it. The first substantive student turn after the section header (or the first turn that semantically answers the topic, when no header is present) is almost always the answer.',
             '- The ONLY turns to skip are turns that explicitly give feedback about the chat itself (e.g. "this conversation surfaced more honest reflection than the PDF would have") — those belong to the closing-feedback step, not this section.',
             '- If the student answers with a structured "(a) ... (b) ..." or "if X then Y" form, preserve that structure verbatim in the summary.',
             '',
-            'CONVERSATION EXCERPT:',
+            'CONVERSATION:',
             excerpt || '(no turns for this section)'
         ].join('\n');
+    }
+
+    function transcriptHasAnyMarkers(transcript) {
+        var probe = /Area\s+\d+\s+of\s+\d+\s+[—\-]\s+/i;
+        for (var i = 0; i < transcript.length; i++) {
+            var t = transcript[i];
+            if (t.role === 'assistant' && probe.test(t.text)) return true;
+        }
+        return false;
+    }
+
+    function transcriptToText(transcript) {
+        var lines = [];
+        for (var p = 0; p < transcript.length; p++) {
+            var who = transcript[p].role === 'user' ? 'STUDENT' : 'REMI';
+            lines.push(who + ': ' + transcript[p].text);
+        }
+        return lines.join('\n\n');
     }
 
     function extractSectionExcerpt(section, transcript) {
@@ -1019,13 +1060,27 @@
             }
             if (startTurn !== -1 && endTurn !== transcript.length) break;
         }
-        if (startTurn === -1) return '';
-        var lines = [];
-        for (var p = startTurn; p < endTurn; p++) {
-            var who = transcript[p].role === 'user' ? 'STUDENT' : 'REMI';
-            lines.push(who + ': ' + transcript[p].text);
+        if (startTurn !== -1) {
+            var lines = [];
+            for (var p = startTurn; p < endTurn; p++) {
+                var who = transcript[p].role === 'user' ? 'STUDENT' : 'REMI';
+                lines.push(who + ': ' + transcript[p].text);
+            }
+            return lines.join('\n\n');
         }
-        return lines.join('\n\n');
+        // No marker for this section. If the WHOLE transcript carries zero
+        // "Area N of N — Title." markers (the conversation ran before the
+        // survey was bound to a form schema, or was started on a non-form
+        // survey that the instructor later upgraded to form mode), hand the
+        // LLM the full transcript so it can find this section's content by
+        // topic — the per-section JSON schema + topic line in the prompt
+        // are enough for it to pick the right turns. If markers exist for
+        // OTHER sections but not this one, the section truly wasn't reached
+        // in the conversation; return empty as before.
+        if (!transcriptHasAnyMarkers(transcript)) {
+            return transcriptToText(transcript);
+        }
+        return '';
     }
 
     // ─── helpers ──────────────────────────────────────────────────────────
