@@ -2784,9 +2784,9 @@
         }
 
         function _formModeFilenameBase() {
-            var schema = formMode.schema || {};
-            var lastName = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
-            return 'HCI271_Reflection_Week' + (schema.week || '') + '_' + lastName;
+            var sessionTail = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
+            var surveyId = (window.sessionData && window.sessionData.selectedGPTId) || 'survey';
+            return 'team_reflection_' + surveyId + '_' + sessionTail;
         }
 
         // Build the rendered file as a Blob+filename for the chosen format.
