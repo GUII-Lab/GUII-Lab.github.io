@@ -875,6 +875,10 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <option value="identified">Identified (names allowed)</option>
                         <option value="pseudonymous">Pseudonymous</option>
                     </select>
+                    <div id="edit-schema-row" style="display:none;margin-bottom:12px">
+                        <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(form-mode surveys must keep one bound)</span></label>
+                        <select id="edit-schema"></select>
+                    </div>
                     <label>Opens At</label>
                     <input type="datetime-local" id="edit-opens-at" />
                     <label>Expires At</label>
@@ -909,6 +913,12 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <option value="anonymous">Anonymous</option>
                         <option value="identified">Identified (names allowed)</option>
                         <option value="pseudonymous">Pseudonymous</option>
+                    </select>
+                    <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
+                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey so the engine walks every section in order and the student's download is the structured artifact instead of a raw transcript. Leave unbound for free-form chat."></span>
+                    </label>
+                    <select id="ig-edit-schema" style="margin-bottom:12px">
+                        <option value="">(none — free-form chat)</option>
                     </select>
                     <div id="ig-edit-config-wrap" style="display:none;margin-bottom:12px">
                         <label>Team configuration
@@ -1101,6 +1111,59 @@ When the conversation has organically reached a natural close — i.e. the stude
                 });
             })
             .catch(function () { /* leave the (none) default */ });
+    }
+
+    // Cache the active-schema list for the edit modals so reopening doesn't
+    // refetch. Returns a Promise<rows>.
+    var _activeSchemasPromise = null;
+    function getActiveFormSchemas() {
+        if (_activeSchemasPromise) return _activeSchemasPromise;
+        _activeSchemasPromise = fetch(API + '/form_schemas/?active=1')
+            .then(function (r) { return r.json(); })
+            .then(function (rows) { return rows || []; })
+            .catch(function () { _activeSchemasPromise = null; return []; });
+        return _activeSchemasPromise;
+    }
+
+    // Repopulate a <select> with the active schema list. `includeNone` decides
+    // whether to keep an "(unbound)" option at the top (used by group mode;
+    // form mode must keep one bound). `currentSchemaId` pre-selects the row
+    // for the survey being edited.
+    function repopulateSchemaSelect(sel, includeNone, currentSchemaId) {
+        if (!sel) return Promise.resolve();
+        return getActiveFormSchemas().then(function (rows) {
+            sel.textContent = '';
+            if (includeNone) {
+                var none = document.createElement('option');
+                none.value = '';
+                none.textContent = '(none — free-form chat)';
+                sel.appendChild(none);
+            }
+            var matched = false;
+            rows.forEach(function (s) {
+                var opt = document.createElement('option');
+                opt.value = s.schema_id;
+                var lbl = s.title || s.schema_id;
+                if (s.course_label || s.week_number) {
+                    lbl += '  (' + (s.course_label || '') +
+                        (s.week_number ? ' Wk ' + s.week_number : '') + ')';
+                }
+                opt.textContent = lbl;
+                sel.appendChild(opt);
+                if (currentSchemaId && s.schema_id === currentSchemaId) matched = true;
+            });
+            // If the survey's currently-bound schema is inactive/missing from
+            // the list, surface it explicitly so the instructor can see what
+            // they have without silently dropping the selection.
+            if (currentSchemaId && !matched) {
+                var stale = document.createElement('option');
+                stale.value = currentSchemaId;
+                stale.textContent = currentSchemaId + ' (inactive or missing)';
+                sel.appendChild(stale);
+            }
+            sel.value = currentSchemaId || '';
+            sel.dataset.original = sel.value;
+        });
     }
 
     document.querySelectorAll('.mode-tab').forEach(function (tab) {
@@ -1769,6 +1832,11 @@ When the conversation has organically reached a natural close — i.e. the stude
         var metaParts = [];
         if (weekLabel) metaParts.push(weekLabel);
         if (expiry) metaParts.push('Expires ' + expiry);
+        // Surface the coverage-schema binding so instructors can see at a
+        // glance whether the survey produces a structured download or a
+        // free-form transcript. "(none)" is the common pitfall that produces
+        // a raw transcript on "Save draft (.docx)".
+        metaParts.push('Schema: ' + (s.form_schema_id || '(none)'));
         meta.textContent = metaParts.join(' \u00b7 ');
 
         // Link box with open + copy
@@ -1906,6 +1974,13 @@ When the conversation has organically reached a natural close — i.e. the stude
             cfgWrap.style.display = 'none';
             cfgSel.dataset.original = '';
         }
+        // Populate the coverage-schema picker with active schemas and select
+        // whichever one is currently bound (if any). Empty string = unbound.
+        repopulateSchemaSelect(
+            document.getElementById('ig-edit-schema'),
+            true,
+            s.form_schema_id || ''
+        );
         document.getElementById('ig-edit-msg').textContent = '';
         document.getElementById('ig-edit-overlay').classList.add('visible');
     }
@@ -1950,6 +2025,12 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (cfgWrap && cfgWrap.style.display !== 'none' && cfgSel && cfgSel.value &&
             cfgSel.value !== cfgSel.dataset.original) {
             payload.team_configuration_id = parseInt(cfgSel.value, 10);
+        }
+        // Coverage-schema bind/unbind. Always send when the selection differs
+        // from the original (empty string ⇒ unbind on the backend).
+        var schSel = document.getElementById('ig-edit-schema');
+        if (schSel && schSel.value !== schSel.dataset.original) {
+            payload.form_schema_id = schSel.value;
         }
         fetch(API + '/update_survey/', {
             method: 'POST',
@@ -2874,6 +2955,19 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (anonSelGen) anonSelGen.value = s.anonymity_mode || 'anonymous';
         document.getElementById('edit-opens-at').value = toLocalDatetime(s.opens_at);
         document.getElementById('edit-expires-at').value = toLocalDatetime(s.expires_at);
+        // Schema picker is form-mode only — general surveys have no schema
+        // concept and group surveys use the in-group edit modal.
+        var schRow = document.getElementById('edit-schema-row');
+        var schSel = document.getElementById('edit-schema');
+        if (schRow && schSel) {
+            if (s.mode === 'form') {
+                schRow.style.display = '';
+                repopulateSchemaSelect(schSel, false, s.form_schema_id || '');
+            } else {
+                schRow.style.display = 'none';
+                schSel.dataset.original = '';
+            }
+        }
         document.getElementById('edit-msg').textContent = '';
         document.getElementById('edit-modal').classList.add('visible');
     }
@@ -2893,18 +2987,28 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (!label) { markFieldError('edit-label', 'Required'); return; }
 
         this.disabled = true;
+        var payload = {
+            survey_id: parseInt(surveyId, 10),
+            survey_label: label,
+            week_number: week ? parseInt(week, 10) : null,
+            instructions: instructions,
+            anonymity_mode: (document.getElementById('edit-anonymity') && document.getElementById('edit-anonymity').value) || 'anonymous',
+            opens_at: opensAt ? new Date(opensAt).toISOString() : null,
+            expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+        };
+        // Coverage-schema rebind (form-mode only; the row is hidden for
+        // general surveys and the dataset.original guard keeps the payload
+        // unchanged when the picker wasn't touched).
+        var schRow = document.getElementById('edit-schema-row');
+        var schSel = document.getElementById('edit-schema');
+        if (schRow && schRow.style.display !== 'none' && schSel &&
+            schSel.value !== schSel.dataset.original) {
+            payload.form_schema_id = schSel.value;
+        }
         fetch(API + '/update_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                survey_id: parseInt(surveyId, 10),
-                survey_label: label,
-                week_number: week ? parseInt(week, 10) : null,
-                instructions: instructions,
-                anonymity_mode: (document.getElementById('edit-anonymity') && document.getElementById('edit-anonymity').value) || 'anonymous',
-                opens_at: opensAt ? new Date(opensAt).toISOString() : null,
-                expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
-            })
+            body: JSON.stringify(payload),
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
