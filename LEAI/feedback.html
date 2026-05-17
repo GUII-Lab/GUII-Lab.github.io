@@ -983,12 +983,21 @@
         var _fmStripStatusEl = null;
         var _fmStripActionEl = null;
         var _fmStripReadyMarked = false;
+        // Set by startInGroupChat. The in-group flow builds its DOM and renders
+        // its own #ig-download-strip later in the same function — but form-mode
+        // progress renders happen first (line ~1690), before that strip exists.
+        // A live DOM check (#ig-download-strip lookup) misses at that point, so
+        // we use this flag to suppress form-mode strip rendering entirely.
+        var _inGroupFlowActive = false;
 
         function renderFormModeDownloadStrip() {
             if (_fmStrip) return;
             if (!formMode.active) return;
             // The in-group flow renders its own strip (#ig-download-strip)
-            // and pipes form-mode through it. Don't double-render.
+            // and pipes form-mode through it. Don't double-render. The flag
+            // catches the early-render case (strip not in DOM yet); the live
+            // DOM check catches anything that slips past.
+            if (_inGroupFlowActive) return;
             if (document.getElementById('ig-download-strip')) return;
             var footer = document.querySelector('.chat-footer-inner');
             if (!footer) return;
@@ -1480,6 +1489,7 @@
         }
 
         function startInGroupChat(survey, snap, team) {
+            _inGroupFlowActive = true;
             // Custom display name (e.g., sponsor team name) takes precedence over
             // "<label_prefix> <number>" when the instructor has set one.
             var teamContext = (team.display_name && team.display_name.trim())
@@ -1687,10 +1697,6 @@
             // Surface the form-mode area-progress strip ("Area X of N") above
             // the messages, same as the default flow does after initGpt().
             if (formMode.active && formMode.state) {
-                // Render the in-group strip first so the form-mode strip's
-                // #ig-download-strip guard suppresses it — otherwise both
-                // renderers fire and the footer shows two identical rows.
-                renderIgDownloadStrip();
                 renderFormModeProgress();
             }
 
