@@ -1687,6 +1687,10 @@
             // Surface the form-mode area-progress strip ("Area X of N") above
             // the messages, same as the default flow does after initGpt().
             if (formMode.active && formMode.state) {
+                // Render the in-group strip first so the form-mode strip's
+                // #ig-download-strip guard suppresses it — otherwise both
+                // renderers fire and the footer shows two identical rows.
+                renderIgDownloadStrip();
                 renderFormModeProgress();
             }
 
