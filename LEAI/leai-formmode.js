@@ -873,6 +873,10 @@
         // Collapse runs like ". . . . . ." (3+ space-separated single dots)
         // at the END of the string only.
         v = v.replace(/(?:\s*\.\s*){3,}\s*$/, '');
+        // Collapse a "<text> + long whitespace run + trailing punctuation"
+        // artifact: some models pad short answers with ~hundreds of spaces
+        // and then a final "." to hit an imagined length target.
+        v = v.replace(/\s{20,}[.,;:!?]?\s*$/, '');
         // Collapse trailing whitespace.
         v = v.replace(/\s+$/, '');
         return v;
@@ -891,19 +895,42 @@
 
     function slotValueIsNotCaptured(v) {
         if (typeof v !== 'string') return false;
-        return /^\(?\s*not\s+captured\s*\)?\.?\s*$/i.test(v.trim());
+        var s = v.trim();
+        if (!s) return true;
+        // Match the family of placeholder strings the LLM or the docx writer
+        // emits when a slot is empty. The OOXML writer uses "(no response
+        // captured)"; the LLM uses "(not captured)" / "not captured". Keep
+        // them in sync — the retry must fire for both, otherwise longform
+        // sections that came back blank render as "(no response captured)"
+        // and the retry never sees them.
+        return /^\(?\s*(no\s+response\s+captured|not\s+captured|none\s+captured|no\s+answer|empty|n\/a)\s*\)?\.?\s*$/i.test(s);
     }
 
     function findMissedStringFields(section, data) {
         if (!data || typeof data !== 'object') return [];
         var missed = [];
+        var hasStructuredField = false;
         (section.fields || []).forEach(function (f) {
-            if (f.kind !== 'shortform') return;
-            var key = sectionStringFieldKey(section.id, f.id);
-            if (slotValueIsNotCaptured(data[key])) {
-                missed.push({ key: key, label: f.label || key, fieldId: f.id });
+            if (f.kind === 'shortform') {
+                hasStructuredField = true;
+                var key = sectionStringFieldKey(section.id, f.id);
+                if (slotValueIsNotCaptured(data[key])) {
+                    missed.push({ key: key, label: f.label || key, fieldId: f.id });
+                }
+            } else if (f.kind === 'table' || f.kind === 'rating_with_justification') {
+                hasStructuredField = true;
             }
+            // longform fields with a defined `f.id` fall through — the
+            // schema builder rolls them into the same `summary` slot as the
+            // no-fields fallback, so they're picked up by the `summary`
+            // check below.
         });
+        // Longform-only sections (2.1, 3.1, 3.2 on the team form) have no
+        // structured fields; buildSectionJsonSchema emits a single required
+        // `summary` slot for them. If that came back blank, retry too.
+        if (!hasStructuredField && slotValueIsNotCaptured(data.summary)) {
+            missed.push({ key: 'summary', label: section.title || section.id, fieldId: section.id });
+        }
         return missed;
     }
 
@@ -952,15 +979,26 @@
                                     .filter(function (n) { return n && n.trim(); });
                                 if (names.length) state.roster = names;
                             }
-                            // Per-row retry: if any required shortform field came
-                            // back "(not captured)", fire one focused re-extraction
-                            // against the FULL transcript naming the missed fields.
-                            // The structured-output LLM occasionally misses a row
-                            // semantically (e.g. "What I was surprised by" answered
-                            // by a turn starting "what shifted my thinking"). One
-                            // sharper retry with the full transcript recovers it.
+                            // Per-row retry: if any required string field came
+                            // back "(not captured)" / "(no response captured)",
+                            // fire one focused re-extraction naming the missed
+                            // fields. The structured-output LLM occasionally
+                            // misses a row semantically (e.g. "What I was
+                            // surprised by" answered by a turn starting "what
+                            // shifted my thinking"), and occasionally drops an
+                            // entire longform summary slot. One sharper retry
+                            // recovers them. GUARDRAIL: only retry when the
+                            // section's slice contains at least one student
+                            // turn — if the conversation never reached this
+                            // section (e.g. transcript starts mid-Area-2),
+                            // retrying with the full transcript would invite
+                            // the LLM to fabricate content from out-of-section
+                            // turns. See wk6-bug-150 fixture: 1.1 and 1.2
+                            // must stay "(not captured)" because the
+                            // transcript has no Area-1/Area-2 turns.
                             var missed = findMissedStringFields(s, slots[s.id]);
-                            if (missed.length) {
+                            var sectionHasStudentTurn = /(^|\n)STUDENT:\s*\S/.test(excerpt || '');
+                            if (missed.length && sectionHasStudentTurn) {
                                 var retryPrompt = buildSectionExtractionRetryPrompt(s, transcriptToText(transcript), state, missed);
                                 return callStructured(retryPrompt, jsonSchema, { schemaName: 'section_' + s.id.replace(/\W/g, '_') + '_retry' })
                                     .then(function (retryResult) {
@@ -1142,7 +1180,8 @@
             '- The ONLY turns to skip are turns that explicitly give feedback about the chat itself (e.g. "this conversation surfaced more honest reflection than the PDF would have") — those belong to the closing-feedback step, not this section.',
             '- If the student answers with a structured "(a) ... (b) ..." or "if X then Y" form, preserve that structure verbatim in the summary.',
             '- For roster/table extractions: normalize EVERY row to third-person describing the named member, even when the student answered their own row in first person ("I contributed..." → "<name> contributed..."). The roster row must read consistently regardless of who is speaking.',
-            '- For longform `summary` fields that synthesize multi-turn answers: preserve every distinct point the student made — including any concrete, observable signal, example, deadline, person, file, or behavior they offered alongside their headline answer. If the student gave both a commitment AND a concrete signal/example (e.g. "we will be diligent" + "we will add calendar checkpoints"), the summary must include BOTH. Length budget is flexible (2–5 sentences) — never drop a concrete signal to stay terse.',
+            '- For longform `summary` fields that synthesize multi-turn answers: preserve every distinct point the student made — including any concrete, observable signal, example, deadline, person, file, or behavior they offered alongside their headline answer. If the student gave both a commitment AND a concrete signal/example (e.g. "we will be diligent" + "we will add calendar checkpoints"), the summary MUST include BOTH. Length budget is flexible (2–5 sentences) — never drop a concrete signal to stay terse.',
+            '- Self-check before returning a longform `summary`: re-scan every student turn that contributed to this section. If any student turn names a calendar, file, schedule, checkpoint, deadline, named meeting, percentage, number of hours, screenshot, or other concrete artifact AND that artifact is absent from your summary, revise the summary to include it. A summary that captures the abstract commitment but omits the concrete observable signal is INCOMPLETE.',
             '- Free-text fields must end with normal sentence punctuation. Never pad short answers with ellipses, dot strings (". . . ."), or filler — short and substantive is correct.',
             '- For each required string slot, you MUST also populate `_evidence.<slot>` with a verbatim ≤30-word snippet from the supporting STUDENT turn. The snippet may be empty ONLY when the slot value is "(not captured)" AND no student turn semantically addresses the field. A non-empty value paired with an empty snippet — or a "(not captured)" value paired with a non-empty matching snippet — are both invalid.',
             '',
@@ -1161,7 +1200,7 @@
             return '  • `' + m.key + '` — ' + m.label;
         }).join('\n');
         return [
-            'You are RE-EXTRACTING structured answers for ONE section of a student team-reflection form. A prior pass returned "(not captured)" for one or more required fields below, but those fields almost certainly DO have answers in the transcript. Find them.',
+            'You are RE-EXTRACTING structured answers for ONE section of a student team-reflection form. A prior pass returned a "(not captured)" / "(no response captured)" placeholder for one or more required fields below, but those fields almost certainly DO have answers in the transcript. Find them.',
             '',
             'Section: ' + section.id + '. ' + section.title,
             'Topic: ' + (section.topic || section.title),
