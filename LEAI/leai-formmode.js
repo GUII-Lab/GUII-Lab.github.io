@@ -861,6 +861,34 @@
         return d.Packer.toBuffer(doc);
     };
 
+    // Strip artifacts seen in real LLM output: trailing dot-padding runs
+    // (". . . . ." style filler used by some models when their output drifts
+    // shorter than they "expect"), trailing repeated whitespace, and a
+    // few common voice-to-text echo dupes. Conservative — does not touch
+    // intentional sentence-final ellipses ("..." kept; "….." trimmed only
+    // if it follows two or more space-separated dots).
+    function sanitizeSlotString(value) {
+        if (typeof value !== 'string') return value;
+        var v = value;
+        // Collapse runs like ". . . . . ." (3+ space-separated single dots)
+        // at the END of the string only.
+        v = v.replace(/(?:\s*\.\s*){3,}\s*$/, '');
+        // Collapse trailing whitespace.
+        v = v.replace(/\s+$/, '');
+        return v;
+    }
+    function sanitizeSlotTree(node) {
+        if (node == null) return node;
+        if (typeof node === 'string') return sanitizeSlotString(node);
+        if (Array.isArray(node)) return node.map(sanitizeSlotTree);
+        if (typeof node === 'object') {
+            var out = {};
+            Object.keys(node).forEach(function (k) { out[k] = sanitizeSlotTree(node[k]); });
+            return out;
+        }
+        return node;
+    }
+
     leaiFormMode.extractSlots = function (state, transcript, callStructured) {
         var schema = state.schema;
         var sections = schema.sections;
@@ -891,7 +919,8 @@
                             data = result;
                         }
                         if (data && typeof data === 'object') {
-                            slots[s.id] = data;
+                            slots[s.id] = sanitizeSlotTree(data);
+                            data = slots[s.id];
                             // If this section captured a roster (kind=table on 2.2)
                             // and the running state doesn't have one yet — e.g. the
                             // conversation was conducted before this form schema was
