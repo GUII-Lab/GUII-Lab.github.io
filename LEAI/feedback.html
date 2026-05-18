@@ -2889,7 +2889,8 @@
         function _formModeFilenameBase() {
             var sessionTail = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
             var surveyId = (window.sessionData && window.sessionData.selectedGPTId) || 'survey';
-            return 'team_reflection_' + surveyId + '_' + sessionTail;
+            var prefix = formMode.teamId ? 'team_reflection_' : 'individual_reflection_';
+            return prefix + surveyId + '_' + sessionTail;
         }
 
         // Build the rendered file as a Blob+filename for the chosen format.
