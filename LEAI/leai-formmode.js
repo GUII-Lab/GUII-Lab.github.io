@@ -889,6 +889,24 @@
         return node;
     }
 
+    function slotValueIsNotCaptured(v) {
+        if (typeof v !== 'string') return false;
+        return /^\(?\s*not\s+captured\s*\)?\.?\s*$/i.test(v.trim());
+    }
+
+    function findMissedStringFields(section, data) {
+        if (!data || typeof data !== 'object') return [];
+        var missed = [];
+        (section.fields || []).forEach(function (f) {
+            if (f.kind !== 'shortform') return;
+            var key = sectionStringFieldKey(section.id, f.id);
+            if (slotValueIsNotCaptured(data[key])) {
+                missed.push({ key: key, label: f.label || key, fieldId: f.id });
+            }
+        });
+        return missed;
+    }
+
     leaiFormMode.extractSlots = function (state, transcript, callStructured) {
         var schema = state.schema;
         var sections = schema.sections;
@@ -933,6 +951,50 @@
                                     .map(function (r) { return (r && r.name) || ''; })
                                     .filter(function (n) { return n && n.trim(); });
                                 if (names.length) state.roster = names;
+                            }
+                            // Per-row retry: if any required shortform field came
+                            // back "(not captured)", fire one focused re-extraction
+                            // against the FULL transcript naming the missed fields.
+                            // The structured-output LLM occasionally misses a row
+                            // semantically (e.g. "What I was surprised by" answered
+                            // by a turn starting "what shifted my thinking"). One
+                            // sharper retry with the full transcript recovers it.
+                            var missed = findMissedStringFields(s, slots[s.id]);
+                            if (missed.length) {
+                                var retryPrompt = buildSectionExtractionRetryPrompt(s, transcriptToText(transcript), state, missed);
+                                return callStructured(retryPrompt, jsonSchema, { schemaName: 'section_' + s.id.replace(/\W/g, '_') + '_retry' })
+                                    .then(function (retryResult) {
+                                        var retryData = null;
+                                        if (retryResult && retryResult.parsed && typeof retryResult.parsed === 'object') {
+                                            retryData = retryResult.parsed;
+                                        } else if (retryResult && typeof retryResult.response === 'string') {
+                                            try { retryData = JSON.parse(retryResult.response); } catch (_e) { retryData = null; }
+                                        } else if (retryResult && typeof retryResult === 'object' && !retryResult.status) {
+                                            retryData = retryResult;
+                                        }
+                                        if (!retryData || typeof retryData !== 'object') return;
+                                        retryData = sanitizeSlotTree(retryData);
+                                        var recovered = 0;
+                                        missed.forEach(function (m) {
+                                            var rv = retryData[m.key];
+                                            if (typeof rv === 'string' && rv.trim() && !slotValueIsNotCaptured(rv)) {
+                                                slots[s.id][m.key] = rv;
+                                                if (retryData._evidence && typeof retryData._evidence[m.key] === 'string' &&
+                                                    slots[s.id]._evidence && typeof slots[s.id]._evidence === 'object') {
+                                                    slots[s.id]._evidence[m.key] = retryData._evidence[m.key];
+                                                }
+                                                recovered++;
+                                            }
+                                        });
+                                        if (typeof console !== 'undefined') {
+                                            console.info('[formmode] retry pass for ' + s.id + ': ' + recovered + '/' + missed.length + ' field(s) recovered');
+                                        }
+                                    })
+                                    .catch(function (err) {
+                                        if (typeof console !== 'undefined') {
+                                            console.warn('extractSlots retry failed for ' + s.id + ':', err && err.message ? err.message : err);
+                                        }
+                                    });
                             }
                         }
                     })
@@ -1086,6 +1148,37 @@
             '',
             'CONVERSATION:',
             excerpt || '(no turns for this section)'
+        ].join('\n');
+    }
+
+    function buildSectionExtractionRetryPrompt(section, fullTranscriptText, state, missedFields) {
+        var rosterLine = '';
+        if (state && state.roster && state.roster.length) {
+            rosterLine = '\nCanonical roster (use these spellings exactly when extracting names): ' +
+                state.roster.filter(function (n) { return n !== 'self'; }).join(', ') + '\n';
+        }
+        var missedList = missedFields.map(function (m) {
+            return '  • `' + m.key + '` — ' + m.label;
+        }).join('\n');
+        return [
+            'You are RE-EXTRACTING structured answers for ONE section of a student team-reflection form. A prior pass returned "(not captured)" for one or more required fields below, but those fields almost certainly DO have answers in the transcript. Find them.',
+            '',
+            'Section: ' + section.id + '. ' + section.title,
+            'Topic: ' + (section.topic || section.title),
+            'Opening question: ' + (section.opening_prompt || ''),
+            rosterLine,
+            'Fields the prior pass missed — populate these from the transcript below:',
+            missedList,
+            '',
+            'Search rules for this retry:',
+            '- Match by SEMANTIC content, not by label wording. The student rarely echoes the field label. For example: a turn beginning "what shifted my thinking", "what actually surprised me", or "what changed for me" answers a field labeled "What I was surprised by". A turn beginning "I am still uncertain about" or "I still do not have a clear principle for" answers "What I am still uncertain about". A turn beginning "I thought", "I assumed", "going into this week I expected", or "before this week I believed" answers "What I thought I knew".',
+            '- Look across the FULL transcript below, not just the section header area — the student may have answered out of order or in a follow-up turn.',
+            '- Only mark a field "(not captured)" if you have scanned every student turn and none of them — by meaning, not just wording — addresses that field.',
+            '- Populate EVERY required field in the schema, not just the missed ones; for fields not in the missed list, you may reproduce the prior content faithfully.',
+            '- All other rules from the original prompt still apply: third-person roster rows; preserve concrete observable signals in longform summaries; no dot-padding / ellipsis filler; populate `_evidence.<slot>` with a verbatim ≤30-word student snippet.',
+            '',
+            'FULL CONVERSATION:',
+            fullTranscriptText
         ].join('\n');
     }
 
