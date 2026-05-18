@@ -1,0 +1,100 @@
+{
+  "_provenance": {
+    "source_docx": "team_reflection_150_6efe9d2f.docx",
+    "schema_id": "hci271-week6-reflection",
+    "reported_bug": "1.3b 'surprised by' and 1.3c 'still uncertain' marked '(not captured)' despite full answers being present in the transcript. Also 1.1 and 1.2 missing because the transcript itself starts mid-Area-2 (separate transcript-rehydration bug, out of scope here).",
+    "captured": "2026-05-17"
+  },
+  "expected_recoveries": {
+    "1.3": {
+      "thought_i_knew": {
+        "should_be_captured": true,
+        "must_contain": "linear",
+        "rationale": "Student explicitly answered 'I assumed... the process looked linear'."
+      },
+      "surprised_by": {
+        "should_be_captured": true,
+        "must_contain": "shifted",
+        "rationale": "Student answered 'What shifted my thinking most was...' — semantic match for 'What I was surprised by'."
+      },
+      "still_uncertain": {
+        "should_be_captured": true,
+        "must_contain": "scope",
+        "rationale": "Student literally says 'I am still uncertain about how to handle findings... outside the scope'."
+      }
+    },
+    "1.4": {
+      "summary": {
+        "should_be_captured": true,
+        "must_contain": "explanation",
+        "rationale": "Student described anchoring around the explanation panel and override mechanism."
+      }
+    }
+  },
+  "expected_genuine_misses": {
+    "1.1": "Transcript starts mid-Area-2; no Area 1 turns exist. '(not captured)' is correct.",
+    "1.2": "Methods turns missing from transcript (only Remi's response is present). '(not captured)' is correct given the transcript."
+  },
+  "transcript": [
+    {
+      "role": "assistant",
+      "text": "Got it — you're centering on journey mapping as something that shifted from \"visualization\" to real synthesis, especially around those before/after-flag gaps. Anything else on a specific method or technique you applied this week before we move on?"
+    },
+    {
+      "role": "user",
+      "text": "No"
+    },
+    {
+      "role": "assistant",
+      "text": "Area 3 of 4 — Knowledge Shift: Before vs. After. Reflect on the gap between your prior understanding and your current one. First: what did you think you knew — your prior understanding, assumption, or mental model before this week's material or activity?"
+    },
+    {
+      "role": "user",
+      "text": "Going into this week I assumed that once we had solid interview data from Activision researchers, the path to design decisions would be relatively straightforward. We had five clearly scoped research questions, a structured interview guide, and several weeks of preparation behind us. In my mind the process looked linear  collect the data, identify the key findings, and map each finding to a component of the dashboard. I thought the hardest part was behind us and that the interview data would essentially tell us what to build in a language we could directly act on.\nI also assumed that because our research questions were so specifically tied to the dashboard components explanation panels, confidence cues, override mechanisms  the findings would naturally organize themselves around those components. A participant talking about trust would inform the confidence cue design. A participant talking about workflow bottlenecks would inform the timeline design. I expected the mapping to feel almost automatic once we had enough data in front of us."
+    },
+    {
+      "role": "assistant",
+      "text": "Got it — you expected a mostly linear \"data → findings → dashboard pieces\" pipeline.\n\nWhat actually shifted for you after working with the Activision data this week?"
+    },
+    {
+      "role": "user",
+      "text": "What shifted my thinking most was how consistently Activision participants described problems we had not thought to ask about. I expected the interviews to fill in details within the boundaries we had already set. Instead participants kept surfacing pain points that lived outside those boundaries entirely around how they justify AI-derived findings to skeptical teammates, and whether the AI's definition of frustration even matches how their team conceptually understands player experience. Neither of those problems appeared in our research questions, but both of them directly affect how a researcher would show up to use our dashboard.\nThat was the real surprise not that the data was messy or contradictory, but that the most significant tensions participants described were ones we had not designed our questions to surface. It made me realize that our research questions, however carefully crafted, had quietly pre-shaped what we were listening for. The findings that challenged our assumptions the most were the ones that slipped through the gaps between our questions rather than the ones that answered them directly."
+    },
+    {
+      "role": "assistant",
+      "text": "Got it — using that revised version.\n\nNow that you've seen how much lived experience spilled outside your original questions, what's one thing you still feel genuinely unsure about in moving from those messy findings into concrete design decisions?"
+    },
+    {
+      "role": "user",
+      "text": "I am still uncertain about how to handle findings that are clearly significant but fall outside the scope of what we are building. Participants surfaced real pain points around stakeholder communication and AI taxonomy mismatches that our dashboard cannot fully address  but I do not yet have a clear principle for deciding when an out-of-scope finding should expand our design thinking and when it should be set aside to protect our focus. That tension between staying honest about what the data is telling us and staying disciplined enough to actually ship something is something I am still working through."
+    },
+    {
+      "role": "assistant",
+      "text": "Got it — using that version. You named a real tension between honoring what you heard and scoping tightly enough to ship.\n\nAnything else on the gap between your prior understanding and your current one before we move on?"
+    },
+    {
+      "role": "user",
+      "text": "No"
+    },
+    {
+      "role": "assistant",
+      "text": "Area 4 of 4 — Connection to the Capstone Project. How does what you learned this week connect to your team's capstone project? Describe one specific way this week's learning will influence your research approach, your questions, or your design decisions going forward."
+    },
+    {
+      "role": "user",
+      "text": "The most direct connection between this week and the capstone is that the Activision interview data made us reconsider which dashboard components actually carry the most weight. Going into the interviews we had treated all five components  session overview, timeline, explanation panels, confidence cues, and override mechanism  as roughly equal priorities. What participants described this week shifted that. The components that came up most urgently and most consistently were the explanation panel and the override mechanism, not because they are the most visually complex but because they are the ones where a researcher's trust decision is most exposed. Those are the moments where the researcher has to commit  either accepting what the AI found or putting their own judgment on record by overriding it.\nThat realization will directly shape how we allocate our design effort going into prototyping. Rather than spreading our attention evenly across all five components, we will anchor the first prototype around the explanation panel and override interaction and treat the session overview and timeline as supporting context rather than focal points. Getting the two highest-stakes components right matters more than building all five components adequately, and the interview data gave us the confidence to make that call deliberately rather than defaulting to the original brief."
+    },
+    {
+      "role": "assistant",
+      "text": "Got it — anchoring around explanation and override as the real trust moments, and letting the others play support, is a concrete shift.\n\nLast thing — did this conversation surface more honest reflection than filling out the PDF would have, and what would make it work better next week?"
+    },
+    {
+      "role": "user",
+      "text": "Yes"
+    },
+    {
+      "role": "assistant",
+      "text": "Got it, noted."
+    }
+  ]
+}
