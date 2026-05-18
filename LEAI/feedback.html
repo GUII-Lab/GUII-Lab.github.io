@@ -1093,11 +1093,34 @@
                 '- If the student asks where their answers are saved or whether they can recover them, respond: "Your answers are saved automatically on the server as you go. You can also click the download link in the footer at any time to save what you have so far." Do NOT summarize their content.';
         }
 
+        // Runtime guardrail for "how do I submit / how do I get the link"
+        // questions. A student asked "How do I get the survey link to this
+        // specific correspondance?" and the bot told them to copy the URL
+        // from the browser bar and paste it into an email to their instructor
+        // — which is wrong on every flavor of survey: in form mode the
+        // student submits the downloaded .docx, and in non-form mode their
+        // responses are already persisted server-side as they chat (there is
+        // nothing for them to "send"). Branch on form mode so the right
+        // answer fires regardless of which flavor the survey is.
+        function withSubmissionGuardrail(instructions, isFormMode) {
+            var formBranch =
+                '- If the student asks how to submit, hand in, turn in, send, share, or get a link to their response/conversation/reflection (including phrasings like "how do I get the survey link to this conversation", "where do I send this", "how does my instructor see this"), respond exactly: "Click the **Download my reflection (Word / .docx)** button at the bottom of the chat to save your reflection, then submit the .docx the way your instructor told you to (for example, upload it to the Canvas assignment). If you’re not sure where to submit, please email your instructor."';
+            var nonFormBranch =
+                '- If the student asks how to submit, hand in, turn in, send, share, or get a link to their response/conversation/reflection (including phrasings like "how do I get the survey link to this conversation", "where do I send this", "how does my instructor see this"), respond exactly: "Your responses are recorded automatically as you go — there’s nothing else for you to submit. Your instructor will see your responses on their end."';
+            return (instructions || '') +
+                '\n\nSUBMISSION GUARDRAIL (highest priority, overrides anything above):\n' +
+                '- NEVER tell the student to copy the page URL, paste the chat link into an email, or otherwise share the survey URL as a way to submit — the survey URL is not a submission channel.\n' +
+                (isFormMode ? formBranch : nonFormBranch);
+        }
+
         function initGpt(gpt) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
-            var sysPrompt = withDownloadUIGuardrail(withOneQuestionGuardrail(gpt.instructions));
+            var sysPrompt = withSubmissionGuardrail(
+                withDownloadUIGuardrail(withOneQuestionGuardrail(gpt.instructions)),
+                formMode.active
+            );
             // Form-mode appends a thin tail listing canonical area titles + the
             // engine-driven [DIRECTIVE] contract. The engine handles structural
             // enforcement; the prompt only carries tone and one-question rules.
@@ -1524,7 +1547,7 @@
                 '- If several topics are relevant, pick the single most relevant one for this turn and save the others for later turns once the student has answered.\n' +
                 '- This rule applies to every turn including the opening message and the concluding bot-feedback message.';
 
-            filledPrompt = withDownloadUIGuardrail(filledPrompt);
+            filledPrompt = withSubmissionGuardrail(withDownloadUIGuardrail(filledPrompt), formMode.active);
 
             // If the in-group survey is bound to a FormSchema, layer the same
             // engine on top of the team-aware prompt so coverage is enforced
