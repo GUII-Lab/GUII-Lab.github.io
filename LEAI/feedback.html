@@ -1995,7 +1995,11 @@
                     return d.Packer.toBlob(doc).then(function (blob) {
                         var a = document.createElement('a');
                         a.href = window.URL.createObjectURL(blob);
-                        a.download = 'team_reflection_' + (survey.id || 'survey') + '_' + sessionId.slice(-8) + '.docx';
+                        // In-group raw-chat fallback is always team-context
+                        // (only the in-group flow lands here), but route
+                        // through the shared helper so any future audience
+                        // signal flows through one path.
+                        a.download = _reflectionFilenameBase({ audience: 'team' }) + '.docx';
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
@@ -2909,11 +2913,38 @@
             document.body.removeChild(a);
         }
 
-        function _formModeFilenameBase() {
+        // Decide whether a download is "team" or "individual" flavored.
+        // Priority: explicit URL teamId param (display-only signal that a
+        // team launched this session) → schema-derived audience (Part 1 →
+        // individual; Parts 2 & 3 → team, inferred from title or from any
+        // section id starting with "2." or "3.") → individual default.
+        function _reflectionAudience() {
+            if (formMode.teamId) return 'team';
+            var schema = formMode.schema;
+            if (schema) {
+                var title = String(schema.title || '');
+                if (/\bteam\b|parts?\s*2/i.test(title)) return 'team';
+                if (/\bindividual\b|part\s*1/i.test(title)) return 'individual';
+                var sections = Array.isArray(schema.sections) ? schema.sections : [];
+                var hasTeamSection = sections.some(function (s) {
+                    return s && typeof s.id === 'string' && /^[23]\./.test(s.id);
+                });
+                if (hasTeamSection) return 'team';
+            }
+            return 'individual';
+        }
+
+        function _reflectionFilenameBase(opts) {
             var sessionTail = (window.sessionData && window.sessionData.sessionID || 'anon').slice(-8);
             var surveyId = (window.sessionData && window.sessionData.selectedGPTId) || 'survey';
-            var prefix = formMode.teamId ? 'team_reflection_' : 'individual_reflection_';
+            var audience = (opts && opts.audience) || (formMode.active ? _reflectionAudience() : 'team');
+            var prefix = audience === 'team' ? 'team_reflection_' : 'individual_reflection_';
             return prefix + surveyId + '_' + sessionTail;
+        }
+
+        // Kept for backward compatibility with form-mode call sites.
+        function _formModeFilenameBase() {
+            return _reflectionFilenameBase();
         }
 
         // Build the rendered file as a Blob+filename for the chosen format.
