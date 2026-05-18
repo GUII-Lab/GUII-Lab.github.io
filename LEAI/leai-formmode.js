@@ -920,27 +920,36 @@
         });
     };
 
+    // Mirror of the per-section field→JSON-key derivation. Kept as a separate
+    // helper so the critic pass (verifyMissingSlots) can map back from a JSON
+    // key to its human-readable label when re-prompting.
+    function sectionStringFieldKey(sectionId, fieldId) {
+        if (sectionId === '1.3') {
+            if (fieldId === '1.3a') return 'thought_i_knew';
+            if (fieldId === '1.3b') return 'surprised_by';
+            if (fieldId === '1.3c') return 'still_uncertain';
+        } else if (sectionId === '2.3') {
+            if (fieldId === '2.3.worked') return 'worked';
+            if (fieldId === '2.3.challenge') return 'challenge';
+            if (fieldId === '2.3.improvement') return 'improvement';
+        } else if (sectionId === '2.2' && fieldId === '2.2.equity') {
+            return 'equity';
+        }
+        return String(fieldId || '').split('.').pop().replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+
     function buildSectionJsonSchema(section) {
         var props = {};
         var required = [];
         var hasStructured = false;
+        var stringKeys = [];  // string-typed slots that need an evidence trail
         (section.fields || []).forEach(function (f) {
             if (f.kind === 'shortform') {
                 hasStructured = true;
-                var key = (f.id || f.label || 'value').split('.').pop().replace(/[^a-zA-Z0-9_]/g, '_');
-                if (section.id === '1.3') {
-                    if (f.id === '1.3a') key = 'thought_i_knew';
-                    else if (f.id === '1.3b') key = 'surprised_by';
-                    else if (f.id === '1.3c') key = 'still_uncertain';
-                } else if (section.id === '2.3') {
-                    if (f.id === '2.3.worked') key = 'worked';
-                    else if (f.id === '2.3.challenge') key = 'challenge';
-                    else if (f.id === '2.3.improvement') key = 'improvement';
-                } else if (section.id === '2.2' && f.id === '2.2.equity') {
-                    key = 'equity';
-                }
+                var key = sectionStringFieldKey(section.id, f.id);
                 props[key] = { type: 'string', description: f.label || ('Student answer: ' + key) };
                 required.push(key);
+                stringKeys.push(key);
             } else if (f.kind === 'table') {
                 hasStructured = true;
                 props.roster = {
@@ -983,6 +992,32 @@
                 description: 'A clean 2-4 sentence narrative of what the student said about this section. Use their words and meaning; smooth voice-to-text disfluencies. Do NOT invent content.'
             };
             required.push('summary');
+            stringKeys.push('summary');
+        }
+        // Sibling evidence object: for every required string slot, force the
+        // model to produce a short verbatim quote from the supporting student
+        // turn (or "" when the slot is genuinely "(not captured)"). Catches
+        // the silent-drop failure mode where weaker models reach for the
+        // "(not captured)" fallback rather than do the semantic match across
+        // multiple sub-fields in one call. See the wk6-bug-150 regression
+        // fixture for the original repro.
+        if (stringKeys.length) {
+            var evProps = {};
+            stringKeys.forEach(function (k) {
+                evProps[k] = {
+                    type: 'string',
+                    description: 'Verbatim ≤30-word snippet from the STUDENT turn that supports `' + k +
+                        '`. Empty string ONLY when `' + k + '` is "(not captured)" AND no student turn semantically addresses the field.'
+                };
+            });
+            props._evidence = {
+                type: 'object',
+                description: 'Per-field evidence trail. For every required string slot above, quote the student turn that supports your extraction (or "" if the slot is genuinely "(not captured)").',
+                properties: evProps,
+                required: stringKeys.slice(),
+                additionalProperties: false
+            };
+            required.push('_evidence');
         }
         return {
             type: 'object',
@@ -1010,11 +1045,12 @@
             'Rules:',
             '- Use the student’s own words and meaning. Smooth voice-to-text disfluencies but do NOT invent content.',
             '- For ratings: "four" or "4" both mean 4. If the student gave the rating in a separate turn from the justification, pair them by which dimension the bot most recently asked about.',
-            '- If a required field cannot be determined from this conversation, use a brief placeholder like "(not captured)" for strings. For required integer ratings where the student never stated a number, still pair the nearest dimension/justification — only fall back to a placeholder rating if the student truly never gave any 1-5 number for that dimension.',
+            '- If a required field cannot be determined from this conversation, use a brief placeholder like "(not captured)" for strings. Do NOT mark a field "(not captured)" if any student turn semantically answers it — even when the student\'s wording differs from the field label (e.g. a turn beginning "what shifted my thinking" answers a field labeled "What I was surprised by"; a turn beginning "I am still uncertain about" answers a field labeled "What I am still uncertain about"). For required integer ratings where the student never stated a number, still pair the nearest dimension/justification — only fall back to a placeholder rating if the student truly never gave any 1-5 number for that dimension.',
             '- Names: use the exact spellings the student used.',
-            '- Be inclusive when extracting: if the student says ANYTHING that addresses this section\'s opening question, capture it. The first substantive student turn after the section header (or the first turn that semantically answers the topic, when no header is present) is almost always the answer.',
+            '- Be inclusive when extracting: if the student says ANYTHING that addresses this section, capture it. For sections with a SINGLE required string field, the first substantive student turn after the section header is usually the answer. For sections with MULTIPLE required string sub-fields, DIFFERENT student turns typically answer DIFFERENT sub-fields — map each sub-field by semantic content, not by the order of turns or by exact label keywords.',
             '- The ONLY turns to skip are turns that explicitly give feedback about the chat itself (e.g. "this conversation surfaced more honest reflection than the PDF would have") — those belong to the closing-feedback step, not this section.',
             '- If the student answers with a structured "(a) ... (b) ..." or "if X then Y" form, preserve that structure verbatim in the summary.',
+            '- For each required string slot, you MUST also populate `_evidence.<slot>` with a verbatim ≤30-word snippet from the supporting STUDENT turn. The snippet may be empty ONLY when the slot value is "(not captured)" AND no student turn semantically addresses the field. A non-empty value paired with an empty snippet — or a "(not captured)" value paired with a non-empty matching snippet — are both invalid.',
             '',
             'CONVERSATION:',
             excerpt || '(no turns for this section)'
