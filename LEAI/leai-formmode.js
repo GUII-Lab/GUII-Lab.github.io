@@ -877,6 +877,13 @@
         // artifact: some models pad short answers with ~hundreds of spaces
         // and then a final "." to hit an imagined length target.
         v = v.replace(/\s{20,}[.,;:!?]?\s*$/, '');
+        // Strip a structural JSON-tail leak: some models occasionally emit a
+        // Python-repr-style dict as the slot value, with the next key from
+        // the schema (e.g. _evidence.<slot>) inlined into the string. The
+        // anchor is the literal token `_evidence` preceded by a quote-comma-
+        // quote sequence — that combination cannot occur in natural prose,
+        // so this strip is safe against false positives.
+        v = v.replace(/['"]\s*,\s*['"]_evidence\b[\s\S]*$/, '');
         // Collapse trailing whitespace.
         v = v.replace(/\s+$/, '');
         return v;
@@ -1182,6 +1189,7 @@
             '- For roster/table extractions: normalize EVERY row to third-person describing the named member, even when the student answered their own row in first person ("I contributed..." → "<name> contributed..."). The roster row must read consistently regardless of who is speaking.',
             '- For longform `summary` fields that synthesize multi-turn answers: preserve every distinct point the student made — including any concrete, observable signal, example, deadline, person, file, or behavior they offered alongside their headline answer. If the student gave both a commitment AND a concrete signal/example (e.g. "we will be diligent" + "we will add calendar checkpoints"), the summary MUST include BOTH. Length budget is flexible (2–5 sentences) — never drop a concrete signal to stay terse.',
             '- Self-check before returning a longform `summary`: re-scan every student turn that contributed to this section. If any student turn names a calendar, file, schedule, checkpoint, deadline, named meeting, percentage, number of hours, screenshot, or other concrete artifact AND that artifact is absent from your summary, revise the summary to include it. A summary that captures the abstract commitment but omits the concrete observable signal is INCOMPLETE.',
+            '- When a section contains a follow-up question that explicitly asks for an observable signal — i.e. how the student would know a commitment actually happened, or something concrete they could point to on a calendar / in their files / in a schedule — the student\'s answer to that follow-up is MANDATORY content in the `summary`. Paraphrasing it away or replacing it with a generic restatement of the commitment is a contract violation.',
             '- Free-text fields must end with normal sentence punctuation. Never pad short answers with ellipses, dot strings (". . . ."), or filler — short and substantive is correct.',
             '- For each required string slot, you MUST also populate `_evidence.<slot>` with a verbatim ≤30-word snippet from the supporting STUDENT turn. The snippet may be empty ONLY when the slot value is "(not captured)" AND no student turn semantically addresses the field. A non-empty value paired with an empty snippet — or a "(not captured)" value paired with a non-empty matching snippet — are both invalid.',
             '',
