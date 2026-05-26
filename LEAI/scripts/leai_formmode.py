@@ -75,6 +75,10 @@ class EngineState:
     awaiting_anything_else: bool = False
     closing_feedback_asked: bool = False
     turn: int = 0
+    # Canonical roster captured the first time the student lists teammates in
+    # Area 2.2. Mirrors the JS engine's `state.roster` — drives the per-member
+    # walk so the exported roster table isn't all "(not captured)".
+    roster: Optional[list[str]] = None
     # Safety net: count student turns spent on the current area. If a student
     # never says "move on" / "no" / etc., we still cap the time spent so the
     # interview can finish. See MAX_TURNS_PER_AREA.
@@ -258,6 +262,30 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
     elif not state.coverage[area["id"]].opened:
         state.coverage[area["id"]].opened = True
         directive = _dir_open_area(state, area, i, n)
+    elif (
+        area["id"] == "2.2"
+        and state.coverage[area["id"]].sub_signals.get("has_roster")
+        and state.roster
+    ):
+        # 2.2 special flow: walk member-by-member, then equity, then wrap.
+        # Without this the engine would fire _should_probe with the equity
+        # depth_probe right after the roster turn and skip every member.
+        cov22 = state.coverage[area["id"]]
+        cov22.sub_signals.setdefault("members_walked", [])
+        roster_pretty = [n for n in (state.roster or []) if n != "self"]
+        walked: list[str] = cov22.sub_signals["members_walked"]
+        if len(walked) < len(roster_pretty):
+            next_member = roster_pretty[len(walked)]
+            walked.append(next_member.lower())
+            directive = _dir_roster_walk(state, area, next_member, len(roster_pretty) - len(walked))
+        elif not cov22.sub_signals.get("equity_asked"):
+            cov22.sub_signals["equity_asked"] = True
+            directive = _dir_ask_equity(state, area)
+        elif _area_response_satisfied(state, area):
+            state.awaiting_anything_else = True
+            directive = _dir_anything_else(state, area)
+        else:
+            directive = _dir_continue_area(state, area, i, n)
     elif _should_probe(state, area, msg):
         state.coverage[area["id"]].probe_used = True
         directive = _dir_probe(state, area)
@@ -499,9 +527,80 @@ def _apply_student_response_to_coverage(state: EngineState, msg: str) -> None:
             or any(c in msg for c in (",", "–", "—", ":"))
             or bool(re.search(r"\b(and|&)\b", msg, flags=re.IGNORECASE))
         )
+        # Freeze the canonical roster the FIRST time the student lists names.
+        # Per-member walk + roster-name pinning in directives depend on this.
+        if state.roster is None:
+            extracted = _extract_roster_names(msg)
+            if extracted and len(extracted) >= 2:
+                state.roster = extracted
     elif area["id"] == "2.4":
         nums = re.findall(r"\b[1-5]\b", msg)
         cov.sub_signals["ratings_count"] = cov.sub_signals.get("ratings_count", 0) + len(nums)
+
+
+_ROSTER_STOPLIST = {
+    "i", "we", "and", "or", "the", "a", "an", "my", "our", "team", "member",
+    "members", "roster", "teammates", "plus", "including", "hi", "hello",
+    "yes", "no", "ok", "okay", "sure", "yeah", "it", "is", "are", "be", "was",
+    "so", "total", "all", "of", "us", "me", "myself",
+}
+
+
+def _extract_roster_names(msg: str) -> Optional[list[str]]:
+    """Mirror of `extractRosterNames` in leai-formmode.js.
+
+    When the message uses comma/semicolon/&/" and " delimiters, treat each
+    delimited segment as one name (possibly multi-word — "Anvitha Goli"
+    stays a single roster entry). Otherwise fall back to whitespace
+    splitting so "Emily Amy Sarah" still resolves. Adds a "self" sentinel
+    when the student includes themselves.
+    """
+    if not msg or len(msg) > 500:
+        return None
+    stripped = re.sub(r"^[\s\-—–:•]+", "", msg).strip()
+    stripped = re.sub(
+        r"^(?:it'?s|i'?m|we'?re|i\s+have|we\s+have|so\s+|on\s+my\s+team\s+(?:is|are|it'?s)?\s*)+",
+        "",
+        stripped,
+        flags=re.IGNORECASE,
+    ).strip()
+    has_self = bool(
+        re.search(r"\b(?:me|myself)\b", stripped, flags=re.IGNORECASE)
+        or re.search(r"\(\s*me\s*\)", stripped, flags=re.IGNORECASE)
+    )
+    stripped = re.sub(r"\(\s*me\s*\)", " ", stripped, flags=re.IGNORECASE)
+    has_delimiters = bool(re.search(r"[,;&]|\sand\s", stripped, flags=re.IGNORECASE))
+    segments = (
+        re.split(r"\s*[,;&]\s*|\s+and\s+", stripped, flags=re.IGNORECASE)
+        if has_delimiters
+        else stripped.split()
+    )
+    names: list[str] = []
+    for seg in segments:
+        tokens: list[str] = []
+        for raw_tok in seg.split():
+            tok = re.sub(r"[^A-Za-z'\-]", "", raw_tok)
+            if not tok:
+                continue
+            if not re.match(r"^[A-Z][a-zA-Z'\-]*$", tok):
+                continue
+            if len(tok) < 2:
+                continue
+            if tok.lower() in _ROSTER_STOPLIST:
+                continue
+            tokens.append(tok)
+        if tokens:
+            names.append(" ".join(tokens))
+    seen: dict[str, bool] = {}
+    out: list[str] = []
+    for n in names:
+        key = n.lower()
+        if not seen.get(key):
+            seen[key] = True
+            out.append(n)
+    if has_self:
+        out.append("self")
+    return out if len(out) >= 2 else None
 
 
 def _area_response_satisfied(state: EngineState, area: dict[str, Any]) -> bool:
@@ -512,7 +611,18 @@ def _area_response_satisfied(state: EngineState, area: dict[str, Any]) -> bool:
         # Spec M6: collect all five 1–5 ratings + justifications.
         return cov.sub_signals.get("ratings_count", 0) >= 5
     if area["id"] == "2.2":
-        return bool(cov.sub_signals.get("has_roster", False))
+        if not cov.sub_signals.get("has_roster", False):
+            return False
+        # Roster captured — but we still need to walk every teammate AND ask
+        # the equity question before the section is done. Without this the
+        # engine would (a) prematurely fire shouldProbe with the equity
+        # prompt as the first response after the roster and (b) leave every
+        # teammate's contribution row "(not captured)".
+        roster_pretty = [n for n in (state.roster or []) if n != "self"]
+        if not roster_pretty:
+            return True  # graceful fallback when name extraction failed
+        walked = len(cov.sub_signals.get("members_walked", []) or [])
+        return walked >= len(roster_pretty) and bool(cov.sub_signals.get("equity_asked"))
     # Sections with multiple labeled `shortform` sub-fields (e.g. 2.3
     # worked/challenge/improvement) need at least N substantive student
     # turns before we can claim coverage.
@@ -630,6 +740,42 @@ def _dir_continue_area(state: EngineState, area: dict[str, Any], i: int, n: int)
     }
 
 
+def _dir_roster_walk(state: EngineState, area: dict[str, Any], next_member: str, remaining_after: int) -> dict[str, Any]:
+    tail = (
+        f"After this teammate you still have {remaining_after} more to walk through before the equity question."
+        if remaining_after > 0
+        else "This is the last teammate before the equity question."
+    )
+    return {
+        "kind": "roster_walk",
+        "text": (
+            "[DIRECTIVE FOR THIS TURN]\n"
+            f"You captured the roster. Now walk through teammates ONE AT A TIME — this turn is about exactly ONE teammate: {next_member}.\n"
+            f"Phrasing: \"What did {next_member} primarily contribute this week?\" (rephrase tightly if needed, but the name \"{next_member}\" must appear verbatim).\n"
+            f"Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the single question about {next_member}.\n"
+            "Do NOT bundle multiple teammates. Do NOT ask the equity question yet. Do NOT advance to the next area.\n"
+            f"{tail}\n"
+            "One question only. Under 350 characters.\n"
+            f"REQUIRED: your reply MUST end with a question asking about {next_member}."
+        ),
+    }
+
+
+def _dir_ask_equity(state: EngineState, area: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "kind": "ask_equity",
+        "text": (
+            "[DIRECTIVE FOR THIS TURN]\n"
+            "Every teammate contribution is captured. Now ask the equity question — ONE question only.\n"
+            "Phrasing: \"Was the distribution of work equitable this week?\" (rephrase tightly if needed).\n"
+            "Do NOT bundle \"and if not what would you change?\" — if they answer no, you can probe in a later turn.\n"
+            "Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the equity question.\n"
+            "One question only. Under 350 characters.\n"
+            "REQUIRED: your reply MUST end with the equity question."
+        ),
+    }
+
+
 def _dir_close(state: EngineState) -> dict[str, Any]:
     closing = state.schema.get("closing", {})
     feedback = closing.get(
@@ -689,5 +835,14 @@ def _force_cover_all(state: EngineState) -> None:
             cov.sub_signals["ratings_count"] = max(cov.sub_signals.get("ratings_count", 0), 5)
         if s["id"] == "2.2":
             cov.sub_signals["has_roster"] = True
+            # _area_response_satisfied now requires the per-member walk +
+            # equity question for 2.2 — fill those so a forced close still
+            # satisfies the section.
+            roster_pretty_fc = [n for n in (state.roster or []) if n != "self"]
+            walked: list[str] = list(cov.sub_signals.get("members_walked") or [])
+            while len(walked) < len(roster_pretty_fc):
+                walked.append(roster_pretty_fc[len(walked)].lower())
+            cov.sub_signals["members_walked"] = walked
+            cov.sub_signals["equity_asked"] = True
     state.current_area_index = len(sections)
     state.awaiting_anything_else = False

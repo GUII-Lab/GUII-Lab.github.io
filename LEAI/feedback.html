@@ -948,6 +948,13 @@
             }
 
             return schemaP.then(function (schema) {
+                // FormSchema bodies are week-agnostic (one row reused across
+                // weeks 6/7/9/10), so the body's `week` is the seed week, not
+                // the survey's actual week. Prefer the FeedbackGPT row's
+                // week_number so the rendered docx header reads the right week.
+                if (gpt && gpt.week_number != null) {
+                    schema = Object.assign({}, schema, { week: gpt.week_number });
+                }
                 formMode.active = true;
                 formMode.schema = schema;
                 formMode.schemaId = schema.schema_id || schemaId;

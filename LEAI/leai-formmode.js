@@ -264,6 +264,34 @@
             } else if (!state.coverage[area.id].opened) {
                 state.coverage[area.id].opened = true;
                 directive = dirOpenArea(state, area, i, n);
+            } else if (
+                area.id === '2.2'
+                && state.coverage[area.id].sub_signals.has_roster
+                && state.roster && state.roster.length
+            ) {
+                // 2.2 has a non-standard flow: roster → walk each teammate
+                // (one per turn) → equity question → wrap-up. Without this
+                // branch the engine fires shouldProbe with the depth_probe
+                // (which IS the equity question) right after the roster turn,
+                // and the per-member contributions never get asked, so the
+                // exported table renders every row as "(not captured)".
+                var cov22 = state.coverage[area.id];
+                cov22.sub_signals.members_walked = cov22.sub_signals.members_walked || [];
+                var rosterPretty = state.roster.filter(function (n) { return n !== 'self'; });
+                var walked = cov22.sub_signals.members_walked;
+                if (walked.length < rosterPretty.length) {
+                    var nextMember = rosterPretty[walked.length];
+                    walked.push(nextMember.toLowerCase());
+                    directive = dirRosterWalk(state, area, nextMember, rosterPretty.length - walked.length);
+                } else if (!cov22.sub_signals.equity_asked) {
+                    cov22.sub_signals.equity_asked = true;
+                    directive = dirAskEquity(state, area);
+                } else if (areaResponseSatisfied(state, area)) {
+                    state.awaiting_anything_else = true;
+                    directive = dirAnythingElse(state, area);
+                } else {
+                    directive = dirContinueArea(state, area, i, n);
+                }
             } else if (shouldProbe(state, area, msg)) {
                 state.coverage[area.id].probe_used = true;
                 directive = dirProbe(state, area);
@@ -1361,36 +1389,49 @@
     // Returns canonical name strings, or null if no plausible roster
     // shape is detected.
     //
-    // Each capitalized token is treated as a separate name. We do NOT
-    // glue adjacent capitalized tokens into a multi-word name, because
-    // students often list "Emily Amy" meaning two people without a comma.
-    // Multi-word names (e.g. "Maria Garcia") are vanishingly rare in this
-    // context, so we err on the side of splitting.
+    // Splitting strategy:
+    //   - When the message contains a comma/semicolon/ampersand/" and "
+    //     delimiter, treat each delimited segment as ONE name — it may be
+    //     multi-word ("Anvitha Goli"). This is the common case once
+    //     students learn first+last is expected.
+    //   - When no such delimiter is present (e.g. "Emily Amy Sarah"),
+    //     fall back to whitespace splitting so a bare list of first names
+    //     still resolves correctly.
     function extractRosterNames(msg) {
         if (!msg || msg.length > 500) return null;
         var stripped = msg.replace(/^[\s\-—–:•]+/, '').trim();
         // Strip leading conversational noise.
         stripped = stripped.replace(/^(?:it'?s|i'?m|we'?re|i\s+have|we\s+have|so\s+|on\s+my\s+team\s+(?:is|are|it'?s)?\s*)+/i, '').trim();
-        // Find each capitalized token + flag whether "(me)" or "me"/"myself"
-        // appears anywhere in the message.
+        // Flag "(me)" or "me"/"myself" anywhere in the message.
         var hasSelf = /\b(?:me|myself)\b/i.test(stripped) || /\(\s*me\s*\)/i.test(stripped);
-        // Tokenize on whitespace + common separators (",", ";", "&", " and ")
-        var tokens = stripped
-            .replace(/\(\s*me\s*\)/ig, ' ')
-            .split(/\s*[,;&]\s*|\s+and\s+|\s+/i)
-            .map(function (t) { return t.replace(/[^A-Za-z'\-]/g, ''); })
-            .filter(Boolean);
+        stripped = stripped.replace(/\(\s*me\s*\)/ig, ' ');
         var STOPLIST = /^(I|We|And|Or|The|A|An|My|Our|Team|Member|Members|Roster|Teammates|Plus|Including|Hi|Hello|Yes|No|Ok|Okay|Sure|Yeah|It|Is|Are|Be|Was|So|Total|All|Of|Us|Me|Myself)$/i;
+        // Did the student use comma-style delimiters? If so, each segment
+        // is one name (possibly multi-word). Otherwise, fall back to the
+        // whitespace-split heuristic so "Emily Amy Sarah" still resolves.
+        var hasDelimiters = /[,;&]|\sand\s/i.test(stripped);
+        var segments = hasDelimiters
+            ? stripped.split(/\s*[,;&]\s*|\s+and\s+/i)
+            : stripped.split(/\s+/);
         var names = [];
-        tokens.forEach(function (tok) {
-            if (!/^[A-Z][a-zA-Z'\-]*$/.test(tok)) return;
-            if (tok.length < 2) return;
-            if (STOPLIST.test(tok)) return;
-            names.push(tok);
+        segments.forEach(function (seg) {
+            var partTokens = seg.split(/\s+/)
+                .map(function (t) { return t.replace(/[^A-Za-z'\-]/g, ''); })
+                .filter(function (t) {
+                    if (!t) return false;
+                    if (!/^[A-Z][a-zA-Z'\-]*$/.test(t)) return false;
+                    if (t.length < 2) return false;
+                    if (STOPLIST.test(t)) return false;
+                    return true;
+                });
+            if (partTokens.length) names.push(partTokens.join(' '));
         });
-        // Dedupe preserving order.
+        // Dedupe preserving order, case-insensitive.
         var seen = {}; var out = [];
-        names.forEach(function (n) { if (!seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); } });
+        names.forEach(function (n) {
+            var k = n.toLowerCase();
+            if (!seen[k]) { seen[k] = 1; out.push(n); }
+        });
         if (hasSelf) out.push('self');
         // Plausibility: at least 2 distinct entries.
         return out.length >= 2 ? out : null;
@@ -1406,7 +1447,16 @@
             return (cov.sub_signals.ratings_count || 0) >= 5;
         }
         if (area.id === '2.2') {
-            return !!cov.sub_signals.has_roster;
+            if (!cov.sub_signals.has_roster) return false;
+            // After the roster is captured we walk member-by-member and then
+            // ask the equity question (the schema's depth_probe). Until both
+            // are done the section isn't satisfied — without this the engine
+            // would (a) fire shouldProbe with the equity prompt right after
+            // the roster turn and (b) skip every teammate's contribution row.
+            var rosterPretty22 = (state.roster || []).filter(function (n) { return n !== 'self'; });
+            if (!rosterPretty22.length) return true;  // graceful fallback: roster extractor returned null
+            var walked22 = (cov.sub_signals.members_walked || []).length;
+            return walked22 >= rosterPretty22.length && !!cov.sub_signals.equity_asked;
         }
         // Sections with multiple labeled `shortform` sub-fields (e.g. 2.3
         // worked/challenge/improvement) need at least N substantive
@@ -1502,6 +1552,15 @@
             }
             if (s.id === '2.2') {
                 cov.sub_signals.has_roster = true;
+                // After force-cover, _area_response_satisfied now requires
+                // the per-member walk + equity_asked too — fill those so a
+                // forced close still satisfies 2.2.
+                var rosterPrettyFC = (state.roster || []).filter(function (n) { return n !== 'self'; });
+                cov.sub_signals.members_walked = (cov.sub_signals.members_walked || []).slice();
+                while (cov.sub_signals.members_walked.length < rosterPrettyFC.length) {
+                    cov.sub_signals.members_walked.push(rosterPrettyFC[cov.sub_signals.members_walked.length].toLowerCase());
+                }
+                cov.sub_signals.equity_asked = true;
             }
         }
         state.current_area_index = sections.length;
@@ -1620,6 +1679,47 @@
                 'Ask exactly one question that moves the area forward. Do NOT advance to the next area.',
                 'REQUIRED: your reply MUST contain a question (one ?). Acknowledgement-only replies stall the chat and force the student to type "what next?" — never end on an ack alone.',
                 'Under 350 characters.',
+            ]).join('\n'),
+        };
+    }
+
+    // 2.2 helper: ask about the next un-walked teammate. Drives the
+    // member-by-member contribution capture so the exported roster table
+    // isn't all "(not captured)" rows.
+    function dirRosterWalk(state, area, nextMember, remainingAfter) {
+        var tail = remainingAfter > 0
+            ? 'After this teammate you still have ' + remainingAfter + ' more to walk through before the equity question.'
+            : 'This is the last teammate before the equity question.';
+        return {
+            kind: 'roster_walk',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You captured the roster. Now walk through teammates ONE AT A TIME — this turn is about exactly ONE teammate: ' + nextMember + '.',
+                'Phrasing: "What did ' + nextMember + ' primarily contribute this week?" (rephrase tightly if needed, but the name "' + nextMember + '" must appear verbatim).',
+                'Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the single question about ' + nextMember + '.',
+                'Do NOT bundle multiple teammates. Do NOT ask the equity question yet. Do NOT advance to the next area.',
+                tail,
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with a question asking about ' + nextMember + '.',
+            ]).join('\n'),
+        };
+    }
+
+    // 2.2 helper: after every roster member has been walked, ask the
+    // equity question once. The "if not, what would you change?" trailer
+    // is intentionally NOT bundled — the prompt says to probe in the
+    // following turn only if the student answers no.
+    function dirAskEquity(state, area) {
+        return {
+            kind: 'ask_equity',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'Every teammate contribution is captured. Now ask the equity question — ONE question only.',
+                'Phrasing: "Was the distribution of work equitable this week?" (rephrase tightly if needed).',
+                'Do NOT bundle "and if not what would you change?" — if they answer no, you can probe in a later turn.',
+                'Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the equity question.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with the equity question.',
             ]).join('\n'),
         };
     }
