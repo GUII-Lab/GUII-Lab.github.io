@@ -554,6 +554,11 @@
                     .join(', ') + (state.roster.indexOf('self') !== -1 ? ', + self' : ''));
             }
             lines.push('- **Date submitted:** ' + new Date().toISOString().slice(0, 10));
+            if (opts.publicId && opts.sessionId) {
+                var convoUrlMd = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+                lines.push('- **Conversation:** [' + convoUrlMd + '](' + convoUrlMd + ')');
+            }
             lines.push('');
             lines.push('---');
             lines.push('');
@@ -630,6 +635,11 @@
                 html += '<div><strong>Team roster:</strong> ' + esc(rosterPretty) + '</div>';
             }
             html += '<div><strong>Date submitted:</strong> ' + date + '</div>';
+            if (opts.publicId && opts.sessionId) {
+                var convoUrlHtml = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+                html += '<div><strong>Conversation:</strong> <a href="' + esc(convoUrlHtml) + '">' + esc(convoUrlHtml) + '</a></div>';
+            }
             html += '</div>';
 
             schema.sections.forEach(function (s) {
@@ -848,6 +858,20 @@
             children.push(metaP('Team roster:', rosterPretty));
         }
         children.push(metaP('Date submitted:', new Date().toISOString().slice(0, 10)));
+        if (opts.publicId && opts.sessionId) {
+            var convoUrl = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+            var linkRun = d.ExternalHyperlink
+                ? new d.ExternalHyperlink({
+                    link: convoUrl,
+                    children: [new d.TextRun({ text: convoUrl, style: 'Hyperlink', color: '006493', underline: {} })],
+                  })
+                : new d.TextRun({ text: convoUrl });
+            children.push(new d.Paragraph({
+                children: [new d.TextRun({ text: 'Conversation: ', bold: true }), linkRun],
+                spacing: { after: 60 },
+            }));
+        }
         children.push(new d.Paragraph({ children: [new d.TextRun({ text: '' })], spacing: { after: 120 } }));
 
         sections.forEach(function (s) {

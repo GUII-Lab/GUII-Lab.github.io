@@ -3046,18 +3046,22 @@
         function _buildFormModeBlob(format) {
             var transcript = collectFormModeTranscript();
             var base = _formModeFilenameBase();
+            var renderOpts = {
+                sessionId: (window.sessionData && window.sessionData.sessionID) || '',
+                publicId: (new URLSearchParams(window.location.search)).get('id') || '',
+            };
             if (format === 'docx') {
-                return leaiFormMode.renderStructuredDocx(formMode.state, transcript, {})
+                return leaiFormMode.renderStructuredDocx(formMode.state, transcript, renderOpts)
                     .then(function (blob) { return { blob: blob, filename: base + '.docx' }; });
             }
             if (format === 'md') {
-                var md = leaiFormMode.renderStructuredMarkdown(formMode.state, transcript, {});
+                var md = leaiFormMode.renderStructuredMarkdown(formMode.state, transcript, renderOpts);
                 return Promise.resolve({
                     blob: new Blob([md], { type: 'text/markdown;charset=utf-8' }),
                     filename: base + '.md',
                 });
             }
-            var html = leaiFormMode.renderStructuredHtml(formMode.state, transcript, {});
+            var html = leaiFormMode.renderStructuredHtml(formMode.state, transcript, renderOpts);
             return Promise.resolve({
                 blob: new Blob([html], { type: 'text/html;charset=utf-8' }),
                 filename: base + '.html',
