@@ -177,15 +177,20 @@ def filter_since(transcripts: list[dict], since: datetime | None) -> list[dict]:
 
 
 def render_markdown(survey: dict, transcripts: list[dict]) -> str:
+    public_id = survey.get("public_id") or ""
     lines = [
         f"# Transcripts — {survey.get('name')}",
-        f"_Survey id: {survey.get('id')} · public_id: {survey.get('public_id')} · "
+        f"_Survey id: {survey.get('id')} · public_id: {public_id} · "
         f"week: {survey.get('week_number')} · sessions: {len(transcripts)}_",
         "",
     ]
     for i, t in enumerate(transcripts, 1):
-        lines.append(f"## Session {i} — `{t['session_id'][:8]}…`  ({t['msg_count']} turns)")
+        sid = t["session_id"]
+        lines.append(f"## Session {i} — `{sid[:8]}…`  ({t['msg_count']} turns)")
         lines.append(f"_started_at: {t['started_at']}_")
+        if public_id and sid and sid != "unknown":
+            link = f"https://guii-lab.github.io/LEAI/feedback.html?id={public_id}#cid={sid}"
+            lines.append(f"_link: [open conversation]({link})_")
         lines.append("")
         for turn in t["turns"]:
             tag = "**BOT**" if turn["role"] == "bot" else "**STU**"
