@@ -281,12 +281,56 @@
                 var rosterPretty = state.roster.filter(function (n) { return n !== 'self'; });
                 var walked = cov22.sub_signals.members_walked;
                 if (walked.length < rosterPretty.length) {
-                    var nextMember = rosterPretty[walked.length];
-                    walked.push(nextMember.toLowerCase());
-                    directive = dirRosterWalk(state, area, nextMember, rosterPretty.length - walked.length);
+                    // Find first un-walked member. `walked` is updated by
+                    // applyStudentResponseToCoverage based on what the
+                    // student actually named — not a blind ++counter — so
+                    // it can be sparse if the LLM ignored a previous walk
+                    // directive. Pick the first roster slot whose name
+                    // isn't in `walked` yet.
+                    var nextMember = null;
+                    for (var rpi = 0; rpi < rosterPretty.length; rpi++) {
+                        if (walked.indexOf(rosterPretty[rpi].toLowerCase()) === -1) {
+                            nextMember = rosterPretty[rpi];
+                            break;
+                        }
+                    }
+                    if (nextMember) {
+                        directive = dirRosterWalk(state, area, nextMember, rosterPretty.length - walked.length - 1);
+                    } else if (!cov22.sub_signals.equity_asked) {
+                        cov22.sub_signals.equity_asked = true;
+                        directive = dirAskEquity(state, area);
+                    } else {
+                        directive = dirContinueArea(state, area, i, n);
+                    }
                 } else if (!cov22.sub_signals.equity_asked) {
                     cov22.sub_signals.equity_asked = true;
                     directive = dirAskEquity(state, area);
+                } else if (areaResponseSatisfied(state, area)) {
+                    state.awaiting_anything_else = true;
+                    directive = dirAnythingElse(state, area);
+                } else {
+                    directive = dirContinueArea(state, area, i, n);
+                }
+            } else if (area.id === '2.4') {
+                // 2.4 has a fixed dimension-by-dimension walk. Without this
+                // branch the engine fell through to dirContinueArea, the LLM
+                // owned per-dim state, and would split each dim into two
+                // turns (justification turn → rating turn). When the student
+                // gave "5. <justification>" in one turn — the natural
+                // shape — the LLM would still re-ask the rating, the student
+                // would drift one dim ahead, and ratings/justifications could
+                // end up paired to the wrong dimension (see transcript bug
+                // 13f9adad turns 47–62). One turn per dim asks both at once.
+                var cov24 = state.coverage[area.id];
+                if (typeof cov24.sub_signals.dim_cursor !== 'number') {
+                    cov24.sub_signals.dim_cursor = 0;
+                }
+                var dims24br = (area.fields || []).filter(function (f) {
+                    return f.kind === 'rating_with_justification';
+                });
+                if (cov24.sub_signals.dim_cursor < dims24br.length) {
+                    var curDim = dims24br[cov24.sub_signals.dim_cursor];
+                    directive = dirRateAndJustify(state, area, curDim, cov24.sub_signals.dim_cursor, dims24br.length);
                 } else if (areaResponseSatisfied(state, area)) {
                     state.awaiting_anything_else = true;
                     directive = dirAnythingElse(state, area);
@@ -1374,16 +1418,82 @@
             // Now has_roster only flips when we actually have ≥2 plausible
             // names AND the message looks like a roster list rather than
             // a sentence of prose / a revision request.
+            var rosterCapturedThisTurn = false;
             if (!state.roster) {
                 var names = extractRosterNames(msg);
                 if (names && names.length >= 2) {
                     state.roster = names;
                     cov.sub_signals.has_roster = true;
+                    rosterCapturedThisTurn = true;
+                }
+            }
+            // Per-member walk: mark any roster name the student explicitly
+            // mentioned in this reply. Replaces the blind counter in the
+            // beforeTurn 2.2 branch — that one ticked walked++ every turn
+            // regardless of whether the LLM asked the target member or the
+            // student actually answered about them. The transcript bug:
+            // engine emitted walk(Alison), LLM ignored and re-asked Anvitha,
+            // engine still incremented walked → Alison/Diane/Jasmine never
+            // got asked and their rows came out "(not captured)".
+            //
+            // Skip on the roster-capture turn itself — the student just
+            // listed names with no contributions; auto-marking everyone
+            // walked from that one message would skip per-member coverage
+            // entirely and jump straight to the equity question.
+            if (state.roster && !rosterCapturedThisTurn) {
+                var rosterPretty2 = state.roster.filter(function (n) { return n !== 'self'; });
+                cov.sub_signals.members_walked = cov.sub_signals.members_walked || [];
+                var walkedArr = cov.sub_signals.members_walked;
+                rosterPretty2.forEach(function (member) {
+                    var memberKey = member.toLowerCase();
+                    if (walkedArr.indexOf(memberKey) !== -1) return;
+                    var firstName = member.split(/\s+/)[0];
+                    var nameRe = new RegExp('\\b' + escapeRegex(firstName) + '\\b', 'i');
+                    if (nameRe.test(msg)) walkedArr.push(memberKey);
+                });
+                // Fallback: if the LLM's last directive targeted a specific
+                // member and the student gave a substantive reply, accept
+                // that as coverage even if they didn't say the name out loud
+                // ("she ran the sketches", "yeah she did the report").
+                var lastDir = state.last_directive;
+                if (lastDir && lastDir.kind === 'roster_walk' && lastDir.target_member
+                        && !isNoAdditionResponse(msg) && msg.length >= 3) {
+                    var targetKey = lastDir.target_member.toLowerCase();
+                    if (walkedArr.indexOf(targetKey) === -1) walkedArr.push(targetKey);
                 }
             }
         }
         if (area.id === '2.4') {
-            // Count rating mentions (1-5).
+            // Format-agnostic rating extraction. Students may answer ANY way
+            // — "5", "5. because...", "I'd give a 4 because...", "five —
+            // we...", "because of X, I'd say 3". Pull the first 1-5 number
+            // anywhere in the message as the rating for the current dim;
+            // strip the leading rating token (if any) to recover the
+            // justification. Auto-advance dim_cursor regardless of whether
+            // the LLM split rating-vs-justification into two turns or asked
+            // for both together (the new dirRateAndJustify directive).
+            var dims24 = (area.fields || []).filter(function (f) {
+                return f.kind === 'rating_with_justification';
+            });
+            cov.sub_signals.dim_ratings = cov.sub_signals.dim_ratings || {};
+            if (typeof cov.sub_signals.dim_cursor !== 'number') {
+                cov.sub_signals.dim_cursor = 0;
+            }
+            var ratingMatch = msg.match(/\b([1-5])\b/);
+            var dimCursor = cov.sub_signals.dim_cursor;
+            if (ratingMatch && dimCursor < dims24.length && !isNoAdditionResponse(msg)) {
+                var rating = parseInt(ratingMatch[1], 10);
+                // Strip a leading "5", "5.", "5 -", "5 —", "5:" — anything
+                // that's only a number-token before the justification.
+                var justification = msg.replace(/^\s*[1-5]\s*[.,\-—–:]?\s*/, '').trim() || msg.trim();
+                cov.sub_signals.dim_ratings[dims24[dimCursor].id] = {
+                    rating: rating,
+                    justification: justification,
+                };
+                cov.sub_signals.dim_cursor = dimCursor + 1;
+            }
+            // Legacy counter kept in sync — _force_cover_all and any other
+            // caller still reads ratings_count >= 5 as "done".
             var nums = (msg.match(/\b[1-5]\b/g) || []).length;
             cov.sub_signals.ratings_count = (cov.sub_signals.ratings_count || 0) + nums;
         }
@@ -1455,10 +1565,17 @@
         var cov = state.coverage[area.id];
         if (!cov.response_received) return false;
         if (area.id === '2.4') {
-            // Spec M6: collect all five 1–5 ratings + justifications. Lowering
-            // this threshold lets the LLM declare 2.4 "done" after only a
-            // couple of ratings and skip the remaining dimensions.
-            return (cov.sub_signals.ratings_count || 0) >= 5;
+            // Spec M6: collect all dimensions' rating+justification pairs.
+            // Prefer the structured dim_cursor (one increment per captured
+            // pair via the format-agnostic parser); fall back to the legacy
+            // raw-digit count for compatibility with older transcripts /
+            // forceCoverAll() paths.
+            var dims24as = (area.fields || []).filter(function (f) {
+                return f.kind === 'rating_with_justification';
+            });
+            var need = dims24as.length || 5;
+            return (cov.sub_signals.dim_cursor || 0) >= need
+                || (cov.sub_signals.ratings_count || 0) >= need;
         }
         if (area.id === '2.2') {
             if (!cov.sub_signals.has_roster) return false;
@@ -1562,7 +1679,12 @@
             cov.opened = true;
             cov.response_received = true;
             if (s.id === '2.4') {
-                cov.sub_signals.ratings_count = Math.max(cov.sub_signals.ratings_count || 0, 5);
+                var dims24fc = (s.fields || []).filter(function (f) {
+                    return f.kind === 'rating_with_justification';
+                });
+                var need24fc = dims24fc.length || 5;
+                cov.sub_signals.ratings_count = Math.max(cov.sub_signals.ratings_count || 0, need24fc);
+                cov.sub_signals.dim_cursor = Math.max(cov.sub_signals.dim_cursor || 0, need24fc);
             }
             if (s.id === '2.2') {
                 cov.sub_signals.has_roster = true;
@@ -1691,7 +1813,8 @@
                 'You are still on Area ' + i + ' of ' + n + ': ' + area.title + '. Continue gathering substantive content for this area.',
                 'Already-asked opening question (do NOT re-ask verbatim — the student has heard it): "' + area.opening_prompt + '"',
                 'Pick a different angle: a sub-field that hasn\'t been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn\'t given. ONE question only.',
-                'Do NOT bundle the opening question with a follow-up — that produces two-question turns and overwhelms the student.',
+                'STRICT: do NOT repeat, paraphrase, restate, or echo the opening question above — it is already in the transcript. Asking a new angle means asking something genuinely different, not the opening question with new wording.',
+                'STRICT: emit EXACTLY ONE question mark ("?") in your reply. Two or more topics ending in "?" is forbidden — pick one.',
                 'Do NOT advance to the next area.',
                 'REQUIRED: your reply MUST contain a question (one ?). Acknowledgement-only replies stall the chat and force the student to type "what next?" — never end on an ack alone.',
                 'Under 350 characters.',
@@ -1708,6 +1831,7 @@
             : 'This is the last teammate before the equity question.';
         return {
             kind: 'roster_walk',
+            target_member: nextMember,
             text: withRoster(state, [
                 '[DIRECTIVE FOR THIS TURN]',
                 'You captured the roster. Now walk through teammates ONE AT A TIME — this turn is about exactly ONE teammate: ' + nextMember + '.',
@@ -1737,6 +1861,46 @@
                 'One question only. Under 350 characters.',
                 'REQUIRED: your reply MUST end with the equity question.',
             ]).join('\n'),
+        };
+    }
+
+    // 2.4 helper: ask for ONE dimension's rating + justification together in
+    // a single turn. Previously the engine had no per-dim state and the LLM
+    // would split each dim into two turns (justification first, then rating
+    // — or vice versa). When the student gave a leading rating + reason
+    // ("5. We were all on the same page...") in one turn, the LLM would
+    // still re-ask the rating, the student would drift one dim ahead, and
+    // ratings could get paired with the wrong dim's justification.
+    // Combining the ask into one turn lets the engine commit both halves
+    // from the student's single reply (any format — see the parser in
+    // applyStudentResponseToCoverage's 2.4 branch).
+    function dirRateAndJustify(state, area, dimField, dimIdx, totalDims) {
+        var dimLabel = dimField.dimension || dimField.label || dimField.id;
+        var dimNum = dimIdx + 1;
+        var cov = state.coverage[area.id];
+        var ratings = (cov && cov.sub_signals && cov.sub_signals.dim_ratings) || {};
+        var dims = (area.fields || []).filter(function (f) { return f.kind === 'rating_with_justification'; });
+        var doneLines = [];
+        for (var d = 0; d < dimIdx; d++) {
+            var df = dims[d];
+            var r = ratings[df.id];
+            if (r) doneLines.push('  [done] Dim ' + (d + 1) + ' "' + (df.dimension || df.label || df.id) + '" → ' + r.rating);
+        }
+        var prevBlock = doneLines.length ? '[ALREADY CAPTURED]\n' + doneLines.join('\n') : '';
+        return {
+            kind: 'rate_and_justify',
+            target_dim: dimField.id,
+            text: [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You are on Area 2.4, dimension ' + dimNum + ' of ' + totalDims + ': "' + dimLabel + '"',
+                prevBlock,
+                'Ask the student for BOTH a 1-5 rating AND a brief justification in ONE question, one turn. Do NOT split rating and justification into two separate turns — that causes the student to drift one dimension ahead.',
+                'Phrasing example: "For dimension ' + dimNum + ' — \'' + dimLabel + '\' — what 1-5 rating would you give it, and briefly why?"',
+                'The student may answer in ANY format — "5. because...", "I\'d give a 4 because...", "five — we...", "because of X, rate 3". The engine parses any 1-5 number in any position as the rating and captures the rest as justification. Just acknowledge and move on to the next dimension.',
+                'Brief acknowledgement of the previous dimension\'s answer (one of the allowlisted forms only) + the rate-and-justify question.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with a single question asking for both rating and justification.',
+            ].filter(function (s) { return s !== ''; }).join('\n'),
         };
     }
 

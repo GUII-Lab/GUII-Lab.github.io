@@ -275,12 +275,46 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
         roster_pretty = [n for n in (state.roster or []) if n != "self"]
         walked: list[str] = cov22.sub_signals["members_walked"]
         if len(walked) < len(roster_pretty):
-            next_member = roster_pretty[len(walked)]
-            walked.append(next_member.lower())
-            directive = _dir_roster_walk(state, area, next_member, len(roster_pretty) - len(walked))
+            # Find first un-walked member. `walked` is updated by
+            # _apply_student_response_to_coverage based on names the student
+            # actually said — not a blind ++counter — so it can be sparse if
+            # the LLM ignored a previous walk directive. Pick the first
+            # roster slot whose name isn't in `walked` yet.
+            next_member: Optional[str] = None
+            for member in roster_pretty:
+                if member.lower() not in walked:
+                    next_member = member
+                    break
+            if next_member is not None:
+                directive = _dir_roster_walk(state, area, next_member, len(roster_pretty) - len(walked) - 1)
+            elif not cov22.sub_signals.get("equity_asked"):
+                cov22.sub_signals["equity_asked"] = True
+                directive = _dir_ask_equity(state, area)
+            else:
+                directive = _dir_continue_area(state, area, i, n)
         elif not cov22.sub_signals.get("equity_asked"):
             cov22.sub_signals["equity_asked"] = True
             directive = _dir_ask_equity(state, area)
+        elif _area_response_satisfied(state, area):
+            state.awaiting_anything_else = True
+            directive = _dir_anything_else(state, area)
+        else:
+            directive = _dir_continue_area(state, area, i, n)
+    elif area["id"] == "2.4":
+        # 2.4 has a fixed dimension-by-dimension walk. Without this branch
+        # the engine fell through to _dir_continue_area, the LLM owned per-
+        # dim state, and would split each dim into two turns (justification
+        # turn → rating turn). When the student gave "5. <justification>"
+        # in one turn — the natural shape — the LLM would still re-ask the
+        # rating, the student would drift one dim ahead, and ratings could
+        # end up paired to the wrong dim. One turn per dim asks for both.
+        cov24 = state.coverage[area["id"]]
+        if not isinstance(cov24.sub_signals.get("dim_cursor"), int):
+            cov24.sub_signals["dim_cursor"] = 0
+        dims24br = [f for f in (area.get("fields") or []) if f.get("kind") == "rating_with_justification"]
+        if cov24.sub_signals["dim_cursor"] < len(dims24br):
+            cur_dim = dims24br[cov24.sub_signals["dim_cursor"]]
+            directive = _dir_rate_and_justify(state, area, cur_dim, cov24.sub_signals["dim_cursor"], len(dims24br))
         elif _area_response_satisfied(state, area):
             state.awaiting_anything_else = True
             directive = _dir_anything_else(state, area)
@@ -529,12 +563,70 @@ def _apply_student_response_to_coverage(state: EngineState, msg: str) -> None:
         # Calendar) in narrative prose. Now has_roster only flips when we
         # actually have ≥2 plausible names AND the message looks like a
         # roster list rather than a sentence of prose / a revision request.
+        roster_captured_this_turn = False
         if state.roster is None:
             extracted = _extract_roster_names(msg)
             if extracted and len(extracted) >= 2:
                 state.roster = extracted
                 cov.sub_signals["has_roster"] = True
+                roster_captured_this_turn = True
+        # Per-member walk: mark any roster name the student explicitly
+        # mentioned in this reply. Replaces the blind counter in the
+        # before_turn 2.2 branch — that one ticked walked++ every turn
+        # regardless of whether the LLM asked the target member or the
+        # student actually answered about them. Transcript repro: engine
+        # emits walk(Alison), LLM ignores and re-asks Anvitha, engine still
+        # increments walked → Alison/Diane/Jasmine never get asked.
+        #
+        # Skip on the roster-capture turn itself — the student just listed
+        # names with no contributions; auto-marking everyone walked from
+        # that one message would skip per-member coverage entirely.
+        if state.roster and not roster_captured_this_turn:
+            roster_pretty2 = [n for n in state.roster if n != "self"]
+            walked2: list[str] = list(cov.sub_signals.get("members_walked") or [])
+            for member in roster_pretty2:
+                member_key = member.lower()
+                if member_key in walked2:
+                    continue
+                first_name = member.split()[0]
+                if re.search(r"\b" + re.escape(first_name) + r"\b", msg, flags=re.IGNORECASE):
+                    walked2.append(member_key)
+            # Fallback: if the LLM's last directive targeted a specific
+            # member and the student gave a substantive reply, accept that
+            # as coverage even if they didn't say the name out loud.
+            last_dir = state.last_directive or {}
+            if (
+                last_dir.get("kind") == "roster_walk"
+                and last_dir.get("target_member")
+                and not _is_no_addition(msg)
+                and len(msg) >= 3
+            ):
+                target_key = str(last_dir["target_member"]).lower()
+                if target_key not in walked2:
+                    walked2.append(target_key)
+            cov.sub_signals["members_walked"] = walked2
     elif area["id"] == "2.4":
+        # Format-agnostic rating extraction. Students may answer in any
+        # format — "5", "5. because...", "I'd give a 4 because...",
+        # "five — we...", "because of X, rate 3". Pull the first 1-5
+        # number anywhere in the message as the rating for the current
+        # dim; strip the leading rating token (if any) to recover the
+        # justification. Auto-advance dim_cursor regardless of whether the
+        # LLM split rating-vs-justification across turns.
+        dims24 = [f for f in (area.get("fields") or []) if f.get("kind") == "rating_with_justification"]
+        cov.sub_signals.setdefault("dim_ratings", {})
+        if not isinstance(cov.sub_signals.get("dim_cursor"), int):
+            cov.sub_signals["dim_cursor"] = 0
+        rating_match = re.search(r"\b([1-5])\b", msg)
+        dim_cursor = cov.sub_signals["dim_cursor"]
+        if rating_match and dim_cursor < len(dims24) and not _is_no_addition(msg):
+            rating = int(rating_match.group(1))
+            justification = re.sub(r"^\s*[1-5]\s*[.,\-—–:]?\s*", "", msg).strip() or msg.strip()
+            cov.sub_signals["dim_ratings"][dims24[dim_cursor]["id"]] = {
+                "rating": rating,
+                "justification": justification,
+            }
+            cov.sub_signals["dim_cursor"] = dim_cursor + 1
         nums = re.findall(r"\b[1-5]\b", msg)
         cov.sub_signals["ratings_count"] = cov.sub_signals.get("ratings_count", 0) + len(nums)
 
@@ -629,8 +721,16 @@ def _area_response_satisfied(state: EngineState, area: dict[str, Any]) -> bool:
     if not cov.response_received:
         return False
     if area["id"] == "2.4":
-        # Spec M6: collect all five 1–5 ratings + justifications.
-        return cov.sub_signals.get("ratings_count", 0) >= 5
+        # Spec M6: collect all dimensions' rating+justification pairs.
+        # Prefer the structured dim_cursor (one increment per captured pair
+        # via the format-agnostic parser); fall back to the legacy raw-digit
+        # count for compatibility with older transcripts / force_cover_all.
+        dims24as = [f for f in (area.get("fields") or []) if f.get("kind") == "rating_with_justification"]
+        need = len(dims24as) or 5
+        return (
+            cov.sub_signals.get("dim_cursor", 0) >= need
+            or cov.sub_signals.get("ratings_count", 0) >= need
+        )
     if area["id"] == "2.2":
         if not cov.sub_signals.get("has_roster", False):
             return False
@@ -756,7 +856,8 @@ def _dir_continue_area(state: EngineState, area: dict[str, Any], i: int, n: int)
             f"You are still on Area {i} of {n}: {area['title']}. Continue gathering substantive content for this area.\n"
             f"Already-asked opening question (do NOT re-ask verbatim — the student has heard it): \"{area['opening_prompt']}\"\n"
             "Pick a different angle: a sub-field that hasn't been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn't given. ONE question only.\n"
-            "Do NOT bundle the opening question with a follow-up — that produces two-question turns and overwhelms the student.\n"
+            "STRICT: do NOT repeat, paraphrase, restate, or echo the opening question above — it is already in the transcript. Asking a new angle means asking something genuinely different, not the opening question with new wording.\n"
+            "STRICT: emit EXACTLY ONE question mark (\"?\") in your reply. Two or more topics ending in \"?\" is forbidden — pick one.\n"
             "Do NOT advance to the next area.\n"
             "Under 350 characters."
         ),
@@ -771,6 +872,7 @@ def _dir_roster_walk(state: EngineState, area: dict[str, Any], next_member: str,
     )
     return {
         "kind": "roster_walk",
+        "target_member": next_member,
         "text": (
             "[DIRECTIVE FOR THIS TURN]\n"
             f"You captured the roster. Now walk through teammates ONE AT A TIME — this turn is about exactly ONE teammate: {next_member}.\n"
@@ -780,6 +882,51 @@ def _dir_roster_walk(state: EngineState, area: dict[str, Any], next_member: str,
             f"{tail}\n"
             "One question only. Under 350 characters.\n"
             f"REQUIRED: your reply MUST end with a question asking about {next_member}."
+        ),
+    }
+
+
+def _dir_rate_and_justify(
+    state: EngineState,
+    area: dict[str, Any],
+    dim_field: dict[str, Any],
+    dim_idx: int,
+    total_dims: int,
+) -> dict[str, Any]:
+    """Ask for one dimension's rating + justification together in a single turn.
+
+    Replaces the old behavior where the engine had no per-dim state and the LLM
+    would split each dim across two turns (justification then rating). Students
+    who gave "5. <justification>" in one reply would still be re-asked for the
+    rating, drift one dim ahead, and end up with ratings paired to the wrong
+    dim's justification (transcript bug 13f9adad, turns 47–62).
+    """
+    cov = state.coverage[area["id"]]
+    ratings = (cov.sub_signals or {}).get("dim_ratings") or {}
+    dims = [f for f in (area.get("fields") or []) if f.get("kind") == "rating_with_justification"]
+    dim_label = dim_field.get("dimension") or dim_field.get("label") or dim_field.get("id")
+    dim_num = dim_idx + 1
+    done_lines: list[str] = []
+    for d in range(dim_idx):
+        df = dims[d]
+        r = ratings.get(df.get("id"))
+        if r:
+            lbl = df.get("dimension") or df.get("label") or df.get("id")
+            done_lines.append(f"  [done] Dim {d + 1} \"{lbl}\" → {r.get('rating')}")
+    prev_block = ("[ALREADY CAPTURED]\n" + "\n".join(done_lines) + "\n") if done_lines else ""
+    return {
+        "kind": "rate_and_justify",
+        "target_dim": dim_field.get("id"),
+        "text": (
+            "[DIRECTIVE FOR THIS TURN]\n"
+            f"You are on Area 2.4, dimension {dim_num} of {total_dims}: \"{dim_label}\"\n"
+            f"{prev_block}"
+            "Ask the student for BOTH a 1-5 rating AND a brief justification in ONE question, one turn. Do NOT split rating and justification into two separate turns — that causes the student to drift one dimension ahead.\n"
+            f"Phrasing example: \"For dimension {dim_num} — '{dim_label}' — what 1-5 rating would you give it, and briefly why?\"\n"
+            "The student may answer in ANY format — \"5. because...\", \"I'd give a 4 because...\", \"five — we...\", \"because of X, rate 3\". The engine parses any 1-5 number in any position as the rating and captures the rest as justification. Just acknowledge and move on to the next dimension.\n"
+            "Brief acknowledgement of the previous dimension's answer (one of the allowlisted forms only) + the rate-and-justify question.\n"
+            "One question only. Under 350 characters.\n"
+            "REQUIRED: your reply MUST end with a single question asking for both rating and justification."
         ),
     }
 
@@ -855,7 +1002,10 @@ def _force_cover_all(state: EngineState) -> None:
         cov.opened = True
         cov.response_received = True
         if s["id"] == "2.4":
-            cov.sub_signals["ratings_count"] = max(cov.sub_signals.get("ratings_count", 0), 5)
+            dims24fc = [f for f in (s.get("fields") or []) if f.get("kind") == "rating_with_justification"]
+            need24fc = len(dims24fc) or 5
+            cov.sub_signals["ratings_count"] = max(cov.sub_signals.get("ratings_count", 0), need24fc)
+            cov.sub_signals["dim_cursor"] = max(cov.sub_signals.get("dim_cursor", 0), need24fc)
         if s["id"] == "2.2":
             cov.sub_signals["has_roster"] = True
             # _area_response_satisfied now requires the per-member walk +
