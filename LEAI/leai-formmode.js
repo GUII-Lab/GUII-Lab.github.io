@@ -105,6 +105,7 @@
                 '- NEVER emit a section header like "Area X of N — Title" anywhere in your reply. The engine prepends section headers automatically when (and only when) advancing. Emitting your own header — including out-of-order ones — corrupts the structured reflection download.',
                 '- Section progression is strictly monotonic: 1 → 2 → 3 → ... → N. Do NOT regress to an earlier area, even if the student asks to "go back" or seems to revisit one. Acknowledge the revision in place, but stay on the current area.',
                 '- ROSTER NAMES ARE FROZEN. Once the student names their teammates (Area 2.2), refer to those exact names verbatim everywhere afterward — same spelling, same form. Do NOT substitute a similar-sounding name (e.g. "Lewis" → "Louise"), invent pronouns the student didn\'t state, or merge / split names. If a directive includes a [ROSTER] line, those names are the only acceptable references.',
+                '- 2.4 RATING ALREADY GIVEN: when a dimension\'s justification turn is answered with a leading numeric rating (e.g. "5. We were all on the same page..." or "4 — we mostly met deadlines"), that IS the rating for that dimension. Do NOT ask for the rating again — acknowledge briefly and move to the next dimension\'s justification turn (or to the 2.4 wrap-up if all five dimensions are done).',
                 '',
                 '==== METHOD-EXPLANATION REFUSAL (NON-NEGOTIABLE) ====',
                 'You MUST NOT define, summarize, explain, paraphrase, or describe how to do any method, framework, concept, or reading. This includes (non-exhaustive): affinity diagramming, thematic analysis, triangulation, observation vs. insight, contextual inquiry, journey mapping, NN/g articles, Braun & Clarke, design thinking, qualitative coding, axial coding, etc. If the student asks ANY variant of "explain X", "what does X mean", "summarize the article", "give me a quick version", "refresh me on X", "how do you do X", "what\'s the right way to do X", "I missed that lecture", "can you remind me", or similar — REFUSE.',
@@ -1365,16 +1366,20 @@
 
         // Section-specific sub-signal capture for E9 thresholds.
         if (area.id === '2.2') {
-            // Look for teammate-list patterns: comma-separated names, "X did Y",
-            // or "Member: contribution".
-            cov.sub_signals.has_roster = cov.sub_signals.has_roster ||
-                /[,–—:]/.test(msg) || /\b(and|&)\b/i.test(msg);
-            // Freeze the canonical roster the FIRST time the student lists
-            // teammate names. Subsequent directives inject these names so the
-            // bot can't drift (Lewis→Louise) or invent pronouns.
+            // Bind `has_roster` strictly to a successful extraction. The
+            // previous version flipped this from any comma/and/&/colon
+            // match — which caused state.roster to lock onto an Area-1
+            // revision message that happened to mention three capitalized
+            // tokens (Monday, Anvitha, Google Calendar) in narrative prose.
+            // Now has_roster only flips when we actually have ≥2 plausible
+            // names AND the message looks like a roster list rather than
+            // a sentence of prose / a revision request.
             if (!state.roster) {
                 var names = extractRosterNames(msg);
-                if (names && names.length >= 2) state.roster = names;
+                if (names && names.length >= 2) {
+                    state.roster = names;
+                    cov.sub_signals.has_roster = true;
+                }
             }
         }
         if (area.id === '2.4') {
@@ -1400,12 +1405,21 @@
     function extractRosterNames(msg) {
         if (!msg || msg.length > 500) return null;
         var stripped = msg.replace(/^[\s\-—–:•]+/, '').trim();
+        // Reject revision/correction messages. Students replying "oh for area
+        // 1, revise to..." or "actually I meant..." were causing the extractor
+        // to pull stray capitalized tokens (Monday, Anvitha, Google Calendar)
+        // from narrative prose and lock those onto state.roster.
+        if (/^(?:oh\s+)?(?:for\s+area|wait|hold\s+on|actually|i\s+meant|revise|rewrite)\b/i.test(stripped)) return null;
+        if (/\b(?:revise|rewrite|edit|update)\s+(?:to|that|it|my|the)\b/i.test(stripped)) return null;
+        // Multi-sentence prose (period / ! / ? followed by a capital letter)
+        // is narrative, not a roster list. A bare roster is a single sentence.
+        if (/[.!?]\s+[A-Z]/.test(stripped)) return null;
         // Strip leading conversational noise.
         stripped = stripped.replace(/^(?:it'?s|i'?m|we'?re|i\s+have|we\s+have|so\s+|on\s+my\s+team\s+(?:is|are|it'?s)?\s*)+/i, '').trim();
         // Flag "(me)" or "me"/"myself" anywhere in the message.
         var hasSelf = /\b(?:me|myself)\b/i.test(stripped) || /\(\s*me\s*\)/i.test(stripped);
         stripped = stripped.replace(/\(\s*me\s*\)/ig, ' ');
-        var STOPLIST = /^(I|We|And|Or|The|A|An|My|Our|Team|Member|Members|Roster|Teammates|Plus|Including|Hi|Hello|Yes|No|Ok|Okay|Sure|Yeah|It|Is|Are|Be|Was|So|Total|All|Of|Us|Me|Myself)$/i;
+        var STOPLIST = /^(I|We|And|Or|The|A|An|My|Our|Team|Member|Members|Roster|Teammates|Plus|Including|Hi|Hello|Yes|No|Ok|Okay|Sure|Yeah|It|Is|Are|Be|Was|So|Total|All|Of|Us|Me|Myself|Just|Only)$/i;
         // Did the student use comma-style delimiters? If so, each segment
         // is one name (possibly multi-word). Otherwise, fall back to the
         // whitespace-split heuristic so "Emily Amy Sarah" still resolves.
@@ -1454,7 +1468,7 @@
             // would (a) fire shouldProbe with the equity prompt right after
             // the roster turn and (b) skip every teammate's contribution row.
             var rosterPretty22 = (state.roster || []).filter(function (n) { return n !== 'self'; });
-            if (!rosterPretty22.length) return true;  // graceful fallback: roster extractor returned null
+            if (!rosterPretty22.length) return false;  // no usable roster → keep asking, not "graceful pass"
             var walked22 = (cov.sub_signals.members_walked || []).length;
             return walked22 >= rosterPretty22.length && !!cov.sub_signals.equity_asked;
         }
@@ -1675,8 +1689,10 @@
             text: withRoster(state, [
                 '[DIRECTIVE FOR THIS TURN]',
                 'You are still on Area ' + i + ' of ' + n + ': ' + area.title + '. Continue gathering substantive content for this area.',
-                'Reference: opening prompt was "' + area.opening_prompt + '"',
-                'Ask exactly one question that moves the area forward. Do NOT advance to the next area.',
+                'Already-asked opening question (do NOT re-ask verbatim — the student has heard it): "' + area.opening_prompt + '"',
+                'Pick a different angle: a sub-field that hasn\'t been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn\'t given. ONE question only.',
+                'Do NOT bundle the opening question with a follow-up — that produces two-question turns and overwhelms the student.',
+                'Do NOT advance to the next area.',
                 'REQUIRED: your reply MUST contain a question (one ?). Acknowledgement-only replies stall the chat and force the student to type "what next?" — never end on an ack alone.',
                 'Under 350 characters.',
             ]).join('\n'),

@@ -522,17 +522,18 @@ def _apply_student_response_to_coverage(state: EngineState, msg: str) -> None:
         cov.sub_signals["substantive_turns"] = cov.sub_signals.get("substantive_turns", 0) + 1
 
     if area["id"] == "2.2":
-        cov.sub_signals["has_roster"] = (
-            cov.sub_signals.get("has_roster", False)
-            or any(c in msg for c in (",", "–", "—", ":"))
-            or bool(re.search(r"\b(and|&)\b", msg, flags=re.IGNORECASE))
-        )
-        # Freeze the canonical roster the FIRST time the student lists names.
-        # Per-member walk + roster-name pinning in directives depend on this.
+        # Bind `has_roster` strictly to a successful extraction. The previous
+        # version flipped this from any comma/and/&/colon match, which caused
+        # state.roster to lock onto an Area-1 revision message that happened
+        # to mention three capitalized tokens (Monday, Anvitha, Google
+        # Calendar) in narrative prose. Now has_roster only flips when we
+        # actually have ≥2 plausible names AND the message looks like a
+        # roster list rather than a sentence of prose / a revision request.
         if state.roster is None:
             extracted = _extract_roster_names(msg)
             if extracted and len(extracted) >= 2:
                 state.roster = extracted
+                cov.sub_signals["has_roster"] = True
     elif area["id"] == "2.4":
         nums = re.findall(r"\b[1-5]\b", msg)
         cov.sub_signals["ratings_count"] = cov.sub_signals.get("ratings_count", 0) + len(nums)
@@ -542,7 +543,7 @@ _ROSTER_STOPLIST = {
     "i", "we", "and", "or", "the", "a", "an", "my", "our", "team", "member",
     "members", "roster", "teammates", "plus", "including", "hi", "hello",
     "yes", "no", "ok", "okay", "sure", "yeah", "it", "is", "are", "be", "was",
-    "so", "total", "all", "of", "us", "me", "myself",
+    "so", "total", "all", "of", "us", "me", "myself", "just", "only",
 }
 
 
@@ -558,6 +559,26 @@ def _extract_roster_names(msg: str) -> Optional[list[str]]:
     if not msg or len(msg) > 500:
         return None
     stripped = re.sub(r"^[\s\-—–:•]+", "", msg).strip()
+    # Reject revision/correction messages. Students replying "oh for area 1,
+    # revise to..." or "actually I meant..." were causing the extractor to
+    # pull stray capitalized tokens (Monday, Anvitha, Google Calendar) from
+    # narrative prose and lock those onto state.roster.
+    if re.match(
+        r"^(?:oh\s+)?(?:for\s+area|wait|hold\s+on|actually|i\s+meant|revise|rewrite)\b",
+        stripped,
+        flags=re.IGNORECASE,
+    ):
+        return None
+    if re.search(
+        r"\b(?:revise|rewrite|edit|update)\s+(?:to|that|it|my|the)\b",
+        stripped,
+        flags=re.IGNORECASE,
+    ):
+        return None
+    # Multi-sentence prose (period / ! / ? followed by a capital letter) is
+    # narrative, not a roster list. A bare roster is a single sentence.
+    if re.search(r"[.!?]\s+[A-Z]", stripped):
+        return None
     stripped = re.sub(
         r"^(?:it'?s|i'?m|we'?re|i\s+have|we\s+have|so\s+|on\s+my\s+team\s+(?:is|are|it'?s)?\s*)+",
         "",
@@ -620,7 +641,7 @@ def _area_response_satisfied(state: EngineState, area: dict[str, Any]) -> bool:
         # teammate's contribution row "(not captured)".
         roster_pretty = [n for n in (state.roster or []) if n != "self"]
         if not roster_pretty:
-            return True  # graceful fallback when name extraction failed
+            return False  # no usable roster → keep asking, not "graceful pass"
         walked = len(cov.sub_signals.get("members_walked", []) or [])
         return walked >= len(roster_pretty) and bool(cov.sub_signals.get("equity_asked"))
     # Sections with multiple labeled `shortform` sub-fields (e.g. 2.3
@@ -733,8 +754,10 @@ def _dir_continue_area(state: EngineState, area: dict[str, Any], i: int, n: int)
         "text": (
             "[DIRECTIVE FOR THIS TURN]\n"
             f"You are still on Area {i} of {n}: {area['title']}. Continue gathering substantive content for this area.\n"
-            f"Reference: opening prompt was \"{area['opening_prompt']}\"\n"
-            "Ask one question that moves the area forward, or briefly acknowledge if the student is mid-thought. Do NOT advance to the next area.\n"
+            f"Already-asked opening question (do NOT re-ask verbatim — the student has heard it): \"{area['opening_prompt']}\"\n"
+            "Pick a different angle: a sub-field that hasn't been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn't given. ONE question only.\n"
+            "Do NOT bundle the opening question with a follow-up — that produces two-question turns and overwhelms the student.\n"
+            "Do NOT advance to the next area.\n"
             "Under 350 characters."
         ),
     }
