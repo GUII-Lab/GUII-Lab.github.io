@@ -198,6 +198,38 @@
         @media (min-width: 480px) { .chat-footer { padding: 14px 24px 18px; } }
         @media (min-width: 768px) { .chat-footer { padding: 14px 32px 18px; } }
 
+        /* ===== REVISE HINT =====
+           Persistent one-line tip sitting just above the input area so the
+           student always knows they can edit earlier answers in natural language,
+           not just by retyping the current turn. */
+        .leai-revise-hint {
+            display: flex; align-items: flex-start; gap: 8px;
+            margin: 0 0 8px;
+            padding: 6px 10px;
+            font-size: 0.74rem; line-height: 1.5;
+            color: var(--text-variant);
+            background: rgba(0,100,147,0.04);
+            border: 1px solid rgba(0,100,147,0.10);
+            border-radius: var(--radius-sm);
+        }
+        .leai-revise-hint .revise-hint-icon {
+            flex: 0 0 auto;
+            width: 14px; height: 14px;
+            margin-top: 2px;
+            color: var(--primary);
+        }
+        .leai-revise-hint strong { color: var(--text); font-weight: 700; }
+        .leai-revise-hint em {
+            font-style: normal; font-weight: 500;
+            color: var(--text);
+            background: rgba(255,255,255,0.75);
+            padding: 0 4px; border-radius: 3px;
+            white-space: nowrap;
+        }
+        @media (max-width: 480px) {
+            .leai-revise-hint em { white-space: normal; }
+        }
+
         /* ===== INPUT AREA ===== */
         .input-area {
             display: flex; gap: 12px; align-items: flex-end;
@@ -773,6 +805,13 @@
     <!-- Sticky footer -->
     <footer class="chat-footer">
         <div class="chat-footer-inner">
+            <div class="leai-revise-hint" role="note" aria-label="Revision tip">
+                <svg class="revise-hint-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                <span><strong>You can revise or add to any answer anytime.</strong> Just tell LEAI &mdash; for example, <em>&ldquo;actually, change what I said about &hellip;&rdquo;</em>, <em>&ldquo;I want to add to my answer about &hellip;&rdquo;</em>, or <em>&ldquo;go back to your earlier question about &hellip;&rdquo;</em></span>
+            </div>
             <div class="input-area">
                 <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
                 <button id="micButton" type="button" aria-label="Dictate" aria-pressed="false" title="Dictate (click to record, click again to stop)">
@@ -1671,6 +1710,53 @@
             inputArea.appendChild(textarea);
             inputArea.appendChild(igMicBtn);
             inputArea.appendChild(sendBtn);
+
+            // Persistent revise hint — mirrors the static markup in the
+            // non-group footer so students see the same tip regardless of
+            // which survey flow rendered the shell.
+            var reviseHint = document.createElement('div');
+            reviseHint.className = 'leai-revise-hint';
+            reviseHint.setAttribute('role', 'note');
+            reviseHint.setAttribute('aria-label', 'Revision tip');
+            (function buildReviseHint() {
+                var SVG_NS = 'http://www.w3.org/2000/svg';
+                var svg = document.createElementNS(SVG_NS, 'svg');
+                svg.setAttribute('class', 'revise-hint-icon');
+                svg.setAttribute('viewBox', '0 0 24 24');
+                svg.setAttribute('fill', 'none');
+                svg.setAttribute('stroke', 'currentColor');
+                svg.setAttribute('stroke-width', '2');
+                svg.setAttribute('stroke-linecap', 'round');
+                svg.setAttribute('stroke-linejoin', 'round');
+                svg.setAttribute('aria-hidden', 'true');
+                function p(d) {
+                    var n = document.createElementNS(SVG_NS, 'path');
+                    n.setAttribute('d', d);
+                    return n;
+                }
+                svg.appendChild(p('M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7'));
+                svg.appendChild(p('M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z'));
+                reviseHint.appendChild(svg);
+
+                var span = document.createElement('span');
+                var lead = document.createElement('strong');
+                lead.textContent = 'You can revise or add to any answer anytime.';
+                span.appendChild(lead);
+                span.appendChild(document.createTextNode(' Just tell LEAI — for example, '));
+                function ex(text) {
+                    var em = document.createElement('em');
+                    em.textContent = '“' + text + '”';
+                    return em;
+                }
+                span.appendChild(ex('actually, change what I said about …'));
+                span.appendChild(document.createTextNode(', '));
+                span.appendChild(ex('I want to add to my answer about …'));
+                span.appendChild(document.createTextNode(', or '));
+                span.appendChild(ex('go back to your earlier question about …'));
+                reviseHint.appendChild(span);
+            })();
+            footerInner.appendChild(reviseHint);
+
             footerInner.appendChild(inputArea);
             footer.appendChild(footerInner);
             app.appendChild(footer);
