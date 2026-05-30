@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.6"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.6">
+    <script src="leai-tailwind-config.js?v=v0.2.7"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.7">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -67,6 +67,23 @@
             font-size: 0.68rem; font-weight: 700; color: var(--text-variant);
             text-transform: uppercase; letter-spacing: 0.09em;
         }
+
+        /* Traditional Analysis collapsible — de-emphasised vs the AI
+           Instructor Insights above, but one click away. */
+        details.trad-details { margin-bottom: 36px; border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm); background: var(--surface-low); }
+        details.trad-details > summary.trad-summary {
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            list-style: none; padding: 12px 16px; user-select: none; }
+        details.trad-details > summary.trad-summary::-webkit-details-marker { display: none; }
+        details.trad-details > summary.trad-summary::before {
+            content: '\25B8'; color: var(--muted); font-size: 0.7rem;
+            transition: transform 0.15s ease; }
+        details.trad-details[open] > summary.trad-summary::before { transform: rotate(90deg); }
+        .trad-summary-hint { font-size: 0.72rem; color: var(--muted);
+            font-weight: 400; text-transform: none; letter-spacing: 0; }
+        details.trad-details[open] > summary.trad-summary { border-bottom: 1px solid var(--surface-mid); }
+        .trad-body { padding: 14px 16px 18px; }
 
         .no-data { text-align: center; color: var(--muted); font-size: 0.88rem; padding: 40px 0; }
 
@@ -174,6 +191,42 @@
             font-size: 0.65rem; color: var(--muted); margin-top: 4px;
             letter-spacing: 0.02em; font-variant-numeric: tabular-nums;
         }
+
+        /* PDF document renderer — an uploaded reflection/form is a filled-in
+           document, not a chat, so its fields are rendered natively (text,
+           Likert scale, single-select) rather than as Student/AI bubbles. */
+        .pdf-doc { display: flex; flex-direction: column; }
+        .pdf-field { padding: 10px 0; border-bottom: 1px solid var(--surface-border); }
+        .pdf-field:last-child { border-bottom: none; }
+        .pdf-field:first-child { padding-top: 0; }
+        .pdf-q {
+            font-size: 0.78rem; font-weight: 700; color: var(--text);
+            margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+        }
+        .pdf-q .material-symbols-outlined { font-size: 16px; color: var(--muted); }
+        .pdf-a { font-size: 0.88rem; line-height: 1.55; color: var(--text); white-space: pre-wrap; }
+        /* single Likert item */
+        .pdf-likert { display: flex; gap: 5px; flex-wrap: wrap; }
+        .pdf-lk {
+            flex: 1; min-width: 70px; text-align: center; border: 1px solid var(--surface-border);
+            border-radius: 8px; padding: 6px 3px; font-size: 0.7rem; color: var(--muted);
+            background: var(--surface-card); position: relative;
+        }
+        .pdf-lk.sel { border-color: var(--primary); background: rgba(0,100,147,0.1); color: var(--primary); font-weight: 700; }
+        .pdf-lk .pdf-dot {
+            display: block; width: 12px; height: 12px; border-radius: 50%;
+            border: 2px solid var(--surface-border); margin: 0 auto 5px;
+        }
+        .pdf-lk.sel .pdf-dot { border-color: var(--primary); background: var(--primary); box-shadow: inset 0 0 0 2px #fff; }
+        /* single-select choices */
+        .pdf-choices { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pdf-choice {
+            border: 1px solid var(--surface-border); border-radius: 999px; padding: 4px 12px;
+            font-size: 0.82rem; color: var(--muted); background: var(--surface-card);
+            display: flex; align-items: center; gap: 5px;
+        }
+        .pdf-choice.sel { border-color: var(--primary); background: rgba(0,100,147,0.1); color: var(--primary); font-weight: 700; }
+        .pdf-choice .material-symbols-outlined { font-size: 15px; }
 
         /* Per-response actions toolbar — small unobtrusive row that sits at
            the top of an expanded student card. Currently holds only the
@@ -547,10 +600,17 @@
                 <!-- Stats row -->
                 <div class="stat-row" id="stats-row"></div>
 
-                <!-- Traditional Analysis -->
-                <div class="analysis-section" id="traditional-analysis-section">
-                <div class="section-header">
+                <!-- Traditional Analysis — collapsed by default; the AI
+                     Instructor Insights above are the primary read, n-gram
+                     frequency/keyness is here for those who want it. -->
+                <details class="analysis-section trad-details" id="traditional-analysis-section">
+                <summary class="trad-summary">
                     <span class="section-title">Traditional Analysis</span>
+                    <span class="trad-summary-hint">word frequency &amp; keyness</span>
+                </summary>
+                <div class="trad-body">
+                <div class="section-header" style="margin-top:6px">
+                    <span class="section-title" style="opacity:0.55;font-weight:500">N-gram terms</span>
                     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                         <div style="display:flex;align-items:center">
                             <div class="toggle" id="ngram-toggle">
@@ -571,13 +631,16 @@
                 </div>
                 <div id="ngram-chart"></div>
                 <div id="ngram-matches" style="display:none"></div>
-            </div>
+                </div>
+            </details>
 
-            <!-- AI Quick Take -->
+            <!-- Instructor Insights (AI) — two parts: "What students are
+                 saying" (descriptive themes/tensions/gaps) + "Suggested
+                 actions" (prescriptive, prioritised recommendations). -->
             <div class="analysis-section" id="quick-take-section">
                 <div class="section-header">
-                    <span class="section-title">AI Quick Take</span>
-                    <button type="button" class="info-icon info-icon--right" aria-label="About AI Quick Take" data-tooltip="AI Quick Take synthesises the student responses in the current scope into a concise set of themed bullet points, each with inline citations (e.g. [R17]) to the supporting responses.&#10;&#10;Prompt used:&#10;&quot;You are an educational data analyst helping an instructor understand patterns in anonymous student feedback. Synthesise the key themes, concerns, and insights into a concise set of bullet points. Each bullet must cite the specific response IDs that support it using [R<n>] notation. Be objective, accurate, and avoid over-generalisation.&quot;&#10;&#10;Minimum 5 responses required. 20+ recommended for reliable themes — below that, summaries may overgeneralise from a small sample.&#10;&#10;For very large scopes, responses are chunked and merged so the full corpus is considered."></button>
+                    <span class="section-title">Instructor Insights</span>
+                    <button type="button" class="info-icon info-icon--right" aria-label="About Instructor Insights" data-tooltip="Instructor Insights uses AI to turn the student responses in the current scope into what students are saying — themed bullet points and notable gaps, each with inline citations (e.g. [R17]) to the supporting responses. Every bullet shows how many students back it, so two opposing bullets read as the two sides of a disagreement with their sizes. For team surveys, each team also gets a health read and a response-completeness count flagging who still owes feedback.&#10;&#10;Minimum 5 responses required. 20+ recommended for reliable themes — below that, summaries may overgeneralise from a small sample.&#10;&#10;The strip under the title shows when it was last generated and how many responses have arrived since (and so aren't yet reflected). Click Regenerate to refresh.&#10;&#10;For very large scopes, responses are chunked and merged so the full corpus is considered."></button>
                 </div>
                 <div id="quick-take-container"></div>
             </div>
@@ -632,8 +695,8 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.6"></script>
-<script src="leai-pdf-ingest.js?v=v0.2.6"></script>
+<script src="leai-shared.js?v=v0.2.7"></script>
+<script src="leai-pdf-ingest.js?v=v0.2.7"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -1104,6 +1167,141 @@
         return '';
     }
 
+    // ===== PDF document rendering =====
+    // An uploaded reflection/form is a filled-in document, not a chat. PDF rows
+    // are stored as `Q: <title>\n\nA: <answer>` (schema fields) or as plain text
+    // (whole-page fulltext). These helpers split that back into fields and
+    // detect the field type so each renders natively instead of as a chat
+    // bubble labelled "AI". Detection is render-time and conservative: a field
+    // only becomes a Likert/choice widget when the stored value clearly is one,
+    // otherwise it stays plain text. Richer single-select (showing unselected
+    // sibling options) needs the ingest to carry the original option list — a
+    // follow-up; today only an inline, marker-delimited option list is parsed.
+
+    // Canonical scales we recognise from a stored selection value.
+    var PDF_LIKERT_SCALES = [
+        ['Strongly Disagree', 'Disagree', 'Neutral', 'Agree', 'Strongly Agree']
+    ];
+    // Synonyms that map onto a canonical scale point (lower-cased).
+    var PDF_LIKERT_SYNONYMS = {
+        'neither agree nor disagree': 'neutral',
+        'somewhat agree': 'agree',
+        'somewhat disagree': 'disagree'
+    };
+    // Markers that flag the chosen item inside an inline option list.
+    var PDF_CHOICE_MARKER = /^\s*(?:\[\s*[xX✓✔]\s*\]|\(\s*[xX✓✔]\s*\)|[☑☒●◉✅✔✓»>])\s*/;
+
+    // Split `Q: ...\n\nA: ...` into {question, answer}; plain text → answer-only.
+    function parsePdfField(content) {
+        var text = String(content == null ? '' : content);
+        var m = text.match(/^Q:\s*([\s\S]*?)\n\nA:\s*([\s\S]*)$/);
+        if (m) return { question: m[1].trim(), answer: m[2].trim() };
+        return { question: '', answer: text.trim() };
+    }
+
+    // Returns the canonical scale + selected index if `answer` is a single
+    // Likert selection, else null.
+    function detectPdfLikert(answer) {
+        var key = answer.toLowerCase().trim().replace(/\.$/, '');
+        if (PDF_LIKERT_SYNONYMS[key]) key = PDF_LIKERT_SYNONYMS[key];
+        for (var s = 0; s < PDF_LIKERT_SCALES.length; s++) {
+            var scale = PDF_LIKERT_SCALES[s];
+            for (var i = 0; i < scale.length; i++) {
+                if (scale[i].toLowerCase() === key) return { scale: scale, index: i };
+            }
+        }
+        return null;
+    }
+
+    // Returns {options:[...], selected:n} if `answer` is an inline option list
+    // with exactly one item flagged by a checkbox/marker, else null.
+    function detectPdfChoice(answer) {
+        var parts = answer.indexOf('\n') !== -1
+            ? answer.split('\n')
+            : answer.split(/\s{2,}|\s*\|\s*/);
+        var options = [], selected = -1, marked = 0;
+        for (var i = 0; i < parts.length; i++) {
+            var raw = parts[i].trim();
+            if (!raw) continue;
+            if (PDF_CHOICE_MARKER.test(raw)) { marked++; selected = options.length; raw = raw.replace(PDF_CHOICE_MARKER, '').trim(); }
+            options.push(raw);
+        }
+        if (marked === 1 && options.length >= 2) return { options: options, selected: selected };
+        return null;
+    }
+
+    function pdfFieldNode(question, body, icon) {
+        var field = document.createElement('div');
+        field.className = 'pdf-field';
+        if (question) {
+            var q = document.createElement('div');
+            q.className = 'pdf-q';
+            if (icon) {
+                var ic = document.createElement('span');
+                ic.className = 'material-symbols-outlined';
+                ic.textContent = icon;
+                q.appendChild(ic);
+            }
+            q.appendChild(document.createTextNode(question));
+            field.appendChild(q);
+        }
+        field.appendChild(body);
+        return field;
+    }
+
+    // Builds the full document node for a PDF-sourced session.
+    function renderPdfDocument(msgs) {
+        var doc = document.createElement('div');
+        doc.className = 'pdf-doc';
+        (msgs || []).forEach(function (m) {
+            if (!m || m.source !== 'pdf') return;
+            var f = parsePdfField(m.content);
+
+            var likert = detectPdfLikert(f.answer);
+            if (likert) {
+                var scaleWrap = document.createElement('div');
+                scaleWrap.className = 'pdf-likert';
+                likert.scale.forEach(function (label, i) {
+                    var opt = document.createElement('div');
+                    opt.className = 'pdf-lk' + (i === likert.index ? ' sel' : '');
+                    var dot = document.createElement('span');
+                    dot.className = 'pdf-dot';
+                    opt.appendChild(dot);
+                    opt.appendChild(document.createTextNode(label));
+                    scaleWrap.appendChild(opt);
+                });
+                doc.appendChild(pdfFieldNode(f.question, scaleWrap, 'linear_scale'));
+                return;
+            }
+
+            var choice = detectPdfChoice(f.answer);
+            if (choice) {
+                var chips = document.createElement('div');
+                chips.className = 'pdf-choices';
+                choice.options.forEach(function (label, i) {
+                    var chip = document.createElement('span');
+                    chip.className = 'pdf-choice' + (i === choice.selected ? ' sel' : '');
+                    if (i === choice.selected) {
+                        var ck = document.createElement('span');
+                        ck.className = 'material-symbols-outlined';
+                        ck.textContent = 'check';
+                        chip.appendChild(ck);
+                    }
+                    chip.appendChild(document.createTextNode(label));
+                    chips.appendChild(chip);
+                });
+                doc.appendChild(pdfFieldNode(f.question, chips, 'radio_button_checked'));
+                return;
+            }
+
+            var text = document.createElement('div');
+            text.className = 'pdf-a';
+            text.textContent = f.answer;
+            doc.appendChild(pdfFieldNode(f.question, text, f.question ? 'notes' : ''));
+        });
+        return doc;
+    }
+
     /** Briefly flash all student cards belonging to a batch — visual
      *  confirmation right after commit so the instructor can see what
      *  landed without hunting through the response list. Self-removes
@@ -1438,7 +1636,7 @@
         if (currentResponses.length < 5) {
             var disabled = document.createElement('div');
             disabled.className = 'quick-take-disabled';
-            disabled.textContent = 'AI Quick Take requires at least 5 responses (20+ recommended for reliable themes). Currently ' + currentResponses.length + ' in this scope.';
+            disabled.textContent = 'Instructor Insights requires at least 5 responses (20+ recommended for reliable themes). Currently ' + currentResponses.length + ' in this scope.';
             container.appendChild(disabled);
             return;
         }
@@ -1573,12 +1771,12 @@
         var cta = document.createElement('div');
         cta.className = 'quick-take-cta';
         var h3 = document.createElement('h3');
-        h3.textContent = 'Summarize this with AI';
+        h3.textContent = 'Generate Instructor Insights';
         var p = document.createElement('p');
-        p.textContent = 'Generate a concise AI summary of the feedback in this scope, with inline citations to student responses.';
+        p.textContent = 'AI reads the feedback in this scope and produces what students are saying — themed bullets with citations, each showing how many students back it, plus notable gaps.';
         var btn = document.createElement('button');
         btn.className = 'btn btn-sm';
-        btn.textContent = 'Generate summary';
+        btn.textContent = 'Generate insights';
         btn.setAttribute('tabindex', '0');
         btn.addEventListener('click', function () {
             generateQuickTake(container);
@@ -1631,21 +1829,83 @@
             });
     }
 
-    function renderQuickTakeLoaded(container, qt) {
-        container.textContent = '';
+    // Compact relative-time formatter for the freshness strip
+    // ("just now", "5 min ago", "3 hours ago", "2 days ago", or a date).
+    function formatRelativeTime(iso) {
+        if (!iso) return '';
+        var then = new Date(iso).getTime();
+        if (isNaN(then)) return '';
+        var secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+        if (secs < 45) return 'just now';
+        var mins = Math.round(secs / 60);
+        if (mins < 60) return mins + ' min ago';
+        var hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+        var days = Math.round(hrs / 24);
+        if (days < 7) return days + (days === 1 ? ' day ago' : ' days ago');
+        return new Date(iso).toLocaleDateString(undefined,
+            { month: 'short', day: 'numeric' });
+    }
 
-        // Drop citations that the verification pass judged as unsupported
-        // (or never returned a verdict for). Keeps supported / verified /
-        // partial. If no verification ran, leave everything untouched.
+    // Build the freshness strip: when the insight was generated + how many
+    // responses have arrived since (so the instructor knows when a
+    // regenerate is worthwhile). currentCount is the live response count for
+    // the scope being shown. Older cached rows have count_at_gen == 0; we
+    // skip the "new since" clause then since the delta isn't meaningful.
+    function buildFreshnessStrip(qt, currentCount) {
+        var strip = document.createElement('div');
+        strip.className = 'qt-freshness';
+        var when = formatRelativeTime(qt.updated_at || qt.created_at);
+        var atGen = qt.responses_count_at_generation || 0;
+        var genEl = document.createElement('span');
+        genEl.textContent = when
+            ? ('Generated ' + when + (atGen ? ' from ' + atGen + ' response' + (atGen === 1 ? '' : 's') : ''))
+            : (atGen ? 'Generated from ' + atGen + ' response' + (atGen === 1 ? '' : 's') : 'Generated');
+        strip.appendChild(genEl);
+        if (atGen > 0 && currentCount != null) {
+            var delta = currentCount - atGen;
+            if (delta > 0) {
+                var sep = document.createElement('span');
+                sep.className = 'qt-fresh-sep';
+                sep.textContent = '·';
+                strip.appendChild(sep);
+                var stale = document.createElement('span');
+                stale.className = 'qt-fresh-stale';
+                stale.textContent = delta + ' new response' + (delta === 1 ? '' : 's') + ' not yet included';
+                strip.appendChild(stale);
+            }
+        }
+        return strip;
+    }
+
+    function renderQuickTakeLoaded(container, qt, opts) {
+        container.textContent = '';
+        opts = opts || {};
+        var currentCount = (opts.currentCount != null)
+            ? opts.currentCount : currentResponses.length;
+        var onRegenerate = opts.onRegenerate || function () {
+            var sk = scopeKey();
+            leaiChat.deleteQuickTake(session.courseId, sk)
+                .then(function () { generateQuickTake(container); })
+                .catch(function () { generateQuickTake(container); });
+        };
+
+        // Drop only citations the verification pass explicitly judged
+        // `unsupported`. Keep supported/verified/partial AND any rid the
+        // verifier returned no verdict for — the backend now cites EVERY
+        // supporting response and the instructor reads that count as how many
+        // students back the claim, so an incomplete verifier pass must not
+        // silently shrink it. If no verification ran, leave everything as-is.
         if (qt.verification && qt.verification.length) {
-            var KEEP_VERDICT = { supported: 1, verified: 1, partial: 1 };
-            var keepMap = {};
+            var dropMap = {};
             qt.verification.forEach(function (v) {
-                keepMap[v.bullet_index + ':' + v.source_id] = !!KEEP_VERDICT[v.verdict];
+                if (v.verdict === 'unsupported') {
+                    dropMap[v.bullet_index + ':' + v.source_id] = 1;
+                }
             });
             (qt.bullets || []).forEach(function (b, bi) {
                 var kept = (b.cited_ids || []).filter(function (rid) {
-                    return keepMap[bi + ':' + rid];
+                    return !dropMap[bi + ':' + rid];
                 });
                 var keptSet = {};
                 kept.forEach(function (rid) { keptSet[rid] = 1; });
@@ -1675,9 +1935,11 @@
             (qt.bullets || []).forEach(function (b) {
                 (b.cited_ids || []).forEach(function (rid) { citedSet[rid] = true; });
             });
-            var corpus = leaiAnalysis.buildResponseIndex(
-                activeSurveys(), currentScope.kind, currentScope.weekNumber
-            );
+            var corpus = (opts.sourceCorpus && opts.sourceCorpus.length)
+                ? opts.sourceCorpus
+                : leaiAnalysis.buildResponseIndex(
+                    activeSurveys(), currentScope.kind, currentScope.weekNumber
+                );
             qt.sources = corpus.filter(function (r) { return citedSet[r.rid]; });
         }
         var sourceByRid = {};
@@ -1693,7 +1955,7 @@
         header.className = 'card-header';
         var titleEl = document.createElement('span');
         titleEl.style.cssText = 'font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-variant)';
-        titleEl.textContent = 'AI Quick Take';
+        titleEl.textContent = 'Instructor Insights';
 
         var actions = document.createElement('div');
         actions.className = 'card-actions';
@@ -1704,34 +1966,129 @@
         regenBtn.style.cssText = 'font-size:0.66rem;padding:4px 10px';
         regenBtn.textContent = 'Regenerate';
         regenBtn.setAttribute('tabindex', '0');
-        regenBtn.addEventListener('click', function () {
-            var sk = scopeKey();
-            leaiChat.deleteQuickTake(session.courseId, sk)
-                .then(function () {
-                    generateQuickTake(container);
-                })
-                .catch(function () {
-                    generateQuickTake(container);
-                });
-        });
+        regenBtn.addEventListener('click', onRegenerate);
         actions.appendChild(regenBtn);
 
         header.appendChild(titleEl);
         header.appendChild(actions);
         accent.appendChild(header);
 
-        // Bullets with citation pills — numbering is shared across all bullets
-        // in this Quick Take (first-appearance order), so duplicate R-ids get
-        // the same local number everywhere they appear.
+        // Freshness strip: when generated + how many responses since.
+        accent.appendChild(buildFreshnessStrip(qt, currentCount));
+
+        // Pill numbering is shared across actions + bullets (first-appearance
+        // order), so a duplicate R-id gets the same local number everywhere it
+        // appears. Computed up-front because the actions block — now rendered
+        // at the top, above the detailed view — cites rids too.
         var pillBindings = [];
         var pillAssignment = leaiAnalysis.assignPillIndices(qt.bullets || []);
+
+        // ===== TOP TIER: the takeaways =====
+        // The concise, scannable layer the instructor leads with.
+        // Suggested actions and tensions were removed: instructors prefer
+        // to pick their own actions, and the tinted bullets below — each
+        // labelled with how many students back it — convey disagreement
+        // and its size directly. Gaps (notable absences) remain as the one
+        // concise signal up top.
+
+        // Gaps — notable absences. Concise signal, kept in the top tier.
+        if (qt.gaps && qt.gaps.length) {
+            var gapsSec = document.createElement('div');
+            gapsSec.className = 'qt-section';
+            var gTitle = document.createElement('p');
+            gTitle.className = 'qt-section-title';
+            gTitle.textContent = "Gaps — what students didn't talk about";
+            gapsSec.appendChild(gTitle);
+            qt.gaps.forEach(function (g) {
+                var card = document.createElement('div');
+                card.className = 'qt-gap';
+                var topic = document.createElement('span');
+                topic.className = 'topic';
+                topic.textContent = g.topic || '';
+                card.appendChild(topic);
+                if (g.note) {
+                    var note = document.createElement('span');
+                    note.className = 'note';
+                    note.textContent = '— ' + g.note;
+                    card.appendChild(note);
+                }
+                gapsSec.appendChild(card);
+            });
+            accent.appendChild(gapsSec);
+        }
+
+        // ===== DETAILED VIEW: "What students are saying" =====
+        // The clean, quote-rich layer. Heading rendered only when there's
+        // descriptive detail below it (themed bullets / per-section / team
+        // rollup / freeform text); tensions + gaps now sit in the top tier.
+        var hasDescriptive = (qt.bullets && qt.bullets.length) ||
+            (qt.team_health && qt.team_health.length) ||
+            (qt.form_sections && qt.form_sections.length) ||
+            qt.text;
+        if (hasDescriptive) {
+            var descHead = document.createElement('div');
+            descHead.className = 'qt-insights-subhead';
+            var descAccent = document.createElement('span');
+            descAccent.className = 'qt-subhead-accent';
+            descHead.appendChild(descAccent);
+            descHead.appendChild(document.createTextNode('What students are saying'));
+            accent.appendChild(descHead);
+        }
         if (qt.bullets && qt.bullets.length) {
+            // Color-coded valence: backend tags each bullet `positive`,
+            // `negative`, `mixed`, or `neutral`. Older cached Quick Takes
+            // predate this field — treat them as neutral so the layout
+            // stays clean instead of erroring.
+            var SENT_LABELS = {
+                positive: 'Positive',
+                negative: 'Negative',
+                mixed:    'Mixed',
+            };
+            var sentimentCounts = { positive: 0, negative: 0, mixed: 0, neutral: 0 };
+            (qt.bullets || []).forEach(function (b) {
+                var s = (b && typeof b.sentiment === 'string') ? b.sentiment : 'neutral';
+                if (!(s in sentimentCounts)) s = 'neutral';
+                sentimentCounts[s]++;
+            });
+            // Legend strip — only rendered when at least one bullet is
+            // positive/negative/mixed, so neutral-only Quick Takes don't
+            // gain a meaningless label row.
+            if (sentimentCounts.positive + sentimentCounts.negative + sentimentCounts.mixed > 0) {
+                var legend = document.createElement('div');
+                legend.className = 'qt-sent-legend';
+                var legendLabel = document.createElement('span');
+                legendLabel.className = 'qt-sent-legend-label';
+                legendLabel.textContent = 'Sentiment:';
+                legend.appendChild(legendLabel);
+                ['positive', 'negative', 'mixed'].forEach(function (k) {
+                    if (!sentimentCounts[k]) return;
+                    var item = document.createElement('span');
+                    item.className = 'qt-sent-legend-item sentiment-' + k;
+                    var swatch = document.createElement('span');
+                    swatch.className = 'qt-sent-legend-swatch';
+                    item.appendChild(swatch);
+                    item.appendChild(document.createTextNode(
+                        SENT_LABELS[k] + ' (' + sentimentCounts[k] + ')'
+                    ));
+                    legend.appendChild(item);
+                });
+                accent.appendChild(legend);
+            }
             var ul = document.createElement('ul');
             ul.className = 'quick-take-bullets';
-            qt.bullets.forEach(function (b, bulletIdx) {
+            qt.bullets.forEach(function (b) {
                 var li = document.createElement('li');
+                var sentiment = (b && typeof b.sentiment === 'string') ? b.sentiment : 'neutral';
+                if (!(sentiment in sentimentCounts)) sentiment = 'neutral';
+                // Claim line: the synthesized takeaway + a "N students" count.
+                // Only this line carries the valence tint — a tight colored
+                // band, not a card — so the verbatim quotes hang below it
+                // un-tinted, preserving the clean, detailed original layout.
+                var claim = document.createElement('div');
+                claim.className = 'qt-claim';
+                if (sentiment !== 'neutral') claim.className += ' sentiment-' + sentiment;
                 var cleanText = b.text.replace(/\s*\[R\d+\]/g, '').trim();
-                li.appendChild(document.createTextNode(cleanText + ' '));
+                claim.appendChild(document.createTextNode(cleanText + ' '));
                 // Build a per-bullet rid → quote map so each pill's popover
                 // can show the specific verbatim span the model picked,
                 // rather than the full session transcript.
@@ -1741,20 +2098,61 @@
                         quoteByRid[q.rid] = q.text;
                     }
                 });
-                if (b.cited_ids && b.cited_ids.length) {
-                    b.cited_ids.forEach(function (rid) {
+                // The backend now cites EVERY supporting response, so the
+                // number of distinct cited rids is how many students are on
+                // this side. Show it as a compact "N students" chip and tuck
+                // the full pill list behind it (expand on click) — a popular
+                // claim shouldn't spray 20 pills across the panel. Reading two
+                // opposing tinted bullets and their counts replaces the old
+                // standalone Tensions section.
+                var seenRid = {};
+                var citeRids = (b.cited_ids || []).filter(function (rid) {
+                    if (seenRid[rid] || pillAssignment.ridToPill[rid] == null) return false;
+                    seenRid[rid] = 1;
+                    return true;
+                });
+                var citesWrap = null;
+                if (citeRids.length) {
+                    var countChip = document.createElement('button');
+                    countChip.type = 'button';
+                    countChip.className = 'qt-claim-count';
+                    countChip.setAttribute('aria-expanded', 'false');
+                    countChip.setAttribute('tabindex', '0');
+                    var caret = document.createElement('span');
+                    caret.className = 'qt-claim-count-caret';
+                    caret.textContent = '▸';
+                    countChip.appendChild(caret);
+                    countChip.appendChild(document.createTextNode(
+                        ' ' + citeRids.length +
+                        (citeRids.length === 1 ? ' student' : ' students')
+                    ));
+                    claim.appendChild(countChip);
+
+                    citesWrap = document.createElement('div');
+                    citesWrap.className = 'qt-cites';
+                    citesWrap.style.display = 'none';
+                    citeRids.forEach(function (rid) {
                         var localIdx = pillAssignment.ridToPill[rid];
                         var pill = leaiAnalysis.renderCitationPill(localIdx);
                         pill.title = rid;
                         pill.style.cursor = 'pointer';
-                        li.appendChild(pill);
-                        li.appendChild(document.createTextNode(' '));
+                        citesWrap.appendChild(pill);
+                        citesWrap.appendChild(document.createTextNode(' '));
                         pillBindings.push({
                             pill: pill, rid: rid,
                             quote: quoteByRid[rid] || '',
                         });
                     });
+
+                    countChip.addEventListener('click', function () {
+                        var open = citesWrap.style.display !== 'none';
+                        citesWrap.style.display = open ? 'none' : 'flex';
+                        countChip.setAttribute('aria-expanded', open ? 'false' : 'true');
+                        caret.textContent = open ? '▸' : '▾';
+                    });
                 }
+                li.appendChild(claim);
+                if (citesWrap) li.appendChild(citesWrap);
                 // Quote-led evidence (Phase 3a). Each bullet now carries
                 // verbatim spans from the cited responses; render them
                 // directly under the claim. Dedupe identical-text quotes
@@ -1866,10 +2264,15 @@
             teamSec.appendChild(teamTitle);
             var grid = document.createElement('div');
             grid.className = 'qt-team-grid';
-            // Sort: at_risk → watch → healthy → no_response (attention order)
+            // Sort: at_risk → watch → healthy → no_response (attention order),
+            // then most-missing first so under-responding teams lead within a
+            // tier (matches the backend's own ordering).
             var order = { at_risk: 0, watch: 1, healthy: 2, no_response: 3 };
             qt.team_health.slice().sort(function (a, b) {
-                return (order[a.status] || 9) - (order[b.status] || 9);
+                var d = (order[a.status] == null ? 9 : order[a.status]) -
+                        (order[b.status] == null ? 9 : order[b.status]);
+                if (d !== 0) return d;
+                return (b.missing || 0) - (a.missing || 0);
             }).forEach(function (t) {
                 var c = document.createElement('div');
                 c.className = 'qt-team-card ' + (t.status || 'healthy');
@@ -1877,6 +2280,29 @@
                 name.className = 'name';
                 name.textContent = t.team_name || '';
                 c.appendChild(name);
+                // Deterministic response completeness the backend attaches per
+                // team: how many of the roster submitted, and how many are
+                // still missing. Shown on every team with a known size; the
+                // "N missing" emphasis flags under-responding and fully-silent
+                // teams (which now appear even with zero submissions).
+                if (typeof t.expected === 'number' && t.expected > 0) {
+                    var comp = document.createElement('div');
+                    comp.className = 'qt-team-completeness';
+                    var sub = (typeof t.submitted === 'number') ? t.submitted : 0;
+                    var miss = (typeof t.missing === 'number')
+                        ? t.missing : Math.max(0, t.expected - sub);
+                    comp.appendChild(document.createTextNode(
+                        sub + ' of ' + t.expected + ' submitted'
+                    ));
+                    if (miss > 0) {
+                        comp.appendChild(document.createTextNode(' · '));
+                        var missEl = document.createElement('span');
+                        missEl.className = 'qt-team-missing';
+                        missEl.textContent = miss + ' missing';
+                        comp.appendChild(missEl);
+                    }
+                    c.appendChild(comp);
+                }
                 if (t.summary) {
                     var sm = document.createElement('div');
                     sm.className = 'summary';
@@ -1902,87 +2328,6 @@
             });
             teamSec.appendChild(grid);
             accent.appendChild(teamSec);
-        }
-
-        // Phase 5: tensions (disagreements) and gaps (notable absences).
-        // Rendered only when the backend supplied them; older Quick Takes
-        // without these fields simply skip these sections.
-        if (qt.tensions && qt.tensions.length) {
-            var tensionsSec = document.createElement('div');
-            tensionsSec.className = 'qt-section';
-            var tTitle = document.createElement('p');
-            tTitle.className = 'qt-section-title';
-            var star = document.createElement('span');
-            star.className = 'star';
-            star.textContent = '★';
-            tTitle.appendChild(star);
-            tTitle.appendChild(document.createTextNode(' Tensions — students disagree'));
-            tensionsSec.appendChild(tTitle);
-            qt.tensions.forEach(function (t) {
-                var card = document.createElement('div');
-                card.className = 'qt-tension';
-                var ttl = document.createElement('div');
-                ttl.className = 'qt-tension-title';
-                ttl.textContent = t.title || '';
-                card.appendChild(ttl);
-                if (t.sides && t.sides.length) {
-                    var grid = document.createElement('div');
-                    grid.className = 'qt-tension-sides';
-                    t.sides.forEach(function (s) {
-                        var side = document.createElement('div');
-                        side.className = 'qt-tension-side';
-                        var count = document.createElement('span');
-                        count.className = 'count';
-                        var label = (s.count != null ? s.count + ' · ' : '') + (s.stance || '');
-                        count.textContent = label;
-                        side.appendChild(count);
-                        if (s.quote && s.quote.text) {
-                            var qt2 = document.createElement('span');
-                            qt2.className = 'quote-text';
-                            qt2.textContent = '“' + s.quote.text + '”';
-                            side.appendChild(qt2);
-                            if (s.quote.rid) {
-                                var src = document.createElement('span');
-                                src.className = 'src';
-                                var srcRow = sourceByRid[s.quote.rid];
-                                var parts = [s.quote.rid];
-                                if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
-                                src.textContent = parts.join(' · ');
-                                side.appendChild(src);
-                            }
-                        }
-                        grid.appendChild(side);
-                    });
-                    card.appendChild(grid);
-                }
-                tensionsSec.appendChild(card);
-            });
-            accent.appendChild(tensionsSec);
-        }
-
-        if (qt.gaps && qt.gaps.length) {
-            var gapsSec = document.createElement('div');
-            gapsSec.className = 'qt-section';
-            var gTitle = document.createElement('p');
-            gTitle.className = 'qt-section-title';
-            gTitle.textContent = "Gaps — what students didn't talk about";
-            gapsSec.appendChild(gTitle);
-            qt.gaps.forEach(function (g) {
-                var card = document.createElement('div');
-                card.className = 'qt-gap';
-                var topic = document.createElement('span');
-                topic.className = 'topic';
-                topic.textContent = g.topic || '';
-                card.appendChild(topic);
-                if (g.note) {
-                    var note = document.createElement('span');
-                    note.className = 'note';
-                    note.textContent = '— ' + g.note;
-                    card.appendChild(note);
-                }
-                gapsSec.appendChild(card);
-            });
-            accent.appendChild(gapsSec);
         }
 
         // Sources drawer
@@ -2091,6 +2436,10 @@
         // visible AI message (same pills, same sources). The student
         // responses backing the citations are picked up by the chat's
         // scope, so the LLM can reference them in follow-up turns.
+        // Hidden for in-group insights: the follow-up chat wires to the
+        // shared-panel scope (scopeKey/activeSurveyIds), which wouldn't
+        // match a single in-group survey.
+        if (!opts.hideFollowUp) {
         var followUp = document.createElement('a');
         followUp.href = 'FeedbackChat.html';
         followUp.className = 'btn btn-outline';
@@ -2110,14 +2459,17 @@
             // Build the pill-numbered text + cited array from the current
             // render state (pillAssignment already computed above).
             var lines = [];
-            (qt.bullets || []).forEach(function (b, bi) {
-                var text = (b.text || '').replace(/\s*\[R\d+\]/g, '').trim();
-                var pills = (b.cited_ids || [])
-                    .map(function (rid) { return '[' + pillAssignment.ridToPill[rid] + ']'; })
-                    .join('');
-                lines.push('- ' + text + (pills ? ' ' + pills : ''));
-            });
-            var seedText = lines.join('\n') || (qt.text || 'Quick Take (no summary text).');
+            if (qt.bullets && qt.bullets.length) {
+                lines.push('What students are saying:');
+                (qt.bullets || []).forEach(function (b, bi) {
+                    var text = (b.text || '').replace(/\s*\[R\d+\]/g, '').trim();
+                    var pills = (b.cited_ids || [])
+                        .map(function (rid) { return '[' + pillAssignment.ridToPill[rid] + ']'; })
+                        .join('');
+                    lines.push('- ' + text + (pills ? ' ' + pills : ''));
+                });
+            }
+            var seedText = lines.join('\n') || (qt.text || 'Instructor Insights (no summary text).');
             var seedCited = pillAssignment.orderedRids.map(function (rid) {
                 return { rid: rid, pill_index: pillAssignment.ridToPill[rid] };
             });
@@ -2140,6 +2492,7 @@
                 });
         });
         accent.appendChild(followUp);
+        }
 
         card.appendChild(accent);
         container.appendChild(card);
@@ -2289,14 +2642,22 @@
             var meta = document.createElement('span');
             meta.className = 'student-card-meta';
             var weekTag = currentScope.kind === 'course' ? entry.surveyLabel + ' \u00b7 ' : '';
-            meta.textContent = weekTag + studentMsgs.length + ' message' + (studentMsgs.length !== 1 ? 's' : '');
+            // PDF-sourced sessions aren't chats \u2014 counting "messages" reads as
+            // "0 messages" since fields are role-mapped to assistant. Show the
+            // field count instead.
+            if (sessionHasPdfMessage(msgs)) {
+                var fieldCount = msgs.filter(function (m) { return m && m.source === 'pdf'; }).length;
+                meta.textContent = weekTag + 'uploaded \u00b7 ' + fieldCount + ' field' + (fieldCount !== 1 ? 's' : '');
+            } else {
+                meta.textContent = weekTag + studentMsgs.length + ' message' + (studentMsgs.length !== 1 ? 's' : '');
+            }
 
             var chevron = document.createElement('span');
             chevron.className = 'student-card-chevron';
             chevron.textContent = '\u25bc';
 
             header.appendChild(label);
-            // 📄 PDF source badge — surfaced when this session's responses
+            // PDF source badge — surfaced when this session's responses
             // came from an instructor-uploaded PDF rather than chat.
             if (sessionHasPdfMessage(msgs)) {
                 var badge = document.createElement('span');
@@ -2339,6 +2700,9 @@
                 noMsg.style.cssText = 'color:var(--muted);font-size:0.85rem;margin:0';
                 noMsg.textContent = 'No messages recorded.';
                 body.appendChild(noMsg);
+            } else if (sessionHasPdfMessage(msgs)) {
+                // Uploaded form/reflection — render its fields as a document.
+                body.appendChild(renderPdfDocument(msgs));
             } else {
                 msgs.forEach(function (m) {
                     var isStudent = isStudentMsg(m);
@@ -2917,6 +3281,13 @@
         backBtn.addEventListener('click', exitInGroupAnalysis);
         body.appendChild(backBtn);
 
+        // Instructor Insights \u2014 across-survey (all teams) AI summary +
+        // suggested actions, above the per-team grid.
+        var igInsightsWrap = document.createElement('div');
+        igInsightsWrap.style.margin = '16px 0 8px';
+        body.appendChild(igInsightsWrap);
+        renderInGroupInsights(survey, chatLog, igInsightsWrap);
+
         var grid = document.createElement('div');
         grid.className = 'team-grid';
         grid.style.marginTop = '16px';
@@ -2960,6 +3331,110 @@
             grid.appendChild(card);
         });
         body.appendChild(grid);
+    }
+
+    // ===== IN-GROUP INSTRUCTOR INSIGHTS =====
+    // Across-survey (all teams) Instructor Insights for an in-group survey,
+    // reusing the same generate/poll/render pipeline as the shared panel.
+    // The scope is the single in-group survey; the backend tags each
+    // response with its team, so team_health + actions populate.
+    function renderInGroupInsights(survey, chatLog, container) {
+        container.textContent = '';
+
+        var head = document.createElement('div');
+        head.className = 'ingroup-section-label';
+        head.style.marginBottom = '10px';
+        head.textContent = 'Instructor Insights';
+        container.appendChild(head);
+
+        var panel = document.createElement('div');
+        container.appendChild(panel);
+
+        // Rebuild a survey-shaped object from the flat chatLog so
+        // buildResponseIndex reproduces the backend's R-id numbering
+        // (sessions sorted lexically, student texts joined with " | ").
+        var igSessions = {};
+        (chatLog || []).forEach(function (m) {
+            if (m.role !== 'user') return;
+            if (!igSessions[m.session]) igSessions[m.session] = [];
+            igSessions[m.session].push({ sent_by: 'user', content: m.text });
+        });
+        var pseudoSurvey = {
+            gpt_id: survey.id,
+            week_number: survey.week_number || 0,
+            sessions: igSessions,
+        };
+        var sourceCorpus = leaiAnalysis.buildResponseIndex([pseudoSurvey], 'course');
+        var currentCount = sourceCorpus.length;
+        var sk = 'group-survey:' + survey.id;
+
+        if (currentCount < 5) {
+            var disabled = document.createElement('div');
+            disabled.className = 'quick-take-disabled';
+            disabled.textContent = 'Instructor Insights needs at least 5 responses across all teams (20+ recommended). Currently ' + currentCount + '.';
+            panel.appendChild(disabled);
+            return;
+        }
+
+        var opts = {
+            currentCount: currentCount,
+            sourceCorpus: sourceCorpus,
+            hideFollowUp: true,
+            onRegenerate: function () {
+                leaiChat.deleteQuickTake(session.courseId, sk)
+                    .then(genInGroup).catch(genInGroup);
+            },
+        };
+
+        function genInGroup() {
+            renderQuickTakeShimmer(panel);
+            leaiChat.generateQuickTake(session.courseId, sk,
+                { kind: 'custom', survey_ids: [survey.id] })
+                .then(function () {
+                    return leaiChat.pollQuickTake(session.courseId, sk,
+                        { intervalMs: 2000, timeoutMs: 300000 });
+                })
+                .then(function (qt) { renderQuickTakeLoaded(panel, qt, opts); })
+                .catch(function (err) {
+                    renderQuickTakeErrorCard(panel, err.message || 'Unknown error');
+                });
+        }
+
+        function renderCTA() {
+            panel.textContent = '';
+            var cta = document.createElement('div');
+            cta.className = 'quick-take-cta';
+            var h3 = document.createElement('h3');
+            h3.textContent = 'Generate Instructor Insights';
+            var p = document.createElement('p');
+            p.textContent = 'AI reads this survey across all teams and produces what students are saying, with per-team health and response completeness — which teams still owe feedback and how much.';
+            var btn = document.createElement('button');
+            btn.className = 'btn btn-sm';
+            btn.textContent = 'Generate insights';
+            btn.setAttribute('tabindex', '0');
+            btn.addEventListener('click', genInGroup);
+            cta.appendChild(h3);
+            cta.appendChild(p);
+            cta.appendChild(btn);
+            panel.appendChild(cta);
+        }
+
+        leaiChat.getQuickTake(session.courseId, sk)
+            .then(function (qt) {
+                if (!qt) { renderCTA(); return; }
+                if (qt.status === 'pending' || qt.status === 'running') {
+                    renderQuickTakeShimmer(panel);
+                    leaiChat.pollQuickTake(session.courseId, sk,
+                        { intervalMs: 2000, timeoutMs: 300000 })
+                        .then(function (q2) { renderQuickTakeLoaded(panel, q2, opts); })
+                        .catch(function (e) { renderQuickTakeErrorCard(panel, e.message || 'Error'); });
+                } else if (qt.status === 'failed') {
+                    renderQuickTakeErrorCard(panel, qt.error || 'Generation failed');
+                } else {
+                    renderQuickTakeLoaded(panel, qt, opts);
+                }
+            })
+            .catch(function () { renderCTA(); });
     }
 
     function summarizeTeamMessages(chatLog, sessionIds) {

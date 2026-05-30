@@ -456,13 +456,74 @@ input[type="checkbox"], input[type="radio"] {
 .quick-take .card-actions { display: flex; align-items: center; gap: 8px; }
 .quick-take-bullets { list-style: none; padding: 0; margin: 0;
     font-size: 0.84rem; line-height: 1.7; }
-.quick-take-bullets li { margin-bottom: 12px; }
-.quick-take-bullets li::before { content: '\2022 '; font-weight: 700; }
+.quick-take-bullets li { margin-bottom: 9px; }
+
+/* Sentiment tint lives on the claim line (.qt-claim) only — the synthesized
+   takeaway gets a tight green/amber/red band (same palette as qt-team-card
+   .healthy / .watch / .at_risk) while the verbatim quotes below stay
+   un-tinted, preserving the clean, detailed original layout. Kept tight
+   (small padding, slim radius) so it reads as a band, not a card. Every
+   claim shares one box (transparent border when neutral) so tinted and
+   neutral bullets stay left-aligned; the compact legend above keys the
+   colors so the signal isn't carried by color alone. */
+.qt-claim { border-left: 3px solid transparent; border-radius: 4px;
+    padding: 2px 8px 2px 9px; }
+.qt-claim::before { content: '\2022 '; font-weight: 700; }
+.qt-claim.sentiment-positive { border-left-color: #1e7d36; background: #f4fbf6; }
+.qt-claim.sentiment-negative { border-left-color: #b22222; background: #fdf6f6; }
+.qt-claim.sentiment-mixed    { border-left-color: #8a6d00; background: #fffdf6; }
+/* "N students" count chip on the claim line + the full pill list it toggles.
+   The backend cites every supporting response, so the chip's number is how
+   many students back the claim; the pills stay collapsed (display:none, flipped
+   to flex by the toggle) so a popular claim doesn't spray 20 of them inline. */
+.qt-claim-count { display: inline-flex; align-items: center; gap: 2px;
+    margin-left: 2px; padding: 0 7px; height: 18px; vertical-align: 1px;
+    border: 1px solid var(--surface-high); border-radius: 9px;
+    background: var(--surface-low); color: var(--text-variant);
+    font: inherit; font-size: 0.66rem; font-weight: 600; line-height: 1;
+    letter-spacing: 0.02em; white-space: nowrap; cursor: pointer; }
+.qt-claim-count:hover { background: var(--surface-mid); color: var(--text); }
+.qt-claim-count-caret { font-size: 0.6rem; opacity: 0.7; }
+.qt-cites { flex-wrap: wrap; align-items: center; gap: 4px 2px;
+    margin: 5px 0 2px 18px; }
+/* Legend strip above the bullets — same swatches as the bullets. */
+.qt-sent-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 4px 0 10px;
+    font-size: 0.68rem;
+    color: var(--text-variant);
+    letter-spacing: 0.04em;
+}
+.qt-sent-legend .qt-sent-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.qt-sent-legend .qt-sent-legend-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border-left: 3px solid currentColor;
+    background: currentColor;
+    opacity: 0.85;
+}
+.qt-sent-legend .qt-sent-legend-item.sentiment-positive { color: #1e7d36; }
+.qt-sent-legend .qt-sent-legend-item.sentiment-negative { color: #b22222; }
+.qt-sent-legend .qt-sent-legend-item.sentiment-mixed    { color: #8a6d00; }
+.qt-sent-legend .qt-sent-legend-label {
+    color: var(--text-variant);
+    text-transform: uppercase;
+    font-weight: 700;
+    font-size: 0.62rem;
+}
 
 /* Phase 3a / 4a: quote-led evidence inline under each bullet. Renders only
    when the bullet carries the new `quotes[]` field; older bullets fall back
    to the citation-pill-only layout. */
-.qt-quotes { margin: 6px 0 4px 18px; display: flex; flex-direction: column;
+.qt-quotes { margin: 4px 0 4px 18px; display: flex; flex-direction: column;
     gap: 5px; }
 .qt-quote { display: flex; gap: 6px; align-items: flex-start;
     font-size: 0.8rem; line-height: 1.5; color: var(--text); }
@@ -472,30 +533,13 @@ input[type="checkbox"], input[type="radio"] {
 .qt-quote-src { display: block; color: var(--muted); font-size: 0.66rem;
     margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
 
-/* Phase 5: tensions + gaps sections inside the Quick Take card. */
+/* Sections inside the Quick Take card (gaps, team health, form sections). */
 .qt-section { margin-top: 14px; padding-top: 12px;
     border-top: 1px dashed var(--surface-high); }
 .qt-section-title { font-size: 0.7rem; font-weight: 700;
     letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--text-variant); margin: 0 0 8px; display: flex; gap: 6px;
     align-items: center; }
-.qt-section-title .star { color: #6f2dbd; }
-
-.qt-tension { padding: 10px 12px; border: 1px solid var(--surface-mid);
-    border-left: 3px solid #6f2dbd; border-radius: 8px;
-    background: var(--surface-card); margin-bottom: 8px; }
-.qt-tension-title { font-size: 0.86rem; font-weight: 600; margin-bottom: 6px; }
-.qt-tension-sides { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.qt-tension-side { background: var(--surface-low); padding: 8px 10px;
-    border-radius: 6px; font-size: 0.78rem; line-height: 1.45; }
-.qt-tension-side .count { display: block; font-weight: 700;
-    font-size: 0.72rem; color: var(--text-variant); margin-bottom: 3px; }
-.qt-tension-side .stance { font-weight: 600; color: var(--text); }
-.qt-tension-side .quote-text { display: block; margin-top: 4px;
-    color: var(--text); }
-.qt-tension-side .src { display: block; color: var(--muted);
-    font-size: 0.64rem; margin-top: 3px; text-transform: uppercase;
-    letter-spacing: 0.05em; }
 
 .qt-gap { padding: 8px 12px; background: var(--surface-low);
     border: 1px dashed var(--surface-high); border-radius: 6px;
@@ -516,6 +560,12 @@ input[type="checkbox"], input[type="radio"] {
 .qt-team-card.no_response { opacity: 0.6; }
 .qt-team-card .name { font-weight: 700; font-size: 0.86rem;
     margin-bottom: 2px; }
+/* Deterministic response completeness: "M of N submitted · K missing". The
+   missing count is emphasised red so under-responding and fully-silent teams
+   read at a glance regardless of the card's qualitative health color. */
+.qt-team-completeness { font-size: 0.68rem; color: var(--text-variant);
+    margin: 2px 0 4px; letter-spacing: 0.02em; }
+.qt-team-completeness .qt-team-missing { font-weight: 700; color: #b22222; }
 .qt-team-card .summary { font-size: 0.76rem; color: var(--text-variant);
     line-height: 1.4; margin-bottom: 6px; }
 .qt-team-card .quote { font-size: 0.74rem; color: var(--text);
@@ -537,6 +587,28 @@ input[type="checkbox"], input[type="radio"] {
 .qt-fsec .quote-src { display: block; font-size: 0.66rem;
     color: var(--muted); margin-top: 3px; text-transform: uppercase;
     letter-spacing: 0.05em; }
+
+/* ===== INSTRUCTOR INSIGHTS: freshness strip + subheads ===== */
+/* Freshness strip under the panel header — when the insight was generated
+   and how many responses arrived since (i.e. weren't considered). */
+.qt-freshness { font-size: 0.7rem; color: var(--muted); margin: 2px 0 4px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    line-height: 1.4; }
+.qt-freshness .qt-fresh-sep { color: var(--surface-high); }
+/* Warning-yellow callout when newer responses aren't yet reflected. */
+.qt-freshness .qt-fresh-stale { color: #8a6d00; font-weight: 600;
+    background: #fffdf6; border: 1px solid #f0e3b8; border-radius: 999px;
+    padding: 1px 8px; }
+
+/* Section subhead: the "What students are saying" header. Larger/heavier
+   than .qt-section-title so it reads as a top-level divider. */
+.qt-insights-subhead { font-size: 0.78rem; font-weight: 700;
+    letter-spacing: 0.04em; color: var(--text); margin: 16px 0 9px;
+    padding-bottom: 6px; border-bottom: 2px solid var(--surface-high);
+    display: flex; align-items: center; gap: 8px; }
+.qt-insights-subhead:first-of-type { margin-top: 4px; }
+.qt-insights-subhead .qt-subhead-accent { width: 4px; height: 14px;
+    border-radius: 2px; background: var(--primary); display: inline-block; }
 
 /* ===== SOURCES DRAWER ===== */
 .sources-drawer { margin-top: 6px; }
@@ -1618,7 +1690,6 @@ input[type="checkbox"], input[type="radio"] {
     padding: 2px 6px; border-radius: 999px; line-height: 1;
     border: 1px solid #ddd6fe; vertical-align: middle;
 }
-.leai-pdf-badge::before { content: '📄'; font-size: 10px; }
 
 /* Source filter chip (next to existing scope chips in FeedbackAnalyzer) */
 .leai-pdf-source-filter {
@@ -1643,7 +1714,6 @@ input[type="checkbox"], input[type="radio"] {
     cursor: pointer; transition: background 0.12s, border-color 0.12s;
 }
 .leai-pdf-open-btn:hover { background: #ede9fe; border-color: #c4b5fd; }
-.leai-pdf-open-btn::before { content: '📄'; font-size: 12px; }
 
 /* ─── Mobile / narrow-viewport sweep for the PDF ingest drawer ─────────
    Optimised for touch: 44px minimum tap targets per iOS HIG, content
