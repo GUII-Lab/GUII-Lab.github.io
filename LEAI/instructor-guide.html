@@ -207,7 +207,7 @@
     <a href="#analyzer-dashboard">The Dashboard</a>
     <a href="#scope-filtering">Filtering by Scope</a>
     <a href="#traditional-analysis">Traditional Analysis (N-grams)</a>
-    <a href="#ai-quicktake">AI Quick Take</a>
+    <a href="#ai-quicktake">Instructor Insights</a>
     <a href="#student-responses">Student Responses</a>
     <a href="#feedback-chat">Feedback Chat</a>
     <a href="#chat-system-prompt">Customising the AI Prompt</a>
@@ -247,7 +247,7 @@
         <a href="#analyzer-dashboard" class="toc-link">10. The Analyzer Dashboard</a>
         <a href="#scope-filtering" class="toc-link">11. Filtering by Scope</a>
         <a href="#traditional-analysis" class="toc-link">12. Traditional Analysis (N-grams)</a>
-        <a href="#ai-quicktake" class="toc-link">13. AI Quick Take</a>
+        <a href="#ai-quicktake" class="toc-link">13. Instructor Insights</a>
         <a href="#student-responses" class="toc-link">14. Student Responses</a>
         <a href="#feedback-chat" class="toc-link">15. Feedback Chat</a>
         <a href="#chat-system-prompt" class="toc-link">16. Customising the AI Prompt</a>
@@ -615,7 +615,7 @@
 
     <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
       <li><strong>Traditional Analysis</strong> — deterministic word-frequency bars you can verify yourself (no AI involved)</li>
-      <li><strong>AI Quick Take</strong> — a one-click summary with citations so you can trace every claim back to a student response</li>
+      <li><strong>Instructor Insights</strong> — a one-click summary with citations so you can trace every claim back to a student response</li>
       <li><strong>Feedback Chat</strong> — a full chat interface where you ask free-form questions about your data and the AI answers with evidence</li>
     </ul>
 
@@ -630,7 +630,7 @@
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scope chips</strong><p>A row of buttons at the top: <strong>Entire Course</strong> plus one chip per weekly survey. Click any chip to filter everything on the page to that scope.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Stats row</strong><p>Four cards showing: total <strong>Responses</strong>, <strong>Participation</strong> percentage, <strong>Avg Words</strong> per response, and a <strong>Responses / Week</strong> sparkline so you can spot drop-offs at a glance.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Traditional Analysis</strong><p>Horizontal bar chart of the most frequent terms in student feedback. Toggle between Unigram, Bigram, and Trigram. Click any bar to see the exact responses that contain that term.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>AI Quick Take &amp; Student Responses</strong><p>Below the bars you'll find the AI-generated summary (if you've triggered one) and the full list of student responses in collapsible cards.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Instructor Insights &amp; Student Responses</strong><p>Below the bars you'll find the AI-generated summary (if you've triggered one) and the full list of student responses in collapsible cards.</p></div></div>
     </div>
 
     <div class="screenshot-wrap">
@@ -641,7 +641,7 @@
     <!-- ── Scope Filtering ── -->
     <h3 class="sub-heading" id="scope-filtering">Filtering by Scope</h3>
 
-    <p>The scope chips at the top of the dashboard control what data appears everywhere on the page — stats, n-gram bars, Quick Take, and response list all update instantly when you select a different scope.</p>
+    <p>The scope chips at the top of the dashboard control what data appears everywhere on the page — stats, n-gram bars, Instructor Insights, and response list all update instantly when you select a different scope.</p>
 
     <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
       <li><strong>Entire Course</strong> — shows every student response across all weeks. The Keyness toggle is disabled because there is no reference subset to compare against.</li>
@@ -693,22 +693,23 @@
       <p><strong>Common English words are filtered out.</strong> The n-gram analysis automatically removes stopwords like "the", "is", "and", "I", etc. so the bars show meaningful content words only.</p>
     </div>
 
-    <!-- ── AI Quick Take ── -->
-    <h3 class="sub-heading" id="ai-quicktake">AI Quick Take</h3>
+    <!-- ── Instructor Insights ── -->
+    <h3 class="sub-heading" id="ai-quicktake">Instructor Insights</h3>
 
-    <p>The AI Quick Take gives you a concise, citation-backed summary of the feedback in the current scope. Unlike the traditional analysis, this <strong>does use AI</strong> — but every claim includes numbered citations so you can verify it against the original student responses.</p>
+    <p><strong>Instructor Insights</strong> gives you a concise, citation-backed summary of the feedback in the current scope. Unlike the traditional analysis, this <strong>does use AI</strong> — but every claim includes numbered citations so you can verify it against the original student responses, and each claim shows how many students back it so a single voice is never dressed up as a class-wide theme.</p>
 
     <div class="steps">
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "Generate summary"</strong><p>The Quick Take is generated on demand — it won't run automatically. You'll see a shimmer animation while the AI processes the responses (typically 10–20 seconds).</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the bullet points</strong><p>The AI returns 8–15 themed bullet points covering recurring praise, concerns, and suggestions. Each bullet ends with numbered citation pills like <strong>[1] [2] [3]</strong>, numbered locally within this Quick Take in the order the sources are first cited — the same convention used by peer-reviewed papers.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Check the verification badge</strong><p>The top-right shows something like <strong>62/66 verified</strong>. This means a second AI pass checked each citation against the source text. Teal pills are verified; gold pills are flagged as partially supported.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a pill to read the source</strong><p>Click any numbered pill to see the underlying student response in a popover — the quoted text, the student's week, and the verification badge. The same pill number always points to the same source, so if <strong>[4]</strong> appears in two different bullets it refers to the same student.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "Generate insights"</strong><p>The summary is generated on demand — it won't run automatically. You'll see a shimmer animation while the AI processes the responses (typically 10–20 seconds).</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the themes under "What students are saying"</strong><p>The AI returns a set of themed bullet points (typically eight to fifteen) covering recurring praise, concerns, and suggestions. Each bullet is a single claim, tinted by sentiment — green for positive, red for negative, amber for mixed — with a small sentiment legend above the list.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Check how many students back each claim</strong><p>Every bullet carries a <strong>"N students"</strong> count. The AI cites <em>every</em> response that genuinely supports a claim, not just two or three examples, so the count reflects real weight — and two opposing bullets read as the two sides of a disagreement, sized by how many students are on each. Click the count to expand the underlying citation pills.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scan the "Mentioned by one student" group</strong><p>Points only a single student raised are split into their own group below the themes, flagged <em>"individual signal, not yet a class-wide theme."</em> They're kept rather than hidden — so a small class loses nothing — but a lone, vivid remark can no longer masquerade as a shared pattern. This is the safeguard against summaries over-generalising from one example.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a pill to read the source</strong><p>Expanding a claim's count reveals its numbered citation pills. Click any pill to see the underlying student response in a popover — the quoted text, the student's week, and the R-id. The same pill number always points to the same source, so if <strong>[4]</strong> appears in two different bullets it refers to the same student.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand "N sources" for the full list</strong><p>Click the <strong>▾ N sources</strong> toggle below the bullets to reveal a drawer with every cited response in order — each card shows <strong>[n] R-id · Week X</strong> followed by the response text. Clicking a pill briefly highlights its matching card so you can find it quickly.</p></div></div>
     </div>
 
     <div class="callout warn">
       <span class="callout-label">Important</span>
-      <p><strong>Minimum 5 responses required; 20+ recommended.</strong> The Quick Take will not generate below 5 responses. Between 5 and 20, summaries may overgeneralise from a small sample — treat low-N output as indicative, not conclusive. Switch to "Entire Course" scope if a single week doesn't meet the recommended threshold.</p>
+      <p><strong>Minimum 5 responses required; 20+ recommended.</strong> The summary will not generate below 5 responses. The "Mentioned by one student" group keeps a single voice from reading as a shared theme, but it can't manufacture consensus that isn't there — between 5 and 20 responses even the grouped themes rest on a thin sample, so treat low-N output as indicative, not conclusive. Switch to "Entire Course" scope if a single week doesn't meet the recommended threshold.</p>
     </div>
 
     <div class="callout info">
@@ -716,22 +717,22 @@
       <p>Pill numbers (<strong>[1] [2] [3] …</strong>) are <strong>local to each AI response</strong> and assigned in first-appearance order, like footnotes in a paper. They are <em>not</em> the same as R-ids. <strong>R-ids</strong> (R1, R2, R3 …) are the stable class-wise identifiers you'll see in the sources drawer and in the Student Responses section below — they let you trace a citation back to a specific student across the whole course.</p>
     </div>
 
-    <p>The Quick Take is <strong>cached on the server</strong> — once generated, it reloads instantly on future visits. Click <strong>Regenerate</strong> to create a fresh summary (for example, after new responses come in). Click <strong>Show prompt</strong> to see the exact instruction sent to the AI.</p>
+    <p>The summary is <strong>cached on the server</strong> — once generated, it reloads instantly on future visits. A second AI pass quietly checks each citation against its source text and drops any it can't support, so the per-claim counts you see are conservative. Click <strong>Regenerate</strong> to create a fresh summary (for example, after new responses come in). Click <strong>Show prompt</strong> to see the exact instruction sent to the AI.</p>
 
     <div class="screenshot-wrap">
-      <img src="guide-assets/analyzer-quicktake.png" alt="AI Quick Take panel showing themed bullet points with numbered citation pills in teal and a Verified badge in the top-right">
-      <div class="caption">The AI Quick Take for the full course. Each bullet summarises a theme with inline citation pills (numbered, teal = verified). The <strong>Verified</strong> badge at top-right shows how many citations passed a second-pass check.</div>
+      <img src="guide-assets/analyzer-quicktake.png" alt="Instructor Insights panel showing themed bullet points, each with a count of how many students back it and inline citation pills">
+      <div class="caption">The Instructor Insights panel for the full course. Each bullet states one theme and shows how many students back it; click the count to reveal its citation pills, and points only one student raised appear in a separate "Mentioned by one student" group.</div>
     </div>
 
     <!-- ── Student Responses ── -->
     <h3 class="sub-heading" id="student-responses">Student Responses</h3>
 
-    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card labelled with an <strong>R-id</strong> — <strong>R1, R2, R3 …</strong> — the same identifiers the AI Quick Take cites. R-ids are assigned class-wide and stay stable across scopes, so the R5 card here is the same R5 you'll see referenced in the Quick Take drawer.</p>
+    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card labelled with an <strong>R-id</strong> — <strong>R1, R2, R3 …</strong> — the same identifiers Instructor Insights cites. R-ids are assigned class-wide and stay stable across scopes, so the R5 card here is the same R5 you'll see referenced in the Instructor Insights sources drawer.</p>
 
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>Each card shows the R-id, the week, and a message count. This gives you a quick sense of participation before diving in.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click to expand</strong><p>Click any card to reveal that student's full messages. Each message is labelled <strong>STUDENT</strong> so the source is clear.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Cross-reference with the Quick Take</strong><p>When a Quick Take bullet cites a source as <strong>R12</strong>, scroll to the R12 card here to read that student's full conversation. This is useful when you want to understand the context behind a specific data point in the AI summary.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Cross-reference with Instructor Insights</strong><p>When an Instructor Insights bullet cites a source as <strong>R12</strong>, scroll to the R12 card here to read that student's full conversation. This is useful when you want to understand the context behind a specific data point in the AI summary.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the button at the top-right of the section to open every card at once for a full read-through.</p></div></div>
     </div>
 
@@ -764,7 +765,7 @@
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "+ New Chat"</strong><p>This creates a new chat session scoped to your entire course. Quick-prompt suggestions appear to help you get started — click one or type your own question.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Ask a question</strong><p>Type a question like "What are students struggling with?" or "Group the responses into clusters" and press Enter. The AI reads all student responses in scope and answers with inline numbered citations.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer uses the <strong>same citation format as the Quick Take</strong>: numbered pills in first-appearance order, a <strong>Verified X/Y</strong> badge, and an expandable <strong>N sources</strong> drawer where each card shows <strong>[n] R-id · Week X</strong>. Teal pills are verified; gold pills are partially supported. Click a pill to read the source text.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer uses the <strong>same citation format as Instructor Insights</strong>: numbered pills in first-appearance order and an expandable <strong>N sources</strong> drawer where each card shows <strong>[n] R-id · Week X</strong>. As in Instructor Insights, citations are verified against the source text behind the scenes and unsupported ones are dropped. Click a pill to read the source text.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Continue the conversation</strong><p>Ask follow-up questions in the same session. The AI remembers the context from earlier messages, so you can drill deeper ("Tell me more about the grading complaints") without repeating yourself.</p></div></div>
     </div>
 
@@ -777,7 +778,7 @@
 
     <div class="callout tip">
       <span class="callout-label">Tip</span>
-      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing the AI Quick Take, click <strong>Ask a follow-up →</strong> to open a new chat session with the Quick Take pasted in as the first AI message — pills, sources drawer, and verification badges all carry over. You can then ask follow-ups like <em>"Tell me more about [4]"</em> or <em>"Which weeks do the grading complaints cluster in?"</em> without re-pasting the analysis.</p>
+      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing Instructor Insights, click <strong>Ask a follow-up →</strong> to open a new chat session with the summary pasted in as the first AI message — pills and the sources drawer all carry over. You can then ask follow-ups like <em>"Tell me more about [4]"</em> or <em>"Which weeks do the grading complaints cluster in?"</em> without re-pasting the analysis.</p>
     </div>
 
     <div class="callout info">
@@ -886,7 +887,7 @@
     <hr class="divider">
     <h2 class="section-heading" id="pdf-ingest">Importing PDF Reflections</h2>
 
-    <p>Students who used your template-style PDF reflection (instead of submitting through LEAI chat) can still flow into your analysis surface. The Feedback Analyzer has a one-click upload path that parses each PDF, maps its sections to the survey's questions, and lands the responses alongside chat-collected ones — with a 📄 PDF badge so you always know what came from where.</p>
+    <p>Students who used your template-style PDF reflection (instead of submitting through LEAI chat) can still flow into your analysis surface. The Feedback Analyzer has a one-click upload path that parses each PDF, maps its sections to the survey's questions, and lands the responses alongside chat-collected ones — with a PDF badge so you always know what came from where.</p>
 
     <h3 class="sub-heading" id="pdf-ingest-when">When to use it</h3>
     <p>Available only on <strong>Structured Reflection</strong> (form-mode) surveys. The PDF must follow the same section headings as the survey's prompts — your template's section titles are the matcher, so keep wording consistent across cohorts.</p>
@@ -928,7 +929,7 @@
       <div class="caption">"Keep existing" is the default when a student already has a PDF on this survey — replacing data requires a deliberate click, not a stray one.</div>
     </div>
 
-    <p><strong>Step 5 — Done, with one-click revert if you misclicked.</strong> A success state confirms how many responses landed. The new responses appear immediately in the analyzer below, carrying a 📄 PDF badge so you can always tell PDF-derived responses from chat ones. AI Quick Take regenerates on next view to include them.</p>
+    <p><strong>Step 5 — Done, with one-click revert if you misclicked.</strong> A success state confirms how many responses landed. The new responses appear immediately in the analyzer below, carrying a PDF badge so you can always tell PDF-derived responses from chat ones. Instructor Insights regenerates on next view to include them.</p>
 
     <div class="screenshot-wrap">
       <img src="guide-assets/pdf-ingest-success.png" alt="Success state with green check icon and the text Added 7 responses from 2 students, plus a Done button">
@@ -939,13 +940,13 @@
 
     <div class="screenshot-wrap">
       <img src="guide-assets/pdf-ingest-after-commit.png" alt="Feedback Analyzer after commit showing a Recent PDF uploads (1) panel with 2 students · 7 responses and a Revert button on the right">
-      <div class="caption">The Recent PDF uploads panel lists every batch with a Revert button. Quick Take refreshes on next view to include the new responses.</div>
+      <div class="caption">The Recent PDF uploads panel lists every batch with a Revert button. Instructor Insights refreshes on next view to include the new responses.</div>
     </div>
 
     <h3 class="sub-heading" id="pdf-ingest-safety">Safety</h3>
     <ul class="bullet-list">
       <li><strong>Nothing is destructive without your explicit choice.</strong> Replacing existing data requires you to pick "Replace existing" — the default is to keep what's already there.</li>
-      <li><strong>Every batch is revertable.</strong> Until you actually delete the manifest row, any commit can be undone with one click. Quick Take refreshes automatically.</li>
+      <li><strong>Every batch is revertable.</strong> Until you actually delete the manifest row, any commit can be undone with one click. Instructor Insights refreshes automatically.</li>
       <li><strong>Edits auto-save.</strong> If you close the drawer mid-review, your typed corrections are preserved and restored when you reopen — for up to 7 days.</li>
       <li><strong>Original PDFs are never stored.</strong> The server reads the text and discards the PDF binary; only the extracted answers (per-student, per-prompt) live in the database.</li>
     </ul>
