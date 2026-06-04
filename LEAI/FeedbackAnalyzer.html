@@ -227,6 +227,28 @@
         }
         .pdf-choice.sel { border-color: var(--primary); background: rgba(0,100,147,0.1); color: var(--primary); font-weight: 700; }
         .pdf-choice .material-symbols-outlined { font-size: 15px; }
+        /* Likert matrix table (N statements × 1–M rating + justification) */
+        .pdf-grid { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 2px; }
+        .pdf-grid th, .pdf-grid td {
+            padding: 8px 10px; border-bottom: 1px solid var(--surface-border);
+            text-align: left; vertical-align: top; color: var(--text);
+        }
+        .pdf-grid thead th { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+        .pdf-grid-stmt { width: 28%; font-weight: 600; }
+        .pdf-grid-rating { width: 110px; text-align: center; }
+        .pdf-grid-just { color: var(--text-variant, #475569); }
+        .pdf-grid-dots { display: flex; gap: 3px; justify-content: center; margin-bottom: 3px; }
+        .pdf-grid-dot { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--surface-border); background: transparent; }
+        .pdf-grid-dot.on { background: var(--primary); border-color: var(--primary); }
+        .pdf-grid-num { font-size: 0.78rem; font-weight: 700; color: var(--primary); }
+        /* Generic 2-col prompt/response table */
+        .pdf-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 2px; }
+        .pdf-table td {
+            padding: 8px 10px; border-bottom: 1px solid var(--surface-border);
+            text-align: left; vertical-align: top; color: var(--text);
+        }
+        .pdf-table .pdf-table-label { width: 32%; font-weight: 600; color: var(--text); }
+        .pdf-table .pdf-table-value { color: var(--text-variant, #475569); }
 
         /* Per-response actions toolbar — small unobtrusive row that sits at
            the top of an expanded student card. Currently holds only the
@@ -1199,6 +1221,74 @@
         return { question: '', answer: text.trim() };
     }
 
+    // Split one Markdown pipe-table row into trimmed cell strings, honouring
+    // `\|` escapes the backend writes for literal pipes inside a cell. Avoids
+    // regex lookbehind so it behaves identically in Chromium and WebKit.
+    function parseMdRow(line) {
+        var s = line.trim();
+        if (s.charAt(0) === '|') s = s.slice(1);
+        if (s.charAt(s.length - 1) === '|') s = s.slice(0, -1);
+        var cells = [], cur = '';
+        for (var i = 0; i < s.length; i++) {
+            var ch = s.charAt(i);
+            if (ch === '\\' && s.charAt(i + 1) === '|') { cur += '|'; i++; }
+            else if (ch === '|') { cells.push(cur); cur = ''; }
+            else cur += ch;
+        }
+        cells.push(cur);
+        return cells.map(function (c) { return c.trim(); });
+    }
+
+    // Returns {before, header:[...], rows:[[...]], ratingCol, ratingMax, after}
+    // when `answer` contains a GitHub-style Markdown pipe table — a header row,
+    // a |---|---| separator, then >=1 body row. The table-aware PDF ingest emits
+    // these for ruled tables (rosters, Likert matrices, prompt/response grids),
+    // so this is the accurate, primary path; `before`/`after` carry any prose
+    // surrounding the table (e.g. a trailing "Equity of distribution:" note).
+    // `ratingCol`/`ratingMax` are set when a column header names a 1–N rating
+    // scale, so that column can render the dot-scale widget. Returns null when
+    // there's no table (then the legacy flattened-text heuristics below run, for
+    // responses ingested before table-aware extraction).
+    function detectPdfMarkdownTable(answer) {
+        var lines = String(answer || '').split('\n');
+        var sepRe = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+        for (var i = 1; i < lines.length; i++) {
+            if (!sepRe.test(lines[i]) || lines[i].indexOf('|') === -1) continue;
+            if (lines[i - 1].indexOf('|') === -1) continue;
+            var bodyEnd = i + 1;
+            while (bodyEnd < lines.length && lines[bodyEnd].trim() && lines[bodyEnd].indexOf('|') !== -1) bodyEnd++;
+            var header = parseMdRow(lines[i - 1]);
+            var rows = [];
+            for (var b = i + 1; b < bodyEnd; b++) rows.push(parseMdRow(lines[b]));
+            if (header.length < 2 || rows.length < 1) continue;
+            rows = rows.map(function (r) {
+                var out = r.slice(0, header.length);
+                while (out.length < header.length) out.push('');
+                return out;
+            });
+            var ratingCol = -1, ratingMax = 0;
+            for (var h = 0; h < header.length; h++) {
+                var mm = header[h].match(/\(\s*1\s*[-–—]\s*(\d+)\s*\)/);
+                if (mm) { ratingCol = h; ratingMax = parseInt(mm[1], 10); break; }
+                if (ratingCol === -1 && /rating/i.test(header[h])) ratingCol = h;
+            }
+            if (ratingCol !== -1 && !ratingMax) {
+                rows.forEach(function (r) {
+                    var v = parseInt(r[ratingCol], 10);
+                    if (!isNaN(v)) ratingMax = Math.max(ratingMax, v);
+                });
+                if (ratingMax < 2) { ratingCol = -1; ratingMax = 0; }
+            }
+            return {
+                before: lines.slice(0, i - 1).join('\n').trim(),
+                header: header, rows: rows,
+                ratingCol: ratingCol, ratingMax: ratingMax,
+                after: lines.slice(bodyEnd).join('\n').trim()
+            };
+        }
+        return null;
+    }
+
     // Returns the canonical scale + selected index if `answer` is a single
     // Likert selection, else null.
     function detectPdfLikert(answer) {
@@ -1230,6 +1320,98 @@
         return null;
     }
 
+    // Returns {max, rows:[{statement, rating, justification}]} when `answer`
+    // is a Likert/rating matrix (e.g. 'Dimension Rating (1–5) Brief Justification'
+    // + N rows of <dimension>/<digit>/<justification>), else null. The PDF
+    // text extractor flattens the table into a single text blob; we recover
+    // the row structure by anchoring on lines that begin with a digit 1–5.
+    function detectPdfMatrix(answer) {
+        if (!/Rating/i.test(answer) || !/\(1\s*[-–]\s*5\)/.test(answer)) return null;
+        var lines = answer.split('\n').map(function (l) { return l.trim(); });
+        var headerLine = /^(Dimension(\s+Rating)?|Rating|\(1\s*[-–]\s*5\)|Brief\s+Justification|Justification)$/i;
+        var contentStart = 0;
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i] && !headerLine.test(lines[i])) { contentStart = i; break; }
+        }
+        var ratingRe = /^([1-5])\s+(.+)$/;
+        var ratings = [];
+        for (var j = contentStart; j < lines.length; j++) {
+            var rm = lines[j].match(ratingRe);
+            if (rm) ratings.push({ line: j, digit: parseInt(rm[1], 10), tail: rm[2] });
+        }
+        if (ratings.length < 3) return null;
+        function join(arr) { return arr.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(); }
+        var rows = [];
+        var pendingStatement = join(lines.slice(contentStart, ratings[0].line));
+        for (var k = 0; k < ratings.length; k++) {
+            var r = ratings[k], nextR = ratings[k + 1];
+            var cont = lines.slice(r.line + 1, nextR ? nextR.line : lines.length).filter(Boolean);
+            var justification, nextDim = '';
+            // Split last 1–3 lines of the continuation block as the next row's
+            // statement when it starts with a capital and the prior line ends
+            // with a period — we're crossing a real sentence boundary rather
+            // than breaking the justification mid-sentence.
+            if (nextR && cont.length > 1) {
+                var split = null;
+                for (var kk = 3; kk >= 1; kk--) {
+                    if (cont.length <= kk) continue;
+                    var dimCand = cont.slice(-kk).join(' ').trim();
+                    if (dimCand.length < 4 || dimCand.length > 140) continue;
+                    if (!/^[A-Z]/.test(dimCand)) continue;
+                    var prev = cont[cont.length - kk - 1] || '';
+                    if (!/\.\s*$/.test(prev)) continue;
+                    split = { just: cont.slice(0, cont.length - kk).join(' '), dim: dimCand };
+                    break;
+                }
+                if (split) {
+                    justification = (r.tail + ' ' + split.just).replace(/\s+/g, ' ').trim();
+                    nextDim = split.dim;
+                } else {
+                    justification = (r.tail + ' ' + cont.join(' ')).replace(/\s+/g, ' ').trim();
+                }
+            } else {
+                justification = (r.tail + ' ' + cont.join(' ')).replace(/\s+/g, ' ').trim();
+            }
+            rows.push({ statement: pendingStatement, rating: r.digit, justification: justification });
+            pendingStatement = nextDim;
+        }
+        return { max: 5, rows: rows };
+    }
+
+    // Returns {rows:[{label, value}]} when `answer` is a 2-column prompt/response
+    // table whose labels carry a parenthesized cue like "(concrete)", "(specific)",
+    // "(measurable)". Common in reflection/journal templates. Boundary between a
+    // value and the next label is found at the last sentence-end period before
+    // the next paren cue.
+    function detectPdfPromptTable(answer) {
+        var nl = answer.indexOf('\n');
+        var head = nl > 0 ? answer.slice(0, nl) : answer.slice(0, 80);
+        if (!/Prompt/i.test(head) || !/response/i.test(head)) return null;
+        var body = nl > 0 ? answer.slice(nl + 1) : answer;
+        var hintRe = /\([a-z][a-z ]{2,}\)/g;
+        var hintMatches = body.matchAll ? Array.from(body.matchAll(hintRe)) : [];
+        if (hintMatches.length < 2) return null;
+        var hints = hintMatches.map(function (m) { return { start: m.index, end: m.index + m[0].length }; });
+        var rows = [], labelStart = 0;
+        for (var i = 0; i < hints.length; i++) {
+            var labelEnd = hints[i].end;
+            var label = body.slice(labelStart, labelEnd).replace(/\s+/g, ' ').trim();
+            var valStart = labelEnd, nextStart = body.length;
+            if (i + 1 < hints.length) {
+                var nh = hints[i + 1].start, seek = nh - 1, bestPeriod = -1;
+                while (seek > valStart) {
+                    if (body[seek] === '.' && /\s/.test(body[seek + 1] || '')) { bestPeriod = seek; break; }
+                    seek--;
+                }
+                nextStart = bestPeriod > 0 ? bestPeriod + 1 : nh;
+            }
+            var value = body.slice(valStart, nextStart).replace(/\s+/g, ' ').trim();
+            rows.push({ label: label, value: value });
+            labelStart = nextStart;
+        }
+        return rows.length >= 2 ? { rows: rows } : null;
+    }
+
     function pdfFieldNode(question, body, icon) {
         var field = document.createElement('div');
         field.className = 'pdf-field';
@@ -1256,6 +1438,117 @@
         (msgs || []).forEach(function (m) {
             if (!m || m.source !== 'pdf') return;
             var f = parsePdfField(m.content);
+
+            // Primary path: the table-aware ingest emits Markdown pipe tables.
+            // Renders any shape (roster, prompt/response, Likert matrix) as a
+            // native table, reviving the dot-scale for a named 1–N rating column
+            // and keeping any prose before/after the table.
+            var mdTable = detectPdfMarkdownTable(f.answer);
+            if (mdTable) {
+                var wrap = document.createElement('div');
+                if (mdTable.before) {
+                    var preTx = document.createElement('div');
+                    preTx.className = 'pdf-a';
+                    preTx.textContent = mdTable.before;
+                    wrap.appendChild(preTx);
+                }
+                var mt = document.createElement('table');
+                mt.className = 'pdf-grid';
+                var mthead = document.createElement('thead');
+                var mhr = document.createElement('tr');
+                mdTable.header.forEach(function (h) {
+                    var th = document.createElement('th'); th.textContent = h; mhr.appendChild(th);
+                });
+                mthead.appendChild(mhr); mt.appendChild(mthead);
+                var mtbody = document.createElement('tbody');
+                mdTable.rows.forEach(function (cells) {
+                    var tr = document.createElement('tr');
+                    cells.forEach(function (val, ci) {
+                        var td = document.createElement('td');
+                        if (ci === mdTable.ratingCol && mdTable.ratingMax && /^\d+$/.test(val)) {
+                            var n = parseInt(val, 10);
+                            td.className = 'pdf-grid-rating';
+                            var dots = document.createElement('div'); dots.className = 'pdf-grid-dots';
+                            for (var d = 1; d <= mdTable.ratingMax; d++) {
+                                var dot = document.createElement('span');
+                                dot.className = 'pdf-grid-dot' + (d <= n ? ' on' : '');
+                                dots.appendChild(dot);
+                            }
+                            td.appendChild(dots);
+                            var num = document.createElement('div'); num.className = 'pdf-grid-num';
+                            num.textContent = n + '/' + mdTable.ratingMax;
+                            td.appendChild(num);
+                        } else {
+                            if (ci === 0) td.className = 'pdf-grid-stmt';
+                            else if (ci === mdTable.ratingCol) td.className = 'pdf-grid-rating';
+                            td.textContent = val;
+                        }
+                        tr.appendChild(td);
+                    });
+                    mtbody.appendChild(tr);
+                });
+                mt.appendChild(mtbody); wrap.appendChild(mt);
+                if (mdTable.after) {
+                    var postTx = document.createElement('div');
+                    postTx.className = 'pdf-a';
+                    postTx.style.marginTop = '8px';
+                    postTx.textContent = mdTable.after;
+                    wrap.appendChild(postTx);
+                }
+                doc.appendChild(pdfFieldNode(f.question, wrap, 'table_rows'));
+                return;
+            }
+
+            var matrix = detectPdfMatrix(f.answer);
+            if (matrix) {
+                var table = document.createElement('table');
+                table.className = 'pdf-grid';
+                var thead = document.createElement('thead');
+                var hr = document.createElement('tr');
+                ['Statement', 'Rating', 'Justification'].forEach(function (h) {
+                    var th = document.createElement('th'); th.textContent = h; hr.appendChild(th);
+                });
+                thead.appendChild(hr);
+                table.appendChild(thead);
+                var tbody = document.createElement('tbody');
+                matrix.rows.forEach(function (row) {
+                    var tr = document.createElement('tr');
+                    var sc = document.createElement('td'); sc.className = 'pdf-grid-stmt'; sc.textContent = row.statement;
+                    var rc = document.createElement('td'); rc.className = 'pdf-grid-rating';
+                    var dots = document.createElement('div'); dots.className = 'pdf-grid-dots';
+                    for (var d = 1; d <= matrix.max; d++) {
+                        var dot = document.createElement('span');
+                        dot.className = 'pdf-grid-dot' + (d <= row.rating ? ' on' : '');
+                        dots.appendChild(dot);
+                    }
+                    rc.appendChild(dots);
+                    var num = document.createElement('div'); num.className = 'pdf-grid-num';
+                    num.textContent = row.rating + '/' + matrix.max;
+                    rc.appendChild(num);
+                    var jc = document.createElement('td'); jc.className = 'pdf-grid-just'; jc.textContent = row.justification;
+                    tr.appendChild(sc); tr.appendChild(rc); tr.appendChild(jc);
+                    tbody.appendChild(tr);
+                });
+                table.appendChild(tbody);
+                doc.appendChild(pdfFieldNode(f.question, table, 'grid_on'));
+                return;
+            }
+
+            var promptTable = detectPdfPromptTable(f.answer);
+            if (promptTable) {
+                var ptable = document.createElement('table');
+                ptable.className = 'pdf-table';
+                var ptbody = document.createElement('tbody');
+                promptTable.rows.forEach(function (row) {
+                    var tr = document.createElement('tr');
+                    var lc = document.createElement('td'); lc.className = 'pdf-table-label'; lc.textContent = row.label;
+                    var vc = document.createElement('td'); vc.className = 'pdf-table-value'; vc.textContent = row.value;
+                    tr.appendChild(lc); tr.appendChild(vc); ptbody.appendChild(tr);
+                });
+                ptable.appendChild(ptbody);
+                doc.appendChild(pdfFieldNode(f.question, ptable, 'table_rows'));
+                return;
+            }
 
             var likert = detectPdfLikert(f.answer);
             if (likert) {
@@ -2017,11 +2310,24 @@
             accent.appendChild(gapsSec);
         }
 
+        // Single-student one-offs are split out of the themes so an n=1
+        // observation never reads as a class-wide pattern. The backend tags
+        // each bullet with is_isolated (support_count <= 1). Older cached
+        // Quick Takes predate the flag — treat those as themes so nothing
+        // silently disappears until the instructor regenerates.
+        var themeBullets = [];
+        var oneOffBullets = [];
+        (qt.bullets || []).forEach(function (b) {
+            if (b && b.is_isolated === true) oneOffBullets.push(b);
+            else themeBullets.push(b);
+        });
+
         // ===== DETAILED VIEW: "What students are saying" =====
         // The clean, quote-rich layer. Heading rendered only when there's
         // descriptive detail below it (themed bullets / per-section / team
         // rollup / freeform text); tensions + gaps now sit in the top tier.
-        var hasDescriptive = (qt.bullets && qt.bullets.length) ||
+        // One-offs alone don't earn the generic heading — they get their own.
+        var hasDescriptive = themeBullets.length ||
             (qt.team_health && qt.team_health.length) ||
             (qt.form_sections && qt.form_sections.length) ||
             qt.text;
@@ -2074,9 +2380,7 @@
                 });
                 accent.appendChild(legend);
             }
-            var ul = document.createElement('ul');
-            ul.className = 'quick-take-bullets';
-            qt.bullets.forEach(function (b) {
+            var buildBulletLi = function (b) {
                 var li = document.createElement('li');
                 var sentiment = (b && typeof b.sentiment === 'string') ? b.sentiment : 'neutral';
                 if (!(sentiment in sentimentCounts)) sentiment = 'neutral';
@@ -2201,9 +2505,35 @@
                     });
                     li.appendChild(quotesEl);
                 }
-                ul.appendChild(li);
-            });
-            accent.appendChild(ul);
+                return li;
+            };
+
+            // Themes first. Single-student one-offs follow in their own
+            // group so a lone voice can't masquerade as a class-wide theme;
+            // they're kept (not dropped) so a small course loses nothing.
+            if (themeBullets.length) {
+                var ul = document.createElement('ul');
+                ul.className = 'quick-take-bullets';
+                themeBullets.forEach(function (b) { ul.appendChild(buildBulletLi(b)); });
+                accent.appendChild(ul);
+            }
+            if (oneOffBullets.length) {
+                var ooHead = document.createElement('div');
+                ooHead.className = 'qt-insights-subhead';
+                var ooAccent = document.createElement('span');
+                ooAccent.className = 'qt-subhead-accent';
+                ooHead.appendChild(ooAccent);
+                ooHead.appendChild(document.createTextNode('Mentioned by one student'));
+                accent.appendChild(ooHead);
+                var ooNote = document.createElement('p');
+                ooNote.style.cssText = 'font-size:0.74rem;color:var(--muted);margin:2px 0 8px';
+                ooNote.textContent = 'Each point below came from a single response — individual signal, not yet a class-wide theme.';
+                accent.appendChild(ooNote);
+                var ulOne = document.createElement('ul');
+                ulOne.className = 'quick-take-bullets';
+                oneOffBullets.forEach(function (b) { ulOne.appendChild(buildBulletLi(b)); });
+                accent.appendChild(ulOne);
+            }
         } else if (qt.text) {
             var textP = document.createElement('p');
             textP.style.cssText = 'font-size:0.84rem;line-height:1.65;margin-top:8px';
