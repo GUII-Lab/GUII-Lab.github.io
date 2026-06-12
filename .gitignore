@@ -49,3 +49,6 @@ e2e-screenshots/
 # stays tracked; scoped builders and generated HTML reports do not).
 verification-report-*.html
 scripts/build-verify-report-*.py
+LEAI/mockups/
+LEAI/scripts
+HCI capston course resources
