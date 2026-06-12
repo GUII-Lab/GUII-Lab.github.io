@@ -342,10 +342,10 @@
     /** Auto-match a filename like "alice-doe.pdf" against a roster of student_ids.
      *
      *  Scoring is bidirectional and tolerant of:
-     *    - reordered names ('jane-doe.pdf' ↔ 'doe-jane')
-     *    - partial overlaps ('janedoe.pdf' ↔ 'jane-doe' or 'doejaneucsc')
-     *    - id-only filenames ('janed01.pdf' ↔ 'janed01')
-     *    - inserted IDs ('alice-d-cs101-wk7.pdf' ↔ 'alice-d')
+     *    - reordered names ('jane-doe.pdf' vs 'doe-jane')
+     *    - partial overlaps ('janedoe.pdf' vs 'jane-doe' or 'doejaneucsc')
+     *    - id-only filenames ('janed01.pdf' vs 'janed01')
+     *    - inserted IDs ('alice-d-cs101-wk7.pdf' vs 'alice-d')
      *
      *  Returns the best-matching student_id when confidence is meaningful;
      *  '' if no roster entry shares enough signal with the filename.
@@ -832,7 +832,7 @@
 
         var dropzone = el('label', { class: 'leai-pdf-dropzone', tabindex: '0' }, [
             fileInput,
-            el('div', { class: 'leai-pdf-dropzone__icon' }, ['📄']),
+            el('div', { class: 'leai-pdf-dropzone__icon material-symbols-outlined' }, ['picture_as_pdf']),
             dzTitle,
             dzHint,
         ]);
@@ -1600,7 +1600,7 @@
         // value (either via instructor edit or because the parser
         // actually got it). Gives a sense of progress through a long
         // batch — once all needs-attention cells are filled, the card
-        // earns a green ✓ in its header.
+        // earns a green check in its header.
         var lowPrompts = item.low_conf_prompts || [];
         var edits = state.edits[item.filename] || {};
         var allLowFilled = lowPrompts.length === 0 || lowPrompts.every(function (pid) {
@@ -1620,10 +1620,10 @@
                 el('div', { class: 'leai-pdf-review-card__name' }, [
                     item.filename,
                     isReviewed ? el('span', {
-                        class: 'leai-pdf-review-card__check',
+                        class: 'leai-pdf-review-card__check material-symbols-outlined',
                         title: 'All needs-attention cells are filled',
                         'aria-label': 'Reviewed',
-                    }, ['✓']) : null,
+                    }, ['check']) : null,
                 ]),
                 el('div', { class: 'leai-pdf-review-card__student' }, ['Attributed to: ', el('strong', {}, [item.student_id || '—'])]),
             ]),
@@ -1663,7 +1663,7 @@
                     title: 'The regex parser missed this section, so this answer was filled in by an AI second-pass. Worth a quick check.',
                     'aria-label': 'AI-filled value, please verify',
                     tabindex: '0',
-                }, ['✨ AI']));
+                }, ['AI']));
             }
             if (p.opening_prompt) {
                 labelChildren.push(el('button', {
@@ -1701,7 +1701,7 @@
                     scheduleDraftSave(state, ctx);
                     ctx.render();
                 },
-            }, ['↺']);
+            }, [el('span', { class: 'material-symbols-outlined' }, ['undo'])]);
             labelChildren.push(restoreBtn);
 
             var cellClass = 'leai-pdf-review-cell'
@@ -1815,7 +1815,7 @@
                 'AI Quick Take will refresh on next view to include the new responses.',
             ]),
             el('div', { class: 'leai-pdf-commit-summary__line leai-pdf-commit-summary__line--safe' }, [
-                '✓ You can revert this batch from the Recent PDF uploads panel after committing.',
+                'You can revert this batch from the Recent PDF uploads panel after committing.',
             ]),
         ]));
 
@@ -1932,7 +1932,7 @@
         var r = state.commitResult || {};
         var scrollTarget = (ctx.opts && ctx.opts.scrollToSelector) || '#student-responses-section';
         wrap.appendChild(el('div', { class: 'leai-pdf-success' }, [
-            el('div', { class: 'leai-pdf-success__icon' }, ['✓']),
+            el('div', { class: 'leai-pdf-success__icon material-symbols-outlined' }, ['check']),
             el('div', { class: 'leai-pdf-success__title' }, [
                 'Added ' + (r.committed_count || 0) + ' response' +
                 ((r.committed_count || 0) === 1 ? '' : 's') + ' from ' +
@@ -1941,7 +1941,7 @@
             ]),
             el('div', { class: 'leai-pdf-success__hint' }, [
                 'They now appear in the response browser, AI Quick Take, and analytics below ',
-                'with a 📄 PDF badge so you can always tell them apart.',
+                'with a PDF badge so you can always tell them apart.',
             ]),
         ]));
         wrap.appendChild(el('div', { class: 'leai-pdf-actions' }, [
@@ -1957,7 +1957,7 @@
                         catch (e) { target.scrollIntoView(); }
                     }
                 },
-            }, ['Done — show responses ↓']),
+            }, ['Done — show responses']),
         ]));
         return wrap;
     }
@@ -2122,7 +2122,7 @@
                 class: 'leai-pdf-btn leai-pdf-btn--ghost leai-pdf-btn--sm',
                 title: 'Download a CSV of this batch (filename, student_id, status, prompt count)',
                 onclick: function () { downloadBatchCsv(batch); },
-            }, ['⬇ CSV']);
+            }, [el('span', { class: 'material-symbols-outlined' }, ['download']), ' CSV']);
             row.appendChild(exportBtn);
         }
         var btn = el('button', {
