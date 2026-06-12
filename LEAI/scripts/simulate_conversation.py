@@ -94,7 +94,22 @@ def fetch_survey(api: str, public_id: str) -> dict:
     if not gpt.get("is_active", False):
         sys.exit(f"survey {public_id} is not active (reason={gpt.get('reason')!r})")
     if gpt.get("mode") == "group":
-        sys.exit("in-group surveys aren't supported yet (would need a team_snapshot pick)")
+        # In-group surveys are bound to a SurveyTeamSnapshot. Auto-pick the
+        # first team under the snapshot so the simulator can drive a single
+        # team's conversation; persist that pick via assign_session_to_team
+        # in run() once the session_id exists.
+        snap_resp = requests.get(
+            f"{api}/survey_team_snapshot/",
+            params={"public_id": public_id}, timeout=20,
+        )
+        if snap_resp.status_code != 200:
+            sys.exit(f"in-group survey {public_id} has no team_snapshot ({snap_resp.status_code})")
+        snap = snap_resp.json()
+        teams = snap.get("teams") or []
+        if not teams:
+            sys.exit(f"in-group survey {public_id} has a snapshot but no teams under it")
+        gpt["_team_id"] = teams[0]["id"]
+        gpt["_team_label"] = teams[0].get("display_name") or f"{snap.get('label_prefix','Team')} {teams[0].get('number')}"
     return gpt
 
 
@@ -206,6 +221,15 @@ def run(args: argparse.Namespace) -> int:
     seq = 0
 
     print(f"\n[{name}]  survey_session={survey_session}")
+    if gpt.get("_team_id"):
+        assign_resp = requests.post(
+            f"{api}/session_team_assignment/",
+            json={"session_id": survey_session, "survey_team_id": gpt["_team_id"]},
+            timeout=20,
+        )
+        if assign_resp.status_code >= 300:
+            sys.exit(f"team-assign failed (HTTP {assign_resp.status_code}): {assign_resp.text[:200]}")
+        print(f"[{name}]  bound to team {gpt['_team_id']} ({gpt['_team_label']!r})")
     print(f"[{name}]  spawning Claude Code session as Remi…")
 
     # Opening turn. In form-mode the engine builds the directive for the opening.
