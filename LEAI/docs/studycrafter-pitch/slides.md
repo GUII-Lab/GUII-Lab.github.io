@@ -19,7 +19,24 @@ Image paths are relative to the repo root.
 
 ---
 
-## Slide 2 — Instructor sets up a survey
+## Slide 2 — Why LEAI (motivation)
+
+**On-slide text:**
+- Title: **Why LEAI — the gap in course feedback**
+- Subtitle: *Existing tools force a tradeoff between timing, depth, and workload.*
+- Three columns:
+  - **End-of-term evals** — Too late to help. By the time results land, the students who took the class are already gone.
+  - **Mid-semester Likert** — Fast but shallow. Quick to fill out, but the signal is thin — you cannot tell what is actually going wrong.
+  - **Open-ended writing** — Rich but unreadable. Forty long replies a week. No one has time to read them all and turn them into action.
+- Banner below: **LEAI — the middle path.** *5 minutes for the student. 2 minutes for the instructor. Every claim traceable back to the student who said it.*
+
+**Images:** none (text-only motivation slide).
+
+**Presenter cue:** Frame the gap before showing any product UI. Land on "middle path" as the segue into the workflow slides.
+
+---
+
+## Slide 3 — Instructor sets up a survey
 
 **On-slide text:**
 - Title: **Set up a survey in minutes**
@@ -35,7 +52,7 @@ Image paths are relative to the repo root.
 
 ---
 
-## Slide 3 — Student conversation (default mode)
+## Slide 4 — Student conversation (default mode)
 
 **On-slide text:**
 - Title: **What students experience**
@@ -50,7 +67,7 @@ Image paths are relative to the repo root.
 
 ---
 
-## Slide 4 — Structured Reflection (form mode)
+## Slide 5 — Structured Reflection (form mode)
 
 **On-slide text:**
 - Title: **Structured Reflection — when every section must be answered**
@@ -67,7 +84,7 @@ Image paths are relative to the repo root.
 
 ---
 
-## Slide 5 — Instructor sees insights
+## Slide 6 — Instructor sees insights
 
 **On-slide text:**
 - Title: **From conversations to insights**

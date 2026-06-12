@@ -112,6 +112,63 @@ def slide_1(prs):
              size=11, color=MUTED, align=PP_ALIGN.CENTER)
 
 
+def slide_motivation(prs):
+    s = blank_slide(prs)
+    fill_background(s, WHITE)
+
+    add_text(s, Emu(600000), Emu(400000), Emu(11000000), Emu(700000),
+             "Why LEAI — the gap in course feedback",
+             size=36, bold=True, color=NAVY)
+    add_text(s, Emu(600000), Emu(1100000), Emu(11000000), Emu(500000),
+             "Existing tools force a tradeoff between timing, depth, and workload.",
+             size=20, color=MUTED, italic=True)
+
+    col_top = Emu(1900000)
+    col_h = Emu(2700000)
+    col_w = Emu(3500000)
+    gap = Emu(200000)
+    col_left_1 = Emu(600000)
+    col_left_2 = col_left_1 + col_w + gap
+    col_left_3 = col_left_2 + col_w + gap
+
+    def problem_col(left, label, headline, body):
+        add_band(s, left, col_top, col_w, col_h, fill=SOFT)
+        add_text(s, left + Emu(250000), col_top + Emu(220000),
+                 col_w - Emu(500000), Emu(400000),
+                 label, size=14, bold=True, color=ACCENT)
+        add_text(s, left + Emu(250000), col_top + Emu(680000),
+                 col_w - Emu(500000), Emu(600000),
+                 headline, size=18, bold=True, color=NAVY)
+        add_text(s, left + Emu(250000), col_top + Emu(1400000),
+                 col_w - Emu(500000), Emu(1200000),
+                 body, size=14, color=INK)
+
+    problem_col(col_left_1, "End-of-term evals",
+                "Too late to help",
+                "By the time results land, the students who took the class are already gone.")
+    problem_col(col_left_2, "Mid-semester Likert",
+                "Fast but shallow",
+                "Quick to fill out, but the signal is thin — you cannot tell what is actually going wrong.")
+    problem_col(col_left_3, "Open-ended writing",
+                "Rich but unreadable",
+                "Forty long replies a week. No one has time to read them all and turn them into action.")
+
+    panel_top = Emu(4900000)
+    panel_h = Emu(1500000)
+    add_band(s, Emu(600000), panel_top, Emu(11000000), panel_h, fill=NAVY)
+    add_text(s, Emu(800000), panel_top + Emu(180000), Emu(10600000), Emu(500000),
+             "LEAI — the middle path",
+             size=22, bold=True, color=WHITE)
+    add_text(s, Emu(800000), panel_top + Emu(700000), Emu(10600000), Emu(700000),
+             "5 minutes for the student. 2 minutes for the instructor. Every claim "
+             "traceable back to the student who said it.",
+             size=16, color=WHITE)
+
+    add_text(s, Emu(600000), Emu(6500000), Emu(11000000), Emu(280000),
+             "StudyHelper helps students learn. LEAI listens to how it went.",
+             size=12, color=MUTED, italic=True, align=PP_ALIGN.CENTER)
+
+
 def slide_2(prs):
     s = blank_slide(prs)
     fill_background(s, WHITE)
@@ -266,6 +323,7 @@ def main():
     prs.slide_height = SLIDE_H
 
     slide_1(prs)
+    slide_motivation(prs)
     slide_2(prs)
     slide_3(prs)
     slide_4(prs)
