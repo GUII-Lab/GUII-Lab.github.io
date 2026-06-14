@@ -163,6 +163,17 @@
             border-radius: 999px; padding: 2px 10px; white-space: nowrap;
             letter-spacing: 0.02em;
         }
+        .student-card-banner {
+            font-size: 0.7rem; font-weight: 600;
+            border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+            letter-spacing: 0.02em; border: 1px solid transparent;
+        }
+        .student-card-banner.saw {
+            color: #92400e; background: #fef3c7; border-color: #fcd34d;
+        }
+        .student-card-banner.control {
+            color: var(--muted); background: var(--surface-mid); border-color: var(--surface-border);
+        }
         .student-card-chevron {
             font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; flex-shrink: 0;
         }
@@ -563,6 +574,10 @@
             <a href="FeedbackChat.html" class="sidebar-item" id="nav-feedback-chat" title="Feedback Chat">
                 <span class="material-symbols-outlined">forum</span>
                 <span class="sidebar-label">Feedback Chat</span>
+            </a>
+            <a href="CourseBanner.html" class="sidebar-item" id="nav-course-banner" title="Course Banner">
+                <span class="material-symbols-outlined">campaign</span>
+                <span class="sidebar-label">Course Banner</span>
             </a>
             <a href="instructor-guide.html" class="sidebar-item" title="Instructor Guide">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -2914,6 +2929,9 @@
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number),
                     teamLabel: teamBySessionId[sid] || '',
+                    // A/B banner exposure for this session: true = saw the
+                    // banner, false = control, undefined = no split running.
+                    bannerExposure: (s.banner_exposure || {})[sid],
                     // Threaded through so the expanded card can build the
                     // student-facing resume URL (feedback.html?id=…#cid=…).
                     publicId: s.public_id || ''
@@ -3002,6 +3020,17 @@
                 teamEl.className = 'student-card-team';
                 teamEl.textContent = entry.teamLabel;
                 header.appendChild(teamEl);
+            }
+            // A/B banner-exposure chip — only present when the course is
+            // running a split (backend omits the key otherwise).
+            if (entry.bannerExposure === true || entry.bannerExposure === false) {
+                var bannerChip = document.createElement('span');
+                bannerChip.className = 'student-card-banner ' + (entry.bannerExposure ? 'saw' : 'control');
+                bannerChip.textContent = entry.bannerExposure ? 'Saw banner' : 'No banner';
+                bannerChip.title = entry.bannerExposure
+                    ? 'This student was shown the course notification banner (A/B treatment group).'
+                    : 'This student was not shown the banner (A/B control group).';
+                header.appendChild(bannerChip);
             }
             header.appendChild(meta);
             header.appendChild(chevron);

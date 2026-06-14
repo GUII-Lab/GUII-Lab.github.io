@@ -751,6 +751,23 @@
             color: var(--muted); font-size: 0.78rem; text-decoration: none;
         }
         .pre-chat-screen .pre-chat-secondary:hover { color: var(--text); }
+
+        /* Course notification banner (student-facing strip below the header).
+           Lives in <head> so it survives the in-group flow wiping document.body. */
+        #course-banner-host[hidden] { display: none; }
+        .leai-course-banner {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 11px 18px; background: #fef3c7;
+            border-bottom: 1px solid #f6c344; color: #7a4f06;
+            font-size: 0.86rem; line-height: 1.45;
+        }
+        .leai-course-banner .lcb-icon { flex-shrink: 0; margin-top: 1px; color: #b7791f; }
+        .leai-course-banner .lcb-text { flex: 1; min-width: 0; }
+        .leai-course-banner .lcb-close {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: #b7791f; padding: 2px; line-height: 0; border-radius: 4px;
+        }
+        .leai-course-banner .lcb-close:hover { background: rgba(183,121,31,.15); }
     </style>
 </head>
 
@@ -780,6 +797,10 @@
             </a>
         </div>
     </header>
+
+    <!-- Course notification banner — populated from the survey's course config.
+         One banner for the whole course; shown across general/group/form modes. -->
+    <div id="course-banner-host" hidden></div>
 
     <!-- No-survey screen — shown when page is opened without a direct link -->
     <div id="no-survey-screen" style="display:none;position:fixed;inset:0;background:#f8fafb;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;z-index:999">
@@ -1159,6 +1180,71 @@
                 (isFormMode ? formBranch : nonFormBranch);
         }
 
+        // Render (or clear) the course notification banner from the inlined
+        // course_banner config. Honors enable, dismissible (close button), and
+        // display mode (persistent vs. auto-dismiss after duration_seconds).
+        var courseBannerTimer = null;
+        var lastCourseBannerCfg = null;
+        function renderCourseBanner(cfg) {
+            // Remember the config so the in-group flow — which wipes the body and
+            // rebuilds #chat-app — can re-mount the banner into its fresh DOM.
+            lastCourseBannerCfg = cfg;
+            var host = document.getElementById('course-banner-host');
+            if (!host) return;
+            if (courseBannerTimer) { clearTimeout(courseBannerTimer); courseBannerTimer = null; }
+            var text = cfg && cfg.text ? String(cfg.text).trim() : '';
+            // A/B split: backend resolves whether THIS session is in the
+            // treatment arm. show === false means control — render nothing.
+            if (!cfg || !cfg.enabled || !text || cfg.show === false) {
+                host.hidden = true;
+                host.textContent = '';
+                return;
+            }
+            var hide = function () {
+                host.hidden = true;
+                host.textContent = '';
+                if (courseBannerTimer) { clearTimeout(courseBannerTimer); courseBannerTimer = null; }
+            };
+
+            var banner = document.createElement('div');
+            banner.className = 'leai-course-banner';
+            banner.setAttribute('role', 'status');
+
+            var icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            icon.setAttribute('class', 'lcb-icon');
+            icon.setAttribute('width', '18'); icon.setAttribute('height', '18');
+            icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('fill', 'none');
+            icon.setAttribute('stroke', 'currentColor'); icon.setAttribute('stroke-width', '2');
+            icon.innerHTML = '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>';
+            banner.appendChild(icon);
+
+            var msg = document.createElement('span');
+            msg.className = 'lcb-text';
+            msg.textContent = text;  // textContent — never inject instructor HTML
+            banner.appendChild(msg);
+
+            if (cfg.dismissible) {
+                var close = document.createElement('button');
+                close.className = 'lcb-close';
+                close.type = 'button';
+                close.title = 'Dismiss';
+                close.setAttribute('aria-label', 'Dismiss notification');
+                close.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+                close.addEventListener('click', hide);
+                banner.appendChild(close);
+            }
+
+            host.textContent = '';
+            host.appendChild(banner);
+            host.hidden = false;
+
+            if (cfg.display_mode === 'timed') {
+                var secs = parseInt(cfg.duration_seconds, 10);
+                if (isNaN(secs) || secs < 1) secs = 10;
+                courseBannerTimer = setTimeout(hide, secs * 1000);
+            }
+        }
+
         function initGpt(gpt) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
@@ -1330,7 +1416,14 @@
                 }
             }
 
-            $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId }, function (gpt) {
+            // session_id lets the backend resolve and persist this anonymous
+            // session's A/B banner assignment (returned as course_banner.show).
+            var bannerSid = (window.sessionData && window.sessionData.sessionID) || '';
+            $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId, session_id: bannerSid }, function (gpt) {
+                // Course-wide notification banner — one config for the whole course,
+                // inlined on this response. Rendered before mode branching so it
+                // shows uniformly across general/group/form surveys.
+                renderCourseBanner(gpt.course_banner);
                 // In-group surveys come back with mode === 'group' plus an inlined
                 // team_snapshot. Route through the transparency + team-picker flow.
                 if (gpt.mode === 'group') {
@@ -1652,6 +1745,13 @@
             header.appendChild(headerLeft);
             app.appendChild(header);
 
+            // Re-create the course-banner host (the original was wiped with the
+            // body above). renderCourseBanner() is called after this app mounts.
+            var groupBannerHost = document.createElement('div');
+            groupBannerHost.id = 'course-banner-host';
+            groupBannerHost.hidden = true;
+            app.appendChild(groupBannerHost);
+
             var mainContent = document.createElement('div');
             mainContent.className = 'main-content';
             var messages = document.createElement('div');
@@ -1809,6 +1909,9 @@
             }
 
             document.body.appendChild(app);
+
+            // Re-mount the course banner into the freshly rebuilt in-group DOM.
+            renderCourseBanner(lastCourseBannerCfg);
 
             // Surface the form-mode area-progress strip ("Area X of N") above
             // the messages, same as the default flow does after initGpt().

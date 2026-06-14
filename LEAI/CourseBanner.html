@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEAI Course Banner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="leai-tailwind-config.js?v=v0.2.7"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.7">
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        .page-header {
+            padding: 20px 28px 16px;
+            border-bottom: 1px solid var(--surface-mid);
+            background: var(--surface-card);
+            flex-shrink: 0;
+        }
+        .page-header h1 {
+            font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+            color: var(--text); line-height: 1.2; margin-bottom: 4px;
+        }
+        .page-header p { color: var(--text-variant); font-size: 0.82rem; line-height: 1.5; }
+
+        .cb-scroll { flex: 1; overflow-y: auto; padding: 24px 28px 48px; }
+        .cb-card {
+            max-width: 720px; background: var(--surface-card);
+            border: 1px solid var(--surface-mid); border-radius: var(--radius-md);
+            padding: 22px 24px; margin-bottom: 20px;
+        }
+        .cb-card h2 {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--muted); margin-bottom: 14px;
+        }
+        .cb-field { margin-bottom: 18px; }
+        .cb-field:last-child { margin-bottom: 0; }
+        .cb-field > label {
+            display: block; font-size: 0.85rem; font-weight: 600;
+            color: var(--text); margin-bottom: 6px;
+        }
+        .cb-hint { font-size: 0.76rem; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+        .cb-row { display: flex; align-items: center; gap: 10px; }
+
+        /* Toggle row */
+        .cb-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 16px;
+        }
+        .cb-toggle-text strong { display: block; font-size: 0.9rem; color: var(--text); }
+        .cb-toggle-text span { font-size: 0.78rem; color: var(--muted); }
+        .switch { position: relative; width: 44px; height: 24px; flex-shrink: 0; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .switch .slider {
+            position: absolute; inset: 0; cursor: pointer; border-radius: 24px;
+            background: var(--surface-mid); transition: .2s;
+        }
+        .switch .slider::before {
+            content: ''; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+            background: #fff; border-radius: 50%; transition: .2s;
+            box-shadow: 0 1px 2px rgba(0,0,0,.2);
+        }
+        .switch input:checked + .slider { background: var(--primary); }
+        .switch input:checked + .slider::before { transform: translateX(20px); }
+
+        textarea.cb-text {
+            width: 100%; min-height: 84px; resize: vertical;
+            padding: 10px 12px; border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.88rem;
+            color: var(--text); background: var(--surface);
+        }
+        textarea.cb-text:focus { outline: none; border-color: var(--primary); }
+        .cb-text-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 6px;
+        }
+        .cb-link-btn {
+            background: none; border: none; color: var(--primary); cursor: pointer;
+            font-family: inherit; font-size: 0.78rem; padding: 0; font-weight: 600;
+        }
+        .cb-link-btn:hover { text-decoration: underline; }
+        .cb-count { font-size: 0.74rem; color: var(--muted); }
+        .cb-count.over { color: #dc2626; font-weight: 600; }
+
+        .cb-radio { display: flex; flex-direction: column; gap: 10px; }
+        .cb-radio label {
+            display: flex; align-items: center; gap: 10px; font-size: 0.86rem;
+            color: var(--text); cursor: pointer;
+        }
+        .cb-duration {
+            display: inline-flex; align-items: center; gap: 6px; margin-left: 6px;
+            font-size: 0.86rem; color: var(--text);
+        }
+        .cb-duration input {
+            width: 64px; padding: 4px 8px; border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.86rem;
+        }
+        .cb-duration input:disabled { background: var(--surface-mid); color: var(--muted); }
+
+        /* Live preview banner — mirrors the student-facing strip */
+        .cb-preview-frame {
+            border: 1px dashed var(--surface-mid); border-radius: var(--radius-sm);
+            background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 10px, var(--surface-card) 10px, var(--surface-card) 20px);
+            padding: 16px;
+        }
+        .leai-course-banner {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 11px 16px; background: #fef3c7;
+            border: 1px solid #f6c344; border-radius: var(--radius-sm);
+            color: #7a4f06; font-size: 0.85rem; line-height: 1.45;
+        }
+        .leai-course-banner .lcb-icon { flex-shrink: 0; margin-top: 1px; color: #b7791f; }
+        .leai-course-banner .lcb-text { flex: 1; }
+        .leai-course-banner .lcb-close {
+            flex-shrink: 0; background: none; border: none; cursor: pointer;
+            color: #b7791f; padding: 2px; line-height: 0; border-radius: 4px;
+        }
+        .leai-course-banner .lcb-close:hover { background: rgba(183,121,31,.15); }
+        .cb-preview-off {
+            font-size: 0.82rem; color: var(--muted); font-style: italic;
+            text-align: center; padding: 14px;
+        }
+
+        .cb-actions { display: flex; align-items: center; gap: 14px; }
+        #cb-save-msg { font-size: 0.82rem; }
+        #cb-save-msg.ok { color: var(--primary); }
+        #cb-save-msg.err { color: #dc2626; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div class="login-card">
+        <div class="login-logo">LEAI</div>
+        <h1>Course Banner</h1>
+        <p>Enter your course ID and dashboard password to manage the student notification banner.</p>
+        <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide &rarr;</a></p>
+        <label style="margin-top:14px">Course ID</label>
+        <input type="text" id="login-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Dashboard password" />
+        <button class="btn btn-primary" id="login-btn">Sign In</button>
+        <div id="login-msg"></div>
+        <p class="login-help">Need help? Contact your course administrator.</p>
+    </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <span class="sidebar-logo">LEAI</span>
+                <span class="sidebar-course-id" id="sidebar-course-id"></span>
+            </div>
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="sidebar-nav">
+            <a href="PromptDesigner.html" class="sidebar-item" id="nav-prompt-designer" title="Prompt Designer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span class="sidebar-label">Prompt Designer</span>
+            </a>
+            <a href="FeedbackAnalyzer.html" class="sidebar-item" id="nav-feedback-analyzer" title="Feedback Analyzer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span class="sidebar-label">Feedback Analyzer</span>
+            </a>
+            <a href="FeedbackChat.html" class="sidebar-item" id="nav-feedback-chat" title="Feedback Chat">
+                <span class="material-symbols-outlined">forum</span>
+                <span class="sidebar-label">Feedback Chat</span>
+            </a>
+            <a href="CourseBanner.html" class="sidebar-item" id="nav-course-banner" title="Course Banner">
+                <span class="material-symbols-outlined">campaign</span>
+                <span class="sidebar-label">Course Banner</span>
+            </a>
+            <a href="instructor-guide.html" class="sidebar-item" title="Instructor Guide">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span class="sidebar-label">Instructor Guide</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-version" data-leai-version></div>
+            <button class="sidebar-item" id="sidebar-signout" title="Sign Out">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span class="sidebar-label">Sign Out</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="app-main" style="overflow:hidden;display:flex;flex-direction:column">
+        <div id="mobile-topbar">
+            <button id="hamburger-btn" aria-label="Open menu">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <span class="mobile-brand">LEAI</span>
+            <span style="width:20px"></span>
+        </div>
+        <div id="sidebar-scrim"></div>
+
+        <div class="page-header">
+            <h1>Course Banner</h1>
+            <p>One notification banner for the whole course. When enabled, every student sees it on their survey &mdash; general, in-group, and structured reflection alike.</p>
+        </div>
+
+        <div class="cb-scroll">
+            <!-- Enable -->
+            <div class="cb-card">
+                <div class="cb-field cb-toggle" style="margin-bottom:0">
+                    <div class="cb-toggle-text">
+                        <strong>Show the banner to students</strong>
+                        <span>Off by default. When off, students see no banner.</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cb-enabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Message -->
+            <div class="cb-card">
+                <h2>Message</h2>
+                <div class="cb-field">
+                    <label for="cb-text">Banner text</label>
+                    <textarea class="cb-text" id="cb-text" maxlength="2000" placeholder="Leave blank to use the default disclaimer."></textarea>
+                    <div class="cb-text-meta">
+                        <button type="button" class="cb-link-btn" id="cb-reset-default">Use default disclaimer</button>
+                        <span class="cb-count" id="cb-count">0</span>
+                    </div>
+                    <p class="cb-hint">Keep it short &mdash; one or two sentences read best. Longer text wraps and can crowd the chat.</p>
+                </div>
+            </div>
+
+            <!-- Behavior -->
+            <div class="cb-card">
+                <h2>Behavior</h2>
+                <div class="cb-field">
+                    <label>Display</label>
+                    <div class="cb-radio">
+                        <label>
+                            <input type="radio" name="cb-display" value="persistent" id="cb-mode-persistent" />
+                            Persistent &mdash; stays visible the whole time
+                        </label>
+                        <label>
+                            <input type="radio" name="cb-display" value="timed" id="cb-mode-timed" />
+                            Auto-dismiss after
+                            <span class="cb-duration">
+                                <input type="number" id="cb-duration" min="1" max="600" value="10" disabled />
+                                seconds
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="cb-field cb-toggle">
+                    <div class="cb-toggle-text">
+                        <strong>Let students close it</strong>
+                        <span>Adds a close (&times;) button to the banner.</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cb-dismissible" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Audience (A/B) -->
+            <div class="cb-card">
+                <h2>Audience</h2>
+                <div class="cb-field cb-toggle" style="margin-bottom:0">
+                    <div class="cb-toggle-text">
+                        <strong>Show to a random subset (A/B)</strong>
+                        <span>Off shows the banner to everyone. On shows it to a random share of students; the rest are a silent control group.</span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="cb-split-enabled" />
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="cb-field" id="cb-split-options" style="margin-top:14px">
+                    <label>How many students see it</label>
+                    <div class="cb-radio">
+                        <label>
+                            <input type="radio" name="cb-split-mode" value="percentage" id="cb-split-mode-percentage" />
+                            <span class="cb-duration">
+                                <input type="number" id="cb-split-percent" min="0" max="100" value="50" disabled />
+                                % of students (random)
+                            </span>
+                        </label>
+                        <label>
+                            <input type="radio" name="cb-split-mode" value="count" id="cb-split-mode-count" />
+                            The first
+                            <span class="cb-duration">
+                                <input type="number" id="cb-split-count" min="0" max="100000" value="20" disabled />
+                                students to open
+                            </span>
+                        </label>
+                    </div>
+                    <p class="cb-hint">Assignment is anonymous and stays the same for a student across reloads. You can see exactly who saw the banner in the Feedback Analyzer response list.</p>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="cb-card">
+                <h2>Student preview</h2>
+                <div class="cb-preview-frame" id="cb-preview"></div>
+            </div>
+
+            <div class="cb-card cb-actions">
+                <button class="btn btn-primary" id="cb-save-btn">Save banner</button>
+                <span id="cb-save-msg"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
+<script src="leai-shared.js?v=v0.2.7"></script>
+<script src="leai-version.js"></script>
+<script>
+(function () {
+    var session = null;
+    var defaultText = "You're chatting with an AI assistant, not a person. It can make mistakes, so use your own judgment.";
+
+    var el = function (id) { return document.getElementById(id); };
+
+    // ===== LOGIN =====
+    el('login-btn').addEventListener('click', function () {
+        var courseId = el('login-course-id').value.trim();
+        var password = el('login-password').value;
+        if (!courseId || !password) { showLoginMsg('Enter course ID and password.'); return; }
+        this.disabled = true;
+        fetch(API + '/verify_course_password/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: courseId, password: password })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.valid) {
+                session = { courseId: courseId, courseName: data.course_name };
+                saveSession(session);
+                enterApp();
+            } else {
+                var e = data.error || '';
+                showLoginMsg(e === 'Course not found'
+                    ? 'Course ID not found. Double-check or create it in Prompt Designer.'
+                    : (e === 'Incorrect password' ? 'Incorrect password. Please try again.'
+                    : 'Sign-in failed. Check your Course ID and password.'));
+            }
+        })
+        .catch(function () { showLoginMsg('Network error.'); })
+        .finally(function () { el('login-btn').disabled = false; });
+    });
+
+    el('login-password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') el('login-btn').click();
+    });
+
+    function showLoginMsg(text) {
+        var m = el('login-msg');
+        m.className = 'msg msg-error';
+        m.textContent = text;
+    }
+
+    function enterApp() {
+        el('login-screen').style.display = 'none';
+        el('app').style.display = 'flex';
+        initSidebar('nav-course-banner', function () {
+            session = null;
+            el('login-password').value = '';
+            el('login-msg').textContent = '';
+        });
+        loadBanner();
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var stored = getSession();
+        if (stored && stored.courseId) { session = stored; enterApp(); }
+    });
+
+    // ===== FORM <-> PREVIEW =====
+    function currentMode() {
+        return el('cb-mode-timed').checked ? 'timed' : 'persistent';
+    }
+
+    function syncDurationEnabled() {
+        el('cb-duration').disabled = currentMode() !== 'timed';
+    }
+
+    function currentSplitMode() {
+        return el('cb-split-mode-count').checked ? 'count' : 'percentage';
+    }
+
+    function syncSplitEnabled() {
+        var on = el('cb-split-enabled').checked;
+        var mode = currentSplitMode();
+        el('cb-split-mode-percentage').disabled = !on;
+        el('cb-split-mode-count').disabled = !on;
+        // Only the active mode's number input is editable.
+        el('cb-split-percent').disabled = !on || mode !== 'percentage';
+        el('cb-split-count').disabled = !on || mode !== 'count';
+        el('cb-split-options').style.opacity = on ? '1' : '0.5';
+    }
+
+    function updateCount() {
+        var n = el('cb-text').value.length;
+        var c = el('cb-count');
+        c.textContent = n + ' / 2000';
+        c.classList.toggle('over', n > 2000);
+    }
+
+    function renderPreview() {
+        var frame = el('cb-preview');
+        if (!el('cb-enabled').checked) {
+            frame.innerHTML = '<div class="cb-preview-off">Banner is off &mdash; students won’t see anything.</div>';
+            return;
+        }
+        var raw = el('cb-text').value.trim();
+        var text = raw || defaultText;
+        var dismissible = el('cb-dismissible').checked;
+        var closeBtn = dismissible
+            ? '<button class="lcb-close" type="button" title="Dismiss" aria-label="Dismiss">'
+                + '<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+                + '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'
+            : '';
+        var infoIcon = '<svg class="lcb-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">'
+            + '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+        var safe = DOMPurify.sanitize(text, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+        frame.innerHTML = '<div class="leai-course-banner">' + infoIcon
+            + '<span class="lcb-text">' + safe + '</span>' + closeBtn + '</div>';
+
+        if (currentMode() === 'timed') {
+            var secs = parseInt(el('cb-duration').value, 10) || 10;
+            var note = document.createElement('div');
+            note.className = 'cb-hint';
+            note.style.marginTop = '8px';
+            note.textContent = 'Auto-dismisses after ' + secs + ' second' + (secs === 1 ? '' : 's') + '.';
+            frame.appendChild(note);
+        }
+
+        if (el('cb-split-enabled').checked) {
+            var splitNote = document.createElement('div');
+            splitNote.className = 'cb-hint';
+            splitNote.style.marginTop = '8px';
+            if (currentSplitMode() === 'count') {
+                var n = parseInt(el('cb-split-count').value, 10);
+                n = isNaN(n) ? 0 : n;
+                splitNote.textContent = 'A/B: only the first ' + n + ' student' + (n === 1 ? '' : 's') + ' to open the survey see this; the rest see nothing.';
+            } else {
+                var p = parseInt(el('cb-split-percent').value, 10);
+                p = isNaN(p) ? 0 : Math.max(0, Math.min(p, 100));
+                splitNote.textContent = 'A/B: about ' + p + '% of students see this; the other ' + (100 - p) + '% see nothing.';
+            }
+            frame.appendChild(splitNote);
+        }
+    }
+
+    function refresh() { updateCount(); syncDurationEnabled(); syncSplitEnabled(); renderPreview(); }
+
+    ['cb-enabled', 'cb-text', 'cb-dismissible', 'cb-duration',
+     'cb-split-enabled', 'cb-split-percent', 'cb-split-count'].forEach(function (id) {
+        el(id).addEventListener('input', refresh);
+        el(id).addEventListener('change', refresh);
+    });
+    el('cb-mode-persistent').addEventListener('change', refresh);
+    el('cb-mode-timed').addEventListener('change', refresh);
+    el('cb-split-mode-percentage').addEventListener('change', refresh);
+    el('cb-split-mode-count').addEventListener('change', refresh);
+    el('cb-reset-default').addEventListener('click', function () {
+        el('cb-text').value = '';
+        refresh();
+        el('cb-text').focus();
+    });
+
+    // ===== LOAD / SAVE =====
+    function loadBanner() {
+        setSaveMsg('', '');
+        fetch(API + '/get_course_banner/?course_id=' + encodeURIComponent(session.courseId))
+            .then(function (r) { return r.json(); })
+            .then(function (b) {
+                if (b && b.default_text) defaultText = b.default_text;
+                el('cb-enabled').checked = !!(b && b.enabled);
+                el('cb-text').value = (b && b.text_raw) || '';
+                el('cb-dismissible').checked = !!(b && b.dismissible);
+                var mode = (b && b.display_mode) === 'timed' ? 'timed' : 'persistent';
+                el('cb-mode-persistent').checked = mode === 'persistent';
+                el('cb-mode-timed').checked = mode === 'timed';
+                el('cb-duration').value = (b && b.duration_seconds) || 10;
+                el('cb-split-enabled').checked = !!(b && b.split_enabled);
+                var splitMode = (b && b.split_mode) === 'count' ? 'count' : 'percentage';
+                el('cb-split-mode-percentage').checked = splitMode === 'percentage';
+                el('cb-split-mode-count').checked = splitMode === 'count';
+                var splitVal = (b && typeof b.split_value === 'number') ? b.split_value : null;
+                if (splitVal !== null) {
+                    if (splitMode === 'count') { el('cb-split-count').value = splitVal; }
+                    else { el('cb-split-percent').value = splitVal; }
+                }
+                refresh();
+            })
+            .catch(function () { setSaveMsg('Could not load banner settings.', 'err'); refresh(); });
+    }
+
+    el('cb-save-btn').addEventListener('click', function () {
+        var secs = parseInt(el('cb-duration').value, 10);
+        if (isNaN(secs) || secs < 1) secs = 1;
+        if (secs > 600) secs = 600;
+        var splitMode = currentSplitMode();
+        var splitValueRaw = splitMode === 'count'
+            ? parseInt(el('cb-split-count').value, 10)
+            : parseInt(el('cb-split-percent').value, 10);
+        if (isNaN(splitValueRaw) || splitValueRaw < 0) splitValueRaw = 0;
+        if (splitMode === 'percentage' && splitValueRaw > 100) splitValueRaw = 100;
+        var payload = {
+            course_id: session.courseId,
+            enabled: el('cb-enabled').checked,
+            text: el('cb-text').value,
+            dismissible: el('cb-dismissible').checked,
+            display_mode: currentMode(),
+            duration_seconds: secs,
+            split_enabled: el('cb-split-enabled').checked,
+            split_mode: splitMode,
+            split_value: splitValueRaw
+        };
+        this.disabled = true;
+        setSaveMsg('Saving…', '');
+        fetch(API + '/update_course_banner/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+            if (res.ok) {
+                el('cb-duration').value = res.j.duration_seconds || secs;
+                setSaveMsg('Saved.', 'ok');
+            } else {
+                setSaveMsg(res.j.error || 'Save failed.', 'err');
+            }
+        })
+        .catch(function () { setSaveMsg('Network error.', 'err'); })
+        .finally(function () { el('cb-save-btn').disabled = false; });
+    });
+
+    function setSaveMsg(text, kind) {
+        var m = el('cb-save-msg');
+        m.textContent = text;
+        m.className = kind || '';
+    }
+})();
+</script>
+</body>
+</html>
