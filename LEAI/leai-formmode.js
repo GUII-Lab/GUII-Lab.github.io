@@ -16,6 +16,18 @@
     // walks teammate-by-teammate (~12 turns in the engaged sim).
     var MAX_TURNS_PER_AREA = 14;
 
+    // Tone gates appended to EVERY per-turn directive. The acknowledgement
+    // allowlist + no-define refusal, when they live only in the static system
+    // prompt, are ignored by strong models (~90% miss rate even on Opus 4.8);
+    // they bind only when restated in the fresh per-turn directive. Mirrors
+    // _TURN_GATES in LEAI/scripts/leai_formmode.py — keep the two in sync.
+    var TURN_GATES = '\n\n' + [
+        '[HARD RULES FOR THIS TURN — these override your default helpful/warm style]',
+        '- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these, and NOTHING else before it: "Got it." / "Okay." / "Mm." / "Noted." / "Fair." / a 2-to-6-word verbatim quote of the student in double-quotes. FORBIDDEN openers (delete and rewrite if you catch one): "That\'s a/the ...", "Nice", "Good", "Great", "Sharp", "Strong", "Solid", "Smart", "Useful", "Genuinely", "Beautifully", "Love ...", "Perfect", "Exactly", "Right -", "Thanks for ...", "That makes sense", "That nails it", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.',
+        '- NO DEFINING: Never define, explain, summarize, or describe what ANY term, concept, method, or technique means - including AI terms (hallucination, tokenization, algorithmic bias, RLHF, Goodhart\'s Law, cognitive offloading, automation bias, etc.). If the student asks "what is X" / "remind me how X works" / "I missed that lecture" / "quick version", do NOT answer it. Briefly decline — VARY the wording so it never feels canned (e.g. "I can\'t define that here -" / "I\'m not going to define that one -" / "I won\'t define it for you here -"; do not reuse the same refusal phrasing twice in a row) — then ask one question about what THEY did or noticed. NEVER begin a reply with "Sure:" or "Quick version:" followed by an explanation.',
+        '- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write "single question mark", "I need a new angle", "the student said"). No meta-commentary.',
+    ].join('\n');
+
     // Hard total-turn cap is scaled per-schema (see totalTurnBudget()).
     // Floor for any schema, regardless of size:
     var MIN_TOTAL_TURN_BUDGET = 24;
@@ -347,6 +359,11 @@
                 directive = dirContinueArea(state, area, i, n);
             }
 
+            // Inject the per-turn tone gates (allowlist + no-define) so they
+            // ride at high salience every turn, not just in the static prompt.
+            if (directive && typeof directive.text === 'string') {
+                directive = Object.assign({}, directive, { text: directive.text + TURN_GATES });
+            }
             state.last_directive = directive;
             return mkBefore({ directive: directive });
         },
@@ -1810,6 +1827,7 @@
                 '[DIRECTIVE FOR THIS TURN]',
                 'The student\'s answer was thin. Probe ONCE for specificity. Use the area\'s probe text or rephrase: "' + (area.depth_probe || 'Can you anchor that in a specific moment, example, or piece of evidence?') + '"',
                 'After this probe, regardless of the student\'s response, the engine will move on. Do not probe again.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the probe question.',
                 'One question only. Under 350 characters.',
                 'REQUIRED: your reply MUST contain the probe question. Do not end on an ack alone — always ask.',
             ]).join('\n'),
@@ -1817,13 +1835,22 @@
     }
 
     function dirAnythingElse(state, area) {
+        // Rotate the wrap-up phrasing by turn index so a re-asked wrap-up (when
+        // the student gives a non-advancing reply) is never verbatim-identical.
+        var wrapVariants = [
+            'Anything else on ' + area.topic + ' before we move on?',
+            'Anything you\'d add on ' + area.topic + ', or are you good to move on?',
+            'Is there more on ' + area.topic + ', or shall we continue?',
+        ];
+        var wrapQ = wrapVariants[(state.turns_in_current_area || 0) % wrapVariants.length];
         return {
             kind: 'anything_else',
             text: withRoster(state, [
                 '[DIRECTIVE FOR THIS TURN]',
-                'The student has answered the area substantively. Now ask the wrap-up question: "Anything else on ' + area.topic + ' before we move on?"',
+                'The student has answered the area substantively. Now ask a brief wrap-up question, e.g.: "' + wrapQ + '"',
+                'If you asked a wrap-up question last turn, do NOT repeat it verbatim — reword it so it does not feel canned.',
                 'Do NOT advance to the next area in this message — engine handles that on the next turn based on the student\'s reply.',
-                'Brief acknowledgement of what they said + the wrap-up question. Under 350 characters.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the wrap-up question. Under 350 characters.',
                 'REQUIRED: your reply MUST end with that wrap-up question. Acknowledgement-only replies (e.g. "Thanks, I\'ve captured that.") leave the student stranded — the chat stalls until they type "what next?". Always include the question.',
             ]).join('\n'),
         };
@@ -1839,6 +1866,7 @@
                 'Pick a different angle: a sub-field that hasn\'t been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn\'t given. ONE question only.',
                 'STRICT: do NOT repeat, paraphrase, restate, or echo the opening question above — it is already in the transcript. Asking a new angle means asking something genuinely different, not the opening question with new wording.',
                 'STRICT: emit EXACTLY ONE question mark ("?") in your reply. Two or more topics ending in "?" is forbidden — pick one.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the question.',
                 'Do NOT advance to the next area.',
                 'REQUIRED: your reply MUST contain a question (one ?). Acknowledgement-only replies stall the chat and force the student to type "what next?" — never end on an ack alone.',
                 'Under 350 characters.',
