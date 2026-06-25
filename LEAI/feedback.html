@@ -1420,6 +1420,10 @@
             // session's A/B banner assignment (returned as course_banner.show).
             var bannerSid = (window.sessionData && window.sessionData.sessionID) || '';
             $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId, session_id: bannerSid }, function (gpt) {
+                // Course-level name for the AI message tag (replaces the default
+                // "LEAI"). Set before any message renders so every bubble — across
+                // general/group/form modes — uses it. Blank/missing → "LEAI".
+                window.leaiBotName = (gpt && gpt.bot_display_name && String(gpt.bot_display_name).trim()) || 'LEAI';
                 // Course-wide notification banner — one config for the whole course,
                 // inlined on this response. Rendered before mode branching so it
                 // shows uniformly across general/group/form surveys.
@@ -1956,7 +1960,7 @@
                     aDot.className = 'msg-ai-dot';
                     var aLabel = document.createElement('span');
                     aLabel.className = 'msg-ai-label';
-                    aLabel.textContent = 'LEAI';
+                    aLabel.textContent = (window.leaiBotName || 'LEAI');
                     var aTime = document.createElement('span');
                     aTime.className = 'msg-ai-time';
                     aTime.textContent = timeStr;
@@ -1998,7 +2002,7 @@
                 dot.className = 'msg-ai-dot';
                 var label = document.createElement('span');
                 label.className = 'msg-ai-label';
-                label.textContent = 'LEAI';
+                label.textContent = (window.leaiBotName || 'LEAI');
                 meta.appendChild(dot);
                 meta.appendChild(label);
                 var body = document.createElement('div');
@@ -2543,7 +2547,7 @@
 
             var label = document.createElement('span');
             label.className = 'msg-ai-label';
-            label.textContent = 'LEAI';
+            label.textContent = (window.leaiBotName || 'LEAI');
 
             var time = document.createElement('span');
             time.className = 'msg-ai-time';
@@ -2636,7 +2640,7 @@
             dot.className = 'msg-ai-dot';
             var label = document.createElement('span');
             label.className = 'msg-ai-label';
-            label.textContent = 'LEAI';
+            label.textContent = (window.leaiBotName || 'LEAI');
             meta.appendChild(dot);
             meta.appendChild(label);
 
