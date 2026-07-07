@@ -101,3 +101,33 @@
 
 - Deploy `guiidatapipelines` to Heroku and run `migrate` — the backend field/endpoints only take effect in production after the deploy. The frontend is live on GitHub Pages ~1-2 min after push to `main`.
 - (Optional) Swap the name into the revise-hint helper text for coherence, if wanted.
+
+## 2026-07-07 — Task: P0 form-mode fixes from CMPM 80H feedback analysis
+
+### Actions taken
+
+1. Analyzed CMPM 80H student feedback (the closing "what did you think of LEAI" question, triangulated against each student's transcript) and derived four P0 fixes to the form-mode engine. Magy reviewed the plan and gave the go-ahead.
+2. **P0-1 — cap redundant follow-ups.** The wrap-up "anything else?" (`dirAnythingElse` / `_dir_anything_else`) now fires at most once per area, then force-advances, ending the "are we done?" loop students hit. Also added a per-turn `NO REDUNDANT RE-ASK` gate.
+3. **P0-1b — closing dup bug.** The group closing wording never matched `looksLikeClosingFeedback`, so `closing_feedback_asked` never got set and the closing question fired twice. Now the flag is set authoritatively from `directiveKind === 'close'` (JS) / `directive_kind == "close"` (Py), independent of the text matcher.
+4. **P0-2 — accept "smooth / no friction."** New `SMOOTH_NO_FRICTION` regex short-circuits `shouldProbe`, plus an `ACCEPT SMOOTH/NO-FRICTION` gate, so a team that says it worked smoothly is accepted instead of re-probed for a problem that isn't there.
+5. **P0-3 — allow rephrase on request.** New `ALLOW REPHRASE ON REQUEST` gate — a "what does that mean?" / "say it simpler" reply is rephrased on the same area rather than treated as an off-topic redirect.
+6. **P0-4 — de-plant the closing question.** The old wording planted "honest" and "PDF" and biased the comparison it was measuring. Neutral fallback constant (`CLOSING_FEEDBACK_FALLBACK` / `_CLOSING_FEEDBACK_FALLBACK`) added to both engines; the closing-feedback matcher is additive (matches old + new). The seeded CMPM 80H schema wording is reworded via backend migration `0037`. Prompt docs (`wk1–4-cmpm80h-{form,group}.md`) updated to match.
+7. **Test-proof.** Two Sonnet 5 subagents wrote deterministic, offline (no LLM, no network) driver harnesses — one per engine — against the frozen production-shaped CMPM 80H schemas, covering all five scenarios (P0-1a, 1b, 2, 3, 4). Both engines pass every scenario and agree scenario-for-scenario; re-verified by re-running both harnesses directly.
+
+### Files created / changed
+
+- `LEAI/leai-formmode.js` — canonical engine: 3 new turn gates, `SMOOTH_NO_FRICTION`, `CLOSING_FEEDBACK_FALLBACK`, dup-closing fix, additive closing matcher.
+- `LEAI/scripts/leai_formmode.py` — Python mirror kept at parity.
+- `LEAI/docs/prompts/wk1-cmpm80h-form.md`, `wk2-cmpm80h-{form,group}.md`, `wk3-cmpm80h-{form,group}.md`, `wk4-cmpm80h-{form,group}.md` — reworded closing question.
+- `guiidatapipelines`: `datapipeline/migrations/0037_fix_cmpm80h_closing_prompts.py` (new) — reword seeded `cmpm80h-reflection` + `cmpm80h-team-reflection` closing prompts; has upgrade/downgrade, depends on `0036`. Local-only seeder `scripts/seed_cmpm80h.py` updated to match (gitignored).
+
+### Decisions
+
+- `MAX_TURNS_PER_AREA` kept at 14. A draft lowered it to 13, but it doubles as the Area 2.2 roster-walk bound (13 caps max team size at ~11). Redundancy is handled structurally by P0-1, so the safety net stays put.
+- Verification proves engine (state-machine) behavior deterministically. The conversational half of P0-2/P0-3 rides on the injected gate text — the engine emits the gate and stays on-area; whether the model obeys is the LLM's job and would need a live persona run to observe.
+- Did NOT bump the LEAI version — `leai-shared.css`/`.js` are unchanged, so the existing `v0.2.8` cache-bust still holds. The engine file is loaded with its own cache-bust.
+
+### Next steps
+
+- Deploy `guiidatapipelines` to Heroku and run `migrate` to apply `0037` — until then the live registry still serves the old planted CMPM 80H closing wording (confirmed against the registry). Surveys are live, so time the deploy at a week boundary so the closing question doesn't change mid-week.
+- `wk5-cmpm80h-*` closing variants use bespoke "across the whole course" wording that also plants "honest reflection" — left untouched, pending a decision.
