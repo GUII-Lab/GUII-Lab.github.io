@@ -13,7 +13,11 @@
 
     // Cap on student turns within a single area before the engine
     // force-advances. Tuned for Area 6 (Roles & Contributions) which
-    // walks teammate-by-teammate (~12 turns in the engaged sim).
+    // walks teammate-by-teammate (~12 turns in the engaged sim). This cap
+    // also bounds the max roster size the 2.2 walk can complete, so keep it
+    // at 14 — the redundant-follow-up complaint (P0-1) is handled
+    // structurally by the NO REDUNDANT RE-ASK gate and the "anything else
+    // fires once then advances" block below, not by tightening this net.
     var MAX_TURNS_PER_AREA = 14;
 
     // Tone gates appended to EVERY per-turn directive. The acknowledgement
@@ -25,6 +29,9 @@
         '[HARD RULES FOR THIS TURN — these override your default helpful/warm style]',
         '- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these, and NOTHING else before it: "Got it." / "Okay." / "Mm." / "Noted." / "Fair." / a 2-to-6-word verbatim quote of the student in double-quotes. FORBIDDEN openers (delete and rewrite if you catch one): "That\'s a/the ...", "Nice", "Good", "Great", "Sharp", "Strong", "Solid", "Smart", "Useful", "Genuinely", "Beautifully", "Love ...", "Perfect", "Exactly", "Right -", "Thanks for ...", "That makes sense", "That nails it", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.',
         '- NO DEFINING: Never define, explain, summarize, or describe what ANY term, concept, method, or technique means - including AI terms (hallucination, tokenization, algorithmic bias, RLHF, Goodhart\'s Law, cognitive offloading, automation bias, etc.). If the student asks "what is X" / "remind me how X works" / "I missed that lecture" / "quick version", do NOT answer it. Briefly decline — VARY the wording so it never feels canned (e.g. "I can\'t define that here -" / "I\'m not going to define that one -" / "I won\'t define it for you here -"; do not reuse the same refusal phrasing twice in a row) — then ask one question about what THEY did or noticed. NEVER begin a reply with "Sure:" or "Quick version:" followed by an explanation.',
+        '- NO REDUNDANT RE-ASK: Do NOT re-ask about something the student has already substantively answered. If their reply already covers the next planned probe or the wrap-up "anything else" would be redundant, acknowledge briefly and ADVANCE instead of asking again.',
+        '- ACCEPT SMOOTH/NO-FRICTION: If the student indicates the team worked smoothly, has nothing to add, or there was no friction/disagreement, ACCEPT that as a complete answer — acknowledge and advance. Do NOT reword the same probe to manufacture a problem.',
+        '- ALLOW REPHRASE ON REQUEST: If the student says a question is confusing/unclear, asks what it means, or asks for a simpler or alternative wording, briefly REPHRASE the current question in simpler, concrete terms (this is NOT an off-topic ask). Then let them answer the rephrased version. Stay on the same area.',
         '- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write "single question mark", "I need a new angle", "the student said"). No meta-commentary.',
     ].join('\n');
 
@@ -33,6 +40,13 @@
     var MIN_TOTAL_TURN_BUDGET = 24;
     // Per-section turn budget used when computing the cap.
     var TURNS_PER_SECTION_BUDGET = 5;
+
+    // P0-4: neutral closing-question fallback used ONLY when a schema is
+    // missing closing.feedback_prompt (shouldn't happen in production —
+    // schemas always define this — but keeps the engine functional). The
+    // OLD wording planted "honest"/"PDF" and biased the comparison it was
+    // trying to measure; this NEW wording asks the same comparison neutrally.
+    var CLOSING_FEEDBACK_FALLBACK = 'Last thing — how did reflecting through this conversation compare to writing your reflection on your own, and what would make it better next time?';
 
     function totalTurnBudget(state) {
         var n = (state && state.schema && state.schema.sections) ? state.schema.sections.length : 6;
@@ -246,6 +260,28 @@
                 advanced = true;
             }
 
+            // P0-1b: dirAnythingElse fires at most ONCE per area. If we've
+            // already asked "anything else?" for this area and the student
+            // didn't produce a recognized no-addition signal (e.g. "are we
+            // done?" isn't caught by isNoAdditionResponse above), don't ask
+            // it again — advance instead. Whatever the student just said was
+            // already folded into coverage/sub_signals above; a second
+            // "anything else" on the same content was the #1 redundant-
+            // follow-up complaint (779616e3 got asked twice; a847c8b3
+            // flagged repeat questions as redundant).
+            if (!advanced
+                    && state.coverage[area.id].sub_signals.anything_else_asked
+                    && state.coverage[area.id].response_received
+                    && areaResponseSatisfied(state, area)
+                    && i < n) {
+                state.awaiting_anything_else = false;
+                state.current_area_index = Math.min(i + 1, n);
+                i = state.current_area_index;
+                area = sections[i - 1];
+                state.turns_in_current_area = 0;
+                advanced = true;
+            }
+
             // Hard total-turn safety net: if the student has spent too many
             // turns and we still haven't reached coverage, force-cover-all so
             // the next branch fires dirClose. Budget scales with schema size
@@ -319,6 +355,7 @@
                     directive = dirAskEquity(state, area);
                 } else if (areaResponseSatisfied(state, area)) {
                     state.awaiting_anything_else = true;
+                    cov22.sub_signals.anything_else_asked = true;
                     directive = dirAnythingElse(state, area);
                 } else {
                     directive = dirContinueArea(state, area, i, n);
@@ -345,6 +382,7 @@
                     directive = dirRateAndJustify(state, area, curDim, cov24.sub_signals.dim_cursor, dims24br.length);
                 } else if (areaResponseSatisfied(state, area)) {
                     state.awaiting_anything_else = true;
+                    cov24.sub_signals.anything_else_asked = true;
                     directive = dirAnythingElse(state, area);
                 } else {
                     directive = dirContinueArea(state, area, i, n);
@@ -354,6 +392,7 @@
                 directive = dirProbe(state, area);
             } else if (areaResponseSatisfied(state, area)) {
                 state.awaiting_anything_else = true;
+                state.coverage[area.id].sub_signals.anything_else_asked = true;
                 directive = dirAnythingElse(state, area);
             } else {
                 directive = dirContinueArea(state, area, i, n);
@@ -413,8 +452,19 @@
             // closing-feedback question. The next student message is the
             // student's reply to that, after which the engine must emit
             // [END] without asking another question.
+            //
+            // P0-1d: `directiveKind === 'close'` is an AUTHORITATIVE signal on
+            // its own — the engine, not a text guess, decided this turn was
+            // the closing question, so mark it regardless of whether the
+            // LLM's paraphrase happens to match a fingerprint below. Relying
+            // on looksLikeClosingFeedback alone was the bug: the GROUP
+            // schema's wording never matched the (INDIVIDUAL-only) candidate
+            // list, closing_feedback_asked never got set, and allCovered()
+            // fired dirClose a second time next turn (779616e3 got two "Last
+            // thing —" turns back to back). looksLikeClosingFeedback stays as
+            // a fallback for any other path that only has the raw text.
             var closingPrompt = (state.schema.closing && state.schema.closing.feedback_prompt) || '';
-            if (closingPrompt && looksLikeClosingFeedback(displayed, closingPrompt)) {
+            if (directiveKind === 'close' || (closingPrompt && looksLikeClosingFeedback(displayed, closingPrompt))) {
                 forceCoverAll(state);
                 state.closing_feedback_asked = true;
                 i = state.current_area_index;
@@ -1414,6 +1464,13 @@
     // as no-addition only when they are essentially the WHOLE message.
     var WEAK_NO_ADD_WHOLE = /^(done|good|fine|ready|ok|okay|sure|yep|yeah|cool|got it|got it\.?)$/i;
 
+    // P0-2: a clear "no friction / smooth / nothing to add" answer is a
+    // COMPLETE answer, even when short — the group script kept demanding a
+    // breakdown / "one concrete change" / "one central question" that
+    // didn't exist for smoothly-functioning teams (b3ec7d7d "we worked
+    // together very smoothly" kept getting pushed; bbb18af6; eef6b105).
+    var SMOOTH_NO_FRICTION = /\bsmooth(ly)?\b|\bno (real )?(friction|disagreement|conflicts?|issues?|problems?|complaints?)\b|\bnothing (to add|to change|really to change)\b|\ball (good|fine)\b/i;
+
     function isNoAdditionResponse(s) {
         if (!s) return false;
         var t = s.replace(/^[\s,.\-—!?]+|[\s,.\-—!?]+$/g, '').trim();
@@ -1652,6 +1709,10 @@
         if (cov.probe_used) return false;
         if (!cov.response_received) return false;
         if (areaResponseSatisfied(state, area) === false) return false;
+        // P0-2: a clear "no friction / smooth / nothing to add" reply is a
+        // complete answer even though it's short — don't probe it into
+        // manufacturing a problem that isn't there.
+        if (SMOOTH_NO_FRICTION.test(lastMsg || '')) return false;
         // Probe if the most recent answer was thin and the area still has only
         // the opening response. We use word count as a proxy for shallowness.
         var threshold = (state.schema.shallow_word_threshold) || 25;
@@ -1695,11 +1756,22 @@
         // any leading "Last thing —" or "Final question:"-style preamble.
         var key = closingPrompt.toLowerCase().replace(/^[^a-z]+/, '');
         // Try increasingly long substrings of the key as fingerprints.
+        // ADDITIVE ONLY — hci271 and logged transcripts still use the OLD
+        // wording, so OLD candidates must never be removed, only added to.
         var candidates = [
+            // OLD (CMPM 80H INDIVIDUAL, pre-P0-4) + hci271.
             'surface more honest reflection than filling out the pdf',
             'work better next week',
             'more honest reflection',
             'filling out the pdf',
+            // OLD locked wording actually ends "...next time?", not "next
+            // week" — the candidate above predates that; keep both so any
+            // OLD-wording transcript is still detected.
+            'work better next time',
+            // NEW (P0-4) wording, CMPM 80H only.
+            'compare to writing your reflection on your own', // INDIVIDUAL
+            'talking through your team',                      // GROUP
+            'process this way work for you',                  // GROUP (2nd anchor)
         ];
         for (var k = 0; k < candidates.length; k++) {
             if (d.indexOf(candidates[k]) !== -1) return true;
@@ -1978,7 +2050,7 @@
             kind: 'close',
             text: [
                 '[DIRECTIVE FOR THIS TURN]',
-                'All ' + state.schema.sections.length + ' areas have been covered. Wrap up by asking ONE question: "' + (state.schema.closing && state.schema.closing.feedback_prompt ? state.schema.closing.feedback_prompt : 'Did this conversation surface more honest reflection than filling out the PDF would have, and what would make it work better next week?') + '"',
+                'All ' + state.schema.sections.length + ' areas have been covered. Wrap up by asking ONE question: "' + (state.schema.closing && state.schema.closing.feedback_prompt ? state.schema.closing.feedback_prompt : CLOSING_FEEDBACK_FALLBACK) + '"',
                 'The engine handles closing internally — you do not need to signal completion. Just ask the closing question and wait for the student\'s answer.',
                 'REQUIRED: your reply MUST end with that closing question. The student needs the chance to answer it before the chat completes.',
                 'Under 350 characters.',
@@ -2032,7 +2104,7 @@
                 'Can you anchor that in a specific moment, example, or piece of evidence?';
         } else if (directiveKind === 'close') {
             q = (state.schema.closing && state.schema.closing.feedback_prompt) ||
-                'Last thing — was this conversation useful, and what would make it work better next week?';
+                CLOSING_FEEDBACK_FALLBACK;
         }
         if (!q) return displayed;
         // If the reply is empty or near-empty, just emit the question. Else

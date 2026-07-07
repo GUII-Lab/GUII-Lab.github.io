@@ -89,6 +89,10 @@ class EngineState:
 # Tuned to accommodate Area 6 (Roles & Contributions) which legitimately
 # walks teammate-by-teammate (~12 turns in the engaged sim). Above that,
 # the conversation has stalled and we move on.
+# This cap also bounds the max roster size the 2.2 walk can complete, so keep
+# it at 14 — the redundant-follow-up complaint (P0-1) is handled structurally
+# by the NO REDUNDANT RE-ASK gate and the "anything else fires once then
+# advances" block, not by tightening this safety net.
 MAX_TURNS_PER_AREA = 14
 
 # Tone gates injected into EVERY per-turn directive. Static system-prompt rules
@@ -100,7 +104,21 @@ _TURN_GATES = (
     "\n\n[HARD RULES FOR THIS TURN — these override your default helpful/warm style]\n"
     "- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these, and NOTHING else before it: \"Got it.\" / \"Okay.\" / \"Mm.\" / \"Noted.\" / \"Fair.\" / a 2-to-6-word verbatim quote of the student in double-quotes. FORBIDDEN openers (delete and rewrite if you catch one): \"That's a/the ...\", \"Nice\", \"Good\", \"Great\", \"Sharp\", \"Strong\", \"Solid\", \"Smart\", \"Useful\", \"Genuinely\", \"Beautifully\", \"Love ...\", \"Perfect\", \"Exactly\", \"Right -\", \"Thanks for ...\", \"That makes sense\", \"That nails it\", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.\n"
     "- NO DEFINING: Never define, explain, summarize, or describe what ANY term, concept, method, or technique means - including AI terms (hallucination, tokenization, algorithmic bias, RLHF, Goodhart's Law, cognitive offloading, automation bias, etc.). If the student asks \"what is X\" / \"remind me how X works\" / \"I missed that lecture\" / \"quick version\", do NOT answer it. Briefly decline — VARY the wording so it never feels canned (e.g. \"I can't define that here -\" / \"I'm not going to define that one -\" / \"I won't define it for you here -\"; do not reuse the same refusal phrasing twice in a row) — then ask one question about what THEY did or noticed. NEVER begin a reply with \"Sure:\" or \"Quick version:\" followed by an explanation.\n"
+    "- NO REDUNDANT RE-ASK: Do NOT re-ask about something the student has already substantively answered. If their reply already covers the next planned probe or the wrap-up \"anything else\" would be redundant, acknowledge briefly and ADVANCE instead of asking again.\n"
+    "- ACCEPT SMOOTH/NO-FRICTION: If the student indicates the team worked smoothly, has nothing to add, or there was no friction/disagreement, ACCEPT that as a complete answer — acknowledge and advance. Do NOT reword the same probe to manufacture a problem.\n"
+    "- ALLOW REPHRASE ON REQUEST: If the student says a question is confusing/unclear, asks what it means, or asks for a simpler or alternative wording, briefly REPHRASE the current question in simpler, concrete terms (this is NOT an off-topic ask). Then let them answer the rephrased version. Stay on the same area.\n"
     "- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write \"single question mark\", \"I need a new angle\", \"the student said\"). No meta-commentary.\n"
+)
+
+# P0-4: neutral closing-question fallback used ONLY when a schema is missing
+# closing.feedback_prompt (shouldn't happen in production — schemas always
+# define this — but keeps the engine functional). The OLD wording planted
+# "honest"/"PDF" and biased the comparison it was trying to measure; this NEW
+# wording asks the same comparison neutrally. Mirrors CLOSING_FEEDBACK_FALLBACK
+# in LEAI/leai-formmode.js — keep the two in sync.
+_CLOSING_FEEDBACK_FALLBACK = (
+    "Last thing — how did reflecting through this conversation compare to "
+    "writing your reflection on your own, and what would make it better next time?"
 )
 
 # Hard total-turn cap scales per-schema (see _total_turn_budget()).
@@ -255,6 +273,26 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
         state.turns_in_current_area = 0
         advanced = True
 
+    # P0-1b: _dir_anything_else fires at most ONCE per area. If we've already
+    # asked "anything else?" for this area and the student didn't produce a
+    # recognized no-addition signal (e.g. "are we done?" isn't caught by
+    # _is_no_addition above), don't ask it again — advance instead. Whatever
+    # the student just said was already folded into coverage/sub_signals
+    # above; a second "anything else" on the same content was the #1
+    # redundant-follow-up complaint (779616e3 got asked twice; a847c8b3
+    # flagged repeat questions as redundant).
+    if (not advanced
+            and state.coverage[area["id"]].sub_signals.get("anything_else_asked")
+            and state.coverage[area["id"]].response_received
+            and _area_response_satisfied(state, area)
+            and i < n):
+        state.awaiting_anything_else = False
+        state.current_area_index = min(i + 1, n)
+        i = state.current_area_index
+        area = sections[i - 1]
+        state.turns_in_current_area = 0
+        advanced = True
+
     # Hard total-turn safety net (budget scales per-schema).
     if (state.turn >= _total_turn_budget(state)
             and not _all_covered(state)
@@ -309,6 +347,7 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
             directive = _dir_ask_equity(state, area)
         elif _area_response_satisfied(state, area):
             state.awaiting_anything_else = True
+            cov22.sub_signals["anything_else_asked"] = True
             directive = _dir_anything_else(state, area)
         else:
             directive = _dir_continue_area(state, area, i, n)
@@ -329,6 +368,7 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
             directive = _dir_rate_and_justify(state, area, cur_dim, cov24.sub_signals["dim_cursor"], len(dims24br))
         elif _area_response_satisfied(state, area):
             state.awaiting_anything_else = True
+            cov24.sub_signals["anything_else_asked"] = True
             directive = _dir_anything_else(state, area)
         else:
             directive = _dir_continue_area(state, area, i, n)
@@ -337,6 +377,7 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
         directive = _dir_probe(state, area)
     elif _area_response_satisfied(state, area):
         state.awaiting_anything_else = True
+        state.coverage[area["id"]].sub_signals["anything_else_asked"] = True
         directive = _dir_anything_else(state, area)
     else:
         directive = _dir_continue_area(state, area, i, n)
@@ -362,11 +403,27 @@ def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
     displayed = stripped
     ended = False
 
+    # directive_kind: what the engine told the LLM to do THIS turn. Computed
+    # early (mirrors `directiveKind` in leai-formmode.js) so it can gate the
+    # closing-feedback sync below.
+    directive_kind = state.last_directive.get("kind") if state.last_directive else None
+
     # Sync engine to closing-feedback question: if the bot just asked it,
     # mark all sections covered AND set closing_feedback_asked so the next
     # turn fires _dir_final_ack and emits [END].
+    #
+    # P0-1d: `directive_kind == "close"` is an AUTHORITATIVE signal on its
+    # own — the engine, not a text guess, decided this turn was the closing
+    # question, so mark it regardless of whether the LLM's paraphrase happens
+    # to match a fingerprint below. Relying on `_looks_like_closing_feedback`
+    # alone was the bug: the GROUP schema's wording never matched the
+    # (INDIVIDUAL-only) candidate list, `closing_feedback_asked` never got
+    # set, and `_all_covered()` fired `_dir_close` a second time next turn
+    # (779616e3 got two "Last thing —" turns back to back).
+    # `_looks_like_closing_feedback` stays as a fallback for any other path
+    # that only has the raw text.
     closing_prompt = ((state.schema.get("closing") or {}).get("feedback_prompt")) or ""
-    if closing_prompt and _looks_like_closing_feedback(displayed, closing_prompt):
+    if directive_kind == "close" or (closing_prompt and _looks_like_closing_feedback(displayed, closing_prompt)):
         _force_cover_all(state)
         state.closing_feedback_asked = True
         i = state.current_area_index
@@ -408,7 +465,7 @@ def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
     # potentially prefixing the engine-injected one.
     displayed = _strip_wrong_section_headers(displayed, i, n)
 
-    kind = state.last_directive.get("kind") if state.last_directive else None
+    kind = directive_kind
     prev_emitted = getattr(state, "_last_emitted_area", 0) or 0
     should_emit_header = (
         kind in ("opening", "open_area") or i != prev_emitted
@@ -530,6 +587,17 @@ _STRONG_NO_ADD = re.compile(
 # are essentially the WHOLE message (≤3 words, no clause structure).
 _WEAK_NO_ADD_WHOLE = re.compile(
     r"^(done|good|fine|ready|ok|okay|sure|yep|yeah|cool|got it|got it\.?)$",
+    flags=re.IGNORECASE,
+)
+
+# P0-2: a clear "no friction / smooth / nothing to add" answer is a COMPLETE
+# answer, even when short — the group script kept demanding a breakdown /
+# "one concrete change" / "one central question" that didn't exist for
+# smoothly-functioning teams (b3ec7d7d "we worked together very smoothly" kept
+# getting pushed; bbb18af6; eef6b105).
+_SMOOTH_NO_FRICTION = re.compile(
+    r"\bsmooth(ly)?\b|\bno (real )?(friction|disagreement|conflicts?|issues?|problems?|complaints?)\b"
+    r"|\bnothing (to add|to change|really to change)\b|\ball (good|fine)\b",
     flags=re.IGNORECASE,
 )
 
@@ -779,6 +847,11 @@ def _should_probe(state: EngineState, area: dict[str, Any], last_msg: str) -> bo
         return False
     if not _area_response_satisfied(state, area):
         return False
+    # P0-2: a clear "no friction / smooth / nothing to add" reply is a
+    # complete answer even though it's short — don't probe it into
+    # manufacturing a problem that isn't there.
+    if _SMOOTH_NO_FRICTION.search(last_msg or ""):
+        return False
     threshold = state.schema.get("shallow_word_threshold", 25)
     wc = len([w for w in (last_msg or "").split() if w])
     return 0 < wc < threshold
@@ -977,11 +1050,7 @@ def _dir_ask_equity(state: EngineState, area: dict[str, Any]) -> dict[str, Any]:
 
 def _dir_close(state: EngineState) -> dict[str, Any]:
     closing = state.schema.get("closing", {})
-    feedback = closing.get(
-        "feedback_prompt",
-        "Did this conversation surface more honest reflection than filling out the PDF would have, "
-        "and what would make it work better next week?",
-    )
+    feedback = closing.get("feedback_prompt") or _CLOSING_FEEDBACK_FALLBACK
     return {
         "kind": "close",
         "text": (
@@ -1009,11 +1078,22 @@ def _looks_like_closing_feedback(displayed: str, closing_prompt: str) -> bool:
     if not displayed or not closing_prompt:
         return False
     d = displayed.lower()
+    # ADDITIVE ONLY — hci271 and logged transcripts still use the OLD
+    # wording, so OLD candidates must never be removed, only added to.
     candidates = [
+        # OLD (CMPM 80H INDIVIDUAL, pre-P0-4) + hci271.
         "surface more honest reflection than filling out the pdf",
         "work better next week",
         "more honest reflection",
         "filling out the pdf",
+        # OLD locked wording actually ends "...next time?", not "next week" —
+        # the candidate above predates that; keep both so any OLD-wording
+        # transcript is still detected.
+        "work better next time",
+        # NEW (P0-4) wording, CMPM 80H only.
+        "compare to writing your reflection on your own",  # INDIVIDUAL
+        "talking through your team",  # GROUP
+        "process this way work for you",  # GROUP (2nd anchor)
     ]
     for c in candidates:
         if c in d:
