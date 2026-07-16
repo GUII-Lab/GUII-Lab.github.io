@@ -131,3 +131,36 @@
 
 - Deploy `guiidatapipelines` to Heroku and run `migrate` to apply `0037` — until then the live registry still serves the old planted CMPM 80H closing wording (confirmed against the registry). Surveys are live, so time the deploy at a week boundary so the closing question doesn't change mid-week.
 - `wk5-cmpm80h-*` closing variants use bespoke "across the whole course" wording that also plants "honest reflection" — left untouched, pending a decision.
+
+## 2026-07-16 — Task: Rebuild the StudyCrafter pitch deck around results, then rewrite its speaker notes
+
+### Actions taken
+
+1. Found that `studycrafter-pitch.pptx` had diverged from `build_deck.py` — the shipped deck was hand-assembled in Google Slides, carried ~1MB full-window screenshots, had no motivation slide, and contained zero speaker notes (no `notesSlides` part at all). A naive regenerate would have destroyed it, so the new deck is written to a new file and the original is untouched.
+2. Wrote `build_deck_v2.py`, producing a 9-slide `studycrafter-pitch-v2.pptx` with embedded notes on every slide. Adds the "Why LEAI" motivation slide, a results slide from the SP26 end-of-quarter report, and an ideas slide with an explicit ask.
+3. Dispatched four independent zero-context reviewers against the design. They converged unanimously: restore the motivation slide as slide 2, the screenshots were unreadable wallpaper, and Structured Reflection belongs after the student-experience slide. Also caught that the deck had no call to action and that "~5 minutes" appeared on no slide.
+4. Reversed my own call on SUS. I had argued for notes-only; the skeptic reviewer showed that was a persuasion rationale and asymmetric (suppressing n=6 while featuring an n=1 testimonial). SUS now sits on the results slide, framed as the adoption/usability tension.
+5. Recaptured screenshots against v0.2.8 (`shots/`) and cropped every one to the claim it proves — no browser chrome, no sidebar. A full 1440px window shown at half-slide width projects UI text at ~5.7pt, which is unreadable from the back of a room.
+6. Trimmed all eight main slides to the assertion and pushed the removed detail into the notes.
+7. Rewrote all nine sets of notes against Harvey's hand edits to the .pptx (below), in plain sentences with no dashes and no "A, not B" constructions.
+
+### Files created / changed
+
+- `LEAI/docs/studycrafter-pitch/build_deck_v2.py` (new) — deck builder. Run with `uv run --with python-pptx --with pillow python build_deck_v2.py` from that directory.
+- `LEAI/docs/studycrafter-pitch/studycrafter-pitch-v2.pptx` (new) — the deck. 9 slides, 9 notesSlides.
+- `LEAI/docs/studycrafter-pitch/shots/` (new) — cropped captures.
+
+### Decisions
+
+- **The .pptx is now the source of truth, not the builder.** Harvey edits the deck directly in PowerPoint: he added a Feedback Chat slide at 7, corrected week 10 from 25 of 25 to 24 of 25, and cut the student-control and Canvas bullets from the ideas slide. `build_deck_v2.py` predates all of it. Patch the deck in place with python-pptx; re-running the builder overwrites his work.
+- Verified every build by rendering to PDF (`soffice --headless --convert-to pdf`) and looking at each page. That is what caught all five layout bugs — slide 1 text overlap, a butchered consent crop, a slide 6 image floating small, uncropped chrome on the backup slide, and a slide 8 band overflow.
+- Insights per-claim counts are computed, not model-generated — confirmed in `FeedbackAnalyzer.html:2432-2450`, where the chip renders `citeRids.length` after dedupe and after dropping IDs that don't resolve. The notes carry that answer, along with the honest caveat that code counts while the model chooses what to cite.
+- Screenshots showing seeded numbers sit two slides from real deployment numbers, so slide 6 carries a visible DEMO DATA stamp and the notes cue saying it aloud.
+- Course Banner and Customizations stay out, per Harvey.
+- Left `build_deck.py` in place. It builds a third, unrelated deck from `LEAI/guide-assets/` and is now misleading; its fate is undecided.
+
+### Next steps
+
+- Slides 4, 5 and 9 still use art recovered from the old deck. Slide 5's screenshot predates the revise/add-to hint, so the slide claims a feature its image doesn't show — recapture before presenting.
+- HCI 220's real student count is still missing from the results slide; dev numbers were refused for a slide claiming real deployment.
+- `script.md` and `slides.md` describe the old 6-slide deck and are now out of sync with the real 9.
