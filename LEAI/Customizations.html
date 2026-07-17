@@ -203,6 +203,28 @@
                 </div>
             </div>
 
+            <!-- Point to a human -->
+            <div class="cb-card">
+                <h2>Point to a human</h2>
+                <div class="cb-field">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                        <input type="checkbox" id="cb-referral-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                        <span>Let the AI point struggling students to a person</span>
+                    </label>
+                    <p class="cb-hint">When a student sounds stuck, lost, or overwhelmed, the AI adds one line telling them they can reach a person, then returns to the survey. It says it once per conversation, never troubleshoots, and never promises outcomes.</p>
+                </div>
+                <div class="cb-field">
+                    <label for="cb-referral-text">Where to send them</label>
+                    <input type="text" class="cb-input" id="cb-referral-text" maxlength="200"
+                           placeholder="your instructor or TA during their office hours" autocomplete="off" />
+                    <div class="cb-text-meta">
+                        <button type="button" class="cb-link-btn" id="cb-referral-reset">Reset to default</button>
+                        <span class="cb-count" id="cb-referral-count">0 / 200</span>
+                    </div>
+                    <p class="cb-hint">Completes the sentence the AI says: <em id="cb-referral-preview">&ldquo;&hellip;you can reach your instructor or TA during their office hours.&rdquo;</em> Leave blank for the default. The AI adds no names, times, or rooms beyond this wording.</p>
+                </div>
+            </div>
+
             <!-- Preview -->
             <div class="cb-card">
                 <h2>Student preview</h2>
@@ -230,6 +252,7 @@
 (function () {
     var session = null;
     var DEFAULT_BOT_NAME = 'LEAI';
+    var DEFAULT_REFERRAL_TEXT = 'your instructor or TA during their office hours';
 
     var el = function (id) { return document.getElementById(id); };
 
@@ -305,6 +328,27 @@
         el('cb-bot-name').focus();
     });
 
+    function refreshReferral() {
+        var on = el('cb-referral-enabled').checked;
+        var input = el('cb-referral-text');
+        input.disabled = !on;
+        input.style.opacity = on ? '' : '0.5';
+        var v = input.value;
+        var c = el('cb-referral-count');
+        c.textContent = v.length + ' / 200';
+        c.classList.toggle('over', v.length > 200);
+        el('cb-referral-preview').textContent =
+            '“…you can reach ' + (v.trim() || DEFAULT_REFERRAL_TEXT) + '.”';
+    }
+
+    el('cb-referral-enabled').addEventListener('change', refreshReferral);
+    el('cb-referral-text').addEventListener('input', refreshReferral);
+    el('cb-referral-reset').addEventListener('click', function () {
+        el('cb-referral-text').value = '';
+        refreshReferral();
+        el('cb-referral-text').focus();
+    });
+
     // ===== LOAD / SAVE =====
     function loadCustomization() {
         setSaveMsg('', '');
@@ -313,15 +357,22 @@
             .then(function (d) {
                 if (d && d.default_bot_name) DEFAULT_BOT_NAME = d.default_bot_name;
                 el('cb-bot-name').value = (d && d.bot_display_name_raw) || '';
+                if (d && d.default_referral_text) DEFAULT_REFERRAL_TEXT = d.default_referral_text;
+                el('cb-referral-enabled').checked = !!(d && d.referral_enabled);
+                el('cb-referral-text').value = (d && d.referral_text_raw) || '';
+                el('cb-referral-text').placeholder = DEFAULT_REFERRAL_TEXT;
                 refresh();
+                refreshReferral();
             })
-            .catch(function () { setSaveMsg('Could not load customization settings.', 'err'); refresh(); });
+            .catch(function () { setSaveMsg('Could not load customization settings.', 'err'); refresh(); refreshReferral(); });
     }
 
     el('cb-save-btn').addEventListener('click', function () {
         var payload = {
             course_id: session.courseId,
-            bot_display_name: el('cb-bot-name').value
+            bot_display_name: el('cb-bot-name').value,
+            referral_enabled: el('cb-referral-enabled').checked,
+            referral_text: el('cb-referral-text').value
         };
         this.disabled = true;
         setSaveMsg('Saving…', '');
@@ -334,7 +385,10 @@
         .then(function (res) {
             if (res.ok) {
                 el('cb-bot-name').value = res.j.bot_display_name_raw || '';
+                el('cb-referral-enabled').checked = !!res.j.referral_enabled;
+                el('cb-referral-text').value = res.j.referral_text_raw || '';
                 refresh();
+                refreshReferral();
                 setSaveMsg('Saved.', 'ok');
             } else {
                 setSaveMsg(res.j.error || 'Save failed.', 'err');
