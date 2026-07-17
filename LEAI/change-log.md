@@ -164,3 +164,28 @@
 - Slides 4, 5 and 9 still use art recovered from the old deck. Slide 5's screenshot predates the revise/add-to hint, so the slide claims a feature its image doesn't show — recapture before presenting.
 - HCI 220's real student count is still missing from the results slide; dev numbers were refused for a slide claiming real deployment.
 - `script.md` and `slides.md` describe the old 6-slide deck and are now out of sync with the real 9.
+
+---
+
+## 2026-07-16 — Task: Point-to-a-human referral gate + CMPM 80K survey prep
+
+### Actions taken
+
+1. Added the POINT TO A HUMAN referral gate as a 7th per-turn tone gate in both form-mode engines (`leai-formmode.js` + `LEAI/scripts/leai_formmode.py`, byte-identical directive text). Fires when a student signals they're stuck/lost/behind/struggling: one sentence pointing them at a person, no troubleshooting, no promised outcomes, once per conversation. The model tags the firing reply with `[REFERRED]`; the engine strips the marker, latches `referral_done`, and flips the gate to a suppression line.
+2. Config travels the bot_display_name path: new `Course.referral_enabled` + `Course.referral_text` (guiidatapipelines migration 0038), served on `get_feedback_gpt_by_public_id`, overlaid onto the schema in `feedback.html`, editable in Customizations (toggle + wording field with live sentence preview). Blank wording falls back to "your instructor or TA during their office hours".
+3. Verification: `LEAI/scripts/verify_referral_gate.py`. 36 deterministic checks (both engines + parity + six-gate regression) pass. Live layer: 4 scripted personas through real `claude -p` turns — fired on the distress turn in the same message, refused to define under "tell me or I give up" while still firing, never fired on the-work-went-badly answers, never fired with the flag off, marker never leaked. Transcripts in `LEAI/scripts/reports/referral-gate/`.
+4. CMPM 80K prep: `guiidatapipelines/scripts/seed_cmpm80k.py` (gitignored, local-only like the 80H tooling) seeds `cmpm80k-reflection` + `cmpm80k-team-reflection` mirroring the two Google Docs Kate is confirming, course `cmpm80k-sm26` with bot "Kit" and referral on, and the Week 1 individual survey. Ran clean against the local DB.
+5. Drafted the 80K studio-survey prompt (`wk1-cmpm80k-group.md`, off the 80H group standard: roster walk as peer review, justification-before-rating, async standup wording, glossary carve-out, pointing-to-a-human section).
+
+### Blocked on Kate (msgs in cmpm80k-kate-questions.md)
+
+- Week 1 concept list for the no-define placeholder in `wk1-cmpm80k-form.md`
+- Office hours for the summer async section → `Course.referral_text`
+- Which weeks get individual vs studio surveys; the two peer-review weeks
+- Names-in-transcript and glossary carve-out confirmations
+
+### Deploy notes (Harvey — tasks 7 and 8)
+
+- Nothing pushed. Pushing this repo to main publishes to GitHub Pages; the Heroku deploy also carries migrations 0037+0038 and the P0 form-mode fixes that are in-repo but not yet live.
+- `feedback.html` cache-busts the engine at `?v=v0.2.9`; the full LEAI_VERSION release cut (leai-version.js + all `?v=` refs + legal lockstep) was left for deploy time.
+- Set the course password: `scripts/set_course_password.py cmpm80k-sm26`.
