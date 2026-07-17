@@ -900,7 +900,7 @@
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
          in feedback.html below — see ensureDocxLoaded(). -->
-    <script src="leai-formmode.js?v=v0.2.8"></script>
+    <script src="leai-formmode.js?v=v0.2.9"></script>
     <script src="leai-version.js"></script>
     <script>
 
@@ -1014,6 +1014,16 @@
                 // week_number so the rendered docx header reads the right week.
                 if (gpt && gpt.week_number != null) {
                     schema = Object.assign({}, schema, { week: gpt.week_number });
+                }
+                // POINT TO A HUMAN referral gate: a Course-level setting (set
+                // in Customizations, served on the gpt payload). Overlay it
+                // onto the schema — that's the only config object the engine
+                // sees — so referralGate() can arm the 7th turn gate.
+                if (gpt && gpt.referral_enabled) {
+                    schema = Object.assign({}, schema, {
+                        referral_enabled: true,
+                        referral_text: gpt.referral_text || '',
+                    });
                 }
                 formMode.active = true;
                 formMode.schema = schema;

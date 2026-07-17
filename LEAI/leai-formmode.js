@@ -35,6 +35,28 @@
         '- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write "single question mark", "I need a new angle", "the student said"). No meta-commentary.',
     ].join('\n');
 
+    // Default destination for the POINT TO A HUMAN gate when a course enables
+    // it without customizing the wording. Kept generic on purpose — "your
+    // instructor or TA", never a person's name, time, or room.
+    var REFERRAL_TEXT_DEFAULT = 'your instructor or TA during their office hours';
+
+    // Optional 7th tone gate — POINT TO A HUMAN. Unlike the six static gates
+    // above it is (a) per-course: schema.referral_enabled / schema.referral_text
+    // are overlaid onto the schema by feedback.html from the Course record, and
+    // (b) stateful: it fires once per conversation (latched via the [REFERRED]
+    // marker in afterTurn), then flips to a suppression line so the model never
+    // re-pitches office hours. Mirrors _referral_gate() in
+    // LEAI/scripts/leai_formmode.py — keep the two in sync.
+    function referralGate(state) {
+        var schema = state && state.schema;
+        if (!schema || !schema.referral_enabled) return '';
+        var target = (schema.referral_text && String(schema.referral_text).trim()) || REFERRAL_TEXT_DEFAULT;
+        if (state.referral_done) {
+            return '\n- POINT TO A HUMAN (ALREADY DONE): You already told the student once that they can reach ' + target + '. Do NOT bring it up again this conversation unless the student directly asks how to get help from a person.';
+        }
+        return '\n- POINT TO A HUMAN: If (and ONLY if) the student\'s message signals they are personally stuck, lost, behind, overwhelmed, or struggling ("I\'m lost", "I can\'t do this", "everyone else has done this before", "I want to give up"), then in this same reply: acknowledge as usual, add exactly ONE sentence letting them know they can reach ' + target + ', then continue with your one question for the turn. Do NOT troubleshoot, diagnose, or promise any outcome ("they\'ll give you an extension"). Do not add any person\'s name, time, or place beyond that wording. When you add that sentence, ALSO append the marker [REFERRED] at the very end of your reply — this marker is required, is the single exception to the no-control-token rule, and is stripped before the student sees it. A setback in the work itself ("the playtest went badly", "our standup was messy") is NOT distress — do not fire on that. If there is no distress signal this turn, skip this rule entirely.';
+    }
+
     // Hard total-turn cap is scaled per-schema (see totalTurnBudget()).
     // Floor for any schema, regardless of size:
     var MIN_TOTAL_TURN_BUDGET = 24;
@@ -104,6 +126,10 @@
                 // turns afterward must reference these exact names — prevents
                 // Lewis→Louise drift seen in production transcripts.
                 roster: null,
+                // POINT TO A HUMAN gate: true once the bot has pointed the
+                // student to their instructor/TA this conversation (latched
+                // when afterTurn sees the [REFERRED] marker).
+                referral_done: false,
             };
         },
 
@@ -400,8 +426,10 @@
 
             // Inject the per-turn tone gates (allowlist + no-define) so they
             // ride at high salience every turn, not just in the static prompt.
+            // The referral gate (POINT TO A HUMAN) rides along only when the
+            // course enables it, and flips to its suppression form once fired.
             if (directive && typeof directive.text === 'string') {
-                directive = Object.assign({}, directive, { text: directive.text + TURN_GATES });
+                directive = Object.assign({}, directive, { text: directive.text + TURN_GATES + referralGate(state) });
             }
             state.last_directive = directive;
             return mkBefore({ directive: directive });
@@ -413,6 +441,15 @@
             var raw = (llmResponse || '').trim();
             var hadEnd = /\[END\]/i.test(raw);
             var stripped = raw.replace(/\[END\]/gi, '').trim();
+
+            // POINT TO A HUMAN gate: the model tags its reply with [REFERRED]
+            // when it added the office-hours sentence. Strip the marker before
+            // anything is displayed and latch referral_done so referralGate()
+            // emits its suppression form from now on.
+            if (/\[REFERRED\]/i.test(stripped)) {
+                state.referral_done = true;
+                stripped = stripped.replace(/\[REFERRED\]/gi, '').trim();
+            }
 
             // Post-end passthrough: the chat is in "completed but still open"
             // mode. Skip header injection, area advance, and [END] handling.

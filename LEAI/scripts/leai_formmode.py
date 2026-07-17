@@ -83,6 +83,10 @@ class EngineState:
     # never says "move on" / "no" / etc., we still cap the time spent so the
     # interview can finish. See MAX_TURNS_PER_AREA.
     turns_in_current_area: int = 0
+    # POINT TO A HUMAN gate: True once the bot has pointed the student to
+    # their instructor/TA this conversation (latched when after_turn sees the
+    # [REFERRED] marker). Mirrors the JS engine's `state.referral_done`.
+    referral_done: bool = False
 
 
 # Cap on student turns within a single area before the engine force-advances.
@@ -109,6 +113,50 @@ _TURN_GATES = (
     "- ALLOW REPHRASE ON REQUEST: If the student says a question is confusing/unclear, asks what it means, or asks for a simpler or alternative wording, briefly REPHRASE the current question in simpler, concrete terms (this is NOT an off-topic ask). Then let them answer the rephrased version. Stay on the same area.\n"
     "- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write \"single question mark\", \"I need a new angle\", \"the student said\"). No meta-commentary.\n"
 )
+
+# Default destination for the POINT TO A HUMAN gate when a course enables it
+# without customizing the wording. Kept generic on purpose — "your instructor
+# or TA", never a person's name, time, or room. Mirrors REFERRAL_TEXT_DEFAULT
+# in LEAI/leai-formmode.js — keep the two in sync.
+_REFERRAL_TEXT_DEFAULT = "your instructor or TA during their office hours"
+
+
+def _referral_gate(state: "EngineState") -> str:
+    """Optional 7th tone gate — POINT TO A HUMAN.
+
+    Unlike the six static gates it is (a) per-course: schema["referral_enabled"]
+    / schema["referral_text"] are overlaid onto the schema by feedback.html from
+    the Course record in production (offline harnesses set them directly on the
+    schema dict), and (b) stateful: it fires once per conversation (latched via
+    the [REFERRED] marker in after_turn), then flips to a suppression line so
+    the model never re-pitches office hours. Mirrors referralGate() in
+    LEAI/leai-formmode.js — keep the two in sync.
+    """
+    schema = state.schema if state else None
+    if not schema or not schema.get("referral_enabled"):
+        return ""
+    target = (str(schema.get("referral_text") or "")).strip() or _REFERRAL_TEXT_DEFAULT
+    if state.referral_done:
+        return (
+            "\n- POINT TO A HUMAN (ALREADY DONE): You already told the student once "
+            f"that they can reach {target}. Do NOT bring it up again this conversation "
+            "unless the student directly asks how to get help from a person."
+        )
+    return (
+        "\n- POINT TO A HUMAN: If (and ONLY if) the student's message signals they are "
+        "personally stuck, lost, behind, overwhelmed, or struggling (\"I'm lost\", "
+        "\"I can't do this\", \"everyone else has done this before\", \"I want to give up\"), "
+        "then in this same reply: acknowledge as usual, add exactly ONE sentence letting "
+        f"them know they can reach {target}, then continue with your one question for the "
+        "turn. Do NOT troubleshoot, diagnose, or promise any outcome (\"they'll give you an "
+        "extension\"). Do not add any person's name, time, or place beyond that wording. "
+        "When you add that sentence, ALSO append the marker [REFERRED] at the very end of "
+        "your reply — this marker is required, is the single exception to the "
+        "no-control-token rule, and is stripped before the student sees it. A setback in "
+        "the work itself (\"the playtest went badly\", \"our standup was messy\") is NOT "
+        "distress — do not fire on that. If there is no distress signal this turn, skip "
+        "this rule entirely."
+    )
 
 # P0-4: neutral closing-question fallback used ONLY when a schema is missing
 # closing.feedback_prompt (shouldn't happen in production — schemas always
@@ -384,8 +432,10 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
 
     # Inject the per-turn tone gates (allowlist + no-define) into the directive
     # so they ride at high salience every turn, not just in the static prompt.
+    # The referral gate (POINT TO A HUMAN) rides along only when the course
+    # enables it, and flips to its suppression form once fired.
     if directive is not None and "text" in directive:
-        directive = {**directive, "text": directive["text"] + _TURN_GATES}
+        directive = {**directive, "text": directive["text"] + _TURN_GATES + _referral_gate(state)}
 
     state.last_directive = directive
     return BeforeTurnResult(directive=directive)
@@ -395,6 +445,14 @@ def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
     raw = (llm_response or "").strip()
     had_end = "[END]" in raw.upper()
     stripped = re.sub(r"\[END\]", "", raw, flags=re.IGNORECASE).strip()
+
+    # POINT TO A HUMAN gate: the model tags its reply with [REFERRED] when it
+    # added the office-hours sentence. Strip the marker before anything is
+    # displayed and latch referral_done so _referral_gate() emits its
+    # suppression form from now on. Mirrors leai-formmode.js.
+    if "[REFERRED]" in stripped.upper():
+        state.referral_done = True
+        stripped = re.sub(r"\[REFERRED\]", "", stripped, flags=re.IGNORECASE).strip()
     schema = state.schema
     n = len(schema["sections"])
     i = state.current_area_index
