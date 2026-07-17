@@ -67,17 +67,18 @@ It works like this.
 
 1. A student says something that signals they're stuck, lost, behind, or struggling.
 2. The bot acknowledges it.
-3. It adds one line about reaching their instructor or TA in office hours.
+3. It adds one warm, low-pressure line inviting them to bring it up with their instructor or TA.
 4. It goes back to the question.
 
 It won't troubleshoot, and it won't promise anything on your behalf ("they'll give you an
-extension"). One mention, then it drops it. Nobody gets named, students just hear "your
-instructor or TA".
+extension"). The line is a gentle suggestion, never "this is the time to." One mention, then it
+drops it. Nobody gets named, students just hear "your instructor or TA".
 
 > **Student:** honestly I'm lost, everyone else has made games before and I haven't
 >
-> **Kit:** Mm. Bring that to your instructor or TA in office hours. That's what the time is for.
-> What's the part that's hardest to get started on?
+> **Kit:** Mm. No pressure at all, but it might help to bring this up with your instructor or TA
+> during their office hours whenever you'd like. What's the part that's hardest to get started
+> on?
 
 Here's my problem. The handbook still has `[name, email, hours]` unfilled, and "hours" shows up
 nowhere else in it. Do office hours exist for the summer async section? When? If there's no

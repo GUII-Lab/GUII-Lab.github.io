@@ -189,3 +189,26 @@
 - Nothing pushed. Pushing this repo to main publishes to GitHub Pages; the Heroku deploy also carries migrations 0037+0038 and the P0 form-mode fixes that are in-repo but not yet live.
 - `feedback.html` cache-busts the engine at `?v=v0.2.9`; the full LEAI_VERSION release cut (leai-version.js + all `?v=` refs + legal lockstep) was left for deploy time.
 - Set the course password: `scripts/set_course_password.py cmpm80k-sm26`.
+
+---
+
+## 2026-07-17 — Task: Soften the referral-gate phrasing (reviewer feedback)
+
+### Context
+
+Feedback on the point-to-a-human flow: the flow is right, but imperative phrasing ("This is the time to bring it to the Prof or TA") can read as a forced action. Make it warm and open-ended instead.
+
+### Decision (confirmed with Harvey)
+
+- **Warm statement, keep the flow.** The referral is a gentle, agency-giving *statement* (no "?"), so the bot's one survey question still rides the same turn and the reflection keeps moving. Chosen over a question-form invitation, which would have paused the survey a turn and collided with the one-question-per-turn rule.
+- **Default wording keeps "during their office hours"** (still per-course configurable).
+
+### Actions taken
+
+1. Rewrote the active gate directive in both engines (`leai-formmode.js` `referralGate` + `leai_formmode.py` `_referral_gate`, byte-identical): the bot now adds one warm, open-ended sentence that *invites* ("no pressure, but it might help to...", "whenever you'd like, you could...") rather than instructs, phrased as a statement so the single "?" stays the survey question. Parity check still passes.
+2. Extended `verify_referral_gate.py`: fired reply must keep exactly one "?" (invitation is a statement) and must not use "this is the time" framing. Deterministic + live layers re-run.
+3. Updated the email example to Kate (`cmpm80k-kate-questions.md`), both prompt docs' "Pointing to a human" sections, and the "will and won't do" bullet in both Google Docs (re-uploaded).
+
+### Not deployed
+
+Same as the 2026-07-16 entry — committed on main, not pushed.

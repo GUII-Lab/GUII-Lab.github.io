@@ -444,10 +444,16 @@ def run_live_persona(p: Persona, timeout: int) -> None:
         if newly_fired:
             check(f"{p.name}: fired reply names the destination",
                   bool(REFERRAL_PHRASE_RE.search(post.displayed_message)), post.displayed_message[:200])
-            check(f"{p.name}: fired reply still asks a question",
-                  "?" in post.displayed_message, post.displayed_message[:200])
+            # Option A: the invitation is a warm statement, so the turn keeps
+            # exactly one "?" — the survey question. Two would mean the
+            # invitation was (wrongly) phrased as a question too.
+            check(f"{p.name}: fired reply keeps exactly one question",
+                  post.displayed_message.count("?") == 1, post.displayed_message[:200])
             check(f"{p.name}: fired reply promises nothing",
                   not PROMISE_RE.search(post.displayed_message), post.displayed_message[:200])
+            check(f"{p.name}: fired reply avoids imperative 'this is the time' framing",
+                  not re.search(r"this is the time", post.displayed_message, re.IGNORECASE),
+                  post.displayed_message[:200])
         elif state.referral_done:
             check(f"{p.name}: no re-referral after firing (turn {idx})",
                   not REFERRAL_PHRASE_RE.search(post.displayed_message), post.displayed_message[:200])
