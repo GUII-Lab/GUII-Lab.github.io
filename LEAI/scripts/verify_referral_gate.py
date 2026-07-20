@@ -302,8 +302,8 @@ DISALLOWED_TOOLS = (
     "NotebookEdit,LS,SlashCommand"
 )
 
-KIT_PERSONA = (
-    "You are Kit, a reflection coach for CMPM 80K Foundations of Video Game "
+LEAI_PERSONA = (
+    "You are LEAI, a reflection coach for CMPM 80K Foundations of Video Game "
     "Design, Week 1 (summer, asynchronous). You help one student at a time "
     "think through what they personally learned this week. You are not a "
     "tutor, not a writer, not a grader. Warm, curious, plain-spoken. Keep "
@@ -407,7 +407,7 @@ def run_live_persona(p: Persona, timeout: int) -> None:
     overlay = {"referral_enabled": True} if p.referral_enabled else {}
     schema = make_schema(**overlay)
     state = fm.init_engine(schema)
-    system_prompt = KIT_PERSONA + ONE_QUESTION_GUARDRAIL + fm.system_prompt_tail(schema)
+    system_prompt = LEAI_PERSONA + ONE_QUESTION_GUARDRAIL + fm.system_prompt_tail(schema)
 
     transcript: list[tuple[str, str]] = []
     fired_at: int | None = None

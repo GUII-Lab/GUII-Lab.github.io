@@ -25,8 +25,8 @@ to upload.
 Two separate conversations. Students do both. Comment inline on anything.
 
 One small thing. The handbook calls the tool LEIA. It's LEAI, Learning Experience AI. Can you fix
-that before students see both? I've named the bot Kit. Magy's runs as Remi. Say if you want
-something else.
+that before students see both? The bot goes by LEAI in your class. Magy nicknamed hers Remi, so
+say if you'd like a custom name for yours.
 
 ---
 
@@ -76,7 +76,7 @@ drops it. Nobody gets named, students just hear "your instructor or TA".
 
 > **Student:** honestly I'm lost, everyone else has made games before and I haven't
 >
-> **Kit:** Mm. No pressure at all, but it might help to bring this up with your instructor or TA
+> **LEAI:** Mm. No pressure at all, but it might help to bring this up with your instructor or TA
 > during their office hours whenever you'd like. What's the part that's hardest to get started
 > on?
 
@@ -104,7 +104,7 @@ wait. Week 1 is what I need to start drafting.
 
 - Blocking `wk1-cmpm80k-form.md`: Week 1 concepts (Msg 5), office hours (Msg 4).
 - Summer async confirmed, so 2.1 should ask about the async standup + sync log, not lab.
-- Bot name Kit lands in `Course.bot_display_name` (migration 0036), not a prompt edit.
+- Bot uses the default LEAI tag (blank `Course.bot_display_name`); no custom name this course.
 - Referral is engine work: 7th gate in `_TURN_GATES` (`leai-formmode.js:28-36` +
   `leai_formmode.py:103-111`), schema-flagged, toggled from Customizations. Static-prompt rules
   are ignored ~90% of the time (`cmpm80h-production-parity-patch.md:29-33`), so it cannot live

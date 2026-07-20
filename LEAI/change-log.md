@@ -212,3 +212,17 @@ Feedback on the point-to-a-human flow: the flow is right, but imperative phrasin
 ### Not deployed
 
 Same as the 2026-07-16 entry — committed on main, not pushed.
+
+---
+
+## 2026-07-20 — Task: Name the 80K bot LEAI (drop "Kit")
+
+Harvey reversed the earlier "Kit" naming — the 80K bot goes by LEAI, its default. No custom name this course (Kate can still request one; Magy's is Remi).
+
+- Blank `Course.bot_display_name` → default "LEAI" message tag. `seed_cmpm80k.py` now clears it (`BOT_NAME = ''`); re-seeded local DB, confirmed `bot_display_name=''`.
+- Persona renamed to LEAI in both prompt docs (`wk1-cmpm80k-form.md`, `wk1-cmpm80k-group.md`).
+- Email/questions doc: naming line and the referral example ("LEAI:" not "Kit:") updated.
+- Both Google Docs re-uploaded ("conversation with LEAI, our bot").
+- Harness persona `KIT_PERSONA` → `LEAI_PERSONA`; deterministic + parity checks green; live layer re-running to refresh transcripts.
+
+Gate logic untouched — the name is cosmetic to the referral behavior.
