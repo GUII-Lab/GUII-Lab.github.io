@@ -207,6 +207,9 @@ class AfterTurnResult:
     displayed_message: str
     ended: bool
     lock_chat: bool
+    # True when the POINT TO A HUMAN nudge fired on THIS turn. Callers persist
+    # it per-message; it is not the sticky EngineState.referral_done latch.
+    referred: bool = False
 
 
 # ─── engine ──────────────────────────────────────────────────────────────
@@ -456,7 +459,8 @@ def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTur
     return BeforeTurnResult(directive=directive)
 
 
-def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
+def after_turn(state: EngineState, llm_response: str, *,
+               referred: bool = False) -> AfterTurnResult:
     raw = (llm_response or "").strip()
     had_end = "[END]" in raw.upper()
     stripped = re.sub(r"\[END\]", "", raw, flags=re.IGNORECASE).strip()
@@ -465,7 +469,16 @@ def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
     # added the office-hours sentence. Strip the marker before anything is
     # displayed and latch referral_done so _referral_gate() emits its
     # suppression form from now on. Mirrors leai-formmode.js.
-    if "[REFERRED]" in stripped.upper():
+    #
+    # fired_this_turn is what callers persist (per-message), and is
+    # deliberately distinct from state.referral_done, which is the sticky
+    # per-conversation latch — using the latch would flag every reply after
+    # the nudge. The `referred` kwarg carries the stored flag back in on
+    # replay, where the marker was already stripped before the row was
+    # written; without it a resumed conversation re-arms the gate and the
+    # student can be nudged a second time.
+    fired_this_turn = ("[REFERRED]" in stripped.upper()) or referred
+    if fired_this_turn:
         state.referral_done = True
         stripped = re.sub(r"\[REFERRED\]", "", stripped, flags=re.IGNORECASE).strip()
     schema = state.schema
@@ -582,6 +595,7 @@ def after_turn(state: EngineState, llm_response: str) -> AfterTurnResult:
         displayed_message=displayed,
         ended=ended,
         lock_chat=ended,
+        referred=fired_this_turn,
     )
 
 

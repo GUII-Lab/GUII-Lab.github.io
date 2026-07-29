@@ -437,8 +437,10 @@
         },
 
         // Called after the LLM responds. Returns:
-        //   { displayedMessage: str, ended: bool, lockChat: bool }
-        afterTurn: function (state, llmResponse) {
+        //   { displayedMessage: str, ended: bool, lockChat: bool, referred: bool }
+        // opts.referred re-latches the referral gate when replaying a stored
+        // transcript (see below).
+        afterTurn: function (state, llmResponse, opts) {
             var raw = (llmResponse || '').trim();
             var hadEnd = /\[END\]/i.test(raw);
             var stripped = raw.replace(/\[END\]/gi, '').trim();
@@ -447,7 +449,17 @@
             // when it added the office-hours sentence. Strip the marker before
             // anything is displayed and latch referral_done so referralGate()
             // emits its suppression form from now on.
-            if (/\[REFERRED\]/i.test(stripped)) {
+            //
+            // firedThisTurn is what callers persist (per-message), and is
+            // deliberately distinct from state.referral_done, which is the
+            // sticky per-conversation latch — using the latch would flag every
+            // reply after the nudge. opts.referred carries the stored flag back
+            // in on replay, where the marker was already stripped before the
+            // row was written; without it a student who refreshes mid-survey
+            // re-arms the gate and can be nudged a second time.
+            var firedThisTurn = /\[REFERRED\]/i.test(stripped)
+                || !!(opts && opts.referred);
+            if (firedThisTurn) {
                 state.referral_done = true;
                 stripped = stripped.replace(/\[REFERRED\]/gi, '').trim();
             }
@@ -462,6 +474,7 @@
                     displayedMessage: stripped,
                     ended: false,
                     lockChat: false,
+                    referred: firedThisTurn,
                 };
             }
 
@@ -622,6 +635,7 @@
                 displayedMessage: displayed,
                 ended: ended,
                 lockChat: ended,
+                referred: firedThisTurn,
             };
         },
 
