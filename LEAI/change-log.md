@@ -226,3 +226,51 @@ Harvey reversed the earlier "Kit" naming — the 80K bot goes by LEAI, its defau
 - Harness persona `KIT_PERSONA` → `LEAI_PERSONA`; deterministic + parity checks green; live layer re-running to refresh transcripts.
 
 Gate logic untouched — the name is cosmetic to the referral behavior.
+
+---
+
+## 2026-07-28 — Task: Publish CMPM 80K Week 1 to production
+
+Kate's course went live. Everything from the 2026-07-16 / 07-17 / 07-20 entries
+that was "committed but not pushed" is now deployed.
+
+### Actions taken
+
+1. `seed_cmpm80k.py`: added the Week 1 studio survey to `SURVEYS`
+   (`wk1-cmpm80k-group.md` + `cmpm80k-team-reflection`). The prompt file and
+   schema already existed; only the list entry was missing.
+2. Pushed `guiidatapipelines` (`af822b3`, referral config) → Heroku deploy, and
+   `GUII-Lab.github.io` (12 commits: referral gate engines, Customizations UI,
+   80K prompt drafts) → GitHub Pages.
+3. Applied migration `0038` to the prod DB (it was at `0037`). Ran the seeder
+   against prod: schemas, course `cmpm80k-sm26`, `80K Studios` team config, and
+   both Week 1 surveys created with fresh public_ids.
+4. Set the course login password on prod (hashed, pbkdf2_sha256, verified).
+
+### Live IDs (production)
+
+| Survey | Mode | public_id |
+|---|---|---|
+| CMPM 80K Wk1 Form (Individual) | form, anonymous | `b4ZrDdVyfcPE` |
+| CMPM 80K Wk1 Group (Studio) | group, identified | `lec1221Fqsbl` |
+
+Student URLs: `https://guii-lab.github.io/LEAI/feedback.html?id=<public_id>`
+
+### Verification
+
+Live login returns `valid: true` for `cmpm80k-sm26`. Both surveys list on
+`feedback_gpts_by_course`, `is_closed=False`. `get_course_customization` returns
+`referral_enabled: true` (proves 0038 + the new code are both live). The studio
+snapshot serves Studio 1 / Studio 2. Both student URLs loaded in a real browser:
+the individual form shows the "CMPM 80K — Week 1" header with the ANONYMOUS
+badge and consent gate; the group survey shows the studio picker. 0 console
+errors on both (only the known Tailwind CDN warning).
+
+### Still open
+
+- Studios are the **2x4 placeholder**, not Kate's real roster. Fix in the
+  instructor UI when she sends the real studios.
+- Both prompt files still carry their DRAFT blocker headers: Week 1 concept list
+  for the no-define rule, office hours for `referral_text` (currently the
+  generic default), names-in-transcript consent, glossary carve-out.
+- Weeks 2-10 unseeded pending Kate's week schedule.
