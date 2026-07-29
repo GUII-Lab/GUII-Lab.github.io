@@ -106,7 +106,8 @@ MAX_TURNS_PER_AREA = 14
 # so we restate them every turn at high salience.
 _TURN_GATES = (
     "\n\n[HARD RULES FOR THIS TURN — these override your default helpful/warm style]\n"
-    "- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these, and NOTHING else before it: \"Got it.\" / \"Okay.\" / \"Mm.\" / \"Noted.\" / \"Fair.\" / a 2-to-6-word verbatim quote of the student in double-quotes. FORBIDDEN openers (delete and rewrite if you catch one): \"That's a/the ...\", \"Nice\", \"Good\", \"Great\", \"Sharp\", \"Strong\", \"Solid\", \"Smart\", \"Useful\", \"Genuinely\", \"Beautifully\", \"Love ...\", \"Perfect\", \"Exactly\", \"Right -\", \"Thanks for ...\", \"That makes sense\", \"That nails it\", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.\n"
+    "- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these five, and NOTHING else before it: \"Got it.\" / \"Okay.\" / \"Mm.\" / \"Noted.\" / \"Fair.\" FORBIDDEN openers (delete and rewrite if you catch one): \"That's a/the ...\", \"Nice\", \"Good\", \"Great\", \"Sharp\", \"Strong\", \"Solid\", \"Smart\", \"Useful\", \"Genuinely\", \"Beautifully\", \"Love ...\", \"Perfect\", \"Exactly\", \"Right -\", \"Thanks for ...\", \"That makes sense\", \"That nails it\", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.\n"
+    "- NO ECHO: Do NOT quote, restate, paraphrase, or summarize back what the student just said. Never put the student's own words in quotation marks — not as your opener, not anywhere in the reply. Their words are already on screen; repeating them wastes the turn and reads as parroting. If your question would be genuinely ambiguous because they named several things, refer to the one you mean in YOUR OWN plain words and in as few as possible (\"What told you which rules to cut?\", \"What part of the card game worked?\") — never by quoting them. When the question is already clear without it, refer to nothing and just ask.\n"
     "- NO DEFINING: Never define, explain, summarize, or describe what ANY term, concept, method, or technique means - including AI terms (hallucination, tokenization, algorithmic bias, RLHF, Goodhart's Law, cognitive offloading, automation bias, etc.). If the student asks \"what is X\" / \"remind me how X works\" / \"I missed that lecture\" / \"quick version\", do NOT answer it. Briefly decline — VARY the wording so it never feels canned (e.g. \"I can't define that here -\" / \"I'm not going to define that one -\" / \"I won't define it for you here -\"; do not reuse the same refusal phrasing twice in a row) — then ask one question about what THEY did or noticed. NEVER begin a reply with \"Sure:\" or \"Quick version:\" followed by an explanation.\n"
     "- NO REDUNDANT RE-ASK: Do NOT re-ask about something the student has already substantively answered. If their reply already covers the next planned probe or the wrap-up \"anything else\" would be redundant, acknowledge briefly and ADVANCE instead of asking again.\n"
     "- ACCEPT SMOOTH/NO-FRICTION: If the student indicates the team worked smoothly, has nothing to add, or there was no friction/disagreement, ACCEPT that as a complete answer — acknowledge and advance. Do NOT reword the same probe to manufacture a problem.\n"
@@ -144,8 +145,11 @@ def _referral_gate(state: "EngineState") -> str:
         )
     return (
         "\n- POINT TO A HUMAN: If (and ONLY if) the student's message signals they are "
-        "personally stuck, lost, behind, overwhelmed, or struggling (\"I'm lost\", "
-        "\"I can't do this\", \"everyone else has done this before\", \"I want to give up\"), "
+        "personally stuck, lost, behind, overwhelmed, struggling, or have not been keeping "
+        "up with the course (\"I'm lost\", "
+        "\"I can't do this\", \"everyone else has done this before\", \"I want to give up\", "
+        "\"I wasn't really following the class\", \"I haven't kept up\", \"I stopped going\", "
+        "\"I've been checked out\"), "
         "then in this same reply: acknowledge as usual, then add exactly ONE warm, "
         "open-ended sentence that gently INVITES them to bring it up with "
         f"{target} and leaves the choice with them (e.g. \"no pressure, but it might help "
@@ -159,7 +163,13 @@ def _referral_gate(state: "EngineState") -> str:
         "your reply — this marker is required, is the single exception to the "
         "no-control-token rule, and is stripped before the student sees it. A setback in "
         "the work itself (\"the playtest went badly\", \"our standup was messy\") is NOT "
-        "distress — do not fire on that. If there is no distress signal this turn, skip "
+        "distress — do not fire on that. Simply not remembering something is normal and is "
+        "NOT a trigger on its own (\"I don't remember which reading it was\", \"I forget "
+        "what that was called\") — do not fire on a plain memory lapse. But an admission "
+        "that they have NOT been following, attending, or keeping up with the class IS a "
+        "trigger, even when said casually and even when it arrives bundled with not "
+        "remembering (\"I wasn't following the class closely, I don't remember\") — in that "
+        "case fire on the not-following part. If there is no such signal this turn, skip "
         "this rule entirely."
     )
 
@@ -984,7 +994,7 @@ def _dir_probe(state: EngineState, area: dict[str, Any]) -> dict[str, Any]:
             "[DIRECTIVE FOR THIS TURN]\n"
             f"The student's answer was thin. Probe ONCE for specificity. Use the area's probe text or rephrase: \"{probe}\"\n"
             "After this probe, regardless of the student's response, the engine will move on. Do not probe again.\n"
-            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the probe question.\n"
+            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the probe question.\n"
             "One question only. Under 350 characters."
         ),
     }
@@ -1007,7 +1017,7 @@ def _dir_anything_else(state: EngineState, area: dict[str, Any]) -> dict[str, An
             f"The student has answered the area substantively. Now ask a brief wrap-up question, e.g.: \"{wrap_q}\"\n"
             "If you asked a wrap-up question last turn, do NOT repeat it verbatim — reword it so it does not feel canned.\n"
             "Do NOT advance to the next area in this message — engine handles that on the next turn based on the student's reply.\n"
-            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the wrap-up question. Under 350 characters."
+            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the wrap-up question. Under 350 characters."
         ),
     }
 
@@ -1022,7 +1032,7 @@ def _dir_continue_area(state: EngineState, area: dict[str, Any], i: int, n: int)
             "Pick a different angle: a sub-field that hasn't been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn't given. ONE question only.\n"
             "STRICT: do NOT repeat, paraphrase, restate, or echo the opening question above — it is already in the transcript. Asking a new angle means asking something genuinely different, not the opening question with new wording.\n"
             "STRICT: emit EXACTLY ONE question mark (\"?\") in your reply. Two or more topics ending in \"?\" is forbidden — pick one.\n"
-            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair / a 2-to-6-word verbatim quote of the student), then the question.\n"
+            "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the question.\n"
             "Do NOT advance to the next area.\n"
             "Under 350 characters."
         ),
