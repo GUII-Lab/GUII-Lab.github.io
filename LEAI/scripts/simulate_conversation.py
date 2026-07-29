@@ -181,6 +181,7 @@ def persist_message(
     text: str,
     seq: int,
     research_consent: bool,
+    referred: bool = False,
 ) -> None:
     payload = {
         "session_id": session_id,
@@ -190,6 +191,9 @@ def persist_message(
         "gpt_used": gpt["name"],
         "gpt_id": gpt["id"],
         "research_consent": research_consent,
+        # True on the AI turn that fired the POINT TO A HUMAN nudge, so a
+        # simulated distressed persona produces a Nudged chip in the analyzer.
+        "referred": referred,
         "client_seq": seq,
         "client_ts": int(time.time() * 1000) + seq,
     }
@@ -263,9 +267,11 @@ def run(args: argparse.Namespace) -> int:
         session_id=None,
         timeout=args.timeout,
     )
+    intro_referred = False
     if fm_state is not None:
         post = fm.after_turn(fm_state, raw_intro)
         intro = post.displayed_message
+        intro_referred = post.referred
     else:
         intro = raw_intro
 
@@ -274,6 +280,7 @@ def run(args: argparse.Namespace) -> int:
         api, gpt=gpt, session_id=survey_session,
         role="ai-message", text=intro, seq=seq,
         research_consent=args.research_consent,
+        referred=intro_referred,
     )
     print(f"  [{seq:02d}] BOT: {_preview(intro)}")
     if fm_state is not None:
@@ -323,10 +330,12 @@ def run(args: argparse.Namespace) -> int:
             timeout=args.timeout,
         )
 
+        referred = False
         if fm_state is not None:
             post = fm.after_turn(fm_state, raw_reply)
             display = post.displayed_message
             ended = post.ended
+            referred = post.referred
         else:
             ended = "[END]" in raw_reply
             display = raw_reply.replace("[END]", "").strip()
@@ -336,6 +345,7 @@ def run(args: argparse.Namespace) -> int:
             api, gpt=gpt, session_id=survey_session,
             role="ai-message", text=display, seq=seq,
             research_consent=args.research_consent,
+            referred=referred,
         )
         tail = "  ⟵ [END]" if ended else ""
         print(f"  [{seq:02d}] BOT: {_preview(display)}{tail}")

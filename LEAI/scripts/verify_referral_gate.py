@@ -154,6 +154,10 @@ def run_python_checks() -> dict:
     check("py: [REFERRED] stripped from displayed message",
           "referred" not in post.displayed_message.lower())
     check("py: referral_done latched", st.referral_done is True)
+    # The per-message flag callers persist. Distinct from referral_done: this
+    # one is about THIS turn, the latch is about the whole conversation.
+    check("py: after_turn reports referred=True on the marker turn",
+          post.referred is True)
 
     # Next directive flips to suppression.
     txt3 = directive_text(st)
@@ -164,8 +168,30 @@ def run_python_checks() -> dict:
 
     # No marker → no latch.
     st4 = fm.init_engine(make_schema(referral_enabled=True))
-    fm.after_turn(st4, "Okay. What did you make this week?")
+    post4 = fm.after_turn(st4, "Okay. What did you make this week?")
     check("py: no latch without the marker", st4.referral_done is False)
+    check("py: after_turn reports referred=False on a plain turn",
+          post4.referred is False)
+
+    # Replay: a stored transcript has the marker already stripped, so the
+    # persisted flag is the only thing that can re-latch the gate. Without
+    # this a student who refreshes mid-survey can be nudged a second time.
+    st5 = fm.init_engine(make_schema(referral_enabled=True))
+    post5 = fm.after_turn(
+        st5, "Mm. You could bring this up with your instructor. What stuck with you?",
+        referred=True)
+    check("py: stored flag re-latches on replay without a marker",
+          st5.referral_done is True)
+    check("py: replayed turn still reports referred=True", post5.referred is True)
+    txt5 = directive_text(st5)
+    spent5 = txt5[txt5.index("\n- POINT TO A HUMAN"):] if "- POINT TO A HUMAN" in txt5 else ""
+    check("py: gate is suppressed after a replayed referral",
+          "ALREADY DONE" in spent5, spent5[:120])
+
+    # Replay of an ordinary stored turn must not latch.
+    st6 = fm.init_engine(make_schema(referral_enabled=True))
+    fm.after_turn(st6, "Okay. What did you make this week?", referred=False)
+    check("py: replay flag False does not latch", st6.referral_done is False)
 
     return out
 
@@ -239,6 +265,9 @@ check('js: default wording gone when custom set', txt2.indexOf(DEFAULT_TARGET) =
 const post = fm.afterTurn(st, 'Mm. You can reach your instructor or TA during their office hours. What stuck with you this week? [ReFeRreD]');
 check('js: [REFERRED] stripped from displayed message', post.displayedMessage.toLowerCase().indexOf('referred') === -1);
 check('js: referral_done latched', st.referral_done === true);
+// The per-message flag callers persist. Distinct from referral_done: this one
+// is about THIS turn, the latch is about the whole conversation.
+check('js: afterTurn reports referred=true on the marker turn', post.referred === true);
 
 // Suppression form next turn.
 let txt3 = directiveText(st);
@@ -250,8 +279,35 @@ gates.spent = spent;
 
 // No marker, no latch.
 let st4 = fm.init(mkSchema({ referral_enabled: true }), {});
-fm.afterTurn(st4, 'Okay. What did you make this week?');
+const post4 = fm.afterTurn(st4, 'Okay. What did you make this week?');
 check('js: no latch without the marker', st4.referral_done === false);
+check('js: afterTurn reports referred=false on a plain turn', post4.referred === false);
+
+// Replay: a stored transcript has the marker already stripped, so the
+// persisted flag is the only thing that can re-latch the gate. Without this a
+// student who refreshes mid-survey can be nudged a second time.
+let st5 = fm.init(mkSchema({ referral_enabled: true }), {});
+const post5 = fm.afterTurn(st5, 'Mm. You could bring this up with your instructor. What stuck with you?', { referred: true });
+check('js: stored flag re-latches on replay without a marker', st5.referral_done === true);
+check('js: replayed turn still reports referred=true', post5.referred === true);
+let txt5 = directiveText(st5);
+const spent5Idx = txt5.indexOf('\n- POINT TO A HUMAN');
+const spent5 = spent5Idx >= 0 ? txt5.slice(spent5Idx) : '';
+check('js: gate is suppressed after a replayed referral', spent5.indexOf('ALREADY DONE') !== -1, spent5.slice(0, 120));
+
+// Replay of an ordinary stored turn must not latch.
+let st6 = fm.init(mkSchema({ referral_enabled: true }), {});
+fm.afterTurn(st6, 'Okay. What did you make this week?', { referred: false });
+check('js: replay flag false does not latch', st6.referral_done === false);
+
+// JS-only branch: the post-[END] passthrough returns early, before the normal
+// return. It has no Python counterpart, so the parity check can't catch a
+// missing `referred` there — a nudge on a post-completion turn would vanish.
+let st7 = fm.init(mkSchema({ referral_enabled: true }), {});
+st7._post_end_passthrough = true;
+const post7 = fm.afterTurn(st7, 'Mm. You can reach your instructor or TA during their office hours. [REFERRED]');
+check('js: passthrough branch reports referred=true', post7.referred === true);
+check('js: passthrough branch still strips the marker', post7.displayedMessage.toLowerCase().indexOf('referred') === -1);
 
 process.stdout.write(JSON.stringify({ results, gates }));
 """
