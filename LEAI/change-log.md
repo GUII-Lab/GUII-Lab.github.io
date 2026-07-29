@@ -347,11 +347,20 @@ Caught during verification: Tailwind's preflight blockifies `svg`, which
 dropped the flag onto its own line under the AI label. Fixed with an explicit
 `display: inline-block`.
 
+### Deployed 2026-07-29
+
+Backend first (`8dc2930`), then the frontend (`60165c3`). The Heroku release
+phase applied `0039` on its own this time — unlike `0038`, which needed a manual
+run. Confirmed against the prod DB, and `feedback_messages_by_course` now serves
+`referred` on live CMPM 80K rows. Pages serving v0.2.9: the new insights prompt,
+the engine's per-turn flag, and the analyzer chip code are all live.
+
+Prod currently has 0 rows with `referred=True` — nothing is backfilled, and
+`cmpm80k-sm26` is the one course with the gate on, so recording starts from the
+next nudge.
+
 ### Still open
 
-- Deploy: backend must land and migrate before the frontend ships, or nudges
-  fired in the gap are lost. Nothing is broken if the order slips — unknown
-  JSON keys are ignored and every read self-gates.
 - `build_response_corpus` still does not filter on `research_consent`.
   Pre-existing, but marking non-consenting rows `[NUDGED]` sharpens it.
 - In a week with few responses, "R3 was nudged" is close to identifying. Worth
