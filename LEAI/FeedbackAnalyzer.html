@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.8"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.8">
+    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.2.9">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -173,6 +173,26 @@
         }
         .student-card-banner.control {
             color: var(--muted); background: var(--surface-mid); border-color: var(--surface-border);
+        }
+        /* POINT TO A HUMAN chip. Deliberately not the banner chip's amber — a
+           card can carry both at once and they must not read as one dimension.
+           Only the positive state renders: unlike the banner A/B split, "not
+           nudged" is the uninteresting default. */
+        .student-card-nudge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 0.7rem; font-weight: 600;
+            border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+            letter-spacing: 0.02em;
+            color: #9f403d; background: #fdeceb; border: 1px solid #f3c9c6;
+        }
+        /* Tailwind's preflight blockifies svg, which would drop the flag onto
+           its own line inside the AI label. Force it back inline. */
+        .leai-nudge-flag { display: inline-block; flex-shrink: 0; vertical-align: -2px; }
+        .convo-msg-label .leai-nudge-flag { color: #9f403d; margin-left: 4px; }
+        .qt-sent-legend .nudge-legend-item { color: #9f403d; gap: 6px; }
+        #student-responses-toolbar {
+            display: none; flex-wrap: wrap; align-items: center;
+            justify-content: space-between; gap: 12px; margin: 0 0 14px;
         }
         .student-card-chevron {
             font-size: 0.7rem; color: var(--muted); transition: transform 0.15s; flex-shrink: 0;
@@ -692,6 +712,10 @@
                     <span class="section-title">Student Responses</span>
                     <button class="btn btn-outline btn-sm" id="expand-all-btn" style="font-size:0.72rem;padding:4px 12px" tabindex="0">Expand All</button>
                 </div>
+                <!-- Flag legend + "Nudged only" filter. Populated by
+                     renderStudentResponsesToolbar(); stays hidden unless the
+                     current scope actually contains a nudged conversation. -->
+                <div id="student-responses-toolbar"></div>
                 <div id="student-responses-list"></div>
             </div>
 
@@ -736,8 +760,8 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.8"></script>
-<script src="leai-pdf-ingest.js?v=v0.2.8"></script>
+<script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-pdf-ingest.js?v=v0.2.9"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -1071,6 +1095,18 @@
         try { localStorage.setItem('leai.pdfSourceFilter', pdfSourceFilter); } catch (e) {}
     }
 
+    // Narrows the responses list to conversations where the POINT TO A HUMAN
+    // nudge fired. Lives beside the source filter and persists the same way.
+    var nudgedOnlyFilter = (function () {
+        try { return localStorage.getItem('leai.nudgedOnlyFilter') === '1'; }
+        catch (e) { return false; }
+    })();
+
+    function setNudgedOnlyFilter(next) {
+        nudgedOnlyFilter = !!next;
+        try { localStorage.setItem('leai.nudgedOnlyFilter', nudgedOnlyFilter ? '1' : '0'); } catch (e) {}
+    }
+
     /** Returns the survey to ingest into for the current scope.
      *  feedback_messages_by_course/ uses `gpt_id` as the survey identifier;
      *  we normalise it to a `.id` field so the ingest module can stay
@@ -1196,6 +1232,69 @@
 
     function sessionHasPdfMessage(msgs) {
         return (msgs || []).some(function (m) { return m && m.source === 'pdf'; });
+    }
+
+    // ===== POINT TO A HUMAN ("nudged") =====
+    // The reflection assistant can suggest, once per conversation, that a
+    // student who signals being stuck or behind bring it up with their
+    // instructor or TA. The engine strips its [REFERRED] marker before the
+    // reply is stored, so `referred` on the AI row is the only record. It is
+    // absent on rows written before that field shipped, which is why every
+    // surface below self-gates on the flag actually being present.
+    function messageWasNudged(m) { return !!(m && m.referred); }
+
+    function sessionWasNudged(msgs) {
+        return (msgs || []).some(messageWasNudged);
+    }
+
+    /** Sessions in the current mode + scope with at least one nudged AI turn.
+     *  Deliberately ignores the source and nudged-only view filters — this is
+     *  a fact about the scope, not about the current view, and it gates the
+     *  stat card, the legend, and the filter toggle itself. */
+    function nudgedSessionCount() {
+        var count = 0;
+        activeSurveys().forEach(function (s) {
+            if (currentScope.kind === 'week' && s.week_number !== currentScope.weekNumber) return;
+            var sessions = s.sessions || {};
+            Object.keys(sessions).forEach(function (sid) {
+                if (sessionWasNudged(sessions[sid])) count++;
+            });
+        });
+        return count;
+    }
+
+    /** Inline flag icon (feather "flag"), matching the file's SVG house style.
+     *  Built with createElementNS rather than innerHTML, like every other
+     *  dynamic node in this page. */
+    function buildNudgeFlagIcon(opts) {
+        opts = opts || {};
+        var ns = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(ns, 'svg');
+        svg.setAttribute('class', 'leai-nudge-flag');
+        svg.setAttribute('width', '12');
+        svg.setAttribute('height', '12');
+        svg.setAttribute('viewBox', '0 0 24 24');
+        // Filled banner, stroked pole: the second path (M4 22v-7) has no area,
+        // so the fill is a no-op there and only the stroke draws it.
+        svg.setAttribute('fill', 'currentColor');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', opts.title || 'Nudged toward a human');
+        if (opts.title) {
+            var t = document.createElementNS(ns, 'title');
+            t.textContent = opts.title;
+            svg.appendChild(t);
+        }
+        ['M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z', 'M4 22v-7']
+            .forEach(function (d) {
+                var p = document.createElementNS(ns, 'path');
+                p.setAttribute('d', d);
+                svg.appendChild(p);
+            });
+        return svg;
     }
 
     /** Returns the PDF batch_id for a session if any of its messages
@@ -1668,6 +1767,17 @@
                 tooltip: 'Average number of words per student response in ' + scopeLabel + '.\n\nCalculated as total words (' + totalWords + ') ÷ total responses (' + totalResponses + ').\n\nWhitespace-split; punctuation stays attached.'
             },
         ];
+
+        // POINT TO A HUMAN. Self-gating: the card only exists once at least
+        // one nudge has fired in scope, so courses with the referral setting
+        // off never see it. Counted per conversation, not per message.
+        var nudgedCount = nudgedSessionCount();
+        if (nudgedCount > 0) {
+            cards.push({
+                value: nudgedCount, label: 'Nudged',
+                tooltip: 'Conversations in ' + scopeLabel + ' where the assistant suggested the student bring something up with their instructor or TA.\n\nIt fires at most once per conversation, and only when a student signals they are stuck, behind, or not keeping up.\n\nCounted per student conversation, not per message, and unaffected by the filters below.'
+            });
+        }
 
         cards.forEach(function (c) {
             var card = document.createElement('div');
@@ -2895,9 +3005,57 @@
         return pending;
     }
 
+    /** Legend for the flag icon plus the "Nudged only" filter, in one strip
+     *  under the Student Responses header. Follows the Quick Take sentiment
+     *  legend's convention of rendering only when the dimension it explains
+     *  actually exists, so a course without the referral setting on sees no
+     *  change at all. Deliberately not inside renderPdfIngestToolbar(), which
+     *  hides itself outside form mode — nudges also occur in in-group surveys
+     *  that bind a form schema. */
+    function renderStudentResponsesToolbar() {
+        var bar = document.getElementById('student-responses-toolbar');
+        if (!bar) return;
+        bar.textContent = '';
+        if (nudgedSessionCount() === 0) {
+            bar.style.display = 'none';
+            return;
+        }
+        bar.style.display = 'flex';
+
+        var legend = document.createElement('div');
+        legend.className = 'qt-sent-legend';
+        var legendLabel = document.createElement('span');
+        legendLabel.className = 'qt-sent-legend-label';
+        legendLabel.textContent = 'Legend:';
+        legend.appendChild(legendLabel);
+        var item = document.createElement('span');
+        item.className = 'qt-sent-legend-item nudge-legend-item';
+        item.appendChild(buildNudgeFlagIcon());
+        item.appendChild(document.createTextNode('Nudged toward a human'));
+        legend.appendChild(item);
+        bar.appendChild(legend);
+
+        var filter = document.createElement('div');
+        filter.className = 'leai-pdf-source-filter';
+        [['all', 'All responses'], ['nudged', 'Nudged only']].forEach(function (pair) {
+            var on = (pair[0] === 'nudged') === nudgedOnlyFilter;
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'leai-pdf-source-filter__btn' + (on ? ' leai-pdf-source-filter__btn--on' : '');
+            btn.textContent = pair[1];
+            btn.addEventListener('click', function () {
+                setNudgedOnlyFilter(pair[0] === 'nudged');
+                renderStudentResponses();
+            });
+            filter.appendChild(btn);
+        });
+        bar.appendChild(filter);
+    }
+
     function renderStudentResponses() {
         var list = document.getElementById('student-responses-list');
         list.textContent = '';
+        renderStudentResponsesToolbar();
         document.getElementById('expand-all-btn').textContent = 'Expand All';
 
         var modeSurveys = activeSurveys();
@@ -2927,6 +3085,10 @@
                     var keep = msgs.some(messageMatchesSourceFilter);
                     if (!keep) return;
                 }
+                // "Nudged only": narrow to the students the assistant pointed
+                // toward a human. Applied after the source filter so the two
+                // compose.
+                if (nudgedOnlyFilter && !sessionWasNudged(msgs)) return;
                 entries.push({
                     sessionId: sid,
                     msgs: msgs,
@@ -2936,6 +3098,9 @@
                     // A/B banner exposure for this session: true = saw the
                     // banner, false = control, undefined = no split running.
                     bannerExposure: (s.banner_exposure || {})[sid],
+                    // True when any AI turn in this conversation fired the
+                    // POINT TO A HUMAN nudge.
+                    nudged: sessionWasNudged(msgs),
                     // Threaded through so the expanded card can build the
                     // student-facing resume URL (feedback.html?id=…#cid=…).
                     publicId: s.public_id || ''
@@ -2953,7 +3118,9 @@
         if (!entries.length) {
             var empty = document.createElement('p');
             empty.className = 'no-data';
-            empty.textContent = 'No responses yet.';
+            empty.textContent = nudgedOnlyFilter
+                ? 'No nudged responses in this scope.'
+                : 'No responses yet.';
             list.appendChild(empty);
             return;
         }
@@ -3036,6 +3203,17 @@
                     : 'This student was not shown the banner (A/B control group).';
                 header.appendChild(bannerChip);
             }
+            // POINT TO A HUMAN chip. Only the positive state renders — "not
+            // nudged" is the default and a negative chip on most cards would
+            // be noise.
+            if (entry.nudged) {
+                var nudgeChip = document.createElement('span');
+                nudgeChip.className = 'student-card-nudge';
+                nudgeChip.appendChild(buildNudgeFlagIcon());
+                nudgeChip.appendChild(document.createTextNode('Nudged'));
+                nudgeChip.title = 'This student signalled they were stuck or falling behind, so the assistant suggested they bring it up with a person. It happens at most once per conversation. Expand the card to see the reply it fired on.';
+                header.appendChild(nudgeChip);
+            }
             header.appendChild(meta);
             header.appendChild(chevron);
 
@@ -3075,6 +3253,14 @@
                     var lbl = document.createElement('span');
                     lbl.className = 'convo-msg-label ' + (isStudent ? 'student' : 'ai');
                     lbl.textContent = isStudent ? 'Student' : 'AI';
+                    // Marks the one reply where the POINT TO A HUMAN nudge
+                    // fired. Rides on the label so the bubble keeps its plain
+                    // textContent and the student rows don't reflow.
+                    if (!isStudent && messageWasNudged(m)) {
+                        lbl.appendChild(buildNudgeFlagIcon({
+                            title: 'This is the reply where the assistant pointed the student toward a person.',
+                        }));
+                    }
 
                     // Bubble + timestamp share a column so the time sits under
                     // the message, right-aligned to the bubble.
@@ -3273,6 +3459,10 @@
         leaiInsights.generateReport(resolveSchemaIdForSession(sessionId), msgs, {
             sessionId: sessionId,
             force: !!force,
+            // Lets the brief close on what this student was struggling with
+            // when the POINT TO A HUMAN nudge fired. Stable for a session, so
+            // the sessionId report cache key stays correct.
+            nudged: sessionWasNudged(msgs),
         })
         .then(function (entry) {
             renderInsightsLoaded(panel, body, actions, sessionId, entry);

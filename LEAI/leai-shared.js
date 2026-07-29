@@ -764,6 +764,7 @@ var leaiInsights = (function () {
         '- Tone: analytical, third-person ("the student described\u2026"). NOT casual. NOT advice. NOT grading.',
         '- All quotes are VERBATIM. If you have to shorten, mark with [paraphrased] inline.',
         '- No method-explanations. No comments on the bot\'s behavior.',
+        '- If a "=== NUDGE ===" block is present, close the TL;DR with ONE sentence naming what the student said they were struggling with, quoting them, and noting they were pointed toward a person. Do not describe the assistant\'s behavior beyond that, do not give advice, and do not speculate about causes the student did not state. If the block is absent, say nothing about referrals or struggling-student handling.',
         '- This brief will be read aloud by TTS to a busy instructor \u2014 write so it sounds natural when spoken: short sentences, evidenced claims, no jargon stacking.',
     ].join('\n');
 
@@ -832,9 +833,16 @@ var leaiInsights = (function () {
             '=== STUDENT ===',
             (ctx.studentName || ctx.sessionId || '(anonymous)'),
             '',
+        ].concat(ctx.nudged ? [
+            // POINT TO A HUMAN fired in this conversation. Emitted only when
+            // true so briefs for everyone else stay byte-identical.
+            '=== NUDGE ===',
+            'During this conversation the assistant suggested this student bring something up with their instructor or TA. That only happens when a student signals they are stuck, lost, behind, or not keeping up with the course.',
+            '',
+        ] : []).concat([
             '=== TRANSCRIPT ===',
             convo,
-        ].join('\n');
+        ]).join('\n');
     }
 
     function wordCount(text) {
