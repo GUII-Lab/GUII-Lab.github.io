@@ -355,9 +355,27 @@ run. Confirmed against the prod DB, and `feedback_messages_by_course` now serves
 `referred` on live CMPM 80K rows. Pages serving v0.2.9: the new insights prompt,
 the engine's per-turn flag, and the analyzer chip code are all live.
 
-Prod currently has 0 rows with `referred=True` — nothing is backfilled, and
-`cmpm80k-sm26` is the one course with the gate on, so recording starts from the
-next nudge.
+Nothing is backfilled, and `cmpm80k-sm26` is the one course with the gate on.
+
+**Post-deploy gotcha.** The first nudge after the deploy did NOT record. Cause
+was not the model and not the plumbing: GitHub Pages serves HTML with
+`cache-control: max-age=600` and `feedback.html` carries no `?v=` of its own
+(only its sub-resources do), so a browser holding the pre-deploy copy ran the
+old `storeData` for up to 10 minutes after publication. Ruled out the
+alternatives before concluding — replayed the exact turns through the live model
+6/6 with the marker emitted, and confirmed the served file and the running
+page's function bodies both carry the field.
+
+Then verified end to end on production in a fresh browser: distress turn ->
+referral fired -> `referral_done` latched -> the row persisted `referred=True`
+-> `feedback_messages_by_course` reports 1 nudged session. That test session
+(`56bfe90b`) is the only flagged row on prod. Harvey's earlier test session
+(`d9e0f044`, the one lost to the cache window) was deleted from prod at his
+request.
+
+Any future deploy has the same 10-minute exposure. Closing it properly would
+mean recording server-side in the `/openai-chat/` proxy, which does see
+`[REFERRED]` before the client strips it, but that needs session correlation.
 
 ### Still open
 
