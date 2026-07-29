@@ -122,6 +122,20 @@
             padding: 18px 22px; font-size: 0.84rem; color: var(--muted);
         }
 
+        /* Entire-course scope: Instructor Insights and Traditional Analysis
+           only read one survey week at a time, so the course scope shows week
+           navigation in place of the analysis. */
+        .scope-redirect {
+            background: var(--surface-low);
+            border-left: 4px solid var(--outline);
+            padding: 22px 24px;
+        }
+        .scope-redirect h3 { font-size: 0.92rem; font-weight: 700; margin-bottom: 6px; }
+        .scope-redirect p {
+            font-size: 0.82rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5;
+        }
+        .scope-redirect-weeks { display: flex; flex-wrap: wrap; gap: 8px; }
+
         /* Prompt reveal */
         .prompt-reveal { margin-top: 12px; }
         .prompt-reveal pre {
@@ -1024,6 +1038,9 @@
             chip.className = 'scope-chip';
             chip.textContent = s.survey_label || ('Week ' + s.week_number);
             chip.setAttribute('tabindex', '0');
+            // Lets goToWeekScope() drive the chip instead of duplicating the
+            // scope-change + active-chip bookkeeping.
+            if (s.week_number != null) chip.dataset.week = s.week_number;
             (function (survey) {
                 chip.addEventListener('click', function () {
                     currentScope = { kind: 'week', weekNumber: survey.week_number };
@@ -1036,6 +1053,23 @@
             })(s);
             bar.appendChild(chip);
         });
+    }
+
+    // Jump the whole page to a week's scope. Clicking the chip keeps the scope
+    // bar, the analysis panels and the chip highlight in sync through the one
+    // existing code path.
+    function goToWeekScope(weekNumber) {
+        var bar = document.getElementById('scope-bar');
+        var chip = bar ? bar.querySelector('.scope-chip[data-week="' + weekNumber + '"]') : null;
+        if (chip) {
+            chip.click();
+            if (chip.scrollIntoView) {
+                chip.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+            return;
+        }
+        currentScope = { kind: 'week', weekNumber: weekNumber };
+        onScopeChange();
     }
 
     function setActiveChip(bar, activeChip) {
@@ -1057,6 +1091,13 @@
             currentScope.weekNumber
         );
 
+        // Traditional Analysis is a per-week read: frequency across the whole
+        // course flattens the weeks into one bag of words and keyness has no
+        // baseline to compare against. Hide it at course scope; the week picker
+        // rendered into Instructor Insights is the way back to it.
+        var tradSection = document.getElementById('traditional-analysis-section');
+        if (tradSection) tradSection.style.display = currentScope.kind === 'course' ? 'none' : '';
+
         // Keyness toggle: disable when scope = course
         var keynessBtn = document.getElementById('keyness-btn');
         if (currentScope.kind === 'course') {
@@ -1076,7 +1117,7 @@
         }
 
         renderStats();
-        renderNgrams();
+        if (currentScope.kind !== 'course') renderNgrams();
         renderQuickTake();
         renderStudentResponses();
         renderVerifyCodes();
@@ -2055,6 +2096,15 @@
         var container = document.getElementById('quick-take-container');
         container.textContent = '';
 
+        // Entire-course scope merges every week into one corpus, and the themes
+        // that come back generalise across weeks that were about different
+        // things. Send the instructor to a week instead of generating a summary
+        // nobody can act on.
+        if (currentScope.kind === 'course') {
+            renderWeekPicker(container);
+            return;
+        }
+
         if (currentResponses.length < 5) {
             var disabled = document.createElement('div');
             disabled.className = 'quick-take-disabled';
@@ -2186,6 +2236,43 @@
         });
         errCard.appendChild(retryBtn);
         container.appendChild(errCard);
+    }
+
+    // Stands in for Instructor Insights at entire-course scope: one button per
+    // survey week in the active mode, each jumping the page to that week where
+    // the insights and Traditional Analysis live.
+    function renderWeekPicker(container) {
+        var weeks = activeSurveys();
+
+        var card = document.createElement('div');
+        card.className = 'scope-redirect';
+
+        var h3 = document.createElement('h3');
+        h3.textContent = weeks.length ? 'Go to a week to view details' : 'No surveys yet';
+        card.appendChild(h3);
+
+        var p = document.createElement('p');
+        p.textContent = weeks.length
+            ? 'Instructor Insights and Traditional Analysis read one survey week at a time. Across the entire course the weeks blend together and the themes stop pointing at anything you can act on. The stats and student responses below still cover the whole course.'
+            : 'There are no surveys on this tab yet. Create one in the Prompt Designer, then come back once students have responded.';
+        card.appendChild(p);
+
+        if (weeks.length) {
+            var row = document.createElement('div');
+            row.className = 'scope-redirect-weeks';
+            weeks.forEach(function (s) {
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline btn-sm';
+                btn.textContent = s.survey_label || ('Week ' + s.week_number);
+                btn.setAttribute('tabindex', '0');
+                btn.addEventListener('click', function () { goToWeekScope(s.week_number); });
+                row.appendChild(btn);
+            });
+            card.appendChild(row);
+        }
+
+        container.appendChild(card);
     }
 
     function renderQuickTakeCTA(container) {
