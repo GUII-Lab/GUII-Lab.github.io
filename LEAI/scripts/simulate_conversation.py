@@ -83,7 +83,7 @@ DISALLOWED_TOOLS = (
 
 # ─── survey config ────────────────────────────────────────────────────────
 
-def fetch_survey(api: str, public_id: str) -> dict:
+def fetch_survey(api: str, public_id: str, team_number: int | None = None) -> dict:
     r = requests.get(
         f"{api}/get_feedback_gpt_by_public_id/",
         params={"public_id": public_id},
@@ -94,10 +94,10 @@ def fetch_survey(api: str, public_id: str) -> dict:
     if not gpt.get("is_active", False):
         sys.exit(f"survey {public_id} is not active (reason={gpt.get('reason')!r})")
     if gpt.get("mode") == "group":
-        # In-group surveys are bound to a SurveyTeamSnapshot. Auto-pick the
-        # first team under the snapshot so the simulator can drive a single
-        # team's conversation; persist that pick via assign_session_to_team
-        # in run() once the session_id exists.
+        # In-group surveys are bound to a SurveyTeamSnapshot. Default to the
+        # first team under the snapshot; --team <number> selects a specific one
+        # so several personas can be spread across studios in one run. The pick
+        # is persisted via assign_session_to_team in run() once session_id exists.
         snap_resp = requests.get(
             f"{api}/survey_team_snapshot/",
             params={"public_id": public_id}, timeout=20,
@@ -108,8 +108,16 @@ def fetch_survey(api: str, public_id: str) -> dict:
         teams = snap.get("teams") or []
         if not teams:
             sys.exit(f"in-group survey {public_id} has a snapshot but no teams under it")
-        gpt["_team_id"] = teams[0]["id"]
-        gpt["_team_label"] = teams[0].get("display_name") or f"{snap.get('label_prefix','Team')} {teams[0].get('number')}"
+        if team_number is None:
+            team = teams[0]
+        else:
+            matches = [t for t in teams if t.get("number") == team_number]
+            if not matches:
+                avail = ", ".join(str(t.get("number")) for t in teams)
+                sys.exit(f"--team {team_number} not found under {public_id}; available: {avail}")
+            team = matches[0]
+        gpt["_team_id"] = team["id"]
+        gpt["_team_label"] = team.get("display_name") or f"{snap.get('label_prefix','Team')} {team.get('number')}"
     return gpt
 
 
@@ -201,7 +209,7 @@ def run(args: argparse.Namespace) -> int:
         sys.exit("persona has no turns")
 
     print(f"→ fetching survey {args.public_id} from {api}")
-    gpt = fetch_survey(api, args.public_id)
+    gpt = fetch_survey(api, args.public_id, args.team)
     print(f"  survey: {gpt['name']!r}  id={gpt['id']}  week={gpt.get('week_number')}")
 
     # Form-mapping mode activates when --form is passed. Engine state lives
@@ -211,9 +219,19 @@ def run(args: argparse.Namespace) -> int:
     base_system_prompt = (gpt.get("instructions") or "") + ONE_QUESTION_GUARDRAIL
     if args.form:
         schema = fm.load_schema(args.form)
+        # POINT TO A HUMAN is a Course-level setting served on the gpt payload,
+        # not part of the FormSchema body. feedback.html overlays it onto the
+        # schema before handing it to the engine (see its activateFormMode);
+        # mirror that here or the 7th gate stays disarmed and every simulated
+        # conversation misrepresents production for referral-enabled courses.
+        if gpt.get("referral_enabled"):
+            schema = {**schema,
+                      "referral_enabled": True,
+                      "referral_text": gpt.get("referral_text") or ""}
         fm_state = fm.init_engine(schema)
         base_system_prompt = base_system_prompt + fm.system_prompt_tail(schema)
-        print(f"  form-mode: {schema['schema_id']}  ({len(schema['sections'])} areas)")
+        referral_note = " referral:on" if schema.get("referral_enabled") else ""
+        print(f"  form-mode: {schema['schema_id']}  ({len(schema['sections'])} areas){referral_note}")
 
     system_prompt = base_system_prompt
     survey_session = str(uuid.uuid4())  # the LEAI-side anonymous session id
@@ -364,6 +382,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--form", default=None,
                    help="Form-mode schema id (e.g. hci271-week6-reflection). "
                         "Activates the engine mirror that wraps every turn.")
+    p.add_argument("--team", type=int, default=None,
+                   help="In-group surveys only: bind this session to the team with "
+                        "this number under the survey's snapshot (default: first team). "
+                        "Lets one run spread personas across several teams.")
     args = p.parse_args()
     args.research_consent = args.research_consent == "true"
     return args
