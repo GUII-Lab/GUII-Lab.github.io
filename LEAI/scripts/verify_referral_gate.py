@@ -138,7 +138,7 @@ def run_python_checks() -> dict:
     check("py: default wording used", DEFAULT_TARGET in active, active[:120])
     check("py: gate rides AFTER the six tone gates",
           txt.index("OUTPUT HYGIENE") < txt.index("POINT TO A HUMAN"))
-    for gate in ("ACK ALLOWLIST", "NO DEFINING", "NO REDUNDANT RE-ASK",
+    for gate in ("ACK ALLOWLIST", "NO ECHO", "NO DEFINING", "NO REDUNDANT RE-ASK",
                  "ACCEPT SMOOTH/NO-FRICTION", "ALLOW REPHRASE ON REQUEST", "OUTPUT HYGIENE"):
         check(f"py: regression — {gate} still present", gate in txt)
     out["active"] = active
@@ -224,7 +224,7 @@ const active = activeIdx >= 0 ? txt.slice(activeIdx) : '';
 check('js: gate present when enabled', !!active);
 check('js: default wording used', active.indexOf(DEFAULT_TARGET) !== -1, active.slice(0, 120));
 check('js: gate rides AFTER the six tone gates', txt.indexOf('OUTPUT HYGIENE') < txt.indexOf('POINT TO A HUMAN'));
-['ACK ALLOWLIST','NO DEFINING','NO REDUNDANT RE-ASK','ACCEPT SMOOTH/NO-FRICTION','ALLOW REPHRASE ON REQUEST','OUTPUT HYGIENE'].forEach(function (g) {
+['ACK ALLOWLIST','NO ECHO','NO DEFINING','NO REDUNDANT RE-ASK','ACCEPT SMOOTH/NO-FRICTION','ALLOW REPHRASE ON REQUEST','OUTPUT HYGIENE'].forEach(function (g) {
     check('js: regression — ' + g + ' still present', txt.indexOf(g) !== -1);
 });
 gates.active = active;
@@ -368,6 +368,22 @@ PERSONAS = [
             "I made a small dice game. the first version dragged, so I cut half the rules and it got better",
             "I assumed longer games meant more fun. watching people quit early killed that idea",
             "no, that's everything",
+        ],
+    ),
+    # p5 encodes Harvey's 2026-07-28 distinction: "I don't remember" on its own
+    # is a normal memory lapse and must NOT fire, but "I wasn't following the
+    # class" is a disengagement signal and MUST fire — including when the two
+    # arrive bundled in one sentence (turn 2 below).
+    Persona(
+        name="p5-not-following",
+        referral_enabled=True,
+        fire_turn=2,
+        turns=[
+            "I don't remember which reading it was, the one about rules I think",
+            "honestly I wasn't following the class closely, I don't remember",
+            "ok. I did play the sample game once and changed a rule to see what happened",
+            "I guess I assumed you needed a story for it to be a game",
+            "no, that's all",
         ],
     ),
     Persona(
