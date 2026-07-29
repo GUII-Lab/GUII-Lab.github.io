@@ -8,8 +8,8 @@
 // version number in their document text; that value is hardcoded in
 // LEAI/legal/scripts/build_docx.py and must be updated in lockstep.
 
-window.LEAI_VERSION = 'v0.2.8';
-window.LEAI_UPDATED = '2026-06-14';
+window.LEAI_VERSION = 'v0.2.9';
+window.LEAI_UPDATED = '2026-07-29';
 
 // IMPORTANT: when bumping LEAI_VERSION above, also update the `?v=`
 // query string on every reference to `leai-shared.css`, `leai-shared.js`,

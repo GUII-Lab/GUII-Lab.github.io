@@ -628,7 +628,7 @@
 
     <div class="steps">
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scope chips</strong><p>A row of buttons at the top: <strong>Entire Course</strong> plus one chip per weekly survey. Click any chip to filter everything on the page to that scope.</p></div></div>
-      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Stats row</strong><p>Four cards showing: total <strong>Responses</strong>, <strong>Participation</strong> percentage, <strong>Avg Words</strong> per response, and a <strong>Responses / Week</strong> sparkline so you can spot drop-offs at a glance.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Stats row</strong><p>Cards showing: total <strong>Responses</strong>, <strong>Participation</strong> percentage, <strong>Avg Words</strong> per response, and a <strong>Responses / Week</strong> sparkline so you can spot drop-offs at a glance. A <strong>Nudged</strong> card joins them once the AI has pointed at least one student toward a person — see <a href="#student-responses">Student Responses</a>.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Traditional Analysis</strong><p>Horizontal bar chart of the most frequent terms in student feedback. Toggle between Unigram, Bigram, and Trigram. Click any bar to see the exact responses that contain that term.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Instructor Insights &amp; Student Responses</strong><p>Below the bars you'll find the AI-generated summary (if you've triggered one) and the full list of student responses in collapsible cards.</p></div></div>
     </div>
@@ -734,6 +734,21 @@
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click to expand</strong><p>Click any card to reveal that student's full messages. Each message is labelled <strong>STUDENT</strong> so the source is clear.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Cross-reference with Instructor Insights</strong><p>When an Instructor Insights bullet cites a source as <strong>R12</strong>, scroll to the R12 card here to read that student's full conversation. This is useful when you want to understand the context behind a specific data point in the AI summary.</p></div></div>
       <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the button at the top-right of the section to open every card at once for a full read-through.</p></div></div>
+    </div>
+
+    <h4 class="sub-heading">Students the AI pointed toward a person</h4>
+
+    <p>If you turned on <strong>Point to a human</strong> in Customizations, the AI can suggest — once per conversation, and only when a student says they are stuck, lost, behind, or not keeping up — that they bring it up with you or a TA. Those conversations are marked so you can find them:</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Nudged chip</strong><p>A flag chip on the collapsed card. A legend above the list explains the icon. Both appear only once at least one student has been nudged, so nothing changes for courses that leave the setting off.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Flag in the conversation</strong><p>Expand the card and a small flag sits next to the one AI reply that made the suggestion, so you can read what the student said just before it.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Nudged only filter</strong><p>Narrows the list to those conversations. Your choice is remembered between visits, so switch it back to <strong>All responses</strong> when you are done.</p></div></div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">What the chip does and doesn't tell you</span>
+      <p>The chip records that the AI made the suggestion, not that it was right, and not whether the student acted on it. Read the conversation before drawing conclusions. Conversations from before this feature shipped carry no chip even if a student was pointed to a person at the time.</p>
     </div>
 
     <div class="callout info">

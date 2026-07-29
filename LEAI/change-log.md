@@ -274,3 +274,85 @@ errors on both (only the known Tailwind CDN warning).
   for the no-define rule, office hours for `referral_text` (currently the
   generic default), names-in-transcript consent, glossary carve-out.
 - Weeks 2-10 unseeded pending Kate's week schedule.
+
+---
+
+## 2026-07-29 — Task: Surface the point-to-a-human nudge in the analyzer
+
+### The problem
+
+The referral gate shipped 2026-07-16 and has been firing in production, but
+nothing recorded that it fired. The model tags its reply `[REFERRED]`;
+`afterTurn` latched `referral_done`, stripped the marker, and the stripped text
+is what got persisted. `FeedbackMessage` had no field for it. So an instructor
+could not see which students were pointed at a person — the point of the
+feature — and the latch, living only in browser memory, did not survive a
+refresh: a student who resumed could be nudged a second time.
+
+### Actions taken
+
+1. `FeedbackMessage.referred` boolean + migration 0039. Written by
+   `feedback_message_api` and the bulk endpoint; returned by
+   `feedback_messages_by_course`, `feedback_messages_by_gpt`, and
+   `feedback_session_resume`.
+2. Both engines return `referred` for the turn the marker fired on, and accept
+   it back as an input so replaying a stored transcript re-latches the gate.
+   Kept per-turn, not per-conversation: reusing `referral_done` would flag
+   every reply after the nudge.
+3. feedback.html threads it through all four write paths (general + in-group,
+   intro turn + normal turn) and both replay paths.
+4. FeedbackAnalyzer: "Nudged" chip on the response row, flag on the one AI
+   reply inside the expanded card, legend + "Nudged only" filter in a strip
+   under Student Responses, and a NUDGED stat card. Everything self-gates on
+   the flag existing, so courses with the setting off see no change.
+5. Quick Take and FeedbackChat corpora mark nudged responses `[NUDGED]`, with
+   prompt rules to weight them as evidence of struggle and never editorialize
+   about the nudge. The per-student Insights Brief gets a `=== NUDGE ===` block.
+6. `simulate_conversation.py` persists the flag, so a distressed persona now
+   produces a chip without hand-typing in a browser.
+
+### Decisions
+
+- Chip is data-gated, not gated on the Structured Reflection tab: the shared
+  panel renders in all three tabs, and the gate does fire in in-group surveys
+  that bind a form schema. It can never fire in a plain general survey.
+- Only the positive state renders. Unlike the banner A/B pair, "not nudged" is
+  the default and a negative chip on most cards is noise.
+- `[NUDGED]` is its own bracket, not a third `·` segment inside `[Rn · Team]`,
+  which the prompts define as the team-name slot.
+- No Quick Take schema field / no dedicated panel. The marker informs the
+  existing bullets; a structured output field would mean 0040 + a renderer.
+- Rose chip, deliberately not the banner chip's amber — a card can carry both.
+
+### Not backfilled
+
+Rows written before 0039 have the marker already stripped, so no flag is
+recoverable for them. CMPM 80H and CMPM 80K Week 1 will show no chips.
+
+### Verification
+
+`verify_referral_gate.py` 52 checks pass (was 38; +14 covering the per-turn
+flag, replay re-latch, and the JS-only post-`[END]` passthrough branch, which
+has no Python counterpart and so is invisible to the parity check).
+`verify_form_artifact_split.js` 15/15 individual, 26/26 team.
+`verify_form_artifact_replay.js` 19/20 — the one failure is LLM slot-extraction
+flakiness, unchanged behavior (the committed engine scores 18/20 on the same
+run). Round-tripped `referred` through all four endpoints with curl. In a real
+browser: chip, in-transcript flag, legend, filter (persists across reload), and
+stat card all render; the General tab is untouched. Resumed a nudged
+conversation and confirmed `referral_done === true` after replay and that the
+next distress turn gets the `ALREADY DONE` gate — the double-nudge bug.
+
+Caught during verification: Tailwind's preflight blockifies `svg`, which
+dropped the flag onto its own line under the AI label. Fixed with an explicit
+`display: inline-block`.
+
+### Still open
+
+- Deploy: backend must land and migrate before the frontend ships, or nudges
+  fired in the gap are lost. Nothing is broken if the order slips — unknown
+  JSON keys are ignored and every read self-gates.
+- `build_response_corpus` still does not filter on `research_consent`.
+  Pre-existing, but marking non-consenting rows `[NUDGED]` sharpens it.
+- In a week with few responses, "R3 was nudged" is close to identifying. Worth
+  checking against the IRB framing before enabling on a small course.
