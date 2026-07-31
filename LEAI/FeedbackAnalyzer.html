@@ -3165,6 +3165,15 @@
             // Quick Take / chat citations reference.
             Object.keys(s.sessions).sort().forEach(function (sid) {
                 var msgs = s.sessions[sid];
+                // Skip sessions the student never spoke in. Opening a survey
+                // and closing it still creates a session, and in form mode the
+                // agent's opening turn is stored, so the card would read
+                // "0 messages" with nothing behind it. build_response_corpus
+                // drops these too — keep the two rules in step or the R-labels
+                // here stop matching the R-ids in Quick Take / chat citations.
+                // PDF sessions are exempt: their rows aren't "user" turns but
+                // the response is real (rendered as a field count below).
+                if (!msgs.some(isStudentMsg) && !sessionHasPdfMessage(msgs)) return;
                 // Apply source filter: drop sessions that have nothing matching
                 // the current source toggle (Chat-only / PDF-only). 'all' keeps
                 // everything.
