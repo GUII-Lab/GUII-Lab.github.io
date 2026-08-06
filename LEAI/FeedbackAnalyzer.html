@@ -199,6 +199,19 @@
             letter-spacing: 0.02em;
             color: #9f403d; background: #fdeceb; border: 1px solid #f3c9c6;
         }
+        /* Cross-week student chip (S1, S2, …) — the device-based cluster label
+           from the backend identity map. Solid border = this session shares a
+           device with the rest of its cluster (strong link); dashed = linked by
+           fingerprint alone (weak link, e.g. after a storage clear). Clickable:
+           filters the list to that student's sessions across all weeks. */
+        .student-card-sid {
+            font-size: 0.7rem; font-weight: 700; cursor: pointer;
+            border-radius: 999px; padding: 2px 10px; white-space: nowrap;
+            letter-spacing: 0.02em;
+            color: #1d4ed8; background: #dbeafe; border: 1px solid #93c5fd;
+        }
+        .student-card-sid.weak { border-style: dashed; background: #eff6ff; }
+        .student-card-sid:hover { background: #bfdbfe; }
         /* Tailwind's preflight blockifies svg, which would drop the flag onto
            its own line inside the AI label. Force it back inline. */
         .leai-nudge-flag { display: inline-block; flex-shrink: 0; vertical-align: -2px; }
@@ -553,6 +566,42 @@
         .mode-tab.active[data-mode="general"] { color: var(--primary); border-bottom-color: var(--primary); }
         .mode-tab.active[data-mode="group"]   { color: #2E7D57; border-bottom-color: #2E7D57; }
         .mode-tab.active[data-mode="form"]    { color: var(--formmode-primary); border-bottom-color: var(--formmode-primary); }
+        .mode-tab.active[data-mode="students"] { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+
+        /* Students progress matrix — one row per device-based cluster, one
+           column per week. Wide content scrolls inside its own container. */
+        .students-matrix-wrap { overflow-x: auto; }
+        .students-matrix { border-collapse: collapse; min-width: 100%; font-size: 0.8rem; }
+        .students-matrix th {
+            text-align: left; font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--muted); font-weight: 700;
+            padding: 8px 12px; border-bottom: 1px solid var(--surface-border);
+            white-space: nowrap;
+        }
+        .students-matrix td {
+            padding: 8px 12px; border-bottom: 1px solid var(--surface-border);
+            vertical-align: middle; white-space: nowrap;
+        }
+        .sm-student { font-weight: 700; color: #1d4ed8; }
+        .sm-device-note { font-size: 0.72rem; color: var(--muted); }
+        .sm-device-note.multi { color: #92400e; font-weight: 600; }
+        .sm-pill {
+            display: inline-block; font-size: 0.68rem; font-weight: 700;
+            border-radius: 6px; padding: 2px 8px; margin-right: 4px;
+            cursor: pointer; letter-spacing: 0.02em;
+            color: #166534; background: #dcfce7; border: 1px solid #86efac;
+        }
+        .sm-pill.weak { border-style: dashed; background: #f0fdf4; }
+        .sm-pill.mode-group { color: #2E7D57; background: #e7f3ed; border-color: #a7d4bf; }
+        .sm-pill:hover { filter: brightness(0.95); }
+        .sm-empty-cell { color: var(--surface-border); }
+        .students-legend {
+            font-size: 0.78rem; color: var(--muted); line-height: 1.55;
+            margin: 0 0 18px;
+        }
+        .students-unlinked { margin-top: 28px; }
+        .students-unlinked p { font-size: 0.8rem; color: var(--muted); margin: 6px 0; }
+        .student-card.sm-flash { outline: 2px solid #1d4ed8; outline-offset: 2px; }
     </style>
 </head>
 <body>
@@ -659,6 +708,7 @@
                 <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
+                <button class="mode-tab" role="tab" data-mode="students" aria-selected="false" id="students-tab-btn" style="display:none">Students</button>
             </div>
 
             <!-- Shared panel: General Course Feedback + Structured Reflection both render here.
@@ -767,6 +817,19 @@
                     <div id="ingroup-analysis-body"></div>
                 </div>
             </div><!-- /#mode-panel-group -->
+
+            <!-- Students panel: cross-week progress matrix built from the
+                 device-signal identity map. Tab only appears when the course
+                 has tracked sessions. -->
+            <div id="mode-panel-students" role="tabpanel" style="display:none">
+                <div class="analysis-section">
+                    <div class="section-header">
+                        <span class="section-title">Student progress across weeks</span>
+                        <button type="button" class="info-icon info-icon--right" aria-label="About student tracking" data-tooltip="Rows are device-based estimates of 'the same student', built from a browser-stored key plus a device fingerprint — never names or accounts. A solid entry came from the same device as the rest of its row; a dashed entry was linked by fingerprint alone (e.g. after the browser's storage was cleared) and is less certain. A student who switches devices appears as two rows. Shared lab computers are detected and kept apart rather than merged. Sessions from before tracking was enabled cannot be attributed and are listed under Unlinked sessions."></button>
+                    </div>
+                    <div id="students-matrix-container"></div>
+                </div>
+            </div><!-- /#mode-panel-students -->
         </div>
     </div>
 </div>
@@ -795,7 +858,7 @@
     // Mode tab — 'general' | 'group' | 'form'. Persisted so reload returns to the same tab.
     var MODE_KEY = 'leai.fa.mode';
     var currentMode = (function () {
-        try { var m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form') ? m : 'general'; }
+        try { var m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form' || m === 'students') ? m : 'general'; }
         catch (e) { return 'general'; }
     })();
 
@@ -901,6 +964,32 @@
         return allSurveys.filter(function (s) { return !isFormSurvey(s) && !isGroupSurvey(s); });
     }
     function activeSurveys() { return surveysForMode(currentMode); }
+
+    // ===== CROSS-WEEK IDENTITY =====
+    // Each survey may carry `identity`: {sid: {label:'S3', link:'strong'|'weak',
+    // device:n}} from the backend's device-signal clustering. Labels are
+    // course-wide, so the same student keeps one S-label across every week.
+    function sessionIdentity(survey, sid) {
+        return (survey && survey.identity && survey.identity[sid]) || null;
+    }
+    function courseHasIdentity() {
+        return allSurveys.some(function (s) {
+            return s.identity && Object.keys(s.identity).length > 0;
+        });
+    }
+    // "Show one student across weeks" filter — set by clicking an S-chip.
+    // Deliberately not persisted: it is a drill-down, not a standing view.
+    var studentOnlyFilter = null;
+    function setStudentOnlyFilter(label) {
+        studentOnlyFilter = label || null;
+        if (label) {
+            // Cross-week reading requires course scope; a single-week scope
+            // would silently hide the other weeks of the very arc requested.
+            currentScope = { kind: 'course', weekNumber: null };
+            renderScopeChips();
+        }
+        renderStudentResponses();
+    }
     var currentNgrams = [];
     var ngramVisibleCount = 10;
     var activePinnedTerm = null;
@@ -972,6 +1061,10 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             allSurveys = data;
+            // Students tab exists only for courses with tracked sessions —
+            // no dead tab on the many courses without cross-week tracking.
+            var studentsTab = document.getElementById('students-tab-btn');
+            if (studentsTab) studentsTab.style.display = courseHasIdentity() ? '' : 'none';
             // Apply persisted mode now that data is in — drives chip rendering,
             // panel visibility, and survey filter in one shot.
             applyMode(currentMode);
@@ -3103,11 +3196,32 @@
         var bar = document.getElementById('student-responses-toolbar');
         if (!bar) return;
         bar.textContent = '';
-        if (nudgedSessionCount() === 0) {
+        if (nudgedSessionCount() === 0 && !studentOnlyFilter) {
             bar.style.display = 'none';
             return;
         }
         bar.style.display = 'flex';
+
+        // Active S-chip drill-down banner — always first so the narrowed list
+        // can't be mistaken for the full scope.
+        if (studentOnlyFilter) {
+            var sf = document.createElement('div');
+            sf.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+            var sfLabel = document.createElement('span');
+            sfLabel.style.cssText = 'font-size:0.78rem;color:var(--text)';
+            sfLabel.textContent = 'Showing ' + studentOnlyFilter + ' across all weeks (device-based estimate)';
+            sf.appendChild(sfLabel);
+            var sfClear = document.createElement('button');
+            sfClear.type = 'button';
+            sfClear.className = 'btn btn-outline btn-sm';
+            sfClear.style.cssText = 'font-size:0.72rem;padding:3px 12px';
+            sfClear.textContent = 'Show all students';
+            sfClear.addEventListener('click', function () { setStudentOnlyFilter(null); });
+            sf.appendChild(sfClear);
+            bar.appendChild(sf);
+        }
+
+        if (nudgedSessionCount() === 0) return;
 
         var legend = document.createElement('div');
         legend.className = 'qt-sent-legend';
@@ -3185,8 +3299,14 @@
                 // toward a human. Applied after the source filter so the two
                 // compose.
                 if (nudgedOnlyFilter && !sessionWasNudged(msgs)) return;
+                var ident = sessionIdentity(s, sid);
+                // S-chip drill-down: keep only the clicked student's sessions.
+                if (studentOnlyFilter && (!ident || ident.label !== studentOnlyFilter)) return;
                 entries.push({
                     sessionId: sid,
+                    // Device-cluster identity {label, link, device}; null for
+                    // untracked sessions (week 1, tracking off).
+                    identity: ident,
                     msgs: msgs,
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number),
@@ -3227,6 +3347,9 @@
 
             var card = document.createElement('div');
             card.className = 'student-card';
+            // Session id hook so the Students matrix can scroll to and flash
+            // a specific conversation on cell click.
+            card.setAttribute('data-session-id', entry.sessionId);
             // Tag cards backed by an ingest batch so flashPdfBatchCards()
             // can target them post-commit for the visual confirmation.
             var batchId = sessionPdfBatchId(msgs);
@@ -3282,6 +3405,24 @@
                 header.appendChild(badge);
             }
             if (startDateText) header.appendChild(startDate);
+            // Cross-week student chip — device-based cluster label. Click
+            // filters the course-scope list to this student's sessions.
+            if (entry.identity) {
+                var sidChip = document.createElement('span');
+                sidChip.className = 'student-card-sid' + (entry.identity.link === 'weak' ? ' weak' : '');
+                sidChip.textContent = entry.identity.label;
+                sidChip.title = (entry.identity.link === 'weak'
+                    ? 'Probably the same student as the other ' + entry.identity.label + ' sessions — linked by device fingerprint alone (browser storage was cleared), so treat with some caution.'
+                    : 'Same device as the other ' + entry.identity.label + ' sessions.')
+                    + ' Device-based estimate, never a name. Click to see this student across all weeks.';
+                (function (label) {
+                    sidChip.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        setStudentOnlyFilter(studentOnlyFilter === label ? null : label);
+                    });
+                })(entry.identity.label);
+                header.appendChild(sidChip);
+            }
             if (entry.teamLabel) {
                 var teamEl = document.createElement('span');
                 teamEl.className = 'student-card-team';
@@ -4180,11 +4321,204 @@
         document.getElementById('ingroup-analysis-section').classList.remove('visible');
     }
 
+    // ===== STUDENTS PROGRESS MATRIX =====
+    // One row per device-based cluster (S1..Sn), one column per week, a pill
+    // per submitted survey. Built entirely from data already loaded on
+    // feedback_messages_by_course — no extra round-trips.
+    function collectTrackedEntries() {
+        var tracked = [];
+        var unlinked = [];
+        allSurveys.forEach(function (s) {
+            Object.keys(s.sessions || {}).forEach(function (sid) {
+                var msgs = s.sessions[sid];
+                // Same response-bearing rule as the Student Responses list so
+                // the matrix never counts an opened-and-abandoned tab.
+                if (!msgs.some(isStudentMsg) && !sessionHasPdfMessage(msgs)) return;
+                var ident = sessionIdentity(s, sid);
+                var row = {
+                    sid: sid,
+                    ident: ident,
+                    week: s.week_number,
+                    mode: s.mode || 'general',
+                    surveyLabel: s.survey_label || ('Week ' + s.week_number),
+                };
+                (ident ? tracked : unlinked).push(row);
+            });
+        });
+        return { tracked: tracked, unlinked: unlinked };
+    }
+
+    function renderStudentsMatrix() {
+        var host = document.getElementById('students-matrix-container');
+        if (!host) return;
+        host.textContent = '';
+
+        var data = collectTrackedEntries();
+        if (!data.tracked.length) {
+            var empty = document.createElement('p');
+            empty.className = 'no-data';
+            empty.textContent = 'No tracked sessions yet. Cross-week tracking can be turned on in Customizations; sessions submitted before it was enabled cannot be attributed retroactively.';
+            host.appendChild(empty);
+            return;
+        }
+
+        var legend = document.createElement('p');
+        legend.className = 'students-legend';
+        legend.textContent = 'Each row is an estimate of one student, grouped by device signals — no names are collected. Solid entries came from the same device as the rest of their row; dashed entries were linked by fingerprint alone and are less certain. Click an entry to open that conversation.';
+        host.appendChild(legend);
+
+        var weeks = [];
+        allSurveys.forEach(function (s) {
+            if (s.week_number != null && weeks.indexOf(s.week_number) === -1) weeks.push(s.week_number);
+        });
+        weeks.sort(function (a, b) { return a - b; });
+
+        // label -> { byWeek: {week: [entry]}, maxDevice, weakCount, total }
+        var clusters = {};
+        data.tracked.forEach(function (e) {
+            var c = clusters[e.ident.label] || (clusters[e.ident.label] = {
+                byWeek: {}, maxDevice: 1, weakCount: 0, total: 0,
+            });
+            (c.byWeek[e.week] || (c.byWeek[e.week] = [])).push(e);
+            if (e.ident.device > c.maxDevice) c.maxDevice = e.ident.device;
+            if (e.ident.link === 'weak') c.weakCount++;
+            c.total++;
+        });
+        var labels = Object.keys(clusters).sort(function (a, b) {
+            return parseInt(a.slice(1), 10) - parseInt(b.slice(1), 10);
+        });
+
+        var wrap = document.createElement('div');
+        wrap.className = 'students-matrix-wrap';
+        var table = document.createElement('table');
+        table.className = 'students-matrix';
+        var thead = document.createElement('thead');
+        var headRow = document.createElement('tr');
+        ['Student'].concat(weeks.map(function (w) { return 'Week ' + w; }))
+            .concat(['Devices']).forEach(function (t) {
+                var th = document.createElement('th');
+                th.textContent = t;
+                headRow.appendChild(th);
+            });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        var MODE_PILL = { form: 'Form', group: 'Group', general: 'Chat' };
+        var tbody = document.createElement('tbody');
+        labels.forEach(function (label) {
+            var c = clusters[label];
+            var tr = document.createElement('tr');
+            var tdName = document.createElement('td');
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'sm-student';
+            nameSpan.textContent = label;
+            tdName.appendChild(nameSpan);
+            tr.appendChild(tdName);
+
+            weeks.forEach(function (w) {
+                var td = document.createElement('td');
+                var cellEntries = c.byWeek[w] || [];
+                if (!cellEntries.length) {
+                    td.className = 'sm-empty-cell';
+                    td.textContent = '—';
+                } else {
+                    cellEntries.forEach(function (e) {
+                        var pill = document.createElement('span');
+                        pill.className = 'sm-pill'
+                            + (e.ident.link === 'weak' ? ' weak' : '')
+                            + (e.mode === 'group' ? ' mode-group' : '');
+                        pill.textContent = MODE_PILL[e.mode] || e.mode;
+                        pill.title = e.surveyLabel
+                            + (e.ident.link === 'weak'
+                                ? ' — linked by fingerprint alone (less certain).'
+                                : ' — same device as the rest of this row.')
+                            + ' Click to open the conversation.';
+                        (function (sid, mode) {
+                            pill.addEventListener('click', function () {
+                                jumpToSession(sid, mode);
+                            });
+                        })(e.sid, e.mode);
+                        td.appendChild(pill);
+                    });
+                }
+                tr.appendChild(td);
+            });
+
+            var tdDev = document.createElement('td');
+            var devNote = document.createElement('span');
+            devNote.className = 'sm-device-note' + (c.maxDevice > 1 ? ' multi' : '');
+            devNote.textContent = c.maxDevice > 1
+                ? c.maxDevice + ' devices'
+                : '1 device';
+            devNote.title = c.maxDevice > 1
+                ? 'Sessions in this row came from ' + c.maxDevice + ' different devices/browsers, joined by fingerprint. The grouping is less certain than a single-device row.'
+                : 'Every session in this row came from the same browser.';
+            tdDev.appendChild(devNote);
+            tr.appendChild(tdDev);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        host.appendChild(wrap);
+
+        // Unlinked sessions — honest accounting of what the matrix can't
+        // attribute: pre-tracking weeks (e.g. week 1) and first-time devices.
+        if (data.unlinked.length) {
+            var section = document.createElement('div');
+            section.className = 'students-unlinked';
+            var h = document.createElement('div');
+            h.className = 'section-header';
+            var t = document.createElement('span');
+            t.className = 'section-title';
+            t.textContent = 'Unlinked sessions';
+            h.appendChild(t);
+            section.appendChild(h);
+            var note = document.createElement('p');
+            note.textContent = 'These responses can’t be attributed to a row above — they were submitted before tracking was enabled, or no signal could be recorded. They still appear normally in each survey’s Student Responses.';
+            section.appendChild(note);
+            var byWeek = {};
+            data.unlinked.forEach(function (e) {
+                var k = e.week != null ? 'Week ' + e.week : 'No week';
+                byWeek[k] = (byWeek[k] || 0) + 1;
+            });
+            Object.keys(byWeek).forEach(function (k) {
+                var p = document.createElement('p');
+                p.textContent = k + ' — ' + byWeek[k] + ' session' + (byWeek[k] !== 1 ? 's' : '');
+                section.appendChild(p);
+            });
+            host.appendChild(section);
+        }
+    }
+
+    // Matrix cell → the actual conversation: switch to the survey's tab
+    // (which re-renders the responses list), then scroll to and open the card.
+    function jumpToSession(sid, surveyMode) {
+        var tab = surveyMode === 'group' ? 'group' : (surveyMode === 'form' ? 'form' : 'general');
+        applyMode(tab);
+        setTimeout(function () {
+            var card = document.querySelector('.student-card[data-session-id="' + sid + '"]');
+            if (!card) return;
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!card.classList.contains('open')) {
+                var hdr = card.querySelector('.student-card-header');
+                if (hdr) hdr.click();
+            }
+            card.classList.add('sm-flash');
+            setTimeout(function () { card.classList.remove('sm-flash'); }, 2500);
+        }, 120);
+    }
+
     // ===== MODE TAB SWITCHING =====
     function applyMode(mode) {
-        if (mode !== 'general' && mode !== 'group' && mode !== 'form') mode = 'general';
+        if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students') mode = 'general';
+        // The Students tab only exists when the course has tracked sessions;
+        // a stale persisted choice must not strand the instructor on an
+        // invisible tab.
+        if (mode === 'students' && !courseHasIdentity()) mode = 'general';
         currentMode = mode;
         try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
+        // A student drill-down from one tab must not silently narrow another.
+        studentOnlyFilter = null;
 
         // Tab visual state
         document.querySelectorAll('.mode-tab').forEach(function (t) {
@@ -4193,12 +4527,24 @@
             t.setAttribute('aria-selected', isActive ? 'true' : 'false');
         });
 
+        // Students tab: its own panel replaces the shared one entirely — the
+        // matrix is cross-mode (form + group + general together), so the
+        // per-mode analysis sections don't apply.
+        var sharedPanel = document.getElementById('mode-panel-shared');
+        var groupPanel = document.getElementById('mode-panel-group');
+        var studentsPanel = document.getElementById('mode-panel-students');
+        if (studentsPanel) studentsPanel.style.display = (mode === 'students') ? '' : 'none';
+        if (mode === 'students') {
+            if (sharedPanel) sharedPanel.style.display = 'none';
+            if (groupPanel)  groupPanel.style.display  = 'none';
+            renderStudentsMatrix();
+            return;
+        }
+
         // Panel visibility — all three tabs render through the shared panel
         // (stats, n-grams, AI Quick Take, responses). The In-Group tab also
         // shows its per-team drill-down section underneath so instructors can
         // both see aggregate trends AND dig into individual teams.
-        var sharedPanel = document.getElementById('mode-panel-shared');
-        var groupPanel = document.getElementById('mode-panel-group');
         if (sharedPanel) sharedPanel.style.display = '';
         if (groupPanel)  groupPanel.style.display  = (mode === 'group') ? '' : 'none';
 
