@@ -1,6 +1,6 @@
 # LEAI Privacy Policy
 
-*Version v0.2.0 · Last updated April 7, 2026*
+*Version v0.3.0 · Last updated August 5, 2026*
 
 Your privacy matters. This page explains, in plain language, what LEAI collects, what it does not collect, who can see it, and what happens to it.
 
@@ -8,7 +8,7 @@ Your privacy matters. This page explains, in plain language, what LEAI collects,
 
 ## 1. Anonymous by design
 
-When you use the LEAI Feedback Collector, no name, email, student ID, institutional login, or profile information is asked for or stored. Your conversation is tagged with a randomly generated session code (for example, *id_k3m9x2ab*) so the system can group your messages within one conversation. The code is not linked to you as a person, and when you close the tab the link between you and that code is gone.
+When you use the LEAI Feedback Collector, no name, email, student ID, institutional login, or profile information is asked for or stored. Your conversation is tagged with a randomly generated session code (for example, *id_k3m9x2ab*) so the system can group your messages within one conversation. The code is not linked to you as a person. In courses that do not use cross-week continuity (Section 2), closing the tab ends the link between you and that code; in courses that do, sessions started from the same device can be grouped with each other, but still not with you as a named person.
 
 Your instructor cannot tell which submission came from which student. That is the point — it lets you be honest without worrying about how it might look. The chat page shows an **ANONYMOUS** badge near the top of the screen as a visual reminder of this guarantee.
 
@@ -30,7 +30,9 @@ For each message you send or receive in LEAI, the backend stores:
 
 - Your per-session research-consent choice (see Section 6)
 
-That is the full record. We do **not** store device fingerprints, advertising identifiers, or analytics cookies tied to your identity.
+In courses where the instructor has enabled **cross-week continuity**, the backend additionally stores two technical device signals per session: a randomly generated code kept in your browser's local storage, and a device fingerprint computed from browser characteristics. Their only use is grouping sessions that came from the same device across the course's weekly surveys, so the instructor can see how feedback evolves over the quarter under an arbitrary label such as "S3". They are not linked to your name or any account, are not shared outside the operational chain in Section 5, and are not used for advertising or analytics. In courses without this setting, neither signal is collected.
+
+That is the full record. We do **not** store advertising identifiers or analytics cookies, and we never tie any stored signal to your identity as a named person.
 
 ## 3. IP addresses and access logs
 

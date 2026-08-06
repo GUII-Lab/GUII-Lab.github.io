@@ -1444,6 +1444,10 @@
                 // inlined on this response. Rendered before mode branching so it
                 // shows uniformly across general/group/form surveys.
                 renderCourseBanner(gpt.course_banner);
+                // Silent cross-week identity capture — one call site before the
+                // mode branch so general, form, and group sessions all register.
+                // No-op unless the course enables tracking.
+                registerSessionIdentity(gpt);
                 // In-group surveys come back with mode === 'group' plus an inlined
                 // team_snapshot. Route through the transparency + team-picker flow.
                 if (gpt.mode === 'group') {
@@ -2428,6 +2432,59 @@
                 requestBotTurn(null);
             }
             renderResumeCopyChip();
+        }
+
+        // ===== CROSS-WEEK IDENTITY (silent) =====
+        // When the course has identity_tracking_enabled, two device signals are
+        // recorded per session — a persistent localStorage key and a
+        // FingerprintJS visitor id — so the analyzer can group one student's
+        // sessions across the course's weekly surveys (disclosed in
+        // legal/terms.md §3 and legal/privacy.md §2). Fire-and-forget: no
+        // failure here may touch the survey flow. The FingerprintJS bundle is
+        // lazy-loaded only for tracking-enabled courses, mirroring the docx
+        // lazy-load pattern, so every other survey page pays no cost.
+        function getOrCreateDeviceKey() {
+            try {
+                var k = localStorage.getItem('leai_device_key');
+                if (!k) {
+                    k = (window.crypto && crypto.randomUUID)
+                        ? crypto.randomUUID()
+                        : 'dk_' + Date.now().toString(36) +
+                          Math.random().toString(36).slice(2, 10);
+                    localStorage.setItem('leai_device_key', k);
+                }
+                return k;
+            } catch (e) { return ''; }  // storage blocked → fingerprint carries it
+        }
+
+        function registerSessionIdentity(gpt) {
+            if (!gpt || !gpt.identity_tracking_enabled || !gpt.public_id) return;
+            var send = function (fingerprint) {
+                try {
+                    fetch(API + '/register_session_identity/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            public_id: gpt.public_id,
+                            session_id: (window.sessionData && window.sessionData.sessionID) || '',
+                            device_key: getOrCreateDeviceKey(),
+                            fingerprint: fingerprint || '',
+                        }),
+                    }).catch(function () {});
+                } catch (e) {}
+            };
+            var withFp = function () {
+                FingerprintJS.load()
+                    .then(function (fp) { return fp.get(); })
+                    .then(function (r) { send(r.visitorId); })
+                    .catch(function () { send(''); });
+            };
+            if (window.FingerprintJS) { withFp(); return; }
+            var s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3.4.2/dist/fp.min.js';
+            s.onload = withFp;
+            s.onerror = function () { send(''); };  // CDN blocked → device key alone
+            document.head.appendChild(s);
         }
 
         // Anonymous, collision-resistant per-survey session id.

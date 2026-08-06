@@ -1,6 +1,6 @@
 # LEAI Terms of Use
 
-*Version v0.2.0 · Last updated April 7, 2026*
+*Version v0.3.0 · Last updated August 5, 2026*
 
 Welcome to the **LEAI Feedback Collector**, a tool developed by the Game User Interaction and Intelligence (GUII) Lab at UC Santa Cruz. By participating in a feedback session, you agree to the terms below. Please read them before you continue.
 
@@ -17,6 +17,8 @@ Participating in LEAI feedback sessions is **entirely voluntary**. Choosing not 
 LEAI is **anonymous**. You are not asked for your name, email, student ID, or any other identifying information. The chat page shows an **ANONYMOUS** badge near the top as a visible reminder.
 
 Please do not voluntarily include your name, student ID, classmates' names, or other identifying details in the body of your messages — the system does not need them, and they undermine the anonymity design.
+
+In courses where your instructor has enabled **cross-week continuity**, LEAI additionally records technical device signals — a randomly generated code stored in your browser and a device fingerprint — so that sessions submitted from the same device across the course's weekly surveys can be grouped together. These signals describe a browser and device, not a person: they are never linked to your name, email, or student ID, and your instructor sees only an arbitrary label (such as "S3") on the grouped sessions.
 
 The full data-handling details are covered in the LEAI Privacy Policy.
 
