@@ -225,6 +225,18 @@
                 </div>
             </div>
 
+            <!-- Cross-week tracking -->
+            <div class="cb-card">
+                <h2>Cross-week tracking</h2>
+                <div class="cb-field">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                        <input type="checkbox" id="cb-identity-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                        <span>Link one student's sessions across weekly surveys</span>
+                    </label>
+                    <p class="cb-hint">Groups sessions that come from the same device so the Feedback Analyzer can show a student's arc across the course (as <strong>S1, S2, &hellip;</strong> labels &mdash; never names). Uses a browser-stored key plus a device fingerprint, disclosed in the survey Terms of Use and Privacy Policy. Grouping is device-based and approximate: a student who switches devices appears as two entries, and shared lab computers are kept apart automatically.</p>
+                </div>
+            </div>
+
             <!-- Preview -->
             <div class="cb-card">
                 <h2>Student preview</h2>
@@ -361,6 +373,7 @@
                 el('cb-referral-enabled').checked = !!(d && d.referral_enabled);
                 el('cb-referral-text').value = (d && d.referral_text_raw) || '';
                 el('cb-referral-text').placeholder = DEFAULT_REFERRAL_TEXT;
+                el('cb-identity-enabled').checked = !!(d && d.identity_tracking_enabled);
                 refresh();
                 refreshReferral();
             })
@@ -372,7 +385,8 @@
             course_id: session.courseId,
             bot_display_name: el('cb-bot-name').value,
             referral_enabled: el('cb-referral-enabled').checked,
-            referral_text: el('cb-referral-text').value
+            referral_text: el('cb-referral-text').value,
+            identity_tracking_enabled: el('cb-identity-enabled').checked
         };
         this.disabled = true;
         setSaveMsg('Saving…', '');
@@ -387,6 +401,7 @@
                 el('cb-bot-name').value = res.j.bot_display_name_raw || '';
                 el('cb-referral-enabled').checked = !!res.j.referral_enabled;
                 el('cb-referral-text').value = res.j.referral_text_raw || '';
+                el('cb-identity-enabled').checked = !!res.j.identity_tracking_enabled;
                 refresh();
                 refreshReferral();
                 setSaveMsg('Saved.', 'ok');
