@@ -1151,7 +1151,7 @@
         header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
         var ridEl = document.createElement('span');
         ridEl.style.cssText = 'font-weight:700;font-size:0.78rem;letter-spacing:0.02em';
-        ridEl.textContent = rid || 'Citation';
+        ridEl.textContent = (source && source.display_rid) || rid || 'Citation';
         header.appendChild(ridEl);
         if (source && source.week_number) {
             var weekEl = document.createElement('span');

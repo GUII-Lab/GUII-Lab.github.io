@@ -199,11 +199,9 @@
             letter-spacing: 0.02em;
             color: #9f403d; background: #fdeceb; border: 1px solid #f3c9c6;
         }
-        /* Cross-week student chip (S1, S2, …) — the device-based cluster label
-           from the backend identity map. Solid border = this session shares a
-           device with the rest of its cluster (strong link); dashed = linked by
-           fingerprint alone (weak link, e.g. after a storage clear). Clickable:
-           filters the list to that student's sessions across all weeks. */
+        /* Cross-week anonymous student chip (S1, S2, …). Solid marks a
+           more-confident match; dashed marks a possible, less-certain match.
+           Clicking filters the list to that estimated student across weeks. */
         .student-card-sid {
             font-size: 0.7rem; font-weight: 700; cursor: pointer;
             border-radius: 999px; padding: 2px 10px; white-space: nowrap;
@@ -567,8 +565,9 @@
         .mode-tab.active[data-mode="group"]   { color: #2E7D57; border-bottom-color: #2E7D57; }
         .mode-tab.active[data-mode="form"]    { color: var(--formmode-primary); border-bottom-color: var(--formmode-primary); }
         .mode-tab.active[data-mode="students"] { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+        .mode-tab.active[data-mode="group-progress"] { color: #2E7D57; border-bottom-color: #2E7D57; }
 
-        /* Students progress matrix — one row per device-based cluster, one
+        /* Students progress matrix — one row per anonymous estimate, one
            column per week. Wide content scrolls inside its own container. */
         .students-matrix-wrap { overflow-x: auto; }
         .students-matrix { border-collapse: collapse; min-width: 100%; font-size: 0.8rem; }
@@ -583,13 +582,14 @@
             vertical-align: middle; white-space: nowrap;
         }
         .sm-student { font-weight: 700; color: #1d4ed8; }
-        .sm-device-note { font-size: 0.72rem; color: var(--muted); }
-        .sm-device-note.multi { color: #92400e; font-weight: 600; }
+        .sm-confidence-note { font-size: 0.72rem; color: var(--muted); }
+        .sm-confidence-note.mixed { color: #92400e; font-weight: 600; }
         .sm-pill {
             display: inline-block; font-size: 0.68rem; font-weight: 700;
             border-radius: 6px; padding: 2px 8px; margin-right: 4px;
             cursor: pointer; letter-spacing: 0.02em;
             color: #166534; background: #dcfce7; border: 1px solid #86efac;
+            text-decoration: none;
         }
         .sm-pill.weak { border-style: dashed; background: #f0fdf4; }
         .sm-pill.mode-group { color: #2E7D57; background: #e7f3ed; border-color: #a7d4bf; }
@@ -602,6 +602,41 @@
         .students-unlinked { margin-top: 28px; }
         .students-unlinked p { font-size: 0.8rem; color: var(--muted); margin: 6px 0; }
         .student-card.sm-flash { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+        .group-progress-section {
+            margin: 0 0 22px; border: 1px solid var(--surface-border);
+            border-radius: var(--radius-md); overflow: hidden; background: var(--surface-card);
+        }
+        .group-progress-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 16px; padding: 16px 18px; background: var(--surface-low);
+            border-bottom: 1px solid var(--surface-border);
+        }
+        .group-progress-header h3 { margin: 0 0 3px; font-size: 1rem; }
+        .group-progress-header p { margin: 0; color: var(--muted); font-size: 0.76rem; }
+        .group-progress-table-wrap { overflow-x: auto; }
+        .group-progress-table {
+            width: 100%; min-width: 760px; border-collapse: collapse;
+            table-layout: fixed; font-size: 0.8rem;
+        }
+        .group-progress-table th, .group-progress-table td {
+            padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--surface-border);
+            vertical-align: top;
+        }
+        .group-progress-table th:first-child,
+        .group-progress-table td:first-child { width: 80px; }
+        .group-progress-table th {
+            color: var(--muted); font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .group-progress-completeness {
+            margin-top: 2px; font-size: 0.66rem; line-height: 1.35;
+            color: var(--muted); font-weight: 500;
+        }
+        .group-progress-unlinked { padding: 10px 16px; color: var(--muted); font-size: 0.76rem; }
+        .response-detail-head { display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px; }
+        .response-detail-head h2 { margin:0 0 4px;font-size:1.2rem; }
+        .response-detail-head p { margin:0;color:var(--muted);font-size:0.82rem; }
+        #response-detail-card .student-card { display:block; }
     </style>
 </head>
 <body>
@@ -699,7 +734,7 @@
 
         <div class="main">
             <div class="page-heading">
-                <h1>Feedback Analyzer</h1>
+                <h1 id="feedback-analyzer-title">Feedback Analyzer</h1>
                 <p>Review survey results and student engagement across your course.</p>
             </div>
 
@@ -708,7 +743,8 @@
                 <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
-                <button class="mode-tab" role="tab" data-mode="students" aria-selected="false" id="students-tab-btn" style="display:none">Students</button>
+                <button class="mode-tab" role="tab" data-mode="students" aria-selected="false" id="students-tab-btn" style="display:none">Student Progress</button>
+                <button class="mode-tab" role="tab" data-mode="group-progress" aria-selected="false" id="group-progress-tab-btn" style="display:none">Group Progress</button>
             </div>
 
             <!-- Shared panel: General Course Feedback + Structured Reflection both render here.
@@ -819,17 +855,40 @@
             </div><!-- /#mode-panel-group -->
 
             <!-- Students panel: cross-week progress matrix built from the
-                 device-signal identity map. Tab only appears when the course
-                 has tracked sessions. -->
+                 anonymous identity map. Tab only appears when the course has
+                 tracked sessions. -->
             <div id="mode-panel-students" role="tabpanel" style="display:none">
                 <div class="analysis-section">
                     <div class="section-header">
                         <span class="section-title">Student progress across weeks</span>
-                        <button type="button" class="info-icon info-icon--right" aria-label="About student tracking" data-tooltip="Rows are device-based estimates of 'the same student', built from a browser-stored key plus a device fingerprint — never names or accounts. A solid entry came from the same device as the rest of its row; a dashed entry was linked by fingerprint alone (e.g. after the browser's storage was cleared) and is less certain. A student who switches devices appears as two rows. Shared lab computers are detected and kept apart rather than merged. Sessions from before tracking was enabled cannot be attributed and are listed under Unlinked sessions."></button>
+                        <button type="button" class="info-icon info-icon--right" id="student-progress-info" aria-label="About student tracking" data-tooltip=""></button>
                     </div>
                     <div id="students-matrix-container"></div>
                 </div>
             </div><!-- /#mode-panel-students -->
+
+            <div id="mode-panel-group-progress" role="tabpanel" style="display:none">
+                <div class="analysis-section">
+                    <div class="section-header">
+                        <span class="section-title">Group progress across weeks</span>
+                        <button type="button" class="info-icon info-icon--right" id="group-progress-info" aria-label="About group progress" data-tooltip=""></button>
+                    </div>
+                    <div id="group-progress-container"></div>
+                </div>
+            </div><!-- /#mode-panel-group-progress -->
+
+            <div id="mode-panel-response-detail" style="display:none">
+                <div class="analysis-section">
+                    <div class="response-detail-head">
+                        <div>
+                            <h2 id="response-detail-title">Response</h2>
+                            <p id="response-detail-meta"></p>
+                        </div>
+                        <button type="button" class="btn btn-outline btn-sm" id="response-detail-back">Back to responses</button>
+                    </div>
+                    <div id="response-detail-card"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -838,6 +897,7 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 <script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-progress.js?v=20260809-3"></script>
 <script src="leai-pdf-ingest.js?v=v0.2.9"></script>
 <script src="leai-version.js"></script>
 <script>
@@ -847,6 +907,13 @@
     // ===== STATE =====
     var session = null;
     var allSurveys = [];
+    let responseRecordBySessionId = {};
+    let identityTrackingEnabled = false;
+    let progressTabsVisibility = { studentProgress: false, groupProgress: false };
+    let requestedResponseDetail = leaiProgress.parseResponseHash(window.location.hash);
+    const progressConfidenceCopy = leaiProgress.progressConfidenceCopy;
+    document.getElementById('student-progress-info').dataset.tooltip = progressConfidenceCopy.studentInfo;
+    document.getElementById('group-progress-info').dataset.tooltip = progressConfidenceCopy.groupInfo;
     // surveyId -> { teamBySessionId: { sid -> teamLabel } }. Populated lazily
     // by ensureSurveyTeamData() so the student-card list can label each
     // response with the team that session was assigned to.
@@ -858,7 +925,7 @@
     // Mode tab — 'general' | 'group' | 'form'. Persisted so reload returns to the same tab.
     var MODE_KEY = 'leai.fa.mode';
     var currentMode = (function () {
-        try { var m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form' || m === 'students') ? m : 'general'; }
+        try { const m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form' || m === 'students' || m === 'group-progress') ? m : 'general'; }
         catch (e) { return 'general'; }
     })();
 
@@ -966,9 +1033,8 @@
     function activeSurveys() { return surveysForMode(currentMode); }
 
     // ===== CROSS-WEEK IDENTITY =====
-    // Each survey may carry `identity`: {sid: {label:'S3', link:'strong'|'weak',
-    // device:n}} from the backend's device-signal clustering. Labels are
-    // course-wide, so the same student keeps one S-label across every week.
+    // Each survey may carry anonymous identity estimates. Labels are
+    // course-wide so a likely match keeps one S-label across every week.
     function sessionIdentity(survey, sid) {
         return (survey && survey.identity && survey.identity[sid]) || null;
     }
@@ -1056,19 +1122,46 @@
     });
 
     // ===== DATA FETCH =====
+    function refreshProgressTabVisibility() {
+        const records = leaiProgress.buildResponseRecords(allSurveys);
+        progressTabsVisibility = leaiProgress.progressVisibility({
+            trackingEnabled: identityTrackingEnabled,
+            records: records,
+            surveyTeamData: surveyTeamCache,
+        });
+        const studentsTab = document.getElementById('students-tab-btn');
+        const groupProgressTab = document.getElementById('group-progress-tab-btn');
+        if (studentsTab) studentsTab.style.display = progressTabsVisibility.studentProgress ? '' : 'none';
+        if (groupProgressTab) groupProgressTab.style.display = progressTabsVisibility.groupProgress ? '' : 'none';
+    }
+
     function loadData() {
-        fetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-            allSurveys = data;
-            // Students tab exists only for courses with tracked sessions —
-            // no dead tab on the many courses without cross-week tracking.
-            var studentsTab = document.getElementById('students-tab-btn');
-            if (studentsTab) studentsTab.style.display = courseHasIdentity() ? '' : 'none';
-            // Apply persisted mode now that data is in — drives chip rendering,
-            // panel visibility, and survey filter in one shot.
-            applyMode(currentMode);
+        const courseParam = encodeURIComponent(session.courseId);
+        Promise.all([
+            fetch(API + '/feedback_messages_by_course/?course_id=' + courseParam)
+                .then(function (r) { return r.json(); }),
+            fetch(API + '/get_course_customization/?course_id=' + courseParam)
+                .then(function (r) { return r.json(); })
+                .catch(function () { return null; })
+        ])
+        .then(function (results) {
+            allSurveys = Array.isArray(results[0]) ? results[0] : [];
+            identityTrackingEnabled = !!(results[1] && results[1].identity_tracking_enabled);
+            responseRecordBySessionId = leaiProgress.indexBySessionId(
+                leaiProgress.buildResponseRecords(allSurveys)
+            );
             loadInGroupSurveys();
+            refreshProgressTabVisibility();
+
+            const groupSurveys = identityTrackingEnabled
+                ? allSurveys.filter(isGroupSurvey)
+                : [];
+            return Promise.all(groupSurveys.map(ensureSurveyTeamData))
+                .then(function () {
+                    refreshProgressTabVisibility();
+                    if (requestedResponseDetail) renderRequestedResponseDetail();
+                    else applyMode(currentMode);
+                });
         })
         .catch(function () { loadInGroupSurveys(); });
     }
@@ -2241,7 +2334,7 @@
         header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
         var ridEl = document.createElement('span');
         ridEl.style.cssText = 'font-weight:700;font-size:0.78rem;letter-spacing:0.02em';
-        ridEl.textContent = rid || 'Citation';
+        ridEl.textContent = (source && source.display_rid) || rid || 'Citation';
         header.appendChild(ridEl);
         if (source && source.week_number) {
             var weekEl = document.createElement('span');
@@ -2544,8 +2637,25 @@
                 );
             qt.sources = corpus.filter(function (r) { return citedSet[r.rid]; });
         }
+        // Cached backend sources retain their internal R-id. Enrich them with
+        // the current scope's week-local display id without changing lookup keys.
+        const displayCorpus = (opts.sourceCorpus && opts.sourceCorpus.length)
+            ? opts.sourceCorpus
+            : leaiAnalysis.buildResponseIndex(
+                activeSurveys(), currentScope.kind, currentScope.weekNumber
+            );
+        const displayByRid = {};
+        displayCorpus.forEach(function (s) { if (s.rid) displayByRid[s.rid] = s; });
         var sourceByRid = {};
-        (qt.sources || []).forEach(function (s) { if (s.rid) sourceByRid[s.rid] = s; });
+        (qt.sources || []).forEach(function (s) {
+            if (!s.rid) return;
+            const local = displayByRid[s.rid];
+            if (local) {
+                s.week_rid = local.week_rid;
+                s.display_rid = local.display_rid;
+            }
+            sourceByRid[s.rid] = s;
+        });
 
         var card = document.createElement('div');
         card.className = 'quick-take';
@@ -2880,7 +2990,7 @@
                         var src = document.createElement('span');
                         src.className = 'quote-src';
                         var srcRow = sourceByRid[f.quote.rid];
-                        var parts = [f.quote.rid];
+                        const parts = [(srcRow && srcRow.display_rid) || f.quote.rid];
                         if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
                         src.textContent = parts.join(' · ');
                         q.appendChild(src);
@@ -2956,7 +3066,7 @@
                         var src = document.createElement('span');
                         src.className = 'quote-src';
                         var srcRow = sourceByRid[t.quote.rid];
-                        var parts = [t.quote.rid];
+                        const parts = [(srcRow && srcRow.display_rid) || t.quote.rid];
                         if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
                         src.textContent = parts.join(' · ');
                         q.appendChild(src);
@@ -3147,10 +3257,10 @@
         // string; some entries from feedback_messages_by_course/ only carry
         // gpt_id, so fall through to that.
         var key = survey && (survey.id || survey.gpt_id);
-        if (!key) return Promise.resolve({ teamBySessionId: {} });
+        if (!key) return Promise.resolve({ teamBySessionId: {}, teamsBySessionId: {} });
         if (surveyTeamCache[key]) return Promise.resolve(surveyTeamCache[key]);
         if (typeof leaiTeamsApi === 'undefined') {
-            surveyTeamCache[key] = { teamBySessionId: {} };
+            surveyTeamCache[key] = { teamBySessionId: {}, teamsBySessionId: {} };
             return Promise.resolve(surveyTeamCache[key]);
         }
         var pending = Promise.all([
@@ -3160,28 +3270,39 @@
             var snap = results[0];
             var asgns = results[1] || [];
             var teamBySessionId = {};
+            const teamsBySessionId = {};
             if (snap && snap.teams) {
                 var teamById = {};
                 snap.teams.forEach(function (t) {
                     var name = (t.display_name && String(t.display_name).trim())
                         ? t.display_name
                         : ((snap.label_prefix || 'Team') + ' ' + t.number);
-                    teamById[t.id] = name;
+                    teamById[t.id] = {
+                        sourceConfigurationId: snap.source_configuration_id || survey.team_configuration_id || snap.id || key,
+                        configurationName: snap.name || survey.team_snapshot_name || 'Team configuration',
+                        teamNumber: t.number,
+                        teamLabel: name,
+                        teamSize: t.size || 0,
+                    };
                 });
                 asgns.forEach(function (a) {
                     if (teamById[a.survey_team_id]) {
-                        teamBySessionId[a.session_id] = teamById[a.survey_team_id];
+                        teamsBySessionId[a.session_id] = teamById[a.survey_team_id];
+                        teamBySessionId[a.session_id] = teamById[a.survey_team_id].teamLabel;
                     }
                 });
             }
-            surveyTeamCache[key] = { teamBySessionId: teamBySessionId };
+            surveyTeamCache[key] = {
+                teamBySessionId: teamBySessionId,
+                teamsBySessionId: teamsBySessionId,
+            };
             return surveyTeamCache[key];
         }).catch(function () {
-            surveyTeamCache[key] = { teamBySessionId: {} };
+            surveyTeamCache[key] = { teamBySessionId: {}, teamsBySessionId: {}, error: true };
             return surveyTeamCache[key];
         });
         // Cache the pending promise to dedupe concurrent fetches.
-        surveyTeamCache[key] = { teamBySessionId: {}, pending: pending };
+        surveyTeamCache[key] = { teamBySessionId: {}, teamsBySessionId: {}, pending: pending };
         return pending;
     }
 
@@ -3209,7 +3330,7 @@
             sf.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap';
             var sfLabel = document.createElement('span');
             sfLabel.style.cssText = 'font-size:0.78rem;color:var(--text)';
-            sfLabel.textContent = 'Showing ' + studentOnlyFilter + ' across all weeks (device-based estimate)';
+            sfLabel.textContent = 'Showing ' + studentOnlyFilter + ' across all weeks (anonymous estimate)';
             sf.appendChild(sfLabel);
             var sfClear = document.createElement('button');
             sfClear.type = 'button';
@@ -3260,6 +3381,9 @@
         document.getElementById('expand-all-btn').textContent = 'Expand All';
 
         var modeSurveys = activeSurveys();
+        const modeResponseBySessionId = leaiProgress.indexBySessionId(
+            leaiProgress.buildResponseRecords(modeSurveys)
+        );
         var scopeSurveys = currentScope.kind === 'course'
             ? modeSurveys
             : modeSurveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
@@ -3268,8 +3392,8 @@
         var surveysNeedingTeamFetch = [];
         scopeSurveys.forEach(function (s) {
             var teamKey = s.id || s.gpt_id;
-            var cached = surveyTeamCache[teamKey];
-            if (!cached || cached.pending) {
+            const cached = leaiProgress.needsTeamData(s) ? surveyTeamCache[teamKey] : null;
+            if (leaiProgress.needsTeamData(s) && (!cached || cached.pending)) {
                 if (!cached) surveysNeedingTeamFetch.push(s);
             }
             var teamBySessionId = (cached && cached.teamBySessionId) || {};
@@ -3304,8 +3428,9 @@
                 if (studentOnlyFilter && (!ident || ident.label !== studentOnlyFilter)) return;
                 entries.push({
                     sessionId: sid,
-                    // Device-cluster identity {label, link, device}; null for
-                    // untracked sessions (week 1, tracking off).
+                    responseRecord: modeResponseBySessionId[sid] || null,
+                    // Anonymous estimate with confidence; null for untracked
+                    // sessions (for example, before tracking was enabled).
                     identity: ident,
                     msgs: msgs,
                     weekNumber: s.week_number,
@@ -3360,10 +3485,11 @@
 
             var label = document.createElement('span');
             label.className = 'student-card-label';
-            // R-id is the class-wise anonymized identifier used in Quick Take
-            // and chat citations; match the scope-local numbering here so a
-            // student's [R3] card label reads "R3".
-            label.textContent = 'R' + (idx + 1);
+            // Week-local response ids are assigned from the complete mode data
+            // before filters, so hiding an earlier card never renumbers this one.
+            label.textContent = entry.responseRecord
+                ? leaiProgress.displayId(entry.responseRecord, currentScope.kind, false)
+                : 'R' + (idx + 1);
 
             var startTs = sessionStartTimestamp(msgs);
             var startIso = startTs ? new Date(startTs).toISOString() : '';
@@ -3405,16 +3531,18 @@
                 header.appendChild(badge);
             }
             if (startDateText) header.appendChild(startDate);
-            // Cross-week student chip — device-based cluster label. Click
-            // filters the course-scope list to this student's sessions.
+            // Cross-week anonymous student label. Click filters the
+            // course-scope list to this estimated student's sessions.
             if (entry.identity) {
                 var sidChip = document.createElement('span');
                 sidChip.className = 'student-card-sid' + (entry.identity.link === 'weak' ? ' weak' : '');
                 sidChip.textContent = entry.identity.label;
-                sidChip.title = (entry.identity.link === 'weak'
-                    ? 'Probably the same student as the other ' + entry.identity.label + ' sessions — linked by device fingerprint alone (browser storage was cleared), so treat with some caution.'
-                    : 'Same device as the other ' + entry.identity.label + ' sessions.')
-                    + ' Device-based estimate, never a name. Click to see this student across all weeks.';
+                const confidence = leaiProgress.confidencePresentation(
+                    entry.identity.link, entry.identity.label
+                );
+                sidChip.title = confidence.studentTitle + ' ' +
+                    progressConfidenceCopy.anonymousEstimateSuffix +
+                    ' Click to see this student across all weeks.';
                 (function (label) {
                     sidChip.addEventListener('click', function (e) {
                         e.stopPropagation();
@@ -4322,30 +4450,40 @@
     }
 
     // ===== STUDENTS PROGRESS MATRIX =====
-    // One row per device-based cluster (S1..Sn), one column per week, a pill
+    // One row per anonymous estimate (S1..Sn), one column per week, a pill
     // per submitted survey. Built entirely from data already loaded on
     // feedback_messages_by_course — no extra round-trips.
     function collectTrackedEntries() {
         var tracked = [];
         var unlinked = [];
-        allSurveys.forEach(function (s) {
-            Object.keys(s.sessions || {}).forEach(function (sid) {
-                var msgs = s.sessions[sid];
-                // Same response-bearing rule as the Student Responses list so
-                // the matrix never counts an opened-and-abandoned tab.
-                if (!msgs.some(isStudentMsg) && !sessionHasPdfMessage(msgs)) return;
-                var ident = sessionIdentity(s, sid);
-                var row = {
-                    sid: sid,
-                    ident: ident,
-                    week: s.week_number,
-                    mode: s.mode || 'general',
-                    surveyLabel: s.survey_label || ('Week ' + s.week_number),
-                };
-                (ident ? tracked : unlinked).push(row);
-            });
+        leaiProgress.buildResponseRecords(allSurveys).forEach(function (record) {
+            const row = {
+                sid: record.sessionId,
+                ident: record.identity,
+                week: record.week,
+                mode: record.mode,
+                surveyLabel: record.surveyLabel,
+                responseRecord: record,
+            };
+            (record.identity ? tracked : unlinked).push(row);
         });
         return { tracked: tracked, unlinked: unlinked };
+    }
+
+    function wireResponseLink(link) {
+        link.addEventListener('click', function (event) {
+            if (!leaiProgress.isPlainPrimaryClick(event)) return;
+            const responseWindow = window.open('', '_blank');
+            if (!responseWindow) return;
+            event.preventDefault();
+            try {
+                responseWindow.sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+                responseWindow.opener = null;
+                responseWindow.location.href = link.href;
+            } catch (e) {
+                responseWindow.location.href = link.href;
+            }
+        });
     }
 
     function renderStudentsMatrix() {
@@ -4364,7 +4502,7 @@
 
         var legend = document.createElement('p');
         legend.className = 'students-legend';
-        legend.textContent = 'Each row is an estimate of one student, grouped by device signals — no names are collected. Solid entries came from the same device as the rest of their row; dashed entries were linked by fingerprint alone and are less certain. Click an entry to open that conversation.';
+        legend.textContent = progressConfidenceCopy.studentLegend;
         host.appendChild(legend);
 
         var weeks = [];
@@ -4373,14 +4511,13 @@
         });
         weeks.sort(function (a, b) { return a - b; });
 
-        // label -> { byWeek: {week: [entry]}, maxDevice, weakCount, total }
+        // label -> { byWeek: {week: [entry]}, weakCount, total }
         var clusters = {};
         data.tracked.forEach(function (e) {
             var c = clusters[e.ident.label] || (clusters[e.ident.label] = {
-                byWeek: {}, maxDevice: 1, weakCount: 0, total: 0,
+                byWeek: {}, weakCount: 0, total: 0,
             });
             (c.byWeek[e.week] || (c.byWeek[e.week] = [])).push(e);
-            if (e.ident.device > c.maxDevice) c.maxDevice = e.ident.device;
             if (e.ident.link === 'weak') c.weakCount++;
             c.total++;
         });
@@ -4395,7 +4532,7 @@
         var thead = document.createElement('thead');
         var headRow = document.createElement('tr');
         ['Student'].concat(weeks.map(function (w) { return 'Week ' + w; }))
-            .concat(['Devices']).forEach(function (t) {
+            .concat(['Match confidence']).forEach(function (t) {
                 var th = document.createElement('th');
                 th.textContent = t;
                 headRow.appendChild(th);
@@ -4403,7 +4540,6 @@
         thead.appendChild(headRow);
         table.appendChild(thead);
 
-        var MODE_PILL = { form: 'Form', group: 'Group', general: 'Chat' };
         var tbody = document.createElement('tbody');
         labels.forEach(function (label) {
             var c = clusters[label];
@@ -4423,38 +4559,38 @@
                     td.textContent = '—';
                 } else {
                     cellEntries.forEach(function (e) {
-                        var pill = document.createElement('span');
+                        const pill = document.createElement('a');
                         pill.className = 'sm-pill'
                             + (e.ident.link === 'weak' ? ' weak' : '')
                             + (e.mode === 'group' ? ' mode-group' : '');
-                        pill.textContent = MODE_PILL[e.mode] || e.mode;
-                        pill.title = e.surveyLabel
-                            + (e.ident.link === 'weak'
-                                ? ' — linked by fingerprint alone (less certain).'
-                                : ' — same device as the rest of this row.')
-                            + ' Click to open the conversation.';
-                        (function (sid, mode) {
-                            pill.addEventListener('click', function () {
-                                jumpToSession(sid, mode);
-                            });
-                        })(e.sid, e.mode);
+                        pill.textContent = leaiProgress.displayId(e.responseRecord, 'course', true);
+                        pill.href = leaiProgress.buildResponseHref(e.responseRecord);
+                        pill.target = '_blank';
+                        pill.rel = 'noopener';
+                        const confidence = leaiProgress.confidencePresentation(
+                            e.ident.link, e.ident.label
+                        );
+                        pill.title = e.surveyLabel + ' — ' + confidence.matchLabel +
+                            '. Opens the response in a new tab.';
+                        wireResponseLink(pill);
                         td.appendChild(pill);
                     });
                 }
                 tr.appendChild(td);
             });
 
-            var tdDev = document.createElement('td');
-            var devNote = document.createElement('span');
-            devNote.className = 'sm-device-note' + (c.maxDevice > 1 ? ' multi' : '');
-            devNote.textContent = c.maxDevice > 1
-                ? c.maxDevice + ' devices'
-                : '1 device';
-            devNote.title = c.maxDevice > 1
-                ? 'Sessions in this row came from ' + c.maxDevice + ' different devices/browsers, joined by fingerprint. The grouping is less certain than a single-device row.'
-                : 'Every session in this row came from the same browser.';
-            tdDev.appendChild(devNote);
-            tr.appendChild(tdDev);
+            var tdConfidence = document.createElement('td');
+            var confidenceNote = document.createElement('span');
+            const rowConfidence = leaiProgress.confidencePresentation(
+                c.weakCount > 0 ? 'weak' : 'strong', label
+            );
+            confidenceNote.className = 'sm-confidence-note' + (c.weakCount > 0 ? ' mixed' : '');
+            confidenceNote.textContent = rowConfidence.rowLabel;
+            confidenceNote.title = c.weakCount > 0
+                ? 'This row includes at least one possible match that is less certain.'
+                : 'All displayed responses in this row are more-confident matches.';
+            tdConfidence.appendChild(confidenceNote);
+            tr.appendChild(tdConfidence);
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);
@@ -4462,7 +4598,7 @@
         host.appendChild(wrap);
 
         // Unlinked sessions — honest accounting of what the matrix can't
-        // attribute: pre-tracking weeks (e.g. week 1) and first-time devices.
+        // attribute: pre-tracking weeks and newly unmatched sessions.
         if (data.unlinked.length) {
             var section = document.createElement('div');
             section.className = 'students-unlinked';
@@ -4490,31 +4626,197 @@
         }
     }
 
-    // Matrix cell → the actual conversation: switch to the survey's tab
-    // (which re-renders the responses list), then scroll to and open the card.
-    function jumpToSession(sid, surveyMode) {
-        var tab = surveyMode === 'group' ? 'group' : (surveyMode === 'form' ? 'form' : 'general');
-        applyMode(tab);
-        setTimeout(function () {
-            var card = document.querySelector('.student-card[data-session-id="' + sid + '"]');
-            if (!card) return;
-            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            if (!card.classList.contains('open')) {
-                var hdr = card.querySelector('.student-card-header');
-                if (hdr) hdr.click();
+    // ===== GROUP PROGRESS =====
+    function renderGroupProgress() {
+        const host = document.getElementById('group-progress-container');
+        if (!host) return;
+        host.textContent = '';
+
+        const records = leaiProgress.buildResponseRecords(allSurveys);
+        const sections = leaiProgress.buildGroupProgress(records, surveyTeamCache);
+        if (!sections.length) {
+            const empty = document.createElement('p');
+            empty.className = 'no-data';
+            empty.textContent = 'No tracked in-group responses with team assignments yet.';
+            host.appendChild(empty);
+            return;
+        }
+
+        const allWeeks = [];
+        records.forEach(function (record) {
+            if (record.mode === 'group' && allWeeks.indexOf(record.week) === -1) allWeeks.push(record.week);
+        });
+        allWeeks.sort(function (a, b) { return a - b; });
+
+        sections.forEach(function (section) {
+            const wrap = document.createElement('section');
+            wrap.className = 'group-progress-section';
+
+            const header = document.createElement('div');
+            header.className = 'group-progress-header';
+            const headingWrap = document.createElement('div');
+            const heading = document.createElement('h3');
+            heading.textContent = section.teamLabel;
+            const config = document.createElement('p');
+            config.textContent = section.configurationName + ' · ' +
+                progressConfidenceCopy.anonymousGroupLabel;
+            headingWrap.appendChild(heading);
+            headingWrap.appendChild(config);
+            header.appendChild(headingWrap);
+            wrap.appendChild(header);
+
+            const tableWrap = document.createElement('div');
+            tableWrap.className = 'group-progress-table-wrap';
+            const table = document.createElement('table');
+            table.className = 'group-progress-table';
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            const studentHead = document.createElement('th');
+            studentHead.textContent = 'Student';
+            headerRow.appendChild(studentHead);
+            allWeeks.forEach(function (week) {
+                const th = document.createElement('th');
+                const title = document.createElement('div');
+                title.textContent = 'Week ' + week;
+                th.appendChild(title);
+                const completeness = section.completeness[week];
+                if (completeness) {
+                    const comp = document.createElement('div');
+                    comp.className = 'group-progress-completeness';
+                    comp.textContent = completeness.trackedStudents + ' tracked · ' +
+                        completeness.responses + ' response' + (completeness.responses === 1 ? '' : 's') +
+                        (completeness.teamSize ? ' · group size ' + completeness.teamSize : '');
+                    th.appendChild(comp);
+                }
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            section.students.forEach(function (student) {
+                const row = document.createElement('tr');
+                const nameCell = document.createElement('td');
+                const name = document.createElement('span');
+                name.className = 'sm-student';
+                name.textContent = student.label;
+                nameCell.appendChild(name);
+                row.appendChild(nameCell);
+                allWeeks.forEach(function (week) {
+                    const cell = document.createElement('td');
+                    const entries = student.byWeek[week] || [];
+                    if (!entries.length) {
+                        cell.className = 'sm-empty-cell';
+                        cell.textContent = '—';
+                    } else {
+                        entries.forEach(function (record) {
+                            const link = document.createElement('a');
+                            link.className = 'sm-pill mode-group' +
+                                (record.identity && record.identity.link === 'weak' ? ' weak' : '');
+                            link.textContent = leaiProgress.displayId(record, 'course', true);
+                            link.href = leaiProgress.buildResponseHref(record);
+                            link.target = '_blank';
+                            link.rel = 'noopener';
+                            const confidence = leaiProgress.confidencePresentation(
+                                record.identity && record.identity.link,
+                                record.identity && record.identity.label
+                            );
+                            link.title = confidence.matchLabel +
+                                '. Open this anonymous group response in a new tab.';
+                            wireResponseLink(link);
+                            cell.appendChild(link);
+                        });
+                    }
+                    row.appendChild(cell);
+                });
+                tbody.appendChild(row);
+            });
+            table.appendChild(tbody);
+            tableWrap.appendChild(table);
+            wrap.appendChild(tableWrap);
+
+            const unlinkedWeeks = Object.keys(section.unlinkedByWeek);
+            if (unlinkedWeeks.length) {
+                const unlinked = document.createElement('div');
+                unlinked.className = 'group-progress-unlinked';
+                unlinked.textContent = 'Unlinked responses: ' + unlinkedWeeks.map(function (week) {
+                    return 'Week ' + week + ' (' + section.unlinkedByWeek[week] + ')';
+                }).join(', ') + '. These cannot be assigned to an S-label.';
+                wrap.appendChild(unlinked);
             }
-            card.classList.add('sm-flash');
-            setTimeout(function () { card.classList.remove('sm-flash'); }, 2500);
-        }, 120);
+            host.appendChild(wrap);
+        });
+    }
+
+    function hideAnalyzerPanelsForDetail() {
+        document.querySelector('.mode-tabs').style.display = 'none';
+        ['mode-panel-shared', 'mode-panel-group', 'mode-panel-students', 'mode-panel-group-progress']
+            .forEach(function (id) {
+                const panel = document.getElementById(id);
+                if (panel) panel.style.display = 'none';
+            });
+    }
+
+    function renderRequestedResponseDetail() {
+        const request = requestedResponseDetail;
+        if (!request) { applyMode(currentMode); return; }
+        const record = responseRecordBySessionId[request.sessionId];
+        const detailPanel = document.getElementById('mode-panel-response-detail');
+        const detailCard = document.getElementById('response-detail-card');
+        detailCard.textContent = '';
+        hideAnalyzerPanelsForDetail();
+        detailPanel.style.display = '';
+
+        if (!record || record.mode !== request.mode || record.week !== request.week) {
+            document.getElementById('response-detail-title').textContent = 'Response not found';
+            document.getElementById('response-detail-meta').textContent = 'This response is unavailable for the signed-in course.';
+            return;
+        }
+
+        applyMode(record.mode);
+        currentScope = { kind: 'week', weekNumber: record.week };
+        renderScopeChips();
+        onScopeChange();
+        const card = Array.from(document.querySelectorAll('.student-card')).find(function (candidate) {
+            return candidate.getAttribute('data-session-id') === record.sessionId;
+        });
+        hideAnalyzerPanelsForDetail();
+        detailPanel.style.display = '';
+        document.getElementById('response-detail-title').textContent =
+            record.modeLabel + ' · ' + record.courseRid;
+        document.getElementById('response-detail-meta').textContent =
+            record.surveyLabel + ' · Pseudonymous response';
+        if (card) {
+            card.classList.add('open');
+            detailCard.appendChild(card);
+        } else {
+            const missing = document.createElement('p');
+            missing.className = 'no-data';
+            missing.textContent = 'This response could not be rendered.';
+            detailCard.appendChild(missing);
+        }
+    }
+
+    document.getElementById('response-detail-back').addEventListener('click', function () {
+        const record = requestedResponseDetail && responseRecordBySessionId[requestedResponseDetail.sessionId];
+        requestedResponseDetail = null;
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+        document.querySelector('.mode-tabs').style.display = '';
+        document.getElementById('mode-panel-response-detail').style.display = 'none';
+        applyMode(record ? record.mode : 'general');
+        if (record) goToWeekScope(record.week);
+    });
+
+    function modeIsAvailable(mode) {
+        if (mode === 'students') return progressTabsVisibility.studentProgress;
+        if (mode === 'group-progress') return progressTabsVisibility.groupProgress;
+        return true;
     }
 
     // ===== MODE TAB SWITCHING =====
     function applyMode(mode) {
-        if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students') mode = 'general';
-        // The Students tab only exists when the course has tracked sessions;
-        // a stale persisted choice must not strand the instructor on an
-        // invisible tab.
-        if (mode === 'students' && !courseHasIdentity()) mode = 'general';
+        if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students' && mode !== 'group-progress') mode = 'general';
+        if (!modeIsAvailable(mode)) mode = 'general';
         currentMode = mode;
         try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
         // A student drill-down from one tab must not silently narrow another.
@@ -4533,11 +4835,23 @@
         var sharedPanel = document.getElementById('mode-panel-shared');
         var groupPanel = document.getElementById('mode-panel-group');
         var studentsPanel = document.getElementById('mode-panel-students');
+        const groupProgressPanel = document.getElementById('mode-panel-group-progress');
+        const detailPanel = document.getElementById('mode-panel-response-detail');
+        if (detailPanel) detailPanel.style.display = 'none';
         if (studentsPanel) studentsPanel.style.display = (mode === 'students') ? '' : 'none';
+        if (groupProgressPanel) groupProgressPanel.style.display = (mode === 'group-progress') ? '' : 'none';
         if (mode === 'students') {
             if (sharedPanel) sharedPanel.style.display = 'none';
             if (groupPanel)  groupPanel.style.display  = 'none';
+            if (groupProgressPanel) groupProgressPanel.style.display = 'none';
             renderStudentsMatrix();
+            return;
+        }
+        if (mode === 'group-progress') {
+            if (sharedPanel) sharedPanel.style.display = 'none';
+            if (groupPanel) groupPanel.style.display = 'none';
+            if (studentsPanel) studentsPanel.style.display = 'none';
+            renderGroupProgress();
             return;
         }
 
@@ -4547,6 +4861,7 @@
         // both see aggregate trends AND dig into individual teams.
         if (sharedPanel) sharedPanel.style.display = '';
         if (groupPanel)  groupPanel.style.display  = (mode === 'group') ? '' : 'none';
+        if (groupProgressPanel) groupProgressPanel.style.display = 'none';
 
         // All three modes (general/group/form) now render the cross-submission
         // Traditional Analysis + AI Quick Take, scoped to only the surveys in

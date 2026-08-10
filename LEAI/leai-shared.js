@@ -262,6 +262,7 @@ var leaiAnalysis = {
     buildResponseIndex: function(allSurveys, scopeKind, scopeWeekNumber) {
         var responses = [];
         var counter = 1;
+        const weekCounters = {};
         var surveys = allSurveys;
         if (scopeKind === 'week' && scopeWeekNumber != null) {
             surveys = allSurveys.filter(function(s) {
@@ -276,11 +277,18 @@ var leaiAnalysis = {
                     return m.sent_by === 'user-message' || m.sent_by === 'user';
                 }).map(function(m) { return m.content; });
                 if (studentMsgs.length) {
+                    const weekNumber = s.week_number || 0;
+                    weekCounters[weekNumber] = (weekCounters[weekNumber] || 0) + 1;
+                    const weekRid = 'R' + weekCounters[weekNumber];
                     responses.push({
                         rid: 'R' + counter,
+                        week_rid: weekRid,
+                        display_rid: scopeKind === 'week'
+                            ? weekRid
+                            : 'W' + weekNumber + '-' + weekRid,
                         survey_id: s.gpt_id,
                         session_id: sid,
-                        week_number: s.week_number || 0,
+                        week_number: weekNumber,
                         text: studentMsgs.join(' | '),
                     });
                     counter++;
@@ -341,7 +349,7 @@ var leaiAnalysis = {
         meta.appendChild(idxEl);
 
         var parts = [];
-        if (src && src.rid) parts.push(src.rid);
+        if (src && (src.display_rid || src.rid)) parts.push(src.display_rid || src.rid);
         if (src && src.week_number != null) parts.push('Week ' + src.week_number);
         if (parts.length) {
             meta.appendChild(document.createTextNode(' ' + parts.join(' \u00b7 ')));
