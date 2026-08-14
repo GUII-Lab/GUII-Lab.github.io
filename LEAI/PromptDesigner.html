@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.9">
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -491,19 +491,6 @@ When the conversation has organically reached a natural close — i.e. the stude
                                     <input type="datetime-local" id="s-expires-at" style="margin-bottom:12px" />
                                 </div>
                             </div>
-                            <!-- Canvas Integration (hidden for now)
-                            <div style="margin-top:14px;padding:12px 14px;background:var(--surface-card);border-radius:6px;border:1px solid var(--surface-border)">
-                                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:500;margin-bottom:0">
-                                    <input type="checkbox" id="s-canvas-integration" style="margin-top:3px;flex-shrink:0" />
-                                    <span>
-                                        Canvas Integration
-                                        <span style="display:block;font-weight:400;font-size:0.8rem;color:var(--muted);margin-top:2px">Show students a completion code after their first message, so they can paste it into a Canvas assignment for grading.</span>
-                                        <span id="s-canvas-anon-note" style="display:none;font-size:0.78rem;color:#b45309;margin-top:4px;display:block">Not available for anonymous surveys — switch to Pseudonymous or Identified to enable.</span>
-                                    </span>
-                                </label>
-                            </div>
-                            -->
-                            <input type="hidden" id="s-canvas-integration" value="" />
                         </div>
 
                         <div style="margin-top: 20px">
@@ -965,12 +952,34 @@ When the conversation has organically reached a natural close — i.e. the stude
     </div>
 </div>
 
-<script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-shared.js?v=v0.3.0"></script>
+<script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
     var pendingAnswersImport = null;
+
+    function buildGeneralSurveyPayload(source) {
+        if (typeof leaiCompletion !== 'undefined'
+                && leaiCompletion
+                && typeof leaiCompletion.buildPromptDesignerSurveyPayload === 'function') {
+            return leaiCompletion.buildPromptDesignerSurveyPayload(source);
+        }
+        return {
+            course_id: source.courseId,
+            name: source.courseId + ' — ' + source.surveyLabel,
+            week_number: source.weekNumber === '' || source.weekNumber == null
+                ? null
+                : parseInt(source.weekNumber, 10),
+            survey_label: source.surveyLabel,
+            instructions: source.instructions || '',
+            instructor_name: source.instructorName || '',
+            opens_at: source.opensAt ? new Date(source.opensAt).toISOString() : null,
+            expires_at: source.expiresAt ? new Date(source.expiresAt).toISOString() : null,
+            anonymity_mode: source.anonymityMode || 'anonymous',
+        };
+    }
 
     // ===== INIT TAG INPUT FOR THEMES =====
     // ===== SETTINGS TOGGLE =====
@@ -2372,24 +2381,21 @@ When the conversation has organically reached a natural close — i.e. the stude
         var opensAt = document.getElementById('s-opens-at').value;
         var expiresAt = document.getElementById('s-expires-at').value;
         var anonymity = document.getElementById('s-anonymity').value;
-        var canvasIntegration = false; // canvas integration hidden for now
 
         this.disabled = true;
         fetch(API + '/create_feedback_gpt/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                course_id: activeCourse.id,
-                name: activeCourse.id + ' \u2014 ' + label,
-                week_number: week ? parseInt(week, 10) : null,
-                survey_label: label,
+            body: JSON.stringify(buildGeneralSurveyPayload({
+                courseId: activeCourse.id,
+                surveyLabel: label,
+                weekNumber: week,
                 instructions: instructions,
-                instructor_name: activeCourse.name,
-                opens_at: opensAt ? new Date(opensAt).toISOString() : null,
-                expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
-                anonymity_mode: anonymity,
-                canvas_integration: canvasIntegration,
-            })
+                instructorName: activeCourse.name,
+                opensAt: opensAt,
+                expiresAt: expiresAt,
+                anonymityMode: anonymity,
+            }))
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -3169,18 +3175,16 @@ When the conversation has organically reached a natural close — i.e. the stude
                 fetch(API + '/create_feedback_gpt/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        course_id: activeCourse.id,
-                        name: activeCourse.id + ' \u2014 ' + (s.survey_label || 'Imported Survey'),
-                        week_number: s.week_number || null,
-                        survey_label: s.survey_label || 'Imported Survey',
+                    body: JSON.stringify(buildGeneralSurveyPayload({
+                        courseId: activeCourse.id,
+                        surveyLabel: s.survey_label || 'Imported Survey',
+                        weekNumber: s.week_number || null,
                         instructions: s.instructions || '',
-                        instructor_name: activeCourse.name,
-                        opens_at: shiftDate(s.opens_at),
-                        expires_at: shiftDate(s.expires_at),
-                        anonymity_mode: s.anonymity_mode || 'anonymous',
-                        canvas_integration: false,
-                    })
+                        instructorName: activeCourse.name,
+                        opensAt: shiftDate(s.opens_at),
+                        expiresAt: shiftDate(s.expires_at),
+                        anonymityMode: s.anonymity_mode || 'anonymous',
+                    }))
                 })
                 .then(function (r) { return r.json(); })
                 .then(function (resp) {

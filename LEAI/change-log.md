@@ -383,3 +383,19 @@ mean recording server-side in the `/openai-chat/` proxy, which does see
   Pre-existing, but marking non-consenting rows `[NUDGED]` sharpens it.
 - In a week with few responses, "R3 was nudged" is close to identifying. Worth
   checking against the IRB framing before enabling on a small course.
+
+---
+
+## 2026-08-13 — Anonymous completion certificates
+
+### What changed
+
+- Added two independent course-wide settings under the Customizations gear: completion-certificate downloads and parsed survey-document downloads.
+- Students can request a certificate after LEAI has saved their first response. The first request creates a random code; repeat downloads from the same survey session return the same certificate.
+- Feedback Analyzer now has a collapsed verifier for the selected survey. It returns only each submitted code and `Valid` or `Not found`; it never exposes the private code-to-session link, progress snapshot, or responses.
+- Certificate verification is exact-survey, read-only, reusable, and does not prove every section was completed or identify who used the anonymous LEAI session.
+- Updated the student consent copy, instructor guide, Privacy Policy, and Terms of Use for completion-credit use. LEAI is now v0.3.0.
+
+### Deployment note
+
+The backend migration and frontend release must be deployed together. Existing courses keep the parsed-document download enabled; completion certificates remain off until an instructor enables them.

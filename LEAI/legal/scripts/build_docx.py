@@ -21,8 +21,8 @@ from pathlib import Path
 from docx import Document
 from docx.shared import Pt
 
-LEAI_VERSION = "v0.2.0"
-LEAI_UPDATED_HUMAN = "April 7, 2026"
+LEAI_VERSION = "v0.3.0"
+LEAI_UPDATED_HUMAN = "August 13, 2026"
 
 
 # ---------------------------------------------------------------------------
@@ -89,10 +89,12 @@ def build_privacy_policy(out_path: Path) -> None:
     add_para(
         doc,
         ("The short version: ", "bold"),
-        "LEAI is anonymous. We do not collect your name, email, student ID, or any "
-        "other identifying information; we do not sell or share your feedback; and "
-        "we do not build a profile of you. The rest of this document explains the "
-        "details.",
+        "LEAI does not ask for your name, email, student ID, or an institutional "
+        "login, and it does not link your feedback to a named student account. We "
+        "do not sell your feedback or build an advertising profile of you. The rest "
+        "of this document explains the technical codes LEAI uses and what changes "
+        "if you choose to submit a completion certificate through your course's "
+        "learning-management system.",
     )
 
     # ---- Section 1: anonymous by design -----------------------------------
@@ -104,16 +106,31 @@ def build_privacy_policy(out_path: Path) -> None:
         "conversation is tagged with a randomly generated session code (for example, ",
         ("id_k3m9x2ab", "italic"),
         ") so the system can group your messages within one conversation. The code "
-        "is not linked to you as a person, and when you close the tab the link "
-        "between you and that code is gone.",
+        "is not linked to you as a person. In courses that do not use cross-week "
+        "continuity (Section 2), closing the tab ends the link between you and that "
+        "code; in courses that do, sessions started from the same device can be "
+        "grouped with each other, but still not with you as a named person.",
     )
     add_para(
         doc,
-        "Your instructor cannot tell which submission came from which student. That "
-        "is the point — it lets you be honest without worrying about how it might "
-        "look. The chat page shows an ",
+        "Your instructor cannot use LEAI to connect a feedback conversation to a "
+        "named student. That is the point — it lets you be honest without worrying "
+        "about how it might look. The chat page shows an ",
         ("ANONYMOUS", "bold"),
-        " badge near the top of the screen as a visual reminder of this guarantee.",
+        " badge near the top of the screen as a visual reminder.",
+    )
+    add_para(
+        doc,
+        "If your instructor enables completion certificates, you may download a PDF "
+        "containing a random completion code after LEAI saves at least one response "
+        "from your session. LEAI privately links that code to the anonymous session "
+        "and a coarse snapshot of how far the conversation had progressed when the "
+        "certificate was first issued. Instructors can use LEAI to check whether the "
+        "code was issued for the selected survey, but LEAI does not show them the "
+        "linked session, progress snapshot, or responses. If you submit the PDF "
+        "through Canvas or another course system, that system and your instructor "
+        "can associate the file with your course identity, but the code does not "
+        "reveal which LEAI feedback conversation was yours.",
     )
 
     # ---- Section 2: what we store -----------------------------------------
@@ -126,12 +143,33 @@ def build_privacy_policy(out_path: Path) -> None:
     add_bullet(doc, "The survey identifier (which course and which prompt)")
     add_bullet(doc, "The name of the AI model used to generate the reply")
     add_bullet(doc, "Your per-session research-consent choice (see Section 6)")
+    add_bullet(
+        doc,
+        "If you request a completion certificate: the certificate code, when it was "
+        "issued, the survey and anonymous session it belongs to, and a coarse "
+        "progress snapshot",
+    )
     add_para(
         doc,
-        "That is the full record. We do ",
+        "In courses where the instructor has enabled ",
+        ("cross-week continuity", "bold"),
+        ", the backend additionally stores two technical device signals per session: "
+        "a randomly generated code kept in your browser's local storage, and a "
+        "device fingerprint computed from browser characteristics. Their only use is "
+        "grouping sessions that came from the same device across the course's weekly "
+        "surveys, so the instructor can see how feedback evolves over the quarter "
+        "under an arbitrary label such as \"S3\". They are not linked to your name "
+        "or any account, are not shared outside the operational chain in Section 5, "
+        "and are not used for advertising or analytics. In courses without this "
+        "setting, neither signal is collected.",
+    )
+    add_para(
+        doc,
+        "Those are the records LEAI uses for feedback collection and optional "
+        "completion verification. We do ",
         ("not", "bold"),
-        " store device fingerprints, advertising identifiers, or analytics cookies "
-        "tied to your identity.",
+        " store advertising identifiers or analytics cookies, and LEAI does not tie "
+        "these records to your identity as a named person.",
     )
 
     # ---- Section 3: IP / logs ---------------------------------------------
@@ -157,41 +195,50 @@ def build_privacy_policy(out_path: Path) -> None:
         ". End-of-quarter surveys help future students; they do nothing for you. "
         "LEAI exists to change that: your instructor reads the aggregated feedback "
         "mid-course and uses it to improve your experience in the remaining weeks "
-        "of the class. That is the only operational use of your data. We are not "
-        "selling it, not advertising to you, and not building a profile of you.",
+        "of the class. If completion certificates are enabled, the certificate "
+        "record is also used to let your instructor verify that a code was issued "
+        "for a particular survey. We are not selling your data, advertising to you, "
+        "or building a profile of you.",
     )
 
     # ---- Section 5: who can see it ----------------------------------------
     doc.add_heading("5. Who can see your data", level=2)
-    add_bullet(
+    instructor_access = add_bullet(
         doc,
         ("Your course instructor ", "bold"),
         "and any teaching assistants the instructor grants access to (by sharing "
         "the course's access password) can read the anonymous feedback submitted "
-        "to that course's surveys. Anyone the instructor shares the course password "
-        "with can read everything submitted to that course; the instructor is "
-        "responsible for controlling that scope.",
+        "to that course's surveys. If completion certificates are enabled, they can "
+        "also check whether a code was issued for one exact survey. LEAI returns "
+        "only the code and a valid/not-found result; it does not expose the "
+        "code-to-session link, progress snapshot, or responses. Anyone the instructor "
+        "shares the course password with can read everything available to instructors "
+        "for that course; the instructor is responsible for controlling that scope.",
     )
-    add_bullet(
+    instructor_access.paragraph_format.keep_together = True
+    lab_access = add_bullet(
         doc,
         ("The GUII Lab research team ", "bold"),
         "maintains the system and has access to the underlying database as needed "
         "to operate the service (fixing bugs, performing backups, and migrating "
         "data).",
     )
-    add_bullet(
+    lab_access.paragraph_format.keep_together = True
+    provider_access = add_bullet(
         doc,
         ("The AI provider ", "bold"),
         "described in Section 7 receives the text of your conversation and the "
         "system prompt your instructor wrote. It does not receive your name, your "
         "session code, or your identifier.",
     )
-    add_bullet(
+    provider_access.paragraph_format.keep_together = True
+    third_party_access = add_bullet(
         doc,
         ("No other third parties. ", "bold"),
         "We do not share, sell, or disclose your feedback to advertisers, data "
         "brokers, or any party outside the operational chain described above.",
     )
+    third_party_access.paragraph_format.keep_together = True
 
     # ---- Section 6: optional research use ---------------------------------
     doc.add_heading("6. Optional research use", level=2)
@@ -241,7 +288,7 @@ def build_privacy_policy(out_path: Path) -> None:
 
     # ---- Section 8: data retention ----------------------------------------
     doc.add_heading("8. Data retention", level=2)
-    add_para(
+    retention_para = add_para(
         doc,
         "LEAI is a research prototype and does not yet enforce an automated "
         "retention schedule. Feedback data is retained on the GUII Lab's backend "
@@ -251,17 +298,20 @@ def build_privacy_policy(out_path: Path) -> None:
         "meantime, instructors and students may request deletion of specific data "
         "as described in Section 9.",
     )
+    retention_para.paragraph_format.keep_together = True
 
     # ---- Section 9: your rights -------------------------------------------
     doc.add_heading("9. Your rights", level=2)
-    add_para(
+    rights_para = add_para(
         doc,
-        "Because LEAI does not collect any identity from you, there is no way for "
-        "us to look up \u201cyour\u201d data and remove it individually \u2014 there "
-        "is simply no identifier to look up. The most reliable way to keep "
-        "something out of the dataset is to not submit it: you can close the tab "
-        "at any time and any unsent draft is discarded.",
+        "LEAI cannot look up feedback by your name, email, or student ID because it "
+        "does not collect those identifiers. A session code or completion-certificate "
+        "code may let the GUII Lab locate an anonymous technical record, but it does "
+        "not establish who submitted it. The most reliable way to keep something out "
+        "of the dataset is not to submit it: you can close the tab at any time and "
+        "any unsent draft is discarded.",
     )
+    rights_para.paragraph_format.keep_together = True
 
     # ---- Section 10: security ---------------------------------------------
     doc.add_heading("10. Security", level=2)
@@ -282,10 +332,11 @@ def build_privacy_policy(out_path: Path) -> None:
     add_para(
         doc,
         "LEAI is a research and feedback tool operated by the GUII Lab at UC Santa "
-        "Cruz. It is not part of UCSC's official student record system. Submissions "
-        "made through LEAI are not part of your education record under the Family "
-        "Educational Rights and Privacy Act (FERPA), and they are not shared with "
-        "the UCSC registrar.",
+        "Cruz. It is not part of UCSC's official student record system, and feedback "
+        "submitted through LEAI is not shared with the UCSC registrar. If you submit "
+        "a completion certificate through Canvas or another institutional system, "
+        "that separate course submission may be handled as an education record under "
+        "your institution's policies.",
     )
 
     # ---- Section 12: changes ----------------------------------------------
@@ -344,15 +395,16 @@ def build_terms_of_use(out_path: Path) -> None:
         "you and your classmates in real time.",
     )
 
-    # ---- Section 2: voluntary participation -------------------------------
-    doc.add_heading("2. Your participation is voluntary", level=2)
+    # ---- Section 2: participation and course credit -----------------------
+    doc.add_heading("2. Participation and course credit", level=2)
     add_para(
         doc,
-        "Participating in LEAI feedback sessions is ",
-        ("entirely voluntary", "bold"),
-        ". Choosing not to participate, or stopping at any time, will not affect "
-        "your grade or your standing in the course. You may close the tab at any "
-        "point, and any in-progress message that you have not sent is discarded.",
+        "LEAI does not grade your feedback or decide your standing in a course. Your "
+        "instructor may make the activity optional, offer participation credit, or "
+        "require it under the course's stated policies. If completion credit is "
+        "offered, choosing not to participate or stopping before a response is saved "
+        "may affect that credit. You may close the tab at any point, and any "
+        "in-progress message that you have not sent is discarded.",
     )
 
     # ---- Section 3: what info is collected --------------------------------
@@ -372,6 +424,33 @@ def build_terms_of_use(out_path: Path) -> None:
         "names, or other identifying details in the body of your messages \u2014 "
         "the system does not need them, and they undermine the anonymity design.",
     )
+    add_para(
+        doc,
+        "In courses where your instructor has enabled ",
+        ("cross-week continuity", "bold"),
+        ", LEAI additionally records technical device signals — a randomly generated "
+        "code stored in your browser and a device fingerprint — so that sessions "
+        "submitted from the same device across the course's weekly surveys can be "
+        "grouped together. These signals describe a browser and device, not a person: "
+        "they are never linked to your name, email, or student ID, and your instructor "
+        "sees only an arbitrary label (such as \"S3\") on the grouped sessions.",
+    )
+    certificate_para = add_para(
+        doc,
+        "In courses where your instructor has enabled ",
+        ("completion certificates", "bold"),
+        ", you may download a PDF with a random code after LEAI saves at least one "
+        "response. LEAI privately links the code to your anonymous session and a "
+        "coarse progress snapshot. The instructor-facing verifier returns only "
+        "whether that code was issued for the selected survey; it does not reveal "
+        "the linked session, progress snapshot, or responses. Submitting the PDF "
+        "through Canvas or another course system lets that system and your instructor "
+        "associate the certificate with your course identity, but the code does not "
+        "identify which LEAI feedback conversation was yours. A valid code confirms "
+        "certificate issuance, not full completion of every survey section or the "
+        "identity of the person submitting it.",
+    )
+    certificate_para.paragraph_format.keep_together = True
     add_para(
         doc,
         "The full data-handling details are covered in the LEAI Privacy Policy.",
@@ -430,9 +509,11 @@ def build_terms_of_use(out_path: Path) -> None:
     doc.add_heading("6. No guarantee of individual reply", level=2)
     add_para(
         doc,
-        "Because the instructor cannot tell which submission came from which "
-        "student, there is no way for them to reply to you individually through "
-        "this tool. If you need a direct response from your instructor, use the "
+        "The instructor cannot use LEAI to connect a feedback conversation to a "
+        "named student, so they cannot reply to you individually through this tool. "
+        "A completion certificate submitted through a course system may identify you "
+        "for credit, but LEAI still does not reveal the feedback conversation linked "
+        "to its code. If you need a direct response from your instructor, use the "
         "course's official communication channels.",
     )
 
@@ -450,10 +531,11 @@ def build_terms_of_use(out_path: Path) -> None:
     doc.add_heading("8. FERPA and educational records", level=2)
     add_para(
         doc,
-        "LEAI is operated as a research and feedback tool by the GUII Lab. It is "
-        "not part of UCSC's official student record system, and submissions made "
-        "through LEAI are not part of your education record under the Family "
-        "Educational Rights and Privacy Act (FERPA).",
+        "LEAI is operated as a research and feedback tool by the GUII Lab and is not "
+        "part of UCSC's official student record system. If you submit a completion "
+        "certificate through Canvas or another institutional system, that separate "
+        "course submission may be handled as an education record under your "
+        "institution's policies.",
     )
 
     # ---- Section 9: disclaimers / liability -------------------------------

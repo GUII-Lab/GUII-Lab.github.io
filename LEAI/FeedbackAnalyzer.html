@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.9">
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -795,6 +795,29 @@
                 </div>
             </details>
 
+            <!-- Verify Completion Certificates — only revealed for a selected
+                 week when this course has enabled completion certificates. -->
+            <details class="analysis-section trad-details" id="verify-codes-section" style="display:none">
+                <summary class="trad-summary">
+                    <span class="section-title">Verify completion certificates</span>
+                    <span class="trad-summary-hint">check issued codes for the selected survey</span>
+                </summary>
+                <div class="trad-body">
+                    <div id="verify-codes-survey-region" style="display:none;margin-bottom:16px">
+                        <label for="verify-codes-survey-select">Survey</label>
+                        <select id="verify-codes-survey-select" style="display:none;margin-top:8px"></select>
+                        <p id="verify-codes-survey-note" style="margin-top:8px;font-size:0.82rem;color:var(--muted)"></p>
+                    </div>
+                    <div>
+                        <label for="verify-codes-input">Paste codes to verify <span style="font-weight:400;text-transform:none;letter-spacing:0">(one per line, or comma-separated)</span></label>
+                        <textarea id="verify-codes-input" rows="4" placeholder="ABCD-EFGH-JKLM-NPQR&#10;QRST-UVWX-YZ23-4567"></textarea>
+                        <button class="btn btn-outline" id="verify-codes-btn" style="margin-top:0">Verify certificates</button>
+                        <div id="verify-codes-status" role="status" style="margin-top:12px;font-size:0.82rem;color:var(--muted)"></div>
+                        <div id="verify-codes-output" style="margin-top:16px"></div>
+                    </div>
+                </div>
+            </details>
+
             <!-- Instructor Insights (AI) — two parts: "What students are
                  saying" (descriptive themes/tensions/gaps) + "Suggested
                  actions" (prescriptive, prioritised recommendations). -->
@@ -819,19 +842,6 @@
                 <div id="student-responses-list"></div>
             </div>
 
-            <!-- Verify Completion Codes (shown per-survey when canvas_integration) -->
-            <div class="analysis-section" id="verify-codes-section" style="display:none">
-                <div class="section-header">
-                    <span class="section-title">Verify Completion Codes</span>
-                    <span style="font-size:0.68rem;color:var(--muted)">Check which codes from Canvas submissions are valid for this survey</span>
-                </div>
-                <div style="margin-top:16px">
-                    <label>Paste codes to verify <span style="font-weight:400;text-transform:none;letter-spacing:0">(one per line, or comma-separated)</span></label>
-                    <textarea id="verify-codes-input" rows="4" placeholder="ABC123&#10;XY9Q1Z&#10;0NWCx4"></textarea>
-                    <button class="btn btn-outline" id="verify-codes-btn" style="margin-top:0">Verify Codes</button>
-                    <div id="verify-codes-output" style="margin-top:16px"></div>
-                </div>
-            </div>
             </div><!-- /#mode-panel-shared -->
 
             <!-- In-Group panel: chip strip + per-team drill-down. -->
@@ -896,9 +906,10 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-shared.js?v=v0.3.0"></script>
 <script src="leai-progress.js?v=20260809-3"></script>
-<script src="leai-pdf-ingest.js?v=v0.2.9"></script>
+<script src="leai-completion.js?v=v0.3.0"></script>
+<script src="leai-pdf-ingest.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -909,7 +920,13 @@
     var allSurveys = [];
     let responseRecordBySessionId = {};
     let identityTrackingEnabled = false;
+    let completionCertificatesEnabled = false;
     let progressTabsVisibility = { studentProgress: false, groupProgress: false };
+    let verifySelectedSurveyId = '';
+    let verifyRequestPending = false;
+    let verifyRequestGeneration = 0;
+    let verifyRequestController = null;
+    let verifyRenderTargetKey = '';
     let requestedResponseDetail = leaiProgress.parseResponseHash(window.location.hash);
     const progressConfidenceCopy = leaiProgress.progressConfidenceCopy;
     document.getElementById('student-progress-info').dataset.tooltip = progressConfidenceCopy.studentInfo;
@@ -1146,7 +1163,9 @@
         ])
         .then(function (results) {
             allSurveys = Array.isArray(results[0]) ? results[0] : [];
+            const customizationSettings = leaiCompletion.courseDownloadSettings(results[1]);
             identityTrackingEnabled = !!(results[1] && results[1].identity_tracking_enabled);
+            completionCertificatesEnabled = customizationSettings.completion_certificate_enabled === true;
             responseRecordBySessionId = leaiProgress.indexBySessionId(
                 leaiProgress.buildResponseRecords(allSurveys)
             );
@@ -1983,7 +2002,7 @@
         var cards = [
             {
                 value: totalResponses, label: 'Responses',
-                tooltip: 'Total number of student messages collected in ' + scopeLabel + '.\n\nEach message a student sent in a feedback session counts as one response.\n\nA single student may contribute multiple responses per survey.'
+                tooltip: 'Total number of student responses collected in ' + scopeLabel + '.\n\nEach chat message counts as one response. Each uploaded PDF reflection counts once, even though it can contain several saved fields.\n\nA single student may contribute multiple responses per survey.'
             },
             {
                 value: participation + '%', label: 'Participation',
@@ -3983,105 +4002,301 @@
     });
 
     // ===== VERIFY COMPLETION CODES =====
+    function currentVerifyCandidates() {
+        return currentScope.kind === 'week'
+            ? leaiCompletion.verificationCandidates(activeSurveys(), currentScope.weekNumber)
+            : [];
+    }
+
+    function currentVerifyRenderTargetKey(candidates) {
+        if (!(completionCertificatesEnabled && currentScope.kind === 'week' && candidates.length)) return 'hidden';
+        return [
+            currentMode,
+            currentScope.kind,
+            currentScope.weekNumber,
+            candidates.map(verifySurveySelectionValue).join(',')
+        ].join(':');
+    }
+
+    function invalidateVerifyRequest() {
+        verifyRequestGeneration += 1;
+        verifyRequestPending = false;
+        if (verifyRequestController && typeof verifyRequestController.abort === 'function') {
+            verifyRequestController.abort();
+        }
+        verifyRequestController = null;
+    }
+
+    function currentVerifyTarget() {
+        return leaiCompletion.verificationTarget(currentVerifyCandidates(), verifySelectedSurveyId);
+    }
+
+    function currentVerifyTargetId() {
+        const target = currentVerifyTarget();
+        return target ? verifySurveySelectionValue(target) : '';
+    }
+
+    function isCurrentVerifyRequest(generation, surveyId) {
+        return verifyRequestPending
+            && verifyRequestGeneration === generation
+            && currentVerifyTargetId() === surveyId;
+    }
+
     function renderVerifyCodes() {
-        var section = document.getElementById('verify-codes-section');
-        if (currentScope.kind === 'week') {
-            var survey = activeSurveys().find(function (s) { return s.week_number === currentScope.weekNumber; });
-            if (survey && survey.canvas_integration) {
-                section.style.display = 'block';
-                document.getElementById('verify-codes-input').value = '';
-                var out = document.getElementById('verify-codes-output');
-                while (out.firstChild) out.removeChild(out.firstChild);
-                return;
-            }
+        const section = document.getElementById('verify-codes-section');
+        const surveyRegion = document.getElementById('verify-codes-survey-region');
+        const surveySelect = document.getElementById('verify-codes-survey-select');
+        const surveyNote = document.getElementById('verify-codes-survey-note');
+        const input = document.getElementById('verify-codes-input');
+        const status = document.getElementById('verify-codes-status');
+        const candidates = currentVerifyCandidates();
+        const renderTargetKey = currentVerifyRenderTargetKey(candidates);
+        const targetChanged = renderTargetKey !== verifyRenderTargetKey;
+
+        invalidateVerifyRequest();
+        verifyRenderTargetKey = renderTargetKey;
+
+        if (!(completionCertificatesEnabled && currentScope.kind === 'week' && candidates.length)) {
+            verifySelectedSurveyId = '';
+            section.style.display = 'none';
+            section.open = false;
+            input.value = '';
+            status.textContent = '';
+            clearVerifyCodesOutput();
+            setVerifyControlsDisabled(true);
+            return;
         }
-        section.style.display = 'none';
-    }
 
-    function sessionToCode(sessionId) {
-        var h = 0;
-        for (var i = 0; i < sessionId.length; i++) {
-            h = ((h << 5) - h) + sessionId.charCodeAt(i);
-            h |= 0;
+        section.style.display = 'block';
+        if (targetChanged) section.open = false;
+        input.value = '';
+        status.textContent = '';
+        clearVerifyCodesOutput();
+
+        if (candidates.length === 1) {
+            verifySelectedSurveyId = verifySurveySelectionValue(candidates[0]);
+            surveyRegion.style.display = 'block';
+            surveySelect.style.display = 'none';
+            surveyNote.textContent = 'Survey: ' + verifySurveyLabel(candidates[0]);
+        } else {
+            const target = leaiCompletion.verificationTarget(candidates, verifySelectedSurveyId);
+            verifySelectedSurveyId = target ? verifySurveySelectionValue(target) : '';
+            surveyRegion.style.display = 'block';
+            surveySelect.style.display = '';
+            rebuildVerifySurveyOptions(candidates, verifySelectedSurveyId);
+            surveyNote.textContent = target
+                ? 'Valid codes are checked against only this survey.'
+                : 'Choose which survey from this week to verify.';
         }
-        return Math.abs(h).toString(36).toUpperCase().padStart(6, '0').slice(0, 6);
+
+        applyVerifyControls(candidates);
     }
 
-    function getActiveSurveyForVerify() {
-        if (currentScope.kind !== 'week') return null;
-        return activeSurveys().find(function (s) { return s.week_number === currentScope.weekNumber; }) || null;
+    function verifySurveySelectionValue(survey) {
+        if (!survey) return '';
+        const raw = survey.gpt_id != null && survey.gpt_id !== ''
+            ? survey.gpt_id
+            : survey.id;
+        return String(raw == null ? '' : raw).trim();
     }
 
-    document.getElementById('verify-codes-btn').addEventListener('click', function () {
-        var surveyData = getActiveSurveyForVerify();
-        if (!surveyData) return;
-        var raw = document.getElementById('verify-codes-input').value;
-        var codes = raw.split(/[\n,]+/).map(function (c) { return c.trim().toUpperCase(); }).filter(Boolean);
-        if (!codes.length) return;
+    function verifySurveyLabel(survey) {
+        if (!survey) return 'Selected survey';
+        const label = String(survey.survey_label || '').trim();
+        if (label) return label;
+        const name = String(survey.name || '').trim();
+        if (name) return name;
+        const weekNumber = survey.week_number != null ? survey.week_number : survey.weekNumber;
+        return weekNumber == null ? 'Selected survey' : ('Week ' + weekNumber);
+    }
 
-        var codeMap = {};
-        Object.keys(surveyData.sessions).forEach(function (sid) {
-            codeMap[sessionToCode(sid)] = sid;
-        });
-
-        var out = document.getElementById('verify-codes-output');
+    function clearVerifyCodesOutput() {
+        const out = document.getElementById('verify-codes-output');
         while (out.firstChild) out.removeChild(out.firstChild);
+    }
 
-        var table = document.createElement('table');
-        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.85rem';
-        var thead = table.createTHead();
-        var hr = thead.insertRow();
-        ['Code', 'Status', 'Session (last 6)', 'Messages sent'].forEach(function (h) {
-            var th = document.createElement('th');
-            th.textContent = h;
-            th.style.cssText = 'text-align:left;padding:6px 10px;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-variant);border-bottom:1px solid var(--surface-mid)';
-            hr.appendChild(th);
+    function rebuildVerifySurveyOptions(candidates, selectedId) {
+        const surveySelect = document.getElementById('verify-codes-survey-select');
+        while (surveySelect.firstChild) surveySelect.removeChild(surveySelect.firstChild);
+
+        const prompt = document.createElement('option');
+        prompt.value = '';
+        prompt.textContent = 'Select a survey for this week';
+        surveySelect.appendChild(prompt);
+
+        candidates.forEach(function (survey) {
+            const option = document.createElement('option');
+            option.value = verifySurveySelectionValue(survey);
+            option.textContent = verifySurveyLabel(survey);
+            surveySelect.appendChild(option);
         });
 
-        var tbody = table.createTBody();
-        codes.forEach(function (code) {
-            var sid = codeMap[code];
-            var tr = tbody.insertRow();
-            tr.style.borderBottom = '1px solid var(--surface-low)';
+        surveySelect.value = selectedId || '';
+    }
 
-            var tdCode = tr.insertCell();
-            tdCode.textContent = code;
-            tdCode.style.cssText = 'padding:8px 10px;font-family:monospace;font-weight:700';
+    function setVerifyControlsDisabled(disabled) {
+        document.getElementById('verify-codes-survey-select').disabled = !!disabled;
+        document.getElementById('verify-codes-input').disabled = !!disabled;
+        document.getElementById('verify-codes-btn').disabled = !!disabled;
+    }
 
-            var tdStatus = tr.insertCell();
-            tdStatus.style.cssText = 'padding:8px 10px';
-            var badge = document.createElement('span');
-            if (sid) {
-                badge.textContent = 'VALID';
-                badge.style.cssText = 'font-size:0.66rem;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--surface-mid);color:var(--success-text);text-transform:uppercase;letter-spacing:0.08em';
-            } else {
-                badge.textContent = 'NOT FOUND';
-                badge.style.cssText = 'font-size:0.66rem;font-weight:700;padding:2px 8px;border-radius:4px;background:var(--surface-mid);color:var(--error);text-transform:uppercase;letter-spacing:0.08em';
-            }
-            tdStatus.appendChild(badge);
+    function applyVerifyControls(candidates) {
+        const controls = leaiCompletion.verificationControls(
+            candidates,
+            verifySelectedSurveyId,
+            verifyRequestPending
+        );
+        document.getElementById('verify-codes-survey-select').disabled = controls.surveyDisabled;
+        document.getElementById('verify-codes-input').disabled = controls.inputDisabled;
+        document.getElementById('verify-codes-btn').disabled = controls.submitDisabled;
+    }
 
-            var tdSid = tr.insertCell();
-            tdSid.textContent = sid ? '\u2026' + sid.slice(-6) : '\u2014';
-            tdSid.style.cssText = 'padding:8px 10px;color:var(--muted);font-size:0.8rem;font-family:monospace';
+    function verificationStatusLabel(value) {
+        const text = String(value == null ? '' : value).trim().toLowerCase();
+        if (!text) return 'Unknown';
+        return text.split('_').map(function (part) {
+            return part ? (part.charAt(0).toUpperCase() + part.slice(1)) : '';
+        }).join(' ');
+    }
 
-            var tdMsgs = tr.insertCell();
-            if (sid) {
-                var msgs = surveyData.sessions[sid] || [];
-                var studentCount = msgs.filter(isStudentMsg).length;
-                tdMsgs.textContent = studentCount;
-            } else {
-                tdMsgs.textContent = '\u2014';
-            }
-            tdMsgs.style.cssText = 'padding:8px 10px';
+    function renderVerifyCodesResults(results) {
+        const out = document.getElementById('verify-codes-output');
+        clearVerifyCodesOutput();
+
+        const table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:0.85rem';
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        ['Code', 'Status'].forEach(function (heading) {
+            const th = document.createElement('th');
+            th.textContent = heading;
+            th.style.cssText = 'text-align:left;padding:6px 10px;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-variant);border-bottom:1px solid var(--surface-mid)';
+            headerRow.appendChild(th);
+        });
+
+        const tbody = table.createTBody();
+        results.forEach(function (result) {
+            const row = tbody.insertRow();
+            row.style.borderBottom = '1px solid var(--surface-low)';
+
+            const codeCell = row.insertCell();
+            codeCell.textContent = String(result && result.code != null ? result.code : '');
+            codeCell.style.cssText = 'padding:8px 10px;font-family:monospace;font-weight:700';
+
+            const statusCell = row.insertCell();
+            statusCell.textContent = verificationStatusLabel(result && result.status);
+            statusCell.style.cssText = 'padding:8px 10px';
         });
 
         out.appendChild(table);
 
-        var summary = document.createElement('p');
-        summary.style.cssText = 'margin-top:12px;font-size:0.82rem;color:var(--muted)';
-        var validCount = codes.filter(function (c) { return !!codeMap[c]; }).length;
-        summary.textContent = validCount + ' of ' + codes.length + ' codes matched sessions in this survey.';
-        out.appendChild(summary);
+        const summary = leaiCompletion.summarizeVerification(results);
+        const summaryLine = document.createElement('p');
+        summaryLine.style.cssText = 'margin-top:12px;font-size:0.82rem;color:var(--muted)';
+        summaryLine.textContent = summary.valid + ' of ' + summary.total + ' codes are valid for this survey. ' + summary.notFound + ' were not found.';
+        out.appendChild(summaryLine);
+
+        const caveat = document.createElement('p');
+        caveat.style.cssText = 'margin-top:8px;font-size:0.82rem;color:var(--muted)';
+        caveat.textContent = 'A valid code confirms certificate issuance for the selected survey, not who submitted it. Rechecking the same code later will still show valid.';
+        out.appendChild(caveat);
+    }
+
+    document.getElementById('verify-codes-survey-select').addEventListener('change', function (event) {
+        const candidates = currentVerifyCandidates();
+        const surveyNote = document.getElementById('verify-codes-survey-note');
+        const status = document.getElementById('verify-codes-status');
+
+        invalidateVerifyRequest();
+        verifySelectedSurveyId = event.target.value;
+        clearVerifyCodesOutput();
+        status.textContent = '';
+
+        if (candidates.length <= 1) {
+            applyVerifyControls(candidates);
+            return;
+        }
+
+        const target = leaiCompletion.verificationTarget(candidates, verifySelectedSurveyId);
+        surveyNote.textContent = target
+            ? 'Valid codes are checked against only this survey.'
+            : 'Choose which survey from this week to verify.';
+        applyVerifyControls(candidates);
+    });
+
+    document.getElementById('verify-codes-btn').addEventListener('click', function () {
+        const candidates = currentVerifyCandidates();
+        const status = document.getElementById('verify-codes-status');
+        const raw = document.getElementById('verify-codes-input').value;
+        const batch = leaiCompletion.verificationBatch(raw, 100);
+        const target = leaiCompletion.verificationTarget(candidates, verifySelectedSurveyId);
+
+        clearVerifyCodesOutput();
+
+        if (!target) {
+            status.textContent = candidates.length > 1
+                ? 'Select a survey for this week before verifying codes.'
+                : 'No survey is available to verify right now.';
+            return;
+        }
+        if (batch.error) {
+            status.textContent = batch.error;
+            return;
+        }
+
+        const submissionSurveyId = verifySurveySelectionValue(target);
+        const surveyId = Number(submissionSurveyId);
+        if (!Number.isFinite(surveyId) || !submissionSurveyId) {
+            status.textContent = 'Unable to verify codes right now. Please try again.';
+            return;
+        }
+
+        invalidateVerifyRequest();
+        const submissionGeneration = verifyRequestGeneration;
+        verifyRequestPending = true;
+        verifyRequestController = typeof AbortController === 'function'
+            ? new AbortController()
+            : null;
+        setVerifyControlsDisabled(true);
+        status.textContent = 'Verifying codes...';
+
+        const requestOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_id: session.courseId,
+                survey_id: surveyId,
+                codes: batch.codes,
+            })
+        };
+        if (verifyRequestController) requestOptions.signal = verifyRequestController.signal;
+
+        fetch(API + '/verify_completion_certificates/', requestOptions)
+        .then(function (response) {
+            return response.json().catch(function () { return null; }).then(function (data) {
+                if (!response.ok) throw new Error('verify-failed');
+                return data;
+            });
+        })
+        .then(function (data) {
+            if (!isCurrentVerifyRequest(submissionGeneration, submissionSurveyId)) return;
+            const results = Array.isArray(data) ? data : (data && Array.isArray(data.results) ? data.results : null);
+            if (!results) throw new Error('verify-invalid');
+            renderVerifyCodesResults(results);
+            status.textContent = 'Verification complete.';
+        })
+        .catch(function (error) {
+            if (!isCurrentVerifyRequest(submissionGeneration, submissionSurveyId)) return;
+            if (error && error.name === 'AbortError') return;
+            clearVerifyCodesOutput();
+            status.textContent = 'Unable to verify codes right now. Please try again.';
+        })
+        .finally(function () {
+            if (!isCurrentVerifyRequest(submissionGeneration, submissionSurveyId)) return;
+            verifyRequestPending = false;
+            verifyRequestController = null;
+            applyVerifyControls(currentVerifyCandidates());
+        });
     });
 
     // ===== IN-GROUP ANALYSIS =====

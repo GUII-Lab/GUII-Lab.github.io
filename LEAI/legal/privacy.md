@@ -1,16 +1,18 @@
 # LEAI Privacy Policy
 
-*Version v0.3.0 · Last updated August 5, 2026*
+*Version v0.3.0 · Last updated August 13, 2026*
 
 Your privacy matters. This page explains, in plain language, what LEAI collects, what it does not collect, who can see it, and what happens to it.
 
-**The short version:** LEAI is anonymous. We do not collect your name, email, student ID, or any other identifying information; we do not sell or share your feedback; and we do not build a profile of you. The rest of this document explains the details.
+**The short version:** LEAI does not ask for your name, email, student ID, or an institutional login, and it does not link your feedback to a named student account. We do not sell your feedback or build an advertising profile of you. The rest of this document explains the technical codes LEAI uses and what changes if you choose to submit a completion certificate through your course's learning-management system.
 
 ## 1. Anonymous by design
 
 When you use the LEAI Feedback Collector, no name, email, student ID, institutional login, or profile information is asked for or stored. Your conversation is tagged with a randomly generated session code (for example, *id_k3m9x2ab*) so the system can group your messages within one conversation. The code is not linked to you as a person. In courses that do not use cross-week continuity (Section 2), closing the tab ends the link between you and that code; in courses that do, sessions started from the same device can be grouped with each other, but still not with you as a named person.
 
-Your instructor cannot tell which submission came from which student. That is the point — it lets you be honest without worrying about how it might look. The chat page shows an **ANONYMOUS** badge near the top of the screen as a visual reminder of this guarantee.
+Your instructor cannot use LEAI to connect a feedback conversation to a named student. That is the point — it lets you be honest without worrying about how it might look. The chat page shows an **ANONYMOUS** badge near the top of the screen as a visual reminder.
+
+If your instructor enables completion certificates, you may download a PDF containing a random completion code after LEAI saves at least one response from your session. LEAI privately links that code to the anonymous session and a coarse snapshot of how far the conversation had progressed when the certificate was first issued. Instructors can use LEAI to check whether the code was issued for the selected survey, but LEAI does not show them the linked session, progress snapshot, or responses. If you submit the PDF through Canvas or another course system, that system and your instructor can associate the file with your course identity, but the code does not reveal which LEAI feedback conversation was yours.
 
 ## 2. What we store
 
@@ -30,9 +32,11 @@ For each message you send or receive in LEAI, the backend stores:
 
 - Your per-session research-consent choice (see Section 6)
 
+- If you request a completion certificate: the certificate code, when it was issued, the survey and anonymous session it belongs to, and a coarse progress snapshot
+
 In courses where the instructor has enabled **cross-week continuity**, the backend additionally stores two technical device signals per session: a randomly generated code kept in your browser's local storage, and a device fingerprint computed from browser characteristics. Their only use is grouping sessions that came from the same device across the course's weekly surveys, so the instructor can see how feedback evolves over the quarter under an arbitrary label such as "S3". They are not linked to your name or any account, are not shared outside the operational chain in Section 5, and are not used for advertising or analytics. In courses without this setting, neither signal is collected.
 
-That is the full record. We do **not** store advertising identifiers or analytics cookies, and we never tie any stored signal to your identity as a named person.
+Those are the records LEAI uses for feedback collection and optional completion verification. We do **not** store advertising identifiers or analytics cookies, and LEAI does not tie these records to your identity as a named person.
 
 ## 3. IP addresses and access logs
 
@@ -40,11 +44,11 @@ LEAI's application code does not log or store your IP address as part of any fee
 
 ## 4. Why we collect it
 
-The whole point of LEAI is to streamline feedback to your instructor *while the course is still running*. End-of-quarter surveys help future students; they do nothing for you. LEAI exists to change that: your instructor reads the aggregated feedback mid-course and uses it to improve your experience in the remaining weeks of the class. That is the only operational use of your data. We are not selling it, not advertising to you, and not building a profile of you.
+The whole point of LEAI is to streamline feedback to your instructor *while the course is still running*. End-of-quarter surveys help future students; they do nothing for you. LEAI exists to change that: your instructor reads the aggregated feedback mid-course and uses it to improve your experience in the remaining weeks of the class. If completion certificates are enabled, the certificate record is also used to let your instructor verify that a code was issued for a particular survey. We are not selling your data, advertising to you, or building a profile of you.
 
 ## 5. Who can see your data
 
-- **Your course instructor** and any teaching assistants the instructor grants access to (by sharing the course's access password) can read the anonymous feedback submitted to that course's surveys. Anyone the instructor shares the course password with can read everything submitted to that course; the instructor is responsible for controlling that scope.
+- **Your course instructor** and any teaching assistants the instructor grants access to (by sharing the course's access password) can read the anonymous feedback submitted to that course's surveys. If completion certificates are enabled, they can also check whether a code was issued for one exact survey. LEAI returns only the code and a valid/not-found result; it does not expose the code-to-session link, progress snapshot, or responses. Anyone the instructor shares the course password with can read everything available to instructors for that course; the instructor is responsible for controlling that scope.
 
 - **The GUII Lab research team** maintains the system and has access to the underlying database as needed to operate the service (fixing bugs, performing backups, and migrating data).
 
@@ -70,7 +74,7 @@ LEAI is a research prototype and does not yet enforce an automated retention sch
 
 ## 9. Your rights
 
-Because LEAI does not collect any identity from you, there is no way for us to look up “your” data and remove it individually — there is simply no identifier to look up. The most reliable way to keep something out of the dataset is to not submit it: you can close the tab at any time and any unsent draft is discarded.
+LEAI cannot look up feedback by your name, email, or student ID because it does not collect those identifiers. A session code or completion-certificate code may let the GUII Lab locate an anonymous technical record, but it does not establish who submitted it. The most reliable way to keep something out of the dataset is not to submit it: you can close the tab at any time and any unsent draft is discarded.
 
 ## 10. Security
 
@@ -78,7 +82,7 @@ Data is transmitted over HTTPS and stored in a managed cloud database operated b
 
 ## 11. FERPA and educational records
 
-LEAI is a research and feedback tool operated by the GUII Lab at UC Santa Cruz. It is not part of UCSC's official student record system. Submissions made through LEAI are not part of your education record under the Family Educational Rights and Privacy Act (FERPA), and they are not shared with the UCSC registrar.
+LEAI is a research and feedback tool operated by the GUII Lab at UC Santa Cruz. It is not part of UCSC's official student record system, and feedback submitted through LEAI is not shared with the UCSC registrar. If you submit a completion certificate through Canvas or another institutional system, that separate course submission may be handled as an education record under your institution's policies.
 
 ## 12. Changes to this policy
 

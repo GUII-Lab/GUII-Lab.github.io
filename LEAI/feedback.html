@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -315,21 +315,6 @@
         /* ===== DOWNLOAD BUTTON (hidden in redesign, kept for JS compatibility) ===== */
         #download-btn { display: none; }
         .download-section { display: none; }
-        /* Form-mode reflection download — appears in chat footer after [END]. */
-        .formmode-download-bar {
-            display: flex; flex-wrap: wrap; gap: 10px; padding: 12px 0 0;
-            justify-content: center; align-items: center;
-        }
-        .formmode-download-bar button {
-            background: var(--primary); color: #fff; border: none;
-            border-radius: 999px; padding: 10px 20px;
-            font-size: 0.85rem; font-weight: 700; letter-spacing: 0.01em;
-            cursor: pointer; transition: background 0.15s;
-        }
-        .formmode-download-bar button:hover { background: var(--primary-dim); }
-        .formmode-download-bar .secondary {
-            background: var(--surface-mid); color: var(--text);
-        }
 
         /* ===== IN-GROUP PERSISTENT DOWNLOAD STRIP =====
            Two states on the same DOM element so the student is never blocked
@@ -352,6 +337,14 @@
         .ig-download-strip .strip-status strong {
             color: var(--text); font-weight: 600;
         }
+        .ig-download-strip .strip-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: flex-end;
+            align-items: center;
+            flex-shrink: 0;
+        }
         .ig-download-strip .strip-action {
             background: transparent; border: 1px solid var(--primary);
             color: var(--primary);
@@ -366,8 +359,24 @@
         .ig-download-strip .strip-action:hover {
             background: var(--primary); color: #fff;
         }
+        .ig-download-strip .strip-action:disabled {
+            background: transparent;
+            border-color: rgba(169,180,183,0.55);
+            color: var(--muted);
+            cursor: not-allowed;
+        }
+        .ig-download-strip .strip-action:disabled:hover {
+            background: transparent;
+            color: var(--muted);
+        }
         .ig-download-strip .strip-celebrate { display: none; }
         .ig-download-strip .strip-help { display: none; }
+        .ig-download-strip .strip-note {
+            display: none;
+            font-size: 0.74rem;
+            line-height: 1.45;
+            color: var(--text-variant);
+        }
 
         .ig-download-strip.ready {
             background: linear-gradient(135deg, rgba(0,100,147,0.10), rgba(0,100,147,0.03));
@@ -391,8 +400,12 @@
             .ig-download-strip.collapsed .strip-status {
                 text-align: center;
             }
+            .ig-download-strip.collapsed .strip-actions {
+                justify-content: stretch;
+            }
             .ig-download-strip.collapsed .strip-action {
                 align-self: stretch;
+                flex: 1 1 100%;
                 padding: 11px 18px;
                 min-height: 44px;
             }
@@ -407,18 +420,28 @@
             display: flex; align-items: center; gap: 8px;
             font-size: 0.95rem; font-weight: 700; color: var(--primary);
         }
+        .ig-download-strip.ready .strip-actions {
+            justify-content: center;
+        }
         .ig-download-strip.ready .strip-action {
             background: var(--primary); color: #fff;
             border: none;
             border-radius: 999px;
             padding: 12px 24px;
             font-size: 0.92rem; font-weight: 700; letter-spacing: 0.01em;
-            align-self: center;
         }
         .ig-download-strip.ready .strip-action:hover { background: var(--primary-dim); }
+        .ig-download-strip.ready .strip-action:disabled {
+            background: rgba(169,180,183,0.28);
+            color: var(--muted);
+            border: none;
+        }
         .ig-download-strip.ready .strip-help {
             display: block; font-size: 0.78rem; color: var(--muted);
             text-align: center;
+        }
+        .ig-download-strip .strip-note.visible {
+            display: block;
         }
 
         /* "Copy resume link" pill — lives in the chat header next to Terms /
@@ -869,7 +892,9 @@
                     and
                     <a href="legal/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
                     I understand my feedback is <strong>anonymous</strong> and will be used by my
-                    instructor to improve the course while it is running.
+                    instructor to improve the course while it is running. If completion certificates
+                    are enabled, the certificate verifies that a code was issued for this survey but
+                    does not reveal my responses.
                 </span>
             </label>
             <label class="consent-checkbox">
@@ -895,7 +920,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js?v=v0.2.9"></script>
+    <script src="leai-shared.js?v=v0.3.0"></script>
+    <script src="leai-completion.js?v=v0.3.0"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
@@ -959,6 +985,423 @@
         });
         let chatHistory = [];
         var gptConfig = null;
+
+        function normalizedCourseDownloadSettings(source) {
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.courseDownloadSettings === 'function') {
+                return leaiCompletion.courseDownloadSettings(source);
+            }
+            return {
+                completion_certificate_enabled: false,
+                parsed_document_download_enabled: false,
+            };
+        }
+
+        function documentDownloadsEnabled(source, modeOverride) {
+            var settings = normalizedCourseDownloadSettings(source);
+            var mode = modeOverride
+                || (source && source.mode)
+                || (gptConfig && gptConfig.mode)
+                || 'general';
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.downloadState === 'function') {
+                return leaiCompletion.downloadState({
+                    mode: mode,
+                    certificateSetting: settings.completion_certificate_enabled,
+                    documentSetting: settings.parsed_document_download_enabled,
+                    complete: false,
+                }).showDocument;
+            }
+            return mode !== 'general' && settings.parsed_document_download_enabled;
+        }
+
+        function countPersistedStudentMessages(messages) {
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.countPersistedStudentMessages === 'function') {
+                return leaiCompletion.countPersistedStudentMessages(messages);
+            }
+            return (Array.isArray(messages) ? messages : []).reduce(function (count, message) {
+                var source = message || {};
+                return normalizeRestoredMessageRole(source.sent_by || source.sentBy || source.role) === 'user'
+                    ? count + 1
+                    : count;
+            }, 0);
+        }
+
+        function normalizeRestoredMessageRole(value) {
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.normalizeRestoredMessageRole === 'function') {
+                return leaiCompletion.normalizeRestoredMessageRole(value);
+            }
+            var role = String(value == null ? '' : value).trim().toLowerCase();
+            return (role === 'user' || role === 'user-message' || role === 'student')
+                ? 'user'
+                : 'assistant';
+        }
+
+        function buildStudentFooterState(options) {
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.studentFooterState === 'function') {
+                return leaiCompletion.studentFooterState(options);
+            }
+            var base = (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.downloadState === 'function')
+                ? leaiCompletion.downloadState(options)
+                : {
+                    showStrip: false,
+                    showCertificate: false,
+                    certificateEnabled: false,
+                    showDocument: false,
+                    documentReady: false,
+                    presentation: 'normal',
+                };
+            return {
+                showStrip: base.showStrip,
+                showCertificate: base.showCertificate,
+                certificateEnabled: base.certificateEnabled,
+                showDocument: base.showDocument,
+                documentReady: base.documentReady,
+                presentation: base.presentation,
+                hasPersistedStudentMessage: !!base.certificateEnabled,
+                persistedStudentMessageCount: base.certificateEnabled ? 1 : 0,
+                firstStudentPersistState: 'idle',
+                certificate: {
+                    visible: base.showCertificate,
+                    enabled: base.certificateEnabled,
+                    status: base.certificateEnabled ? 'ready' : (base.showCertificate ? 'locked' : 'hidden'),
+                    label: base.certificateEnabled
+                        ? 'Download completion certificate (PDF)'
+                        : (base.showCertificate ? 'Respond once to unlock your certificate' : ''),
+                },
+                document: {
+                    visible: base.showDocument,
+                    enabled: base.showDocument,
+                    status: base.showDocument ? (base.documentReady ? 'ready' : 'draft') : 'hidden',
+                    label: base.showDocument
+                        ? (base.documentReady ? 'Download my reflection (Word / .docx)' : 'Save draft (.docx) ↓')
+                        : '',
+                },
+            };
+        }
+
+        function toNativePromise(request) {
+            if (!request) return Promise.resolve(null);
+            if (typeof request.catch === 'function') return request;
+            if (typeof request.done === 'function' && typeof request.fail === 'function') {
+                return new Promise(function (resolve, reject) {
+                    request.done(resolve).fail(function (xhr, status, error) {
+                        reject(error || status || xhr || new Error('Request failed'));
+                    });
+                });
+            }
+            if (typeof request.then === 'function') {
+                return new Promise(function (resolve, reject) {
+                    request.then(resolve, reject);
+                });
+            }
+            return Promise.resolve(request);
+        }
+
+        function createDownloadStripUi(options) {
+            var footer = options && options.footer;
+            if (!footer) return null;
+            var strip = document.createElement('div');
+            strip.id = options.id;
+            strip.className = 'ig-download-strip collapsed';
+            strip.hidden = true;
+
+            var celebrate = document.createElement('div');
+            celebrate.className = 'strip-celebrate';
+            strip.appendChild(celebrate);
+
+            var status = document.createElement('div');
+            status.className = 'strip-status';
+            strip.appendChild(status);
+
+            var actions = document.createElement('div');
+            actions.className = 'strip-actions';
+
+            var documentBtn = document.createElement('button');
+            documentBtn.type = 'button';
+            documentBtn.className = 'strip-action strip-action-document';
+            documentBtn.addEventListener('click', function () {
+                if (options && typeof options.onDocumentClick === 'function') {
+                    options.onDocumentClick();
+                }
+            });
+            actions.appendChild(documentBtn);
+
+            var certificateBtn = document.createElement('button');
+            certificateBtn.type = 'button';
+            certificateBtn.className = 'strip-action strip-action-certificate';
+            certificateBtn.addEventListener('click', function () {
+                if (options && typeof options.onCertificateClick === 'function') {
+                    options.onCertificateClick();
+                }
+            });
+            actions.appendChild(certificateBtn);
+            strip.appendChild(actions);
+
+            var help = document.createElement('div');
+            help.className = 'strip-help';
+            strip.appendChild(help);
+
+            var note = document.createElement('div');
+            note.className = 'strip-note';
+            note.setAttribute('role', 'status');
+            note.setAttribute('aria-live', 'polite');
+            strip.appendChild(note);
+
+            footer.appendChild(strip);
+            return {
+                strip: strip,
+                celebrateEl: celebrate,
+                statusEl: status,
+                actionsEl: actions,
+                documentBtn: documentBtn,
+                certificateBtn: certificateBtn,
+                helpEl: help,
+                noteEl: note,
+                noteText: '',
+                readyMarked: false,
+                certificateBusy: false,
+            };
+        }
+
+        function setDownloadStripNote(stripUi, text) {
+            if (!stripUi) return;
+            stripUi.noteText = text ? String(text) : '';
+            if (!stripUi.noteEl) return;
+            stripUi.noteEl.textContent = stripUi.noteText;
+            stripUi.noteEl.classList.toggle('visible', !!stripUi.noteText);
+        }
+
+        function updateDownloadStripUi(stripUi, state, options) {
+            if (!stripUi || !state) return;
+            var config = options || {};
+            stripUi.strip.hidden = !state.showStrip;
+            if (!state.showStrip) return;
+
+            var statusLead = 'Reflection in progress';
+            var statusTail = ' · save what you have so far';
+            if (!state.showDocument && state.showCertificate) {
+                statusLead = 'Completion certificate';
+                statusTail = state.certificate.enabled
+                    ? ' · ready to download any time'
+                    : ' · respond once to unlock it';
+            } else if (config.progressLabel) {
+                statusTail = ' · ' + config.progressLabel;
+            }
+
+            stripUi.statusEl.textContent = '';
+            var strong = document.createElement('strong');
+            strong.textContent = statusLead;
+            stripUi.statusEl.appendChild(strong);
+            stripUi.statusEl.appendChild(document.createTextNode(statusTail));
+
+            stripUi.documentBtn.hidden = !state.document.visible;
+            stripUi.documentBtn.disabled = !state.document.enabled;
+            stripUi.documentBtn.setAttribute('aria-disabled', state.document.enabled ? 'false' : 'true');
+            stripUi.documentBtn.textContent = state.document.label || 'Save draft (.docx) ↓';
+
+            stripUi.certificateBtn.hidden = !state.certificate.visible;
+            stripUi.certificateBtn.disabled = stripUi.certificateBusy || !state.certificate.enabled;
+            stripUi.certificateBtn.setAttribute(
+                'aria-disabled',
+                (stripUi.certificateBusy || !state.certificate.enabled) ? 'true' : 'false'
+            );
+            stripUi.certificateBtn.textContent = stripUi.certificateBusy
+                ? 'Preparing certificate…'
+                : (state.certificate.label || 'Download completion certificate (PDF)');
+
+            if (state.presentation === 'ready') {
+                stripUi.strip.classList.remove('collapsed');
+                stripUi.strip.classList.add('ready');
+                if (config.silent && !stripUi.readyMarked) {
+                    stripUi.strip.classList.add('no-pop');
+                } else if (!config.silent) {
+                    stripUi.strip.classList.remove('no-pop');
+                }
+                if (!stripUi.readyMarked && !config.silent) {
+                    try { stripUi.strip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
+                }
+                stripUi.readyMarked = true;
+            } else {
+                stripUi.readyMarked = false;
+                stripUi.strip.classList.remove('ready', 'no-pop');
+                stripUi.strip.classList.add('collapsed');
+            }
+
+            var celebrateText = config.readyCelebrateText;
+            if (!celebrateText) {
+                if (state.showDocument && state.showCertificate && state.certificateEnabled) {
+                    celebrateText = '✓ All sections captured — your downloads are ready';
+                } else if (state.showDocument) {
+                    celebrateText = '✓ All sections captured — your reflection is ready';
+                } else if (state.certificateEnabled) {
+                    celebrateText = '✓ Conversation complete — your certificate is ready';
+                } else {
+                    celebrateText = state.certificate.label || '✓ Conversation complete';
+                }
+            }
+            stripUi.celebrateEl.textContent = celebrateText;
+
+            if (state.presentation === 'ready') {
+                stripUi.helpEl.textContent = config.readyHelpText || (
+                    state.showDocument
+                        ? (
+                            state.showCertificate && !state.certificateEnabled
+                                ? 'Your reflection is ready. The certificate unlocks after your first saved response.'
+                                : 'You can keep chatting to revise or add anything — the file rebuilds from the latest transcript on every click.'
+                        )
+                        : (
+                            state.certificateEnabled
+                                ? 'You can re-download the same certificate from this conversation whenever you need it.'
+                                : (
+                                    state.certificate.status === 'pending'
+                                        ? 'Your first response is still saving. Wait a moment, then try again.'
+                                        : (
+                                            state.certificate.status === 'failed'
+                                                ? 'Your first response did not save yet. Send another response, then try again.'
+                                                : 'Respond once to unlock your certificate.'
+                                        )
+                                )
+                        )
+                );
+            } else {
+                stripUi.helpEl.textContent = '';
+            }
+
+            setDownloadStripNote(stripUi, stripUi.noteText);
+        }
+
+        function buildCertificateProgressSnapshot(options) {
+            var source = options || {};
+            var mode = source.mode || 'general';
+            var base = {
+                mode: mode,
+                student_message_count: source.persistedStudentMessageCount || 0,
+                complete: !!source.complete,
+            };
+            if (typeof leaiCompletion === 'undefined'
+                    || !leaiCompletion
+                    || typeof leaiCompletion.buildProgressSnapshot !== 'function') {
+                return base;
+            }
+            if (mode !== 'form' || !formMode.active || !formMode.state) {
+                return leaiCompletion.buildProgressSnapshot(base);
+            }
+            var currentArea = (typeof leaiFormMode !== 'undefined'
+                    && leaiFormMode
+                    && typeof leaiFormMode.currentArea === 'function')
+                ? leaiFormMode.currentArea(formMode.state)
+                : null;
+            return leaiCompletion.buildProgressSnapshot({
+                mode: 'form',
+                student_message_count: source.persistedStudentMessageCount || 0,
+                complete: !!source.complete,
+                schema_id: formMode.schemaId || (formMode.schema && formMode.schema.schema_id),
+                current_area_index: formMode.state.current_area_index,
+                area_id: currentArea && currentArea.id,
+                area_title: currentArea && currentArea.title,
+                turn: formMode.state.turn,
+                last_directive_kind: formMode.state.last_directive && formMode.state.last_directive.kind,
+            });
+        }
+
+        function requestCompletionCertificate(options) {
+            var source = options || {};
+            var publicId = String(source.publicId || '').trim();
+            var sessionId = String(source.sessionId || '').trim();
+            if (!publicId || !sessionId) {
+                return Promise.reject(new Error('Missing certificate session details.'));
+            }
+            var payload = {
+                public_id: publicId,
+                session_id: sessionId,
+                progress_snapshot: buildCertificateProgressSnapshot({
+                    mode: source.mode || 'general',
+                    persistedStudentMessageCount: source.persistedStudentMessageCount || 0,
+                    complete: !!source.complete,
+                }),
+            };
+            return fetch(API + '/issue_completion_certificate/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            }).then(function (response) {
+                if (response.status === 409) {
+                    var conflict = new Error('Your certificate unlocks after your first saved response. Please wait a moment, then try again.');
+                    conflict.status = 409;
+                    throw conflict;
+                }
+                if (!response.ok) {
+                    return response.json().catch(function () { return null; }).then(function (body) {
+                        var err = new Error(
+                            (body && body.error)
+                                ? body.error
+                                : 'Could not download your certificate right now. Your chat is still available.'
+                        );
+                        err.status = response.status;
+                        throw err;
+                    });
+                }
+                return response.blob().then(function (blob) {
+                    var fallback = 'completion-certificate.pdf';
+                    var filename = (typeof leaiCompletion !== 'undefined'
+                            && leaiCompletion
+                            && typeof leaiCompletion.filenameFromDisposition === 'function')
+                        ? leaiCompletion.filenameFromDisposition(
+                            response.headers.get('Content-Disposition'),
+                            fallback
+                        )
+                        : fallback;
+                    _triggerBlobDownload(blob, filename);
+                    return { filename: filename };
+                });
+            });
+        }
+
+        function buildCompletionMarkerKey(options) {
+            if (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.buildCompletionMarkerKey === 'function') {
+                return leaiCompletion.buildCompletionMarkerKey(options);
+            }
+            var source = options || {};
+            var surveyKey = String(source.publicId || source.public_id || source.surveyId || source.survey_id || '').trim();
+            var sessionKey = String(source.sessionId || source.session_id || '').trim();
+            if (!surveyKey || !sessionKey) return null;
+            return 'leai_completion_ready:' + surveyKey + ':' + sessionKey;
+        }
+
+        function setCompletionReadyMarker(options, ready) {
+            var key = buildCompletionMarkerKey(options);
+            if (!key) return;
+            try {
+                if (ready) {
+                    localStorage.setItem(key, '1');
+                } else {
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {}
+        }
+
+        function hasCompletionReadyMarker(options) {
+            var key = buildCompletionMarkerKey(options);
+            if (!key) return false;
+            try {
+                return localStorage.getItem(key) === '1';
+            } catch (e) {
+                return false;
+            }
+        }
 
         // ── form-mapping mode (engine-controlled) ─────────────────────────
         // Activation is **server-driven**: the backend marks a survey as
@@ -1056,10 +1499,12 @@
         // draft .docx at any time, then expands to a celebratory "ready" state
         // once the engine confirms all sections captured. Shares the
         // .ig-download-strip CSS class so the two flows look identical.
-        var _fmStrip = null;
-        var _fmStripStatusEl = null;
-        var _fmStripActionEl = null;
-        var _fmStripReadyMarked = false;
+        var _mainStripUi = null;
+        var _mainFirstStudentPersistPromise = null;
+        var _mainFirstStudentPersistState = 'idle';
+        var _mainPersistedStudentMessageCount = 0;
+        var _mainCertificateBusy = false;
+        var _mainStripNoteText = '';
         // Set by startInGroupChat. The in-group flow builds its DOM and renders
         // its own #ig-download-strip later in the same function — but form-mode
         // progress renders happen first (line ~1690), before that strip exists.
@@ -1067,79 +1512,100 @@
         // we use this flag to suppress form-mode strip rendering entirely.
         var _inGroupFlowActive = false;
 
+        function currentMainStripMode() {
+            return formMode.active ? 'form' : ((gptConfig && gptConfig.mode) || 'general');
+        }
+
+        function currentMainStripComplete() {
+            if (formMode.active && formMode.state &&
+                    typeof leaiFormMode !== 'undefined' &&
+                    typeof leaiFormMode.isComplete === 'function') {
+                return !!leaiFormMode.isComplete(formMode.state);
+            }
+            return !!chatLocked;
+        }
+
+        function updateMainDownloadStrip(opts) {
+            var mode = currentMainStripMode();
+            var state = buildStudentFooterState({
+                mode: mode,
+                certificateSetting: gptConfig && gptConfig.completion_certificate_enabled,
+                documentSetting: gptConfig && gptConfig.parsed_document_download_enabled,
+                persistedStudentMessageCount: _mainPersistedStudentMessageCount,
+                firstStudentPersistState: _mainFirstStudentPersistState,
+                complete: currentMainStripComplete(),
+            });
+            if (!state.showStrip) {
+                if (_mainStripUi && _mainStripUi.strip) _mainStripUi.strip.hidden = true;
+                return;
+            }
+            if (!_mainStripUi) {
+                var footer = document.querySelector('.chat-footer-inner');
+                if (!footer) return;
+                _mainStripUi = createDownloadStripUi({
+                    id: 'main-download-strip',
+                    footer: footer,
+                    onDocumentClick: function () {
+                        if (formMode.active && formMode.state) {
+                            downloadFormModeReflection('docx');
+                        }
+                    },
+                    onCertificateClick: function () {
+                        _mainCertificateBusy = true;
+                        _mainStripNoteText = '';
+                        updateMainDownloadStrip();
+                        requestCompletionCertificate({
+                            publicId: gptConfig && gptConfig.public_id,
+                            sessionId: window.sessionData && window.sessionData.sessionID,
+                            mode: formMode.active ? 'form' : 'general',
+                            persistedStudentMessageCount: _mainPersistedStudentMessageCount,
+                            complete: currentMainStripComplete(),
+                        }).then(function (result) {
+                            _mainStripNoteText = 'Certificate downloaded: ' + result.filename;
+                        }).catch(function (err) {
+                            if (err && err.status === 409) {
+                                _mainStripNoteText = err.message;
+                            } else {
+                                _mainStripNoteText = 'Could not download your certificate right now. Your chat and reflection download still work; please try again.';
+                            }
+                        }).finally(function () {
+                            _mainCertificateBusy = false;
+                            updateMainDownloadStrip();
+                        });
+                    },
+                });
+            }
+            _mainStripUi.certificateBusy = _mainCertificateBusy;
+            _mainStripUi.noteText = _mainStripNoteText;
+            updateDownloadStripUi(_mainStripUi, state, {
+                progressLabel: (formMode.active && formMode.state &&
+                        typeof leaiFormMode !== 'undefined' &&
+                        typeof leaiFormMode.progressLabel === 'function')
+                    ? (leaiFormMode.progressLabel(formMode.state) || '')
+                    : '',
+                silent: !!(opts && opts.silent),
+                readyCelebrateText: (!state.showDocument && state.showCertificate)
+                    ? '✓ Conversation complete — your certificate is ready'
+                    : null,
+            });
+        }
+
         function renderFormModeDownloadStrip() {
-            if (_fmStrip) return;
-            if (!formMode.active) return;
             // The in-group flow renders its own strip (#ig-download-strip)
             // and pipes form-mode through it. Don't double-render. The flag
             // catches the early-render case (strip not in DOM yet); the live
             // DOM check catches anything that slips past.
             if (_inGroupFlowActive) return;
             if (document.getElementById('ig-download-strip')) return;
-            var footer = document.querySelector('.chat-footer-inner');
-            if (!footer) return;
-            _fmStrip = document.createElement('div');
-            _fmStrip.id = 'formmode-download-strip';
-            _fmStrip.className = 'ig-download-strip collapsed';
-
-            var celebrate = document.createElement('div');
-            celebrate.className = 'strip-celebrate';
-            celebrate.textContent = '✓ All sections captured — your reflection is ready';
-            _fmStrip.appendChild(celebrate);
-
-            _fmStripStatusEl = document.createElement('div');
-            _fmStripStatusEl.className = 'strip-status';
-            _fmStrip.appendChild(_fmStripStatusEl);
-
-            _fmStripActionEl = document.createElement('button');
-            _fmStripActionEl.type = 'button';
-            _fmStripActionEl.className = 'strip-action';
-            _fmStripActionEl.addEventListener('click', function () {
-                downloadFormModeReflection('docx');
-            });
-            _fmStrip.appendChild(_fmStripActionEl);
-
-            var help = document.createElement('div');
-            help.className = 'strip-help';
-            help.textContent = 'You can keep chatting to revise or add anything — the file rebuilds from the latest transcript on every click.';
-            _fmStrip.appendChild(help);
-
-            footer.appendChild(_fmStrip);
+            updateMainDownloadStrip();
         }
 
         function updateFormModeDownloadStripLabel() {
-            if (!_fmStrip || _fmStrip.classList.contains('ready')) return;
-            var label = (formMode.state && typeof leaiFormMode !== 'undefined' &&
-                         typeof leaiFormMode.progressLabel === 'function')
-                ? (leaiFormMode.progressLabel(formMode.state) || '')
-                : '';
-            if (_fmStripStatusEl) {
-                _fmStripStatusEl.textContent = '';
-                var pre = document.createElement('strong');
-                pre.textContent = 'Reflection in progress';
-                _fmStripStatusEl.appendChild(pre);
-                _fmStripStatusEl.appendChild(document.createTextNode(
-                    label ? ' · ' + label : ' · save what you have so far'
-                ));
-            }
-            if (_fmStripActionEl) {
-                _fmStripActionEl.textContent = 'Save draft (.docx) ↓';
-            }
+            updateMainDownloadStrip();
         }
 
         function markFormModeDownloadReady(opts) {
-            renderFormModeDownloadStrip();
-            if (!_fmStrip || _fmStripReadyMarked) return;
-            _fmStripReadyMarked = true;
-            _fmStrip.classList.remove('collapsed');
-            _fmStrip.classList.add('ready');
-            if (opts && opts.silent) _fmStrip.classList.add('no-pop');
-            if (_fmStripActionEl) {
-                _fmStripActionEl.textContent = 'Download my reflection (Word / .docx)';
-            }
-            if (!opts || !opts.silent) {
-                try { _fmStrip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
-            }
+            updateMainDownloadStrip(opts);
         }
 
         // Runtime guardrail appended to every non-group survey's system prompt.
@@ -1259,6 +1725,16 @@
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
+            chatLocked = false;
+            _mainFirstStudentPersistPromise = null;
+            _mainFirstStudentPersistState = 'idle';
+            _mainPersistedStudentMessageCount = 0;
+            _mainCertificateBusy = false;
+            _mainStripNoteText = '';
+            if (_mainStripUi && _mainStripUi.strip) {
+                _mainStripUi.strip.remove();
+                _mainStripUi = null;
+            }
             var sysPrompt = withSubmissionGuardrail(
                 withDownloadUIGuardrail(withOneQuestionGuardrail(gpt.instructions)),
                 formMode.active
@@ -1276,6 +1752,7 @@
             }
             chatHistory = [{ role: 'system', content: sysPrompt }];
             $('#transcription').empty();
+            updateMainDownloadStrip({ silent: true });
 
             // Server-side restore: if the URL fragment carried a #cid= and the
             // backend has prior turns for (gpt.id, cid), replay them instead of
@@ -1288,7 +1765,7 @@
                 leaiSession.resume(gpt.id, resumeCid).then(function (data) {
                     if (data && data.messages && data.messages.length) {
                         replayResumedConversation(data.messages);
-                        $('#sendMessage').prop('disabled', false);
+                        if (!chatLocked) $('#sendMessage').prop('disabled', false);
                     } else {
                         // cid is valid syntactically but the backend has no
                         // matching transcript — treat as a fresh session under
@@ -1313,8 +1790,9 @@
         // section coverage / progress label match the live state pre-refresh.
         function replayResumedConversation(messages) {
             if (!messages || !messages.length) return;
+            _mainPersistedStudentMessageCount = countPersistedStudentMessages(messages);
             messages.forEach(function (m) {
-                var role = (m.sent_by === 'user') ? 'user' : 'assistant';
+                var role = normalizeRestoredMessageRole(m.sent_by || m.role);
                 var className = (role === 'user') ? 'user-message' : 'ai-message';
                 chatHistory.push({ role: role, content: m.content });
                 appendMessage(className, m.content, {
@@ -1347,6 +1825,15 @@
                         leaiFormMode.isComplete(formMode.state)) {
                     markFormModeDownloadReady({ silent: true });
                 }
+            } else {
+                if (hasCompletionReadyMarker({
+                        publicId: gptConfig && (gptConfig.public_id || gptConfig.id),
+                        sessionId: window.sessionData && window.sessionData.sessionID,
+                    })) {
+                    lockChat();
+                    return;
+                }
+                updateMainDownloadStrip({ silent: true });
             }
         }
 
@@ -1436,58 +1923,63 @@
             // session's A/B banner assignment (returned as course_banner.show).
             var bannerSid = (window.sessionData && window.sessionData.sessionID) || '';
             $.get(API + '/get_feedback_gpt_by_public_id/', { public_id: directId, session_id: bannerSid }, function (gpt) {
+                var surveyConfig = Object.assign({}, gpt || {}, normalizedCourseDownloadSettings(gpt));
+                gptConfig = surveyConfig;
                 // Course-level name for the AI message tag (replaces the default
                 // "LEAI"). Set before any message renders so every bubble — across
                 // general/group/form modes — uses it. Blank/missing → "LEAI".
-                window.leaiBotName = (gpt && gpt.bot_display_name && String(gpt.bot_display_name).trim()) || 'LEAI';
+                window.leaiBotName = (surveyConfig && surveyConfig.bot_display_name && String(surveyConfig.bot_display_name).trim()) || 'LEAI';
                 // Course-wide notification banner — one config for the whole course,
                 // inlined on this response. Rendered before mode branching so it
                 // shows uniformly across general/group/form surveys.
-                renderCourseBanner(gpt.course_banner);
+                renderCourseBanner(surveyConfig.course_banner);
                 // Silent cross-week identity capture — one call site before the
                 // mode branch so general, form, and group sessions all register.
                 // No-op unless the course enables tracking.
-                registerSessionIdentity(gpt);
+                registerSessionIdentity(surveyConfig);
                 // In-group surveys come back with mode === 'group' plus an inlined
                 // team_snapshot. Route through the transparency + team-picker flow.
-                if (gpt.mode === 'group') {
-                    if (!gpt.is_active) { showInactive(gpt.reason); return; }
+                if (surveyConfig.mode === 'group') {
+                    if (!surveyConfig.is_active) { showInactive(surveyConfig.reason); return; }
                     var startGroup = function () {
                         startInGroupFlow({
-                            id: gpt.id,
-                            public_id: gpt.public_id,
-                            label: gpt.survey_label || gpt.name,
-                            prompt: gpt.instructions,
-                            team_snapshot: gpt.team_snapshot,
-                            anonymity_mode: gpt.anonymity_mode || 'anonymous',
+                            id: surveyConfig.id,
+                            public_id: surveyConfig.public_id,
+                            label: surveyConfig.survey_label || surveyConfig.name,
+                            prompt: surveyConfig.instructions,
+                            team_snapshot: surveyConfig.team_snapshot,
+                            anonymity_mode: surveyConfig.anonymity_mode || 'anonymous',
+                            mode: surveyConfig.mode,
+                            completion_certificate_enabled: surveyConfig.completion_certificate_enabled,
+                            parsed_document_download_enabled: surveyConfig.parsed_document_download_enabled,
                         });
                     };
                     // In-group surveys may optionally bind a FormSchema; when
                     // present, the engine enforces section coverage on top of
                     // the team-aware prompt.
-                    if (gpt.form_schema_id) {
-                        activateFormMode(gpt).then(startGroup);
+                    if (surveyConfig.form_schema_id) {
+                        activateFormMode(surveyConfig).then(startGroup);
                     } else {
                         startGroup();
                     }
                     return;
                 }
 
-                const label = gpt.survey_label || gpt.name;
+                const label = surveyConfig.survey_label || surveyConfig.name;
                 $('h2').text(label);
 
-                if (!gpt.is_active) {
-                    showInactive(gpt.reason);
+                if (!surveyConfig.is_active) {
+                    showInactive(surveyConfig.reason);
                     return;
                 }
 
                 // Form-mode surveys: activate the engine from the backend
                 // record. No URL param can flip a non-form survey into form
                 // mode and vice versa — the survey id alone is sufficient.
-                var startFlow = function () { initGpt(gpt); };
-                if (gpt.mode === 'form') {
+                var startFlow = function () { initGpt(surveyConfig); };
+                if (surveyConfig.mode === 'form') {
                     startFlow = function () {
-                        activateFormMode(gpt).then(function () { initGpt(gpt); });
+                        activateFormMode(surveyConfig).then(function () { initGpt(surveyConfig); });
                     };
                 }
 
@@ -2088,87 +2580,101 @@
             // always available) and .ready (celebratory bar after engine confirms
             // all sections captured). [END] is now a UI cue, not a gate.
             var igStrip = null;
-            var igStripStatusEl = null;
-            var igStripActionEl = null;
-            var igReadyMarked = false;
-            function renderIgDownloadStrip() {
-                if (igStrip) return;
-                igStrip = document.createElement('div');
-                igStrip.id = 'ig-download-strip';
-                igStrip.className = 'ig-download-strip collapsed';
-
-                var celebrate = document.createElement('div');
-                celebrate.className = 'strip-celebrate';
-                celebrate.textContent = '✓ All sections captured — your reflection is ready';
-                igStrip.appendChild(celebrate);
-
-                igStripStatusEl = document.createElement('div');
-                igStripStatusEl.className = 'strip-status';
-                igStrip.appendChild(igStripStatusEl);
-
-                igStripActionEl = document.createElement('button');
-                igStripActionEl.type = 'button';
-                igStripActionEl.className = 'strip-action';
-                igStripActionEl.addEventListener('click', function () {
-                    if (formMode.active && formMode.state &&
-                            typeof downloadFormModeReflection === 'function') {
-                        downloadFormModeReflection('docx');
-                    } else {
-                        downloadIgChatDocx();
-                    }
+            var igPersistedStudentMessageCount = 0;
+            var igFirstStudentPersistPromise = null;
+            var igFirstStudentPersistState = 'idle';
+            var igCertificateBusy = false;
+            var igStripNoteText = '';
+            var igCompletionReady = false;
+            function renderIgDownloadStrip(opts) {
+                var stripOpts = opts || {};
+                var currentMode = formMode.active ? 'form' : (survey.mode || 'group');
+                var currentComplete = !!igCompletionReady || (
+                    formMode.active &&
+                    formMode.state &&
+                    typeof leaiFormMode !== 'undefined' &&
+                    typeof leaiFormMode.isComplete === 'function' &&
+                    leaiFormMode.isComplete(formMode.state)
+                );
+                var state = buildStudentFooterState({
+                    mode: currentMode,
+                    certificateSetting: survey.completion_certificate_enabled,
+                    documentSetting: survey.parsed_document_download_enabled,
+                    persistedStudentMessageCount: igPersistedStudentMessageCount,
+                    firstStudentPersistState: igFirstStudentPersistState,
+                    complete: currentComplete,
                 });
-                igStrip.appendChild(igStripActionEl);
-
-                var help = document.createElement('div');
-                help.className = 'strip-help';
-                help.textContent = 'You can keep chatting to revise or add anything — the file rebuilds from the latest transcript on every click.';
-                igStrip.appendChild(help);
-
-                footerInner.appendChild(igStrip);
-                updateIgStripCollapsedLabel();
-            }
-            function updateIgStripCollapsedLabel() {
-                if (!igStrip || igStrip.classList.contains('ready')) return;
-                if (formMode.active && formMode.state &&
-                        typeof leaiFormMode.progressLabel === 'function') {
-                    var label = leaiFormMode.progressLabel(formMode.state) || '';
-                    if (igStripStatusEl) {
-                        igStripStatusEl.textContent = '';
-                        var pre = document.createElement('strong');
-                        pre.textContent = 'Reflection in progress';
-                        igStripStatusEl.appendChild(pre);
-                        igStripStatusEl.appendChild(document.createTextNode(' · ' + label));
-                    }
-                    if (igStripActionEl) {
-                        igStripActionEl.textContent = 'Save draft (.docx) ↓';
-                    }
-                } else {
-                    if (igStripStatusEl) {
-                        igStripStatusEl.textContent = '';
-                        var pre2 = document.createElement('strong');
-                        pre2.textContent = 'Reflection in progress';
-                        igStripStatusEl.appendChild(pre2);
-                        igStripStatusEl.appendChild(document.createTextNode(' · save what you have so far'));
-                    }
-                    if (igStripActionEl) {
-                        igStripActionEl.textContent = 'Save draft (.docx) ↓';
-                    }
+                if (!state.showStrip) return;
+                if (!igStrip) {
+                    igStrip = createDownloadStripUi({
+                        id: 'ig-download-strip',
+                        footer: footerInner,
+                        onDocumentClick: function () {
+                            if (formMode.active && formMode.state &&
+                                    typeof downloadFormModeReflection === 'function') {
+                                downloadFormModeReflection('docx');
+                            } else {
+                                downloadIgChatDocx();
+                            }
+                        },
+                        onCertificateClick: function () {
+                            igCertificateBusy = true;
+                            igStripNoteText = '';
+                            updateIgStripCollapsedLabel();
+                            var completeNow = !!igCompletionReady || (
+                                formMode.active &&
+                                formMode.state &&
+                                typeof leaiFormMode !== 'undefined' &&
+                                typeof leaiFormMode.isComplete === 'function' &&
+                                leaiFormMode.isComplete(formMode.state)
+                            );
+                            requestCompletionCertificate({
+                                publicId: survey.public_id,
+                                sessionId: sessionId,
+                                mode: formMode.active ? 'form' : 'group',
+                                persistedStudentMessageCount: igPersistedStudentMessageCount,
+                                complete: completeNow,
+                            }).then(function (result) {
+                                igStripNoteText = 'Certificate downloaded: ' + result.filename;
+                            }).catch(function (err) {
+                                if (err && err.status === 409) {
+                                    igStripNoteText = err.message;
+                                } else {
+                                    igStripNoteText = 'Could not download your certificate right now. Your chat and reflection download still work; please try again.';
+                                }
+                            }).finally(function () {
+                                igCertificateBusy = false;
+                                updateIgStripCollapsedLabel();
+                            });
+                        },
+                    });
                 }
+                igStrip.certificateBusy = igCertificateBusy;
+                igStrip.noteText = igStripNoteText;
+                updateDownloadStripUi(igStrip, state, {
+                    progressLabel: (formMode.active && formMode.state &&
+                            typeof leaiFormMode !== 'undefined' &&
+                            typeof leaiFormMode.progressLabel === 'function')
+                        ? (leaiFormMode.progressLabel(formMode.state) || '')
+                        : '',
+                    silent: !!stripOpts.silent,
+                    readyCelebrateText: (!state.showDocument && state.showCertificate)
+                        ? '✓ Conversation complete — your certificate is ready'
+                        : null,
+                });
+            }
+            function updateIgStripCollapsedLabel(opts) {
+                renderIgDownloadStrip(opts);
             }
             function markIgReady(opts) {
-                if (!igStrip || igReadyMarked) return;
-                igReadyMarked = true;
-                igStrip.classList.remove('collapsed');
-                igStrip.classList.add('ready');
-                if (opts && opts.silent) igStrip.classList.add('no-pop');
-                if (igStripActionEl) {
-                    igStripActionEl.textContent = (formMode.active && formMode.state)
-                        ? 'Download my reflection (Word / .docx)'
-                        : 'Download my reflection (Word / .docx)';
+                igCompletionReady = true;
+                if (!formMode.active) {
+                    setCompletionReadyMarker({
+                        publicId: survey.public_id || survey.id,
+                        sessionId: sessionId,
+                    }, true);
                 }
-                if (!opts || !opts.silent) {
-                    try { igStrip.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) {}
-                }
+                renderIgDownloadStrip({ silent: !!(opts && opts.silent) });
             }
 
             // In-group surveys without a bound schema still produce a .docx
@@ -2213,16 +2719,10 @@
 
                     var doc = new d.Document({ sections: [{ children: children }] });
                     return d.Packer.toBlob(doc).then(function (blob) {
-                        var a = document.createElement('a');
-                        a.href = window.URL.createObjectURL(blob);
-                        // In-group raw-chat fallback is always team-context
-                        // (only the in-group flow lands here), but route
-                        // through the shared helper so any future audience
-                        // signal flows through one path.
-                        a.download = _reflectionFilenameBase({ audience: 'team' }) + '.docx';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
+                        _triggerBlobDownload(
+                            blob,
+                            _reflectionFilenameBase({ audience: 'team' }) + '.docx'
+                        );
                     });
                 }).catch(function (err) {
                     console.error('docx download failed:', err);
@@ -2237,13 +2737,15 @@
             // flag is the source of truth for whether the strip shows .ready.
             function rehydrateChat(snapshot) {
                 var prior = snapshot.messages || [];
+                igPersistedStudentMessageCount = countPersistedStudentMessages(prior);
                 for (var i = 0; i < prior.length; i++) {
                     var m = prior[i];
-                    chatHistory.push({ role: m.role, content: m.content });
-                    appendIgMessage(m.role === 'user' ? 'user' : 'bot', m.content);
+                    var restoredRole = normalizeRestoredMessageRole(m.role || m.sent_by);
+                    chatHistory.push({ role: restoredRole, content: m.content });
+                    appendIgMessage(restoredRole === 'user' ? 'user' : 'bot', m.content);
                     if (formMode.active && formMode.state) {
                         try {
-                            if (m.role === 'user') {
+                            if (restoredRole === 'user') {
                                 leaiFormMode.beforeTurn(formMode.state, m.content);
                             } else {
                                 // See replayResumedConversation: the stored
@@ -2258,7 +2760,7 @@
                 if (formMode.active && formMode.state) {
                     renderFormModeProgress();
                 }
-                updateIgStripCollapsedLabel();
+                updateIgStripCollapsedLabel({ silent: true });
                 if (snapshot.ended) markIgReady({ silent: true });
             }
 
@@ -2269,7 +2771,7 @@
             function persistBackendMessage(role, text, opts) {
                 // Write a FeedbackMessage row against this survey (gpt_id). Matches the
                 // general flow so existing analytics pipelines light up for in-group too.
-                if (!survey.id) return;
+                if (!survey.id) return Promise.resolve(null);
                 var payload = {
                     session_id: sessionId,
                     student_id: '',
@@ -2283,18 +2785,47 @@
                     referred: !!(opts && opts.referred),
                 };
                 try {
-                    fetch(API + '/feedback_message_api/', {
+                    var request = fetch(API + '/feedback_message_api/', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
                     });
-                } catch (e) {}
+                    if (role === 'user') {
+                        if (igPersistedStudentMessageCount === 0 && igFirstStudentPersistState !== 'pending') {
+                            igFirstStudentPersistState = 'pending';
+                            igFirstStudentPersistPromise = request.then(function (response) {
+                                if (!response.ok) throw new Error('Persist failed: HTTP ' + response.status);
+                                igPersistedStudentMessageCount += 1;
+                                igFirstStudentPersistState = 'succeeded';
+                                updateIgStripCollapsedLabel();
+                                return response;
+                            }, function () {
+                                igFirstStudentPersistState = 'failed';
+                                igFirstStudentPersistPromise = null;
+                                updateIgStripCollapsedLabel();
+                                return null;
+                            });
+                        } else {
+                            request.then(function (response) {
+                                if (!response.ok) throw new Error('Persist failed: HTTP ' + response.status);
+                                igPersistedStudentMessageCount += 1;
+                                updateIgStripCollapsedLabel();
+                                return response;
+                            }).catch(function () {});
+                        }
+                        updateIgStripCollapsedLabel();
+                    }
+                    return request;
+                } catch (err) {
+                    return Promise.reject(err);
+                }
             }
 
             function requestBotTurn(userText) {
                 if (userText) {
                     chatHistory.push({ role: 'user', content: userText });
                     logMessageEverywhere('user', userText);
+                    updateIgStripCollapsedLabel();
                 }
 
                 // Form-mode engine layered onto in-group: short-circuit on STOP
@@ -2358,6 +2889,7 @@
                         chatHistory.push({ role: 'assistant', content: reply });
                         logMessageEverywhere('bot', reply);
                         appendIgMessage('bot', reply);
+                        updateIgStripCollapsedLabel();
                     }).finally(function () {
                         hideIgTyping();
                         setIgInputBusy(false);
@@ -2369,6 +2901,7 @@
                     chatHistory.push({ role: 'assistant', content: reply });
                     logMessageEverywhere('bot', reply);
                     appendIgMessage('bot', reply);
+                    updateIgStripCollapsedLabel();
                 }
             }
 
@@ -2409,11 +2942,15 @@
                 // conversation — fetch from the backend and replay.
                 leaiSession.resume(survey.id, sessionId).then(function (data) {
                     if (data && data.messages && data.messages.length) {
+                        var resumeComplete = !formMode.active && hasCompletionReadyMarker({
+                            publicId: survey.public_id || survey.id,
+                            sessionId: sessionId,
+                        });
                         rehydrateChat({
-                            ended: false,
+                            ended: resumeComplete,
                             messages: data.messages.map(function (m) {
                                 return {
-                                    role: m.sent_by === 'user' ? 'user' : 'assistant',
+                                    role: normalizeRestoredMessageRole(m.sent_by),
                                     content: m.content,
                                     // Carried through so rehydrateChat can
                                     // re-latch the referral gate.
@@ -2614,7 +3151,7 @@
                 client_seq: window.sessionData.msgSeq,
                 client_ts: Date.now()
             };
-            $.ajax({
+            var request = $.ajax({
                 type: 'POST',
                 url: API + '/feedback_message_api/',
                 contentType: 'application/json',
@@ -2622,6 +3159,31 @@
                 success: function (response) { console.log('Success:', response); },
                 error: function (xhr, status, error) { console.error('Error:', error); }
             });
+                if (normalizedSentBy === 'user') {
+                    var persistPromise = toNativePromise(request);
+                    if (_mainPersistedStudentMessageCount === 0 && _mainFirstStudentPersistState !== 'pending') {
+                        _mainFirstStudentPersistState = 'pending';
+                        _mainFirstStudentPersistPromise = persistPromise.then(function (response) {
+                            _mainPersistedStudentMessageCount += 1;
+                            _mainFirstStudentPersistState = 'succeeded';
+                            updateMainDownloadStrip();
+                            return response;
+                        }, function () {
+                            _mainFirstStudentPersistState = 'failed';
+                            _mainFirstStudentPersistPromise = null;
+                            updateMainDownloadStrip();
+                            return null;
+                        });
+                    } else {
+                        persistPromise.then(function (response) {
+                            _mainPersistedStudentMessageCount += 1;
+                            updateMainDownloadStrip();
+                        return response;
+                    }).catch(function () {});
+                }
+                updateMainDownloadStrip();
+            }
+            return request;
         }
 
         // Text message handling
@@ -3019,24 +3581,15 @@
                 $('#messageInput').prop('disabled', true).val('');
                 $('#sendMessage').prop('disabled', true);
                 $('#micButton').prop('disabled', true);
+                setCompletionReadyMarker({
+                    publicId: gptConfig && (gptConfig.public_id || gptConfig.id),
+                    sessionId: window.sessionData && window.sessionData.sessionID,
+                }, true);
                 notice.id = 'chat-completion-notice';
                 notice.textContent = 'Conversation complete — thanks for reflecting!';
                 footer.appendChild(notice);
+                updateMainDownloadStrip();
             }
-        }
-
-        function renderFormModeDownloadBar(footer) {
-            if (document.getElementById('formmode-download-bar')) return;
-            var bar = document.createElement('div');
-            bar.id = 'formmode-download-bar';
-            bar.className = 'formmode-download-bar';
-            var docxBtn = document.createElement('button');
-            docxBtn.id = 'formmode-download-docx';
-            docxBtn.type = 'button';
-            docxBtn.textContent = 'Download my reflection (Word / .docx)';
-            docxBtn.addEventListener('click', function () { downloadFormModeReflection('docx'); });
-            bar.appendChild(docxBtn);
-            footer.appendChild(bar);
         }
 
         // Lazy-load the docx UMD bundle the first time the user clicks
@@ -3201,11 +3754,15 @@
 
         function _triggerBlobDownload(blob, filename) {
             var a = document.createElement('a');
-            a.href = window.URL.createObjectURL(blob);
+            var objectUrl = window.URL.createObjectURL(blob);
+            a.href = objectUrl;
             a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
+            window.setTimeout(function () {
+                window.URL.revokeObjectURL(objectUrl);
+            }, 0);
         }
 
         // Decide whether a download is "team" or "individual" flavored.

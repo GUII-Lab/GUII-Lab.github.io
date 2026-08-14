@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.9">
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -301,6 +301,20 @@
             </label>
             <p class="cb-hint">Groups sessions that come from the same device so the Feedback Analyzer can show a student's arc across the course (as <strong>S1, S2, &hellip;</strong> labels &mdash; never names). Uses a browser-stored key plus a device fingerprint, disclosed in the survey Terms of Use and Privacy Policy. Grouping is device-based and approximate: a student who switches devices appears as two entries, and shared lab computers are kept apart automatically.</p>
         </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-completion-certificate-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Completion certificates: let students unlock a certificate after one response</span>
+            </label>
+            <p class="cb-hint">Students can download a PDF with a verification code after at least one response is saved in that survey session. You can validate the code for the exact survey in Feedback Analyzer without seeing which conversation it belongs to.</p>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-parsed-document-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Parsed survey documents: let students download their reflection</span>
+            </label>
+            <p class="cb-hint">Controls the existing Word download in structured surveys. This setting is independent of completion certificates.</p>
+        </div>
         <div class="exp-actions">
             <button class="btn btn-primary" id="exp-save-btn">Save</button>
             <span id="exp-save-msg"></span>
@@ -308,7 +322,7 @@
     </div>
 </div>
 
-<script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-shared.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -401,13 +415,17 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 course_id: session.courseId,
-                identity_tracking_enabled: el('cb-identity-enabled').checked
+                identity_tracking_enabled: el('cb-identity-enabled').checked,
+                completion_certificate_enabled: el('cb-completion-certificate-enabled').checked,
+                parsed_document_download_enabled: el('cb-parsed-document-enabled').checked
             })
         })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
             if (res.ok) {
                 el('cb-identity-enabled').checked = !!res.j.identity_tracking_enabled;
+                el('cb-completion-certificate-enabled').checked = !!res.j.completion_certificate_enabled;
+                el('cb-parsed-document-enabled').checked = !!res.j.parsed_document_download_enabled;
                 msg.className = 'ok';
                 msg.textContent = 'Saved.';
             } else {
@@ -470,6 +488,8 @@
                 el('cb-referral-text').value = (d && d.referral_text_raw) || '';
                 el('cb-referral-text').placeholder = DEFAULT_REFERRAL_TEXT;
                 el('cb-identity-enabled').checked = !!(d && d.identity_tracking_enabled);
+                el('cb-completion-certificate-enabled').checked = !!(d && d.completion_certificate_enabled);
+                el('cb-parsed-document-enabled').checked = !!(d && d.parsed_document_download_enabled);
                 refresh();
                 refreshReferral();
             })

@@ -61,7 +61,7 @@
     .sidebar a.active { color: #f1f5f9; border-left-color: #3b82f6; background: #1e3a5f; }
 
     /* Main */
-    .main { flex: 1; max-width: 860px; padding: 48px 56px; }
+    .main { flex: 1; min-width: 0; max-width: 860px; padding: 48px 56px; }
 
     /* Headings */
     h1.page-title { font-size: 32px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
@@ -172,8 +172,10 @@
 
     @media (max-width: 900px) {
       .sidebar { display: none; }
-      .main { padding: 32px 24px; }
+      .main { width: 100%; max-width: 100%; padding: 32px 24px; overflow-x: hidden; }
       .toc-grid { grid-template-columns: 1fr; }
+      .main, .main * { overflow-wrap: anywhere; }
+      .screenshot-wrap { max-width: 100%; }
     }
   </style>
 </head>
@@ -214,6 +216,7 @@
 
     <div class="sidebar-section">Student Experience</div>
     <a href="#student-chat">The Chat Interface</a>
+    <a href="#completion-credit">Completion Credit</a>
     <a href="#consent-flow">Consent &amp; Anonymity Notice</a>
     <a href="#inactive-states">Closed &amp; Expired Surveys</a>
 
@@ -252,10 +255,11 @@
         <a href="#feedback-chat" class="toc-link">15. Feedback Chat</a>
         <a href="#chat-system-prompt" class="toc-link">16. Customising the AI Prompt</a>
         <a href="#student-chat" class="toc-link">17. The Student Chat Interface</a>
-        <a href="#consent-flow" class="toc-link">18. Consent &amp; Anonymity Notice</a>
-        <a href="#inactive-states" class="toc-link">19. Closed &amp; Expired Surveys</a>
-        <a href="#pdf-ingest" class="toc-link">20. Importing PDF Reflections</a>
-        <a href="#faq" class="toc-link">21. Common Questions</a>
+        <a href="#completion-credit" class="toc-link">18. Completion Credit</a>
+        <a href="#consent-flow" class="toc-link">19. Consent &amp; Anonymity Notice</a>
+        <a href="#inactive-states" class="toc-link">20. Closed &amp; Expired Surveys</a>
+        <a href="#pdf-ingest" class="toc-link">21. Importing PDF Reflections</a>
+        <a href="#faq" class="toc-link">22. Common Questions</a>
       </div>
     </div>
 
@@ -841,6 +845,22 @@
       <div class="caption">The student chat page. Note the green <strong>ANONYMOUS</strong> badge next to the title, the "Your responses are anonymous" subtitle underneath, and the <strong>Terms</strong> / <strong>Privacy</strong> links at the top-right, which open the legal documents in a new tab at any time during the session.</div>
     </div>
 
+    <h3 class="sub-heading" id="completion-credit">Give Completion Credit Without Identifying Feedback</h3>
+
+    <p>Open <strong>Customizations</strong>, click the gear, and turn on <strong>Completion certificates</strong>. This course-wide setting is separate from <strong>Parsed survey documents</strong>, so you can enable either download or both. A student can request a certificate as soon as LEAI has saved their first response, even if the AI has not reached the final section. The first click creates a random code; later downloads from the same survey session use the same certificate.</p>
+
+    <ol class="bullet-list">
+      <li>Create a scored Canvas assignment and ask students to upload the completion-certificate PDF.</li>
+      <li>In Feedback Analyzer, select the same week. Expand <strong>Verify completion certificates</strong>. If that week has more than one survey, choose the exact survey first.</li>
+      <li>Paste the submitted codes and click <strong>Verify certificates</strong>. Each result is either <strong>Valid</strong> or <strong>Not found</strong> for that survey.</li>
+      <li>A valid code confirms that LEAI issued a certificate after at least one response was saved. It does not prove that every section was completed or that the person submitting the file is the person who used that anonymous session.</li>
+    </ol>
+
+    <div class="callout info">
+      <span class="callout-label">Privacy boundary</span>
+      <p>The backend keeps the code-to-session link so issuance is stable, but LEAI never exposes that link, the progress snapshot, or the responses in the instructor interface. Verification is read-only and reusable: checking a code does not consume or invalidate it. Canvas can identify who uploaded the certificate for grading, while the student's feedback remains anonymous within LEAI.</p>
+    </div>
+
     <h3 class="sub-heading" id="consent-flow">Consent &amp; Anonymity Notice</h3>
 
     <p>The first time a student opens a feedback link in a browser session, they are shown a small <strong>consent dialog</strong> before the chat begins. This is how LEAI records informed consent in a way that meets industry best practice for a research-adjacent tool &mdash; without being scary or bureaucratic.</p>
@@ -852,9 +872,9 @@
 
     <p><strong>What the dialog says, in plain terms:</strong></p>
     <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.6;">
-      <li>LEAI is an <strong>anonymous</strong> mid-course feedback tool. No name, email, student ID, or login is collected &mdash; only a random session code that is discarded when the student closes the tab.</li>
+      <li>LEAI is an <strong>anonymous</strong> mid-course feedback tool. It does not ask for a name, email, student ID, or login. It uses random technical codes to keep a conversation together and, when enabled, issue a completion certificate.</li>
       <li>The purpose is to help <em>improve the course while it's still running</em>, not to wait for end-of-quarter evaluations when it is too late to help current students.</li>
-      <li>Responses are aggregated and cannot be traced back to individuals. Participation is voluntary and does not affect grades.</li>
+      <li>Instructors cannot use LEAI to connect a response to a named student. If the course offers completion credit, students can submit a certificate through Canvas without exposing their LEAI responses; the course's stated grading policy still applies.</li>
       <li>There are two checkboxes. The first (<strong>required</strong>) records agreement to the Terms of Use and Privacy Policy &mdash; the document names are inline links that open the full text in a new browser tab. The second (<strong>optional</strong>) records research consent for that session: it is persisted to the backend as a per-message flag, so any future GUII Lab research analysis can be restricted to messages where the student opted in.</li>
     </ul>
 
@@ -902,77 +922,54 @@
     <hr class="divider">
     <h2 class="section-heading" id="pdf-ingest">Importing PDF Reflections</h2>
 
-    <p>Students who used your template-style PDF reflection (instead of submitting through LEAI chat) can still flow into your analysis surface. The Feedback Analyzer has a one-click upload path that parses each PDF, maps its sections to the survey's questions, and lands the responses alongside chat-collected ones — with a PDF badge so you always know what came from where.</p>
-
-    <h3 class="sub-heading" id="pdf-ingest-when">When to use it</h3>
-    <p>Available only on <strong>Structured Reflection</strong> (form-mode) surveys. The PDF must follow the same section headings as the survey's prompts — your template's section titles are the matcher, so keep wording consistent across cohorts.</p>
-
-    <h3 class="sub-heading" id="pdf-ingest-flow">The five-step flow</h3>
-
-    <p><strong>Step 1 — Open the drawer.</strong> In the Feedback Analyzer, switch to the <strong>Structured Reflection</strong> tab for the survey you want to add PDFs to, then click <em>Upload PDF reflections</em>. A slide-in drawer opens with a plain-language explainer and a dropzone. The header shows which survey you're uploading into so you can't accidentally land PDFs on the wrong week.</p>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-drawer-open.png" alt="Upload PDF reflections drawer open with explainer paragraph and a dotted dropzone labelled DROP PDFS HERE OR CLICK TO BROWSE">
-      <div class="caption">The drawer slides in from the right with the explainer, dropzone, and the survey name + week pinned in the header so you can't drop PDFs on the wrong survey.</div>
+    <div class="callout warn">
+      <span class="callout-label">Scope</span>
+      <p><strong>Individual Structured Reflection only.</strong> Team/In-Group PDF upload is not supported.</p>
     </div>
 
-    <p><strong>Step 2 — Drop the PDFs and confirm student attribution.</strong> Drop in up to 60 PDFs at a time (10&nbsp;MB each). Each filename is matched against your course roster — fuzzy enough to catch <code>alice-doe.pdf</code>, <code>doe-alice.pdf</code>, and <code>AliceDoe_wk7.pdf</code> as the same student. Each row shows an <em>Auto-matched from filename — change if wrong</em> hint; click the dropdown to fix a mistake. Click <strong>Process N files</strong> when everyone is attributed. The browser tab title becomes <code>◐ Reading 0/N PDFs · LEAI</code> so you can monitor progress from another tab — you can also close the drawer; the job keeps running.</p>
+    <p>Use this workflow when students submit the individual reflection as a PDF in Canvas. Known template instructions, submission guidelines, and raw conversation transcripts are removed automatically before review.</p>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-files-attributed.png" alt="Two PDFs alice-doe.pdf and bob-smith.pdf attributed to roster student IDs, each with an Auto-matched from filename hint and a Process 2 files button">
-      <div class="caption">Filenames auto-match against your course roster. The per-row hint surfaces the inference so you can correct it before processing.</div>
-    </div>
+    <h3 class="sub-heading" id="pdf-ingest-flow">Canvas to Feedback Analyzer</h3>
+    <ol class="bullet-list">
+      <li>Download the students' text-based PDF submissions from the Canvas assignment. Keep filenames that identify the student.</li>
+      <li>In Feedback Analyzer, select <strong>Structured Reflection</strong> and the exact grading week. Open <strong>Upload PDF reflections</strong>, add the batch, and resolve only the attribution issues.</li>
+      <li>Resolve every file under <strong>Needs attention</strong>. Clean files stay collapsed and are available if you want to spot-check one.</li>
+      <li>At the final check, confirm the destination, response count, student count, skipped files, and any re-upload decisions. Commit, then verify the newest row under <strong>Recent PDF uploads</strong>.</li>
+    </ol>
 
-    <p><strong>Step 3 — Review by exception.</strong> When parsing completes, the drawer flips to a review screen. A banner summarises the result — e.g. "<strong>40 PDFs processed</strong> · 36 mapped cleanly · 4 need your attention." Only the rows that need work are expanded; cleanly-mapped PDFs are tucked into a collapsed accordion. For each section the system couldn't auto-detect, you'll see a highlighted <em>couldn't find a clear heading</em> tag and an empty textarea — paste the answer in, or leave it blank if the student didn't respond.</p>
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-stage.png" alt="PDF upload drawer for a fictional Week 2 Structured Reflection showing staged files, unique-student count, and one attribution issue">
+      <figcaption class="caption">Before processing, verify the selected survey and week and resolve any attribution issues.</figcaption>
+    </figure>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-review-by-exception.png" alt="Review screen banner reading 2 PDFs processed, 1 mapped cleanly, 1 needs your attention, with the Methods in Practice section highlighted yellow as couldn't find a clear heading">
-      <div class="caption">Review by exception: cleanly-mapped PDFs collapse into the accordion, while needs-attention cards stay open with their missing sections highlighted.</div>
-    </div>
+    <p><strong>Needs attention</strong> tells you what to do: supply or explicitly omit a missing answer, inspect and accept or edit an unusually long answer, or remove other PDF content before continuing.</p>
 
-    <p><strong>Bulk fill across PDFs.</strong> If the same section is missing from multiple PDFs because of template-wording drift, a yellow bar appears above the Needs Attention group. Paste the corrected answer once and apply it to every empty cell across all affected PDFs. The bulk fill never overwrites a cell that already has content.</p>
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-review.png" alt="Review screen with one fictional Needs attention file expanded, a specific reason and action visible, and the Looks good group collapsed">
+      <figcaption class="caption">Resolve every open Needs attention item; clean mappings remain collapsed.</figcaption>
+    </figure>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-bulk-fill.png" alt="Yellow bulk-fill bar with header Bulk fill — same answer, multiple students and a textarea to apply to 2 empty cells of the Knowledge Shift Before vs After prompt">
-      <div class="caption">When several students missed the same section heading, the bulk-fill bar lets you paste the answer once and apply it to every empty cell at the same time.</div>
-    </div>
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-commit.png" alt="Final PDF import check for a fictional Week 2 survey showing the destination, response and student totals, skipped and unresolved counts, and Keep existing selected for a re-upload">
+      <figcaption class="caption">Commit only after the destination and included counts match the Canvas batch.</figcaption>
+    </figure>
 
-    <p><strong>Step 4 — Commit (with safe defaults for re-uploads).</strong> When you click <strong>Commit responses</strong>, you get a final summary: "About to add <strong>N</strong> responses from <strong>M</strong> students." If any of those students <em>already</em> have a PDF reflection on this survey (for example, you re-uploaded a corrected file), you'll see a per-student dedup choice. The default is always <strong>Keep existing</strong> — so a distracted instructor cannot silently overwrite prior data. To overwrite or add a second row, you must explicitly pick that option.</p>
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-after-commit.png" alt="Feedback Analyzer showing PDF badges, the newest fictional Recent PDF uploads row, PDF source controls, and the Revert button">
+      <figcaption class="caption">Use the newest Recent PDF uploads row as the audit record and Revert entry point.</figcaption>
+    </figure>
 
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-commit-dedup.png" alt="Commit confirmation with About to commit summary and a yellow box showing 1 student already has a PDF reflection on this survey with three radio choices: Keep existing (default), Add as additional, Replace existing">
-      <div class="caption">"Keep existing" is the default when a student already has a PDF on this survey — replacing data requires a deliberate click, not a stray one.</div>
-    </div>
-
-    <p><strong>Step 5 — Done, with one-click revert if you misclicked.</strong> A success state confirms how many responses landed. The new responses appear immediately in the analyzer below, carrying a PDF badge so you can always tell PDF-derived responses from chat ones. Instructor Insights regenerates on next view to include them.</p>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-success.png" alt="Success state with green check icon and the text Added 7 responses from 2 students, plus a Done button">
-      <div class="caption">After commit, a confirmation tells you exactly how many responses landed and from how many students.</div>
-    </div>
-
-    <p>Back in the analyzer, a <strong>Recent PDF uploads</strong> panel sits above the analytics. Every batch you commit lists there with a one-click <strong>Revert</strong> button — so if the wrong batch landed on the wrong week, you can undo the whole thing without touching the database.</p>
-
-    <div class="screenshot-wrap">
-      <img src="guide-assets/pdf-ingest-after-commit.png" alt="Feedback Analyzer after commit showing a Recent PDF uploads (1) panel with 2 students · 7 responses and a Revert button on the right">
-      <div class="caption">The Recent PDF uploads panel lists every batch with a Revert button. Instructor Insights refreshes on next view to include the new responses.</div>
-    </div>
-
-    <h3 class="sub-heading" id="pdf-ingest-safety">Safety</h3>
-    <ul class="bullet-list">
-      <li><strong>Nothing is destructive without your explicit choice.</strong> Replacing existing data requires you to pick "Replace existing" — the default is to keep what's already there.</li>
-      <li><strong>Every batch is revertable.</strong> Until you actually delete the manifest row, any commit can be undone with one click. Instructor Insights refreshes automatically.</li>
-      <li><strong>Edits auto-save.</strong> If you close the drawer mid-review, your typed corrections are preserved and restored when you reopen — for up to 7 days.</li>
-      <li><strong>Original PDFs are never stored.</strong> The server reads the text and discards the PDF binary; only the extracted answers (per-student, per-prompt) live in the database.</li>
-    </ul>
-
-    <h3 class="sub-heading" id="pdf-ingest-limits">Limits & gotchas</h3>
-    <ul class="bullet-list">
-      <li>Scanned image PDFs (no embedded text) cannot be read — re-export from Word/Pages as a text-based PDF.</li>
-      <li>Password-protected PDFs are rejected.</li>
-      <li>One PDF over 10 MB or batch over 50 MB will be refused — split into smaller batches.</li>
-      <li>If the survey is in General or In-Group mode rather than Structured Reflection, PDF ingest is unavailable; switch the survey to form mode if that's appropriate.</li>
-    </ul>
+    <details>
+      <summary><strong>If something goes wrong or you are re-uploading</strong></summary>
+      <ul class="bullet-list">
+        <li><strong>Unreadable PDF:</strong> re-export it from Word or Pages as a text-based PDF. Scanned images and password-protected PDFs cannot be read.</li>
+        <li><strong>Large batch:</strong> the limit is 60 PDFs, 10&nbsp;MB per file, and 50&nbsp;MB total.</li>
+        <li><strong>Re-upload:</strong> Keep existing is always selected first. Choose Add or Replace only for that student when needed.</li>
+        <li><strong>Wrong week or wrong batch:</strong> open Recent PDF uploads, choose Revert, and confirm the named batch and counts. The audit manifest remains after the responses are removed.</li>
+        <li><strong>Interrupted review:</strong> typed corrections auto-save for seven days. The original PDF file is not retained; only committed answers are stored.</li>
+        <li><strong>Bulk fill:</strong> use the collapsed bulk-fill tool only when the same intentionally shared text belongs in several empty sections. It never overwrites existing text.</li>
+      </ul>
+    </details>
 
     <!-- ═══════════════ FAQ ═══════════════ -->
     <hr class="divider">
