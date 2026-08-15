@@ -147,6 +147,30 @@
       color: #64748b;
     }
     .screenshot-wrap img { width: 100%; display: block; }
+    .annotation-canvas { position: relative; }
+    .screenshot-marker {
+      position: absolute;
+      z-index: 1;
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 10px 6px 7px;
+      border-radius: 999px;
+      background: #0f766e; color: white;
+      box-shadow: 0 2px 8px rgba(15, 118, 110, .32);
+      font-size: 12px; font-weight: 700; line-height: 1.2;
+    }
+    .screenshot-marker b {
+      display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center;
+      border-radius: 50%; background: white; color: #0f766e; font-size: 12px;
+    }
+    .screenshot-marker::after {
+      content: ''; position: absolute; left: 50%; bottom: -10px;
+      width: 0; height: 0; transform: translateX(-50%);
+      border-left: 9px solid transparent; border-right: 9px solid transparent;
+      border-top: 10px solid #0f766e;
+    }
+    .student-ready-marker { left: 41%; bottom: 18%; }
+    .certificate-code-marker { left: 6%; top: 46%; }
+    .certificate-instruction-marker { left: 7%; bottom: 18%; }
 
     /* Callouts */
     .callout {
@@ -217,6 +241,7 @@
     <a href="#indiv-step2">2. Consent screen</a>
     <a href="#indiv-step3">3. Chat through the areas</a>
     <a href="#indiv-step4">4. Save the .docx &amp; submit</a>
+    <a href="#completion-certificate">If assigned: completion certificate</a>
 
     <div class="sidebar-section">Group Reflection</div>
     <a href="#group-step1">1. Open the link</a>
@@ -235,7 +260,7 @@
 
     <p class="page-subtitle" style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:.08em;">LEAI · Student Documentation</p>
     <h1 class="page-title">LEAI Student Guide</h1>
-    <p class="page-subtitle">How to complete your reflection in LEAI and submit it on Canvas — for both individual and group assignments.</p>
+    <p class="page-subtitle">How to complete your reflection in LEAI and submit it as your instructor directs — for both individual and group assignments.</p>
 
     <!-- TOC -->
     <div class="toc-card">
@@ -246,6 +271,7 @@
         <a href="#which-mode" class="toc-link">Which mode am I doing?</a>
         <a href="#individual" class="toc-link">Individual Reflection (4 steps)</a>
         <a href="#group" class="toc-link">Group Reflection (5 steps)</a>
+        <a href="#completion-certificate" class="toc-link">Completion certificate (if assigned)</a>
         <a href="#tips" class="toc-link">Tips &amp; Tricks</a>
         <a href="#faq" class="toc-link">Common Questions</a>
       </div>
@@ -253,7 +279,7 @@
 
     <!-- Overview -->
     <h2 class="section-heading" id="overview">What is LEAI?</h2>
-    <p>LEAI is a chat-based reflection tool. Instead of filling in a static form, you have a short conversation with a reflection coach (the chatbot). It walks you through your reflection one <strong>area</strong> at a time, follows up if anything is unclear, and builds a Word document (<code>.docx</code>) of your answers that you download and upload to Canvas as your submission.</p>
+    <p>LEAI is a chat-based reflection tool. Instead of filling in a static form, you have a short conversation with a reflection coach (the chatbot). It walks you through your reflection one <strong>area</strong> at a time, follows up if anything is unclear, and can build a Word document (<code>.docx</code>) of your answers. Follow the submission instructions your instructor gives you.</p>
 
     <div class="callout info">
       <span class="callout-label">No account</span>
@@ -357,6 +383,47 @@
     <div class="callout tip">
       <span class="callout-label">Revise</span>
       <p>You can <strong>revise or add to any answer at any time</strong> — just tell LEAI in plain words, like <em>"go back to my answer about the deadline"</em> or <em>"add to what I said earlier"</em>. Everything still flows into the file. Click <strong>Save draft (.docx)</strong> again before uploading to grab the latest version.</p>
+    </div>
+
+    <hr class="divider">
+
+    <h2 class="section-heading" id="completion-certificate">Completion Certificate (Only If Your Instructor Asks for One)</h2>
+    <p>Some courses use a completion certificate for participation credit. This is a separate PDF with a verification code. It does <strong>not</strong> show your name or your reflection answers.</p>
+
+    <div class="step-block">
+      <div class="step-num-large indiv">1</div>
+      <div class="step-body-large">
+        <div class="title">Look for the certificate download card</div>
+        <p>After LEAI saves your first response, a <strong>Download completion certificate (PDF)</strong> button becomes available. It may look smaller while your reflection is still in progress. When the conversation is complete, the larger card below appears.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap">
+      <div class="annotation-canvas">
+        <img src="student-guide-assets/completion-certificate-ready.png" alt="Completed anonymous reflection with a blue Download completion certificate PDF button">
+        <span class="screenshot-marker student-ready-marker"><b>1</b> Download the PDF here</span>
+      </div>
+      <div class="caption"><strong>What to do:</strong> click the blue button. You can download the same certificate again later from this conversation.</div>
+    </div>
+
+    <div class="step-block">
+      <div class="step-num-large indiv">2</div>
+      <div class="step-body-large">
+        <div class="title">Keep the PDF and its verification code</div>
+        <p>Your certificate has one code that your instructor can check in LEAI. You do not need to explain your answers or share your resume link. Keep the PDF until you receive credit.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="max-width:520px">
+      <div class="annotation-canvas">
+        <img src="guide-assets/completion-certificate.png" alt="Completion certificate showing its verification code and submission instruction">
+        <span class="screenshot-marker certificate-code-marker"><b>2</b> This is your verification code</span>
+        <span class="screenshot-marker certificate-instruction-marker"><b>3</b> Submit it as your instructor directs</span>
+      </div>
+      <div class="caption"><strong>What to submit:</strong> follow your instructor's directions. They may ask for the PDF, the code, or a Canvas submission. The certificate itself does not identify your LEAI responses.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Good to know</span>
+      <p>A certificate confirms that LEAI issued a code after it saved a response. It does not replace your reflection document unless your instructor says it does.</p>
     </div>
 
     <hr class="divider">
@@ -490,7 +557,7 @@
 
     <div class="faq-item">
       <div class="faq-q">Where do I actually submit?</div>
-      <div class="faq-a">In <strong>Canvas</strong>, on the assignment your instructor created. The file you upload is the <code>.docx</code> you saved with the <strong>Save draft (.docx)</strong> button.</div>
+      <div class="faq-a">Follow the instructions your instructor gave you. In many courses that means uploading the <code>.docx</code> reflection to Canvas. If your instructor asks for a completion certificate, download the PDF from LEAI and submit it in the way they specify.</div>
     </div>
 
     <p style="margin-top:48px;color:#94a3b8;font-size:13px;text-align:center;">

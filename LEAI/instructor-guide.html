@@ -95,6 +95,7 @@
       flex-shrink: 0;
       margin-top: 2px;
     }
+    .step-num::before { content: counter(step); }
     .step-body { flex: 1; }
     .step-body strong { font-weight: 600; color: #0f172a; }
     .step-body p { color: #475569; margin-top: 4px; font-size: 15px; }
@@ -115,6 +116,30 @@
       color: #64748b;
     }
     .screenshot-wrap img { width: 100%; display: block; }
+    .annotation-canvas { position: relative; }
+    .screenshot-marker {
+      position: absolute;
+      z-index: 1;
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 10px 6px 7px;
+      border-radius: 999px;
+      background: #2563eb; color: white;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, .32);
+      font-size: 12px; font-weight: 700; line-height: 1.2;
+    }
+    .screenshot-marker b {
+      display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center;
+      border-radius: 50%; background: white; color: #2563eb; font-size: 12px;
+    }
+    .screenshot-marker::after {
+      content: ''; position: absolute; left: 50%; bottom: -10px;
+      width: 0; height: 0; transform: translateX(-50%);
+      border-left: 9px solid transparent; border-right: 9px solid transparent;
+      border-top: 10px solid #2563eb;
+    }
+    .certificate-panel-marker { right: 6%; top: 46%; }
+    .verify-paste-marker { left: 18%; top: 19%; }
+    .verify-result-marker { right: 7%; top: 53%; }
 
     /* Tips, warnings, info */
     .callout {
@@ -845,20 +870,45 @@
       <div class="caption">The student chat page. Note the green <strong>ANONYMOUS</strong> badge next to the title, the "Your responses are anonymous" subtitle underneath, and the <strong>Terms</strong> / <strong>Privacy</strong> links at the top-right, which open the legal documents in a new tab at any time during the session.</div>
     </div>
 
-    <h3 class="sub-heading" id="completion-credit">Give Completion Credit Without Identifying Feedback</h3>
+    <h3 class="sub-heading" id="completion-credit">How Completion Certificates Work</h3>
 
-    <p>Open <strong>Customizations</strong>, click the gear, and turn on <strong>Completion certificates</strong>. This course-wide setting is separate from <strong>Parsed survey documents</strong>, so you can enable either download or both. A student can request a certificate as soon as LEAI has saved their first response, even if the AI has not reached the final section. The first click creates a random code; later downloads from the same survey session use the same certificate.</p>
+    <p>If you offer completion credit, students download a PDF from their LEAI conversation and submit it where you tell them to. The PDF has one verification code. Your job is simply to check that code for the matching survey.</p>
 
-    <ol class="bullet-list">
-      <li>Create a scored Canvas assignment and ask students to upload the completion-certificate PDF.</li>
-      <li>In Feedback Analyzer, select the same week. Expand <strong>Verify completion certificates</strong>. If that week has more than one survey, choose the exact survey first.</li>
-      <li>Paste the submitted codes and click <strong>Verify certificates</strong>. Each result is either <strong>Valid</strong> or <strong>Not found</strong> for that survey.</li>
-      <li>A valid code confirms that LEAI issued a certificate after at least one response was saved. It does not prove that every section was completed or that the person submitting the file is the person who used that anonymous session.</li>
-    </ol>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Receive the student's certificate.</strong><p>Use the submission process you already use for your course. The certificate contains a code; it does not contain the student's LEAI answers or identity.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Open the matching week in Feedback Analyzer.</strong><p>Expand <strong>Verify completion certificates</strong>. If a week has more than one survey, choose the exact survey before checking codes.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Paste the code and read the result.</strong><p><strong>Valid</strong> means LEAI issued that certificate for this survey. <strong>Not Found</strong> means the code does not belong to the selected survey. You can check several codes at once.</p></div>
+      </div>
+    </div>
+
+    <div class="screenshot-wrap" style="max-width:560px">
+      <div class="annotation-canvas">
+        <img src="guide-assets/completion-certificate.png" alt="Completion certificate with a prominent verification code panel">
+        <span class="screenshot-marker certificate-panel-marker"><b>1</b> Find this code on the PDF</span>
+      </div>
+      <div class="caption"><strong>What matters:</strong> the verification code. The formal design helps students keep the file intact, but the code check in LEAI is what establishes whether it was issued.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <div class="annotation-canvas">
+        <img src="guide-assets/completion-certificate-verification.png" alt="Feedback Analyzer verification panel showing one valid code and one not found code">
+        <span class="screenshot-marker verify-paste-marker"><b>2</b> Paste one or more codes</span>
+        <span class="screenshot-marker verify-result-marker"><b>3</b> Read the status here</span>
+      </div>
+      <div class="caption"><strong>What to look for:</strong> select the correct week, paste the codes, and check the <strong>Status</strong> column. This example shows one valid code and one code that does not belong to this survey.</div>
+    </div>
 
     <div class="callout info">
       <span class="callout-label">Privacy boundary</span>
-      <p>The backend keeps the code-to-session link so issuance is stable, but LEAI never exposes that link, the progress snapshot, or the responses in the instructor interface. Verification is read-only and reusable: checking a code does not consume or invalidate it. Canvas can identify who uploaded the certificate for grading, while the student's feedback remains anonymous within LEAI.</p>
+      <p>A valid result confirms that LEAI issued a certificate after saving at least one response. It does not identify the student, reveal their responses, prove every section was completed, or show which anonymous conversation produced the code. You can recheck a code later; verification does not consume it.</p>
     </div>
 
     <h3 class="sub-heading" id="consent-flow">Consent &amp; Anonymity Notice</h3>
