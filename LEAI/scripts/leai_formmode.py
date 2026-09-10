@@ -67,7 +67,9 @@ class Coverage:
 class EngineState:
     schema: dict[str, Any]
     current_area_index: int = 1
+    field_cursor: int = 0
     coverage: dict[str, Coverage] = field(default_factory=dict)
+    field_coverage: dict[str, dict[str, Any]] = field(default_factory=dict)
     ended: bool = False
     team_id: Optional[str] = None
     team_member_slot: Optional[str] = None
@@ -114,6 +116,16 @@ _TURN_GATES = (
     "- ACCEPT SMOOTH/NO-FRICTION: If the student indicates the team worked smoothly, has nothing to add, or there was no friction/disagreement, ACCEPT that as a complete answer — acknowledge and advance. Do NOT reword the same probe to manufacture a problem.\n"
     "- ALLOW REPHRASE ON REQUEST: If the student says a question is confusing/unclear, asks what it means, or asks for a simpler or alternative wording, briefly REPHRASE the current question in simpler, concrete terms (this is NOT an off-topic ask). Then let them answer the rephrased version. Stay on the same area.\n"
     "- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write \"single question mark\", \"I need a new angle\", \"the student said\"). No meta-commentary.\n"
+)
+
+_FIELD_TURN_GATES = (
+    "\n\n[HARD RULES FOR THIS FIELD — these override your default helpful/warm style]\n"
+    "- ACK ALLOWLIST: After a student answer, begin with exactly one of: \"Got it.\" / \"Okay.\" / \"Mm.\" / \"Noted.\" / \"Fair.\" Then go straight to the one current-field question. Do not praise or rate the answer.\n"
+    "- NO ECHO: Do not quote, restate, paraphrase, or summarize the student's answer.\n"
+    "- CURRENT FIELD ONLY: Ask exactly one question about the CURRENT CANONICAL FIELD LABEL. Do not mention another field and do not add a section wrap-up.\n"
+    "- NO DEFINING: If asked to define course material, briefly decline and tightly rephrase the current field around what the student did or noticed.\n"
+    "- REPHRASE ON REQUEST: If the current question is confusing, simplify that same field. This consumes the one allowed probe; after the reply, advance.\n"
+    "- OUTPUT HYGIENE: Output only what you would say to the student. No instructions, planning, headers, or control tokens.\n"
 )
 
 # Default destination for the POINT TO A HUMAN gate when a course enables it
@@ -201,6 +213,7 @@ class BeforeTurnResult:
     synthetic_response: str = ""
     directive: Optional[dict[str, Any]] = None
     ended: bool = False
+    response_attribution: Optional[dict[str, Any]] = None
 
 
 @dataclass
@@ -218,10 +231,22 @@ class AfterTurnResult:
 
 def init_engine(schema: dict[str, Any], *, team_id: Optional[str] = None,
                 team_member_slot: Optional[str] = None) -> EngineState:
+    _validate_schema_fields(schema)
     coverage = {s["id"]: Coverage() for s in schema["sections"]}
+    field_coverage: dict[str, dict[str, Any]] = {}
+    for section in schema["sections"]:
+        for form_field in _normalized_fields(section):
+            field_coverage[form_field["id"]] = {
+                "asked": False,
+                "response_received": False,
+                "probe_used": False,
+                "complete": False,
+                "answer_turns": 0,
+            }
     return EngineState(
         schema=schema,
         coverage=coverage,
+        field_coverage=field_coverage,
         team_id=team_id,
         team_member_slot=team_member_slot,
     )
@@ -262,6 +287,9 @@ def system_prompt_tail(schema: dict[str, Any]) -> str:
 
 
 def before_turn(state: EngineState, student_message: Optional[str]) -> BeforeTurnResult:
+    if _schema_uses_field_flow(state.schema):
+        return _before_field_turn(state, student_message)
+
     state.turn += 1
     schema = state.schema
     sections = schema["sections"]
@@ -551,11 +579,12 @@ def after_turn(state: EngineState, llm_response: str, *,
     # Defensively strip any LLM-hallucinated wrong-section headers before
     # potentially prefixing the engine-injected one.
     displayed = _strip_wrong_section_headers(displayed, i, n)
+    displayed = _enforce_canonical_field_question(displayed, state.last_directive)
 
     kind = directive_kind
     prev_emitted = getattr(state, "_last_emitted_area", 0) or 0
     should_emit_header = (
-        kind in ("opening", "open_area") or i != prev_emitted
+        kind in ("opening", "open_area", "field_opening") or i != prev_emitted
     )
     if should_emit_header:
         prefix = f"Area {i} of {n} — {area['title']}."
@@ -575,19 +604,17 @@ def after_turn(state: EngineState, llm_response: str, *,
         state._last_emitted_area = i  # type: ignore[attr-defined]
 
     if had_end:
-        if _all_covered(state):
+        if directive_kind == "final_ack" and _all_covered(state):
             state.ended = True
             ended = True
-        else:
+        elif not _all_covered(state):
             remaining = _count_remaining(state)
             displayed += f"\n\n(continuing — {remaining} of {n} areas left.)"
-    elif kind in ("close", "final_ack") and _all_covered(state):
-        # Close directive (or post-feedback ack) ran and all areas are
-        # covered — the engine owns closing, so append [END] to lock the
-        # chat downstream.
+    elif kind == "final_ack" and _all_covered(state):
+        # The closing question itself must remain answerable. Only the
+        # acknowledgement after the student's feedback marks completion.
         state.ended = True
         ended = True
-        displayed = f"{displayed}\n\n[END]"
 
     if state.ended:
         ended = True
@@ -608,10 +635,301 @@ def progress_label(state: EngineState) -> str:
     n = len(state.schema["sections"])
     i = state.current_area_index
     area = state.schema["sections"][i - 1]
-    return f"Area {i} of {n} — {area['title']}"
+    fields = _normalized_fields(area)
+    return (
+        f"Area {i} of {n} — {area['title']} · "
+        f"Question {state.field_cursor + 1} of {len(fields)}"
+    )
+
+
+def current_field(state: EngineState) -> dict[str, Any]:
+    area = state.schema["sections"][state.current_area_index - 1]
+    return _normalized_fields(area)[state.field_cursor]
+
+
+def pending_response_attribution(state: EngineState) -> Optional[dict[str, Any]]:
+    directive = state.last_directive or {}
+    if directive.get("kind") not in {"field_opening", "field_question", "field_probe"}:
+        return None
+    return {
+        "form_schema_id": state.schema.get("schema_id") or state.schema.get("id"),
+        "form_schema_version": state.schema.get("version"),
+        "form_section_id": directive.get("section_id"),
+        "form_field_id": directive.get("field_id"),
+        "form_field_label": directive.get("field_label"),
+        "form_response_phase": "probe" if directive.get("kind") == "field_probe" else "primary",
+    }
 
 
 # ─── private helpers ─────────────────────────────────────────────────────
+
+
+_SUPPORTED_FIELD_KINDS = {
+    "shortform",
+    "longform",
+    "rating_with_justification",
+    "table",
+}
+
+
+def _validate_schema_fields(schema: dict[str, Any]) -> None:
+    sections = schema.get("sections") if isinstance(schema, dict) else None
+    if not isinstance(sections, list) or not sections:
+        raise ValueError("Form schema must contain at least one section.")
+
+    seen_ids: set[str] = set()
+    for section_index, area in enumerate(sections, start=1):
+        fields = area.get("fields") if isinstance(area, dict) else None
+        if not isinstance(fields, list):
+            fields = []
+        for field_index, form_field in enumerate(fields, start=1):
+            location = f"section {area.get('id') or section_index}, field {field_index}"
+            if not isinstance(form_field, dict):
+                raise ValueError(f"Form field must be an object at {location}.")
+            field_id = str(form_field.get("id") or "").strip()
+            if not field_id:
+                raise ValueError(f"Form field id is required at {location}.")
+            if field_id in seen_ids:
+                raise ValueError(f'Duplicate field id "{field_id}" in form schema.')
+            seen_ids.add(field_id)
+
+            kind = str(form_field.get("kind") or "").strip()
+            if not kind:
+                raise ValueError(f'Form field kind is required for "{field_id}".')
+            if kind not in _SUPPORTED_FIELD_KINDS:
+                raise ValueError(f'Unsupported field kind "{kind}" for "{field_id}".')
+            if kind == "shortform" and not str(form_field.get("label") or "").strip():
+                raise ValueError(f'Shortform field "{field_id}" requires a label.')
+            if (
+                kind == "longform"
+                and not str(form_field.get("label") or "").strip()
+                and not str(area.get("opening_prompt") or "").strip()
+            ):
+                raise ValueError(
+                    f'Longform field "{field_id}" requires a label or section opening_prompt.'
+                )
+            if kind == "rating_with_justification" and not str(
+                form_field.get("label") or form_field.get("dimension") or ""
+            ).strip():
+                raise ValueError(f'Rating field "{field_id}" requires a label or dimension.')
+            if (
+                kind == "table"
+                and not str(form_field.get("label") or "").strip()
+                and not any(form_field.get("columns") or [])
+            ):
+                raise ValueError(f'Table field "{field_id}" requires a label or columns.')
+
+
+def _normalized_fields(area: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_fields = [f for f in (area.get("fields") or []) if isinstance(f, dict)]
+    if raw_fields:
+        normalized: list[dict[str, Any]] = []
+        for index, raw in enumerate(raw_fields):
+            item = dict(raw)
+            item["id"] = item.get("id") or f"{area.get('id', 'section')}.field-{index + 1}"
+            item["kind"] = item.get("kind") or "longform"
+            item["label"] = (
+                item.get("label")
+                or item.get("dimension")
+                or " / ".join(item.get("columns") or [])
+                or area.get("opening_prompt")
+                or item["id"]
+            )
+            normalized.append(item)
+        return normalized
+    return [{
+        "id": f"{area.get('id', 'section')}.response",
+        "kind": "longform",
+        "label": area.get("opening_prompt") or area.get("title") or "Tell me about this section.",
+        "_legacy_opening_fallback": True,
+    }]
+
+
+def _schema_uses_field_flow(schema: dict[str, Any]) -> bool:
+    return bool(schema.get("sections"))
+
+
+def canonical_student_question(label: str) -> str:
+    text = str(label or "").strip()
+    if not text:
+        return "What would you like to record for this item?"
+    if text.endswith(("?", "？")):
+        return text
+    text = re.sub(r"\.+$", "", text)
+    replacements = (
+        (r"^How well I\b", "How well do you"),
+        (r"^How I\b", "How do you"),
+        (r"^What I\b", "What do you"),
+        (r"^Why I\b", "Why do you"),
+        (r"^When I\b", "When do you"),
+        (r"^Where I\b", "Where do you"),
+        (r"^What information the AI needs\b", "What information does the AI need"),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, count=1, flags=re.IGNORECASE)
+    pronoun_replacements = (
+        (r"\bI[’']m\b", "you’re"),
+        (r"\bI[’']ve\b", "you’ve"),
+        (r"\bmyself\b", "yourself"),
+        (r"\bmy\b", "your"),
+        (r"\bme\b", "you"),
+        (r"\bI\b", "you"),
+    )
+    for pattern, replacement in pronoun_replacements:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    return f"{text}?"
+
+
+def student_question_for_field(form_field: dict[str, Any]) -> str:
+    kind = form_field.get("kind", "longform")
+    if kind == "rating_with_justification":
+        dimension = str(form_field.get("dimension") or form_field.get("label") or "").strip()
+        dimension = re.sub(r"[?？]+$", "", dimension)
+        return f"What 1–5 rating would you give “{dimension}”, and why?"
+    if kind == "table":
+        columns = [str(column) for column in (form_field.get("columns") or []) if column]
+        column_text = " and ".join(f"“{column}”" for column in columns) if columns else "this table"
+        return f"What rows should be recorded for {column_text}?"
+    return canonical_student_question(form_field.get("label", ""))
+
+
+def _enforce_canonical_field_question(
+    displayed: str,
+    directive: Optional[dict[str, Any]],
+) -> str:
+    if not directive or directive.get("kind") not in {"field_opening", "field_question"}:
+        return displayed
+    question = directive.get("student_question") or canonical_student_question(
+        directive.get("field_label", "")
+    )
+    text = str(displayed or "").strip()
+    match = re.search(r"[?？]", text)
+    prefix = text
+    if match:
+        question_mark = match.start()
+        sentence_start = max(
+            text.rfind(". ", 0, question_mark),
+            text.rfind("! ", 0, question_mark),
+            text.rfind("\n", 0, question_mark),
+        )
+        prefix = "" if sentence_start == -1 else text[: sentence_start + 2].strip()
+    prefix = re.sub(r"[?？]+", ".", prefix).strip()
+    if not prefix and directive.get("kind") == "field_question":
+        prefix = "Okay."
+    return f"{prefix + ' ' if prefix else ''}{question}"
+
+
+def _field_answer_is_thin(state: EngineState, message: str) -> bool:
+    if not message or _is_no_addition(message):
+        return True
+    confusion_pattern = re.compile(
+        r"\b(?:do not|don't|cannot|can't) understand\b|"
+        r"\bconfus(?:ed|ing)\b|\bunclear\b|"
+        r"\bwhat (?:does|do) (?:this|that|you) mean\b|"
+        r"\b(?:can|could|would) you rephrase\b|"
+        r"\bnot sure what (?:this|that|the) question means\b",
+        flags=re.IGNORECASE,
+    )
+    if confusion_pattern.search(message):
+        return True
+    # The legacy section-level threshold is intentionally ignored here: the
+    # Winter '27 schema sets it to 25, which would probe nearly every concise
+    # field response. Field flow uses its own small opt-in threshold.
+    threshold = state.schema.get("field_probe_word_threshold", 6)
+    return len([word for word in message.split() if word]) < threshold
+
+
+def _complete_and_advance_field(state: EngineState) -> None:
+    area = state.schema["sections"][state.current_area_index - 1]
+    fields = _normalized_fields(area)
+    form_field = fields[state.field_cursor]
+    state.field_coverage[form_field["id"]]["complete"] = True
+    if state.field_cursor + 1 < len(fields):
+        state.field_cursor += 1
+        return
+    state.coverage[area["id"]].response_received = True
+    if state.current_area_index < len(state.schema["sections"]):
+        state.current_area_index += 1
+        state.field_cursor = 0
+        state.turns_in_current_area = 0
+
+
+def _before_field_turn(
+    state: EngineState,
+    student_message: Optional[str],
+) -> BeforeTurnResult:
+    state.turn += 1
+    message = (student_message or "").strip()
+    response_attribution = pending_response_attribution(state) if message else None
+
+    if state.closing_feedback_asked:
+        directive = _dir_final_ack(state)
+        state.last_directive = directive
+        return BeforeTurnResult(
+            directive=directive,
+            response_attribution=response_attribution,
+        )
+
+    if message and response_attribution:
+        form_field = current_field(state)
+        field_cov = state.field_coverage[form_field["id"]]
+        field_cov["response_received"] = True
+        field_cov["answer_turns"] += 1
+        field_cov["last_response"] = message
+        state.turns_in_current_area += 1
+        if (state.last_directive or {}).get("kind") == "field_probe":
+            _complete_and_advance_field(state)
+        elif _field_answer_is_thin(state, message) and not field_cov["probe_used"]:
+            field_cov["probe_used"] = True
+            area = state.schema["sections"][state.current_area_index - 1]
+            directive = _append_turn_gates(
+                state,
+                _dir_field_question(state, area, form_field, is_probe=True),
+            )
+            state.last_directive = directive
+            return BeforeTurnResult(
+                directive=directive,
+                response_attribution=response_attribution,
+            )
+        else:
+            _complete_and_advance_field(state)
+
+    if _all_covered(state):
+        directive = _dir_close(state)
+        state.last_directive = directive
+        return BeforeTurnResult(
+            directive=directive,
+            response_attribution=response_attribution,
+        )
+
+    area = state.schema["sections"][state.current_area_index - 1]
+    form_field = current_field(state)
+    state.coverage[area["id"]].opened = True
+    state.field_coverage[form_field["id"]]["asked"] = True
+    directive = _append_turn_gates(
+        state,
+        _dir_field_question(
+            state,
+            area,
+            form_field,
+            is_opening=state.turn == 1,
+        ),
+    )
+    state.last_directive = directive
+    return BeforeTurnResult(
+        directive=directive,
+        response_attribution=response_attribution,
+    )
+
+
+def _append_turn_gates(
+    state: EngineState,
+    directive: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        **directive,
+        "text": directive["text"] + _FIELD_TURN_GATES + _referral_gate(state),
+    }
 
 
 def _detect_forward_advance(state: EngineState, displayed: str) -> int:
@@ -890,6 +1208,14 @@ def _extract_roster_names(msg: str) -> Optional[list[str]]:
 
 
 def _area_response_satisfied(state: EngineState, area: dict[str, Any]) -> bool:
+    if _schema_uses_field_flow(state.schema) and state.field_coverage:
+        return all(
+            bool(
+                state.field_coverage.get(form_field["id"], {}).get("response_received")
+                and state.field_coverage.get(form_field["id"], {}).get("complete")
+            )
+            for form_field in _normalized_fields(area)
+        )
     cov = state.coverage[area["id"]]
     if not cov.response_received:
         return False
@@ -946,6 +1272,11 @@ def _should_probe(state: EngineState, area: dict[str, Any], last_msg: str) -> bo
 
 
 def _all_covered(state: EngineState) -> bool:
+    if _schema_uses_field_flow(state.schema) and state.field_coverage:
+        return all(
+            _area_response_satisfied(state, section)
+            for section in state.schema["sections"]
+        )
     for s in state.schema["sections"]:
         cov = state.coverage[s["id"]]
         if not cov.response_received:
@@ -956,6 +1287,13 @@ def _all_covered(state: EngineState) -> bool:
 
 
 def _count_remaining(state: EngineState) -> int:
+    if _schema_uses_field_flow(state.schema) and state.field_coverage:
+        return sum(
+            1
+            for section in state.schema["sections"]
+            for form_field in _normalized_fields(section)
+            if not state.field_coverage.get(form_field["id"], {}).get("complete")
+        )
     c = 0
     for s in state.schema["sections"]:
         cov = state.coverage[s["id"]]
@@ -965,6 +1303,64 @@ def _count_remaining(state: EngineState) -> int:
 
 
 # ─── directive builders ──────────────────────────────────────────────────
+
+
+def _dir_field_question(
+    state: EngineState,
+    area: dict[str, Any],
+    form_field: dict[str, Any],
+    *,
+    is_probe: bool = False,
+    is_opening: bool = False,
+) -> dict[str, Any]:
+    fields = _normalized_fields(area)
+    field_index = next(
+        (index for index, candidate in enumerate(fields) if candidate["id"] == form_field["id"]),
+        0,
+    )
+    kind_guidance = {
+        "shortform": "Invite one concise, focused response.",
+        "longform": "Invite a fuller response with the detail the student thinks matters.",
+        "rating_with_justification": "Ask for a rating and a brief reason in the same response.",
+        "table": "Ask for the rows or list items needed for this field in one response.",
+    }.get(form_field.get("kind"), "Invite one focused response.")
+    directive_kind = (
+        "field_probe" if is_probe else "field_opening" if is_opening else "field_question"
+    )
+    student_question = student_question_for_field(form_field)
+    lines = [
+        f"[DIRECTIVE FOR THIS TURN — FIELD {field_index + 1} OF {len(fields)}]",
+        (
+            "Briefly greet the student and say you will walk through the reflection one question at a time."
+            if is_opening
+            else "Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair), then ask the question."
+        ),
+        f'CURRENT CANONICAL FIELD LABEL: "{form_field["label"]}"',
+        (
+            "Ask ONLY this field. Rephrase it more concretely without changing its meaning."
+            if is_probe
+            else f'REQUIRED STUDENT QUESTION — ask this exact question verbatim: "{student_question}"'
+        ),
+        "Do NOT ask, mention, preview, or combine any other field in this section.",
+        kind_guidance,
+    ]
+    if is_probe:
+        lines.append(
+            "This is the one allowed same-field follow-up. Rephrase the current label more concretely or ask for one specific example. Do NOT switch fields and do NOT probe this field again after the student replies."
+        )
+    lines.append(
+        "Use exactly one question. Under 350 characters. Output only what you would say to the student."
+    )
+    return {
+        "kind": directive_kind,
+        "section_id": area["id"],
+        "field_id": form_field["id"],
+        "field_label": form_field["label"],
+        "field_kind": form_field.get("kind", "longform"),
+        "student_question": student_question,
+        "response_phase": "probe" if is_probe else "primary",
+        "text": "\n".join(lines),
+    }
 
 
 def _dir_opening(state: EngineState, area: dict[str, Any]) -> dict[str, Any]:
@@ -1194,6 +1590,13 @@ def _looks_like_closing_feedback(displayed: str, closing_prompt: str) -> bool:
 
 def _force_cover_all(state: EngineState) -> None:
     sections = state.schema["sections"]
+    for section in sections:
+        for form_field in _normalized_fields(section):
+            field_cov = state.field_coverage.get(form_field["id"])
+            if field_cov is not None:
+                field_cov["asked"] = True
+                field_cov["response_received"] = True
+                field_cov["complete"] = True
     for s in sections:
         cov = state.coverage[s["id"]]
         cov.opened = True
@@ -1215,4 +1618,5 @@ def _force_cover_all(state: EngineState) -> None:
             cov.sub_signals["members_walked"] = walked
             cov.sub_signals["equity_asked"] = True
     state.current_area_index = len(sections)
+    state.field_cursor = max(0, len(_normalized_fields(sections[-1])) - 1)
     state.awaiting_anything_else = False

@@ -276,7 +276,18 @@ var leaiAnalysis = {
                 var studentMsgs = msgs.filter(function(m) {
                     return m.sent_by === 'user-message' || m.sent_by === 'user';
                 }).map(function(m) { return m.content; });
-                if (studentMsgs.length) {
+                // PDF imports are represented as assistant-role field rows
+                // (`Q: …\n\nA: …`), not chat turns. Count the session once
+                // and analyze its answers when it has no student chat text.
+                var pdfAnswers = msgs.filter(function(m) {
+                    return m && m.source === 'pdf';
+                }).map(function(m) {
+                    var content = String(m.content == null ? '' : m.content);
+                    var field = content.match(/^Q:\s*[\s\S]*?\n\nA:\s*([\s\S]*)$/);
+                    return (field ? field[1] : content).trim();
+                }).filter(Boolean);
+                var responseText = studentMsgs.length ? studentMsgs : pdfAnswers;
+                if (responseText.length) {
                     const weekNumber = s.week_number || 0;
                     weekCounters[weekNumber] = (weekCounters[weekNumber] || 0) + 1;
                     const weekRid = 'R' + weekCounters[weekNumber];
@@ -289,7 +300,7 @@ var leaiAnalysis = {
                         survey_id: s.gpt_id,
                         session_id: sid,
                         week_number: weekNumber,
-                        text: studentMsgs.join(' | '),
+                        text: responseText.join(' | '),
                     });
                     counter++;
                 }
@@ -817,7 +828,14 @@ var leaiInsights = (function () {
             if (role === 'user-message' || role === 'user') who = 'Student';
             else if (role === 'AI-message' || role === 'assistant') who = 'Remi';
             else return null;
-            return { who: who, text: String(text) };
+            return {
+                who: who,
+                text: String(text),
+                sectionId: m.form_section_id || null,
+                fieldId: m.form_field_id || null,
+                fieldLabel: m.form_field_label || null,
+                responsePhase: m.form_response_phase || null,
+            };
         }).filter(Boolean);
     }
 
@@ -825,9 +843,30 @@ var leaiInsights = (function () {
         ctx = ctx || {};
         var turns = transcriptToTurns(messages);
         var sectionList = (schema.sections || []).map(function (s, i) {
-            return '  Area ' + (i + 1) + ' of ' + schema.sections.length + ' \u2014 ' + s.title;
+            var lines = ['  Area ' + (i + 1) + ' of ' + schema.sections.length + ' \u2014 ' + s.title];
+            (s.fields || []).forEach(function (field, fieldIndex) {
+                lines.push(
+                    '    Field ' + (fieldIndex + 1) + ': ' + (field.id || '(no id)') +
+                    ' [' + (field.kind || 'longform') + ']: ' +
+                    (field.label || field.dimension || (field.columns || []).join(' / ') || '(no label)')
+                );
+            });
+            return lines.join('\n');
         }).join('\n');
         var convo = turns.map(function (t) { return t.who + ': ' + t.text; }).join('\n');
+        var attributed = turns.filter(function (turn) {
+            return turn.who === 'Student' && turn.fieldId;
+        }).map(function (turn) {
+            var phase = turn.responsePhase === 'probe'
+                ? 'Follow-up'
+                : (turn.responsePhase === 'revision' ? 'Revision' : 'Primary');
+            return (
+                'Section ' + (turn.sectionId || '(unknown)') +
+                ' / Field ' + turn.fieldId +
+                (turn.fieldLabel ? ' — ' + turn.fieldLabel : '') +
+                ' / ' + phase + ': ' + turn.text
+            );
+        }).join('\n');
         return [
             '=== SCHEMA ===',
             schema.title || schema.schema_id,
@@ -837,6 +876,10 @@ var leaiInsights = (function () {
             '',
             'Areas (in order):',
             sectionList,
+            '',
+            '=== ATTRIBUTED ORIGINAL STUDENT RESPONSES ===',
+            'These are the student’s original words grouped by the exact field shown. Keep any synthesis separate from them.',
+            attributed || '(No exact field attribution is available for this historical response.)',
             '',
             '=== STUDENT ===',
             (ctx.studentName || ctx.sessionId || '(anonymous)'),
@@ -955,6 +998,7 @@ var leaiInsights = (function () {
         FORM_PREFIX_RE: FORM_PREFIX_RE,
         isFormSession: isFormSession,
         loadSchema: loadSchema,
+        buildPayload: buildPayload,
         generateReport: generateReport,
         getCachedReport: getCachedReport,
         clearReport: clearReport,

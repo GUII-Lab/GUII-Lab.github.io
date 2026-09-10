@@ -37,6 +37,19 @@
         '- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write "single question mark", "I need a new angle", "the student said"). No meta-commentary.',
     ].join('\n');
 
+    // Field flow has no area-level wrap-up turn. Keep its fresh per-turn
+    // rules free of the legacy "anything else" language, which otherwise
+    // invites the model to invent an extra question after the final field.
+    var FIELD_TURN_GATES = '\n\n' + [
+        '[HARD RULES FOR THIS FIELD — these override your default helpful/warm style]',
+        '- ACK ALLOWLIST: After a student answer, begin with exactly one of: "Got it." / "Okay." / "Mm." / "Noted." / "Fair." Then go straight to the one current-field question. Do not praise or rate the answer.',
+        '- NO ECHO: Do not quote, restate, paraphrase, or summarize the student\'s answer.',
+        '- CURRENT FIELD ONLY: Ask exactly one question about the CURRENT CANONICAL FIELD LABEL. Do not mention another field and do not add a section wrap-up.',
+        '- NO DEFINING: If asked to define course material, briefly decline and tightly rephrase the current field around what the student did or noticed.',
+        '- REPHRASE ON REQUEST: If the current question is confusing, simplify that same field. This consumes the one allowed probe; after the reply, advance.',
+        '- OUTPUT HYGIENE: Output only what you would say to the student. No instructions, planning, headers, or control tokens.',
+    ].join('\n');
+
     // Default destination for the POINT TO A HUMAN gate when a course enables
     // it without customizing the wording. Kept generic on purpose — "your
     // instructor or TA", never a person's name, time, or room.
@@ -72,6 +85,271 @@
     // trying to measure; this NEW wording asks the same comparison neutrally.
     var CLOSING_FEEDBACK_FALLBACK = 'Last thing — how did reflecting through this conversation compare to writing your reflection on your own, and what would make it better next time?';
 
+    var SUPPORTED_FIELD_KINDS = {
+        shortform: true,
+        longform: true,
+        rating_with_justification: true,
+        table: true,
+    };
+
+    function validateSchemaFields(schema) {
+        if (!schema || !Array.isArray(schema.sections) || !schema.sections.length) {
+            throw new Error('Form schema must contain at least one section.');
+        }
+        var seenIds = {};
+        schema.sections.forEach(function (area, sectionIndex) {
+            var fields = Array.isArray(area && area.fields) ? area.fields : [];
+            fields.forEach(function (field, fieldIndex) {
+                var location = 'section ' + ((area && area.id) || (sectionIndex + 1)) + ', field ' + (fieldIndex + 1);
+                if (!field || typeof field !== 'object') {
+                    throw new Error('Form field must be an object at ' + location + '.');
+                }
+                var id = String(field.id || '').trim();
+                if (!id) throw new Error('Form field id is required at ' + location + '.');
+                if (seenIds[id]) throw new Error('Duplicate field id "' + id + '" in form schema.');
+                seenIds[id] = true;
+
+                var kind = String(field.kind || '').trim();
+                if (!kind) throw new Error('Form field kind is required for "' + id + '".');
+                if (!SUPPORTED_FIELD_KINDS[kind]) {
+                    throw new Error('Unsupported field kind "' + kind + '" for "' + id + '".');
+                }
+                if (kind === 'shortform' && !String(field.label || '').trim()) {
+                    throw new Error('Shortform field "' + id + '" requires a label.');
+                }
+                if (kind === 'longform' && !String(field.label || '').trim() && !String((area && area.opening_prompt) || '').trim()) {
+                    throw new Error('Longform field "' + id + '" requires a label or section opening_prompt.');
+                }
+                if (kind === 'rating_with_justification' && !String(field.label || field.dimension || '').trim()) {
+                    throw new Error('Rating field "' + id + '" requires a label or dimension.');
+                }
+                if (kind === 'table' && !String(field.label || '').trim() && !(Array.isArray(field.columns) && field.columns.some(Boolean))) {
+                    throw new Error('Table field "' + id + '" requires a label or columns.');
+                }
+            });
+        });
+    }
+
+    function normalizedFields(area) {
+        var fields = (area && Array.isArray(area.fields)) ? area.fields.filter(function (field) {
+            return field && (field.label || field.id || field.kind);
+        }) : [];
+        if (fields.length) {
+            return fields.map(function (field, index) {
+                var copy = Object.assign({}, field);
+                copy.id = copy.id || ((area && area.id) ? area.id + '.field-' + (index + 1) : 'field-' + (index + 1));
+                copy.kind = copy.kind || 'longform';
+                copy.label = copy.label || field.dimension || ((field.columns || []).join(' / ')) || (area && area.opening_prompt) || copy.id;
+                return copy;
+            });
+        }
+        // Legacy schemas sometimes represented a whole section as one
+        // unlabeled long-form prompt. Keep that shape usable without letting
+        // a compound opening_prompt override real labeled fields.
+        return [{
+            id: ((area && area.id) || 'section') + '.response',
+            kind: 'longform',
+            label: (area && (area.opening_prompt || area.title)) || 'Tell me about this section.',
+            _legacy_opening_fallback: true,
+        }];
+    }
+
+    function schemaUsesFieldFlow(schema) {
+        return !!(schema && Array.isArray(schema.sections) && schema.sections.length);
+    }
+
+    function canonicalStudentQuestion(label) {
+        var text = String(label || '').trim();
+        if (!text) return 'What would you like to record for this item?';
+        if (/[?？]$/.test(text)) return text;
+        text = text.replace(/[.]+$/, '');
+        text = text
+            .replace(/^How well I\b/i, 'How well do you')
+            .replace(/^How I\b/i, 'How do you')
+            .replace(/^What I\b/i, 'What do you')
+            .replace(/^Why I\b/i, 'Why do you')
+            .replace(/^When I\b/i, 'When do you')
+            .replace(/^Where I\b/i, 'Where do you')
+            .replace(/^What information the AI needs\b/i, 'What information does the AI need');
+        text = text
+            .replace(/\bI[’']m\b/g, 'you’re')
+            .replace(/\bI[’']ve\b/g, 'you’ve')
+            .replace(/\bmyself\b/gi, 'yourself')
+            .replace(/\bmy\b/gi, 'your')
+            .replace(/\bme\b/gi, 'you')
+            .replace(/\bI\b/g, 'you');
+        return text + '?';
+    }
+
+    function studentQuestionForField(field) {
+        var kind = (field && field.kind) || 'longform';
+        if (kind === 'rating_with_justification') {
+            var dimension = String((field && (field.dimension || field.label)) || '').trim().replace(/[?？]+$/, '');
+            return 'What 1–5 rating would you give “' + dimension + '”, and why?';
+        }
+        if (kind === 'table') {
+            var columns = (field && Array.isArray(field.columns)) ? field.columns.filter(Boolean) : [];
+            var columnText = columns.length
+                ? columns.map(function (column) { return '“' + column + '”'; }).join(' and ')
+                : 'this table';
+            return 'What rows should be recorded for ' + columnText + '?';
+        }
+        return canonicalStudentQuestion(field && field.label);
+    }
+
+    function enforceCanonicalFieldQuestion(displayed, directive) {
+        if (!directive || (directive.kind !== 'field_opening' && directive.kind !== 'field_question')) {
+            return displayed;
+        }
+        var question = directive.student_question || canonicalStudentQuestion(directive.field_label);
+        var text = String(displayed || '').trim();
+        var questionMark = text.search(/[?？]/);
+        var prefix = text;
+        if (questionMark !== -1) {
+            var sentenceStart = Math.max(
+                text.lastIndexOf('. ', questionMark),
+                text.lastIndexOf('! ', questionMark),
+                text.lastIndexOf('\n', questionMark)
+            );
+            prefix = sentenceStart === -1 ? '' : text.slice(0, sentenceStart + 2).trim();
+        }
+        prefix = prefix.replace(/[?？]+/g, '.').trim();
+        if (!prefix && directive.kind === 'field_question') prefix = 'Okay.';
+        return (prefix ? prefix + ' ' : '') + question;
+    }
+
+    function fieldKey(field) {
+        return field && field.id ? String(field.id) : '';
+    }
+
+    function fieldAt(state, areaIndex, fieldIndex) {
+        var area = state.schema.sections[areaIndex - 1];
+        var fields = normalizedFields(area);
+        return fields[fieldIndex] || null;
+    }
+
+    function currentField(state) {
+        return fieldAt(state, state.current_area_index, state.field_cursor || 0);
+    }
+
+    function attributionForDirective(state, directive) {
+        if (!directive || (directive.kind !== 'field_opening' && directive.kind !== 'field_question' && directive.kind !== 'field_probe')) {
+            return null;
+        }
+        return {
+            form_schema_id: state.schema.schema_id || state.schema.id || null,
+            form_schema_version: state.schema.version == null ? null : state.schema.version,
+            form_section_id: directive.section_id,
+            form_field_id: directive.field_id,
+            form_field_label: directive.field_label,
+            form_response_phase: directive.kind === 'field_probe' ? 'probe' : 'primary',
+        };
+    }
+
+    function pendingResponseAttribution(state) {
+        return attributionForDirective(state, state && state.last_directive);
+    }
+
+    function fieldAnswerIsThin(state, msg) {
+        if (!msg || isNoAdditionResponse(msg)) return true;
+        if (/\b(?:do not|don't|cannot|can't) understand\b|\bconfus(?:ed|ing)\b|\bunclear\b|\bwhat (?:does|do) (?:this|that|you) mean\b|\b(?:can|could|would) you rephrase\b|\bnot sure what (?:this|that|the) question means\b/i.test(msg)) {
+            return true;
+        }
+        // `shallow_word_threshold` belonged to the old section-level probe
+        // system (the Winter '27 schema currently sets it to 25). Reusing it here would
+        // turn almost every concise field answer into a follow-up. Field flow
+        // has its own deliberately small, opt-in threshold instead.
+        var threshold = state.schema.field_probe_word_threshold || 6;
+        var words = msg.split(/\s+/).filter(Boolean);
+        return words.length < threshold;
+    }
+
+    function markCurrentFieldAnswered(state, msg) {
+        var area = state.schema.sections[state.current_area_index - 1];
+        var field = currentField(state);
+        if (!field) return;
+        var cov = state.field_coverage[fieldKey(field)];
+        if (!cov) return;
+        cov.response_received = true;
+        cov.answer_turns = (cov.answer_turns || 0) + 1;
+        cov.last_response = msg;
+        state.coverage[area.id].response_received = normalizedFields(area).every(function (candidate) {
+            var candidateCov = state.field_coverage[fieldKey(candidate)];
+            return !!(candidateCov && candidateCov.response_received && candidateCov.complete);
+        });
+    }
+
+    function completeAndAdvanceField(state) {
+        var area = state.schema.sections[state.current_area_index - 1];
+        var fields = normalizedFields(area);
+        var field = fields[state.field_cursor || 0];
+        if (field && state.field_coverage[fieldKey(field)]) {
+            state.field_coverage[fieldKey(field)].complete = true;
+        }
+        if ((state.field_cursor || 0) + 1 < fields.length) {
+            state.field_cursor += 1;
+            return;
+        }
+        state.coverage[area.id].response_received = true;
+        if (state.current_area_index < state.schema.sections.length) {
+            state.current_area_index += 1;
+            state.field_cursor = 0;
+            state.turns_in_current_area = 0;
+        }
+    }
+
+    function beforeFieldTurn(state, studentMessage) {
+        state.turn += 1;
+        var msg = (studentMessage || '').trim();
+        var responseAttribution = msg ? pendingResponseAttribution(state) : null;
+
+        if (state.closing_feedback_asked) {
+            var finalDirective = dirFinalAck(state);
+            state.last_directive = finalDirective;
+            return mkBefore({ directive: finalDirective, responseAttribution: responseAttribution });
+        }
+
+        if (msg && responseAttribution) {
+            var answeredField = currentField(state);
+            var answeredCoverage = answeredField && state.field_coverage[fieldKey(answeredField)];
+            markCurrentFieldAnswered(state, msg);
+            state.turns_in_current_area = (state.turns_in_current_area || 0) + 1;
+            if (state.last_directive.kind === 'field_probe') {
+                completeAndAdvanceField(state);
+            } else if (fieldAnswerIsThin(state, msg) && answeredCoverage && !answeredCoverage.probe_used) {
+                answeredCoverage.probe_used = true;
+                var probeDirective = dirFieldQuestion(state, state.schema.sections[state.current_area_index - 1], answeredField, true, false);
+                state.last_directive = appendTurnGates(state, probeDirective);
+                return mkBefore({ directive: state.last_directive, responseAttribution: responseAttribution });
+            } else {
+                completeAndAdvanceField(state);
+            }
+        }
+
+        if (allCovered(state)) {
+            var closeDirective = dirClose(state);
+            state.last_directive = closeDirective;
+            return mkBefore({ directive: closeDirective, responseAttribution: responseAttribution });
+        }
+
+        var area = state.schema.sections[state.current_area_index - 1];
+        var field = currentField(state);
+        state.coverage[area.id].opened = true;
+        var fieldCoverage = state.field_coverage[fieldKey(field)];
+        if (fieldCoverage) fieldCoverage.asked = true;
+        var isOpening = state.turn === 1;
+        var directive = dirFieldQuestion(state, area, field, false, isOpening);
+        state.last_directive = appendTurnGates(state, directive);
+        return mkBefore({ directive: state.last_directive, responseAttribution: responseAttribution });
+    }
+
+    function appendTurnGates(state, directive) {
+        if (!directive || typeof directive.text !== 'string') return directive;
+        return Object.assign({}, directive, {
+            text: directive.text + FIELD_TURN_GATES + referralGate(state),
+        });
+    }
+
     function totalTurnBudget(state) {
         var n = (state && state.schema && state.schema.sections) ? state.schema.sections.length : 6;
         var v = n * TURNS_PER_SECTION_BUDGET;
@@ -102,7 +380,9 @@
 
         // Build a fresh engine state for a new conversation.
         init: function (schema, ctx) {
+            validateSchemaFields(schema);
             var coverage = {};
+            var fieldCoverage = {};
             schema.sections.forEach(function (s) {
                 coverage[s.id] = {
                     opened: false,
@@ -110,11 +390,22 @@
                     probe_used: false,
                     sub_signals: {},  // free-form bag for E9 thresholds
                 };
+                normalizedFields(s).forEach(function (field) {
+                    fieldCoverage[fieldKey(field)] = {
+                        asked: false,
+                        response_received: false,
+                        probe_used: false,
+                        complete: false,
+                        answer_turns: 0,
+                    };
+                });
             });
             return {
                 schema: schema,
                 current_area_index: 1,
+                field_cursor: 0,
                 coverage: coverage,
+                field_coverage: fieldCoverage,
                 ended: false,
                 team_id: (ctx && ctx.team_id) || null,
                 team_member_slot: (ctx && ctx.team_member_slot) || null,
@@ -147,11 +438,11 @@
                 '',
                 '',
                 '==== FORM-MAPPING MODE (engine-controlled) ====',
-                'You are now operating under an external state machine that tracks which of the ' + n + ' reflection areas the student is on. Each turn you will receive a [DIRECTIVE] block telling you exactly what to do this turn. Follow the directive exactly.',
+                'You are now operating under an external field-by-field state machine. It tracks the exact section and canonical field label currently shown to the student. Each turn you will receive a [DIRECTIVE] block telling you exactly what to do this turn. Follow the directive exactly.',
                 'Areas (canonical titles — do NOT rename, paraphrase, invent):',
                 titles,
                 'Constraints:',
-                '- Stay on the directive\'s area. Do not skip ahead.',
+                '- Stay on the directive\'s canonical field label. Do not skip ahead, preview, or combine fields.',
                 '- Ask AT MOST one question per turn.',
                 '- Keep messages under 350 characters unless the directive says otherwise.',
                 '- Do NOT write the reflection for the student. Redirect off-topic asks back to their reflection.',
@@ -194,6 +485,10 @@
                 state._post_end_passthrough = true;
                 state.last_directive = { kind: 'post_end' };
                 return mkBefore({ directive: dirPostEnd(state) });
+            }
+
+            if (schemaUsesFieldFlow(state.schema)) {
+                return beforeFieldTurn(state, studentMessage);
             }
 
             state.turn += 1;
@@ -560,6 +855,7 @@
             // syncs the engine forward, anything else is a hallucinated regression
             // and gets removed.
             displayed = stripWrongSectionHeaders(displayed, i, n, area.title);
+            displayed = enforceCanonicalFieldQuestion(displayed, state.last_directive);
 
             // Salvage missing forward question. Production transcripts
             // showed the bot ack-only on non-final_ack turns ("Thanks, I've
@@ -580,6 +876,7 @@
             var shouldEmitHeader = (
                 directiveKind === 'opening' ||
                 directiveKind === 'open_area' ||
+                directiveKind === 'field_opening' ||
                 i !== prevEmitted
             );
             if (shouldEmitHeader) {
@@ -646,10 +943,23 @@
             var n = state.schema.sections.length;
             var i = state.current_area_index;
             var area = state.schema.sections[i - 1];
-            return 'Area ' + i + ' of ' + n + ' — ' + area.title;
+            var fields = normalizedFields(area);
+            return 'Area ' + i + ' of ' + n + ' — ' + area.title + ' · Question ' + ((state.field_cursor || 0) + 1) + ' of ' + fields.length;
         },
         currentArea: function (state) {
             return state.schema.sections[state.current_area_index - 1];
+        },
+        currentField: function (state) {
+            return currentField(state);
+        },
+        canonicalStudentQuestion: function (label) {
+            return canonicalStudentQuestion(label);
+        },
+        studentQuestionForField: function (field) {
+            return studentQuestionForField(field);
+        },
+        pendingResponseAttribution: function (state) {
+            return pendingResponseAttribution(state);
         },
 
         // Render the structured form-mapped output for download (F4).
@@ -686,7 +996,7 @@
                 lines.push('## ' + s.id + '. ' + s.title);
                 lines.push('');
                 var slot = slots ? slots[s.id] : null;
-                var rendered = renderSectionMarkdown(s, slot, extractSectionAnswer(s, transcript));
+                var rendered = renderSectionMarkdown(s, slot, extractSectionAnswer(s, transcript), transcript);
                 lines.push(rendered);
                 lines.push('');
             });
@@ -765,7 +1075,7 @@
             schema.sections.forEach(function (s) {
                 html += '<h2>' + esc(s.id) + '. ' + esc(s.title) + '</h2>';
                 var slot = slots ? slots[s.id] : null;
-                html += renderSectionHtml(s, slot, extractSectionAnswer(s, transcript), esc);
+                html += renderSectionHtml(s, slot, extractSectionAnswer(s, transcript), esc, transcript);
             });
 
             html += '<div class="transcript">';
@@ -790,8 +1100,49 @@
         }).join('');
     }
 
-    function renderSectionHtml(section, slot, fallbackAnswer, esc) {
+    function attributedFieldResponses(section, transcript) {
+        var fields = normalizedFields(section);
+        var byField = {};
+        var any = false;
+        fields.forEach(function (formField) { byField[formField.id] = []; });
+        (transcript || []).forEach(function (turn) {
+            var role = turn.role || turn.sent_by;
+            if (role !== 'user' && role !== 'user-message') return;
+            if (turn.form_section_id && turn.form_section_id !== section.id) return;
+            var fieldId = turn.form_field_id;
+            if (!fieldId || !Object.prototype.hasOwnProperty.call(byField, fieldId)) return;
+            any = true;
+            byField[fieldId].push({
+                phase: turn.form_response_phase || 'primary',
+                text: String(turn.text != null ? turn.text : (turn.content || '')),
+            });
+        });
+        return any ? { fields: fields, byField: byField } : null;
+    }
+
+    function attributedResponseText(responses) {
+        if (!responses || !responses.length) return '(no response captured)';
+        if (responses.length === 1 && responses[0].phase === 'primary') return responses[0].text;
+        return responses.map(function (response) {
+            var label = response.phase === 'probe'
+                ? 'Follow-up'
+                : (response.phase === 'revision' ? 'Revision' : 'Primary');
+            return label + ': ' + response.text;
+        }).join('\n');
+    }
+
+    function renderSectionHtml(section, slot, fallbackAnswer, esc, transcript) {
         var html = '';
+        var attributed = attributedFieldResponses(section, transcript);
+        if (attributed) {
+            html += '<table><thead><tr><th>Question</th><th>Original student response</th></tr></thead><tbody>';
+            attributed.fields.forEach(function (formField) {
+                var responseText = attributedResponseText(attributed.byField[formField.id]);
+                html += '<tr><td>' + esc(formField.label) + '</td><td>' + esc(responseText).replace(/\n/g, '<br>') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
         if (section.id === '2.2') {
             html += '<table><thead><tr><th>Team Member</th><th>Primary Role / Contribution This Week</th></tr></thead><tbody>';
             var rows = (slot && slot.roster) ? slot.roster : [];
@@ -855,7 +1206,18 @@
         return '<div class="section-body">' + paragraphsToHtml(body, esc) + '</div>';
     }
 
-    function renderSectionMarkdown(section, slot, fallbackAnswer) {
+    function renderSectionMarkdown(section, slot, fallbackAnswer, transcript) {
+        var attributed = attributedFieldResponses(section, transcript);
+        if (attributed) {
+            var exactLines = [];
+            attributed.fields.forEach(function (formField) {
+                exactLines.push('**' + formField.label + '**');
+                exactLines.push('');
+                exactLines.push(attributedResponseText(attributed.byField[formField.id]));
+                exactLines.push('');
+            });
+            return exactLines.join('\n').trim();
+        }
         if (section.id === '2.2') {
             var lines = ['| Team Member | Primary Role / Contribution This Week |', '|---|---|'];
             var rows = (slot && slot.roster) ? slot.roster : [];
@@ -1001,6 +1363,17 @@
             }));
             var slot = slots ? slots[s.id] : null;
             var fallback = extractSectionAnswer(s, transcript);
+            var attributed = attributedFieldResponses(s, transcript);
+
+            if (attributed) {
+                children.push(table(
+                    ['Question', 'Original student response'],
+                    attributed.fields.map(function (formField) {
+                        return [formField.label, attributedResponseText(attributed.byField[formField.id])];
+                    })
+                ));
+                return;
+            }
 
             if (s.id === '2.2') {
                 var rows = (slot && slot.roster) ? slot.roster : [];
@@ -1713,6 +2086,12 @@
     }
 
     function areaResponseSatisfied(state, area) {
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            return normalizedFields(area).every(function (field) {
+                var fieldCov = state.field_coverage[fieldKey(field)];
+                return !!(fieldCov && fieldCov.response_received && fieldCov.complete);
+            });
+        }
         var cov = state.coverage[area.id];
         if (!cov.response_received) return false;
         if (area.id === '2.4') {
@@ -1775,6 +2154,12 @@
 
     function allCovered(state) {
         var sections = state.schema.sections;
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            for (var fsi = 0; fsi < sections.length; fsi++) {
+                if (!areaResponseSatisfied(state, sections[fsi])) return false;
+            }
+            return true;
+        }
         for (var k = 0; k < sections.length; k++) {
             var s = sections[k];
             var cov = state.coverage[s.id];
@@ -1787,6 +2172,15 @@
     function countRemaining(state) {
         var sections = state.schema.sections;
         var c = 0;
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            for (var fsi = 0; fsi < sections.length; fsi++) {
+                normalizedFields(sections[fsi]).forEach(function (field) {
+                    var fieldCov = state.field_coverage[fieldKey(field)];
+                    if (!fieldCov || !fieldCov.complete) c++;
+                });
+            }
+            return c;
+        }
         for (var k = 0; k < sections.length; k++) {
             var s = sections[k];
             if (!state.coverage[s.id].response_received || !areaResponseSatisfied(state, s)) c++;
@@ -1839,6 +2233,17 @@
     // the closing-feedback question).
     function forceCoverAll(state) {
         var sections = state.schema.sections;
+        if (state.field_coverage) {
+            sections.forEach(function (section) {
+                normalizedFields(section).forEach(function (field) {
+                    var fieldCov = state.field_coverage[fieldKey(field)];
+                    if (!fieldCov) return;
+                    fieldCov.asked = true;
+                    fieldCov.response_received = true;
+                    fieldCov.complete = true;
+                });
+            });
+        }
         for (var k = 0; k < sections.length; k++) {
             var s = sections[k];
             var cov = state.coverage[s.id];
@@ -1866,6 +2271,7 @@
             }
         }
         state.current_area_index = sections.length;
+        state.field_cursor = Math.max(0, normalizedFields(sections[sections.length - 1]).length - 1);
         state.awaiting_anything_else = false;
     }
 
@@ -1910,6 +2316,47 @@
     }
 
     // ─── directive builders ──────────────────────────────────────────────
+
+    function dirFieldQuestion(state, area, field, isProbe, isOpening) {
+        var fields = normalizedFields(area);
+        var fieldIndex = Math.max(0, fields.findIndex(function (candidate) {
+            return candidate.id === field.id;
+        }));
+        var kindGuidance = {
+            shortform: 'Invite one concise, focused response.',
+            longform: 'Invite a fuller response with the detail the student thinks matters.',
+            rating_with_justification: 'Ask for a rating and a brief reason in the same response.',
+            table: 'Ask for the rows or list items needed for this field in one response.',
+        }[field.kind] || 'Invite one focused response.';
+        var directiveKind = isProbe ? 'field_probe' : (isOpening ? 'field_opening' : 'field_question');
+        var studentQuestion = studentQuestionForField(field);
+        var lines = [
+            '[DIRECTIVE FOR THIS TURN — FIELD ' + (fieldIndex + 1) + ' OF ' + fields.length + ']',
+            isOpening
+                ? 'Briefly greet the student and say you will walk through the reflection one question at a time.'
+                : 'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair), then ask the question.',
+            'CURRENT CANONICAL FIELD LABEL: "' + field.label + '"',
+            isProbe
+                ? 'Ask ONLY this field. Rephrase it more concretely without changing its meaning.'
+                : 'REQUIRED STUDENT QUESTION — ask this exact question verbatim: "' + studentQuestion + '"',
+            'Do NOT ask, mention, preview, or combine any other field in this section.',
+            kindGuidance,
+        ];
+        if (isProbe) {
+            lines.push('This is the one allowed same-field follow-up. Rephrase the current label more concretely or ask for one specific example. Do NOT switch fields and do NOT probe this field again after the student replies.');
+        }
+        lines.push('Use exactly one question. Under 350 characters. Output only what you would say to the student.');
+        return {
+            kind: directiveKind,
+            section_id: area.id,
+            field_id: field.id,
+            field_label: field.label,
+            field_kind: field.kind,
+            student_question: studentQuestion,
+            response_phase: isProbe ? 'probe' : 'primary',
+            text: withRoster(state, lines).join('\n'),
+        };
+    }
 
     function dirOpening(state, area) {
         var schema = state.schema;
@@ -2147,7 +2594,10 @@
         // Quick check — if any '?' or '？' is present we accept the reply.
         if (/[?？]/.test(displayed)) return displayed;
         var q = '';
-        if (directiveKind === 'opening' || directiveKind === 'open_area' || directiveKind === 'continue') {
+        if (directiveKind === 'field_opening' || directiveKind === 'field_question' || directiveKind === 'field_probe') {
+            var field = currentField(state);
+            q = field ? field.label : '';
+        } else if (directiveKind === 'opening' || directiveKind === 'open_area' || directiveKind === 'continue') {
             q = area && area.opening_prompt ? area.opening_prompt : '';
         } else if (directiveKind === 'anything_else') {
             var topic = (area && (area.topic || area.title)) || 'this area';
@@ -2173,6 +2623,7 @@
             syntheticResponse: opts.syntheticResponse || '',
             directive: opts.directive || null,
             ended: !!opts.ended,
+            responseAttribution: opts.responseAttribution || null,
         };
     }
 

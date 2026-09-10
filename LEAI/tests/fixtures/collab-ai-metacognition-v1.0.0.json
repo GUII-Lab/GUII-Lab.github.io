@@ -1,0 +1,65 @@
+{
+  "schema_id": "collab-ai-metacognition",
+  "version": "1.0.0",
+  "title": "CMPM 80H — Collaborative AI Metacognition Scale: Reflection",
+  "course": "CMPM 80H — Human Centered AI (Winter 2027)",
+  "week": null,
+  "intro": "I'll walk you through the Collaborative AI Metacognition reflection. You can ask to revise an earlier answer at any point. When we finish, you'll get a file to upload to the course portal.",
+  "parts_blurb": "Collaborative AI Metacognition scale items",
+  "sections": [
+    {
+      "id": "1",
+      "title": "Planning",
+      "topic": "how you plan and prepare before and during your work with the AI",
+      "one_line": "how you plan your inputs, understand the AI’s capabilities, and divide the work",
+      "opening_prompt": "When you work with the AI on your task, walk me through how you decide what information to give it, what it needs, what it’s good and less good at for this task, and how you split the work between the two of you.",
+      "depth_probe": "Can you give a concrete moment this week when this kind of planning shaped what you did next?",
+      "fields": [
+        { "id": "P1", "kind": "shortform", "label": "How I give the most appropriate information to the AI" },
+        { "id": "P2", "kind": "shortform", "label": "What information the AI needs to perform the task" },
+        { "id": "P3", "kind": "shortform", "label": "How well I understand what the AI is good at and less good at for this task" },
+        { "id": "P4", "kind": "shortform", "label": "How I decide the best way to divide the work between me and the AI" }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "Monitoring",
+      "topic": "how you check yourself and the task while working with the AI",
+      "one_line": "how you review your own thinking, check progress against goals, and watch for bias or personal limitations while working with the AI",
+      "opening_prompt": "While you’re actually working with the AI, how do you keep tabs on your own thinking, the task goals, and any biases or limitations of your own that could be shaping your reactions?",
+      "depth_probe": "What made you notice that in the moment, and what did you do differently as a result?",
+      "fields": [
+        { "id": "M1", "kind": "shortform", "label": "How I make sure I’m giving the AI’s recommendations proper consideration before accepting or rejecting them" },
+        { "id": "M2", "kind": "shortform", "label": "How I check in on task goals while working with the AI" },
+        { "id": "M3", "kind": "shortform", "label": "How I watch for my own mental shortcuts or biases shaping my reactions to the AI’s output" },
+        { "id": "M4", "kind": "shortform", "label": "How I stay aware of my own limitations while doing the task" }
+      ]
+    },
+    {
+      "id": "3",
+      "title": "Evaluation",
+      "topic": "how you reflect back on the collaboration after the fact",
+      "one_line": "how you look back on the collaboration, examine your own conclusions, and learn from mistakes",
+      "opening_prompt": "After working with the AI, how do you look back on the collaboration – improving how you work together, examining your own conclusions, and learning from anything that went wrong?",
+      "depth_probe": "Tell me about a specific instance behind that – what happened, and what did you take from it?",
+      "fields": [
+        { "id": "E1", "kind": "shortform", "label": "How I think about improving the way I work with the AI" },
+        { "id": "E2", "kind": "shortform", "label": "How I examine my own thinking before drawing conclusions about the AI’s output" },
+        { "id": "E3", "kind": "shortform", "label": "How I analyze a situation after something goes wrong, so I can learn from it" }
+      ]
+    }
+  ],
+  "ordering_rules": {
+    "strict_in_order": true,
+    "stop_warn_then_honor": true,
+    "must_cover_all_sections": true
+  },
+  "advance_template": "Got it. Now let's move to {{next_section_title}} — {{next_section_one_line}}.",
+  "transition_template": "Thanks — anything else on {{section_topic}} before we move on?",
+  "max_probes_per_section": 1,
+  "shallow_word_threshold": 25,
+  "closing": {
+    "behavior": "After all sections have at least one student response and the student signals done, ask one feedback question about the bot itself, then emit [END] on its own line.",
+    "feedback_prompt": "Last thing — how did reflecting through this conversation compare to rating these items on your own, and what would make it better next time?"
+  }
+}

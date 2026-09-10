@@ -129,19 +129,28 @@ def run_form_session(page: Page, public_id: str, static_base: str, persona: dict
         log(f"       BOT: {_preview(bot_text)}")
         transcript.append({"role": "bot", "text": bot_text, "ts": _now_ms()})
 
-        # Detect end-of-conversation (form mode locks the input + appends a notice).
-        # Wait a beat for the lock + notice DOM mutations to land.
+        # Form mode deliberately keeps the input enabled after completion so
+        # students can revise. Detect the engine state / completion notice,
+        # not a disabled textarea (that was the pre-revision UX).
         page.wait_for_timeout(400)
-        if page.locator("#messageInput").is_disabled():
+        ended = bool(page.evaluate("""() => !!(
+            (window.formMode && window.formMode.state && window.formMode.state.ended) ||
+            document.getElementById('formmode-completion-notice')
+        )"""))
+        if ended:
             ended = True
-            log("  ✓ chat locked — conversation ended")
+            log("  ✓ form marked complete — revisions remain available")
 
     artifact = _capture_structured_artifact(page) if ended else None
+    session_id = page.evaluate(
+        "() => window.sessionData && window.sessionData.sessionID"
+    )
 
     return {
         "persona": name,
         "persona_file": persona.get("_path"),
         "public_id": public_id,
+        "session_id": session_id,
         "mode": "form",
         "ended": ended,
         "transcript": transcript,
@@ -309,17 +318,18 @@ def _capture_structured_artifact(page: Page) -> Optional[dict]:
     try:
         result = page.evaluate("""() => {
             if (!window.formMode || !window.formMode.state || !window.leaiFormMode) return null;
-            // Reconstruct the transcript from chatHistory (general flow) or
-            // from #ig-messages / #transcription DOM (which is cheaper and
-            // mode-agnostic).
-            var transcript = [];
+            // Prefer the page's canonical collector because it preserves the
+            // per-field attribution persisted with each student response.
+            var transcript = (typeof window.collectFormModeTranscript === 'function')
+                ? window.collectFormModeTranscript()
+                : [];
             var igMessages = document.querySelectorAll('#ig-messages > div');
-            if (igMessages.length) {
+            if (!transcript.length && igMessages.length) {
                 igMessages.forEach(function (m) {
                     var role = (m.style && m.style.alignSelf === 'flex-end') ? 'user' : 'assistant';
                     transcript.push({ role: role, text: m.innerText.trim() });
                 });
-            } else {
+            } else if (!transcript.length) {
                 document.querySelectorAll('article.msg-ai .msg-ai-text').forEach(function (el) {
                     transcript.push({ role: 'assistant', text: el.innerText.trim() });
                 });

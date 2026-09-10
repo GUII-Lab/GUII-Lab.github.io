@@ -1423,6 +1423,37 @@
             chatHistory: null,
         };
 
+        // Capture attribution before beforeTurn() advances the cursor. Both
+        // the regular and in-group persistence paths call this while the
+        // student's just-visible question is still state.last_directive.
+        function currentFormResponseAttribution() {
+            if (!formMode.active || !formMode.state ||
+                    typeof leaiFormMode === 'undefined' ||
+                    typeof leaiFormMode.pendingResponseAttribution !== 'function') {
+                return {};
+            }
+            var attribution = leaiFormMode.pendingResponseAttribution(formMode.state) || {};
+            if (!attribution.form_schema_id && formMode.schemaId) {
+                attribution.form_schema_id = formMode.schemaId;
+            }
+            return attribution;
+        }
+
+        function attributedChatTurn(role, content, attribution) {
+            var turn = { role: role, content: content };
+            if (!attribution) return turn;
+            return Object.assign(turn, {
+                form_schema_id: attribution.form_schema_id || null,
+                form_schema_version: attribution.form_schema_version == null
+                    ? null
+                    : attribution.form_schema_version,
+                form_section_id: attribution.form_section_id || null,
+                form_field_id: attribution.form_field_id || null,
+                form_field_label: attribution.form_field_label || null,
+                form_response_phase: attribution.form_response_phase || null,
+            });
+        }
+
         // Activate form mode using the schema body the backend inlined on the
         // public_id response (preferred), or fall back to fetching by id from
         // the registry endpoint if the body wasn't inlined.
@@ -1458,6 +1489,15 @@
                 if (gpt && gpt.week_number != null) {
                     schema = Object.assign({}, schema, { week: gpt.week_number });
                 }
+                // The registry keeps identity/version outside `body`; fold
+                // them into the engine schema so every persisted answer can
+                // be attributed to the exact immutable schema revision.
+                schema = Object.assign({}, schema, {
+                    schema_id: schema.schema_id || schemaId,
+                    version: schema.version != null
+                        ? schema.version
+                        : (gpt.form_schema && gpt.form_schema.version),
+                });
                 // POINT TO A HUMAN referral gate: a Course-level setting (set
                 // in Customizations, served on the gpt payload). Overlay it
                 // onto the schema — that's the only config object the engine
@@ -1791,10 +1831,17 @@
         function replayResumedConversation(messages) {
             if (!messages || !messages.length) return;
             _mainPersistedStudentMessageCount = countPersistedStudentMessages(messages);
+            // A live session calls beforeTurn(null) before the opening AI
+            // message. Prime that same directive before replay so every
+            // persisted user answer advances the exact field it answered.
+            if (formMode.active && formMode.state) {
+                try { leaiFormMode.beforeTurn(formMode.state, null); }
+                catch (e) { /* replay is best-effort */ }
+            }
             messages.forEach(function (m) {
                 var role = normalizeRestoredMessageRole(m.sent_by || m.role);
                 var className = (role === 'user') ? 'user-message' : 'ai-message';
-                chatHistory.push({ role: role, content: m.content });
+                chatHistory.push(attributedChatTurn(role, m.content, m));
                 appendMessage(className, m.content, {
                     skipPersist: true,
                     timestamp: m.created_at,
@@ -2738,10 +2785,16 @@
             function rehydrateChat(snapshot) {
                 var prior = snapshot.messages || [];
                 igPersistedStudentMessageCount = countPersistedStudentMessages(prior);
+                // Match the live opening sequence before replaying stored
+                // turns; otherwise field state is shifted one message late.
+                if (formMode.active && formMode.state && prior.length) {
+                    try { leaiFormMode.beforeTurn(formMode.state, null); }
+                    catch (e) { /* replay is best-effort */ }
+                }
                 for (var i = 0; i < prior.length; i++) {
                     var m = prior[i];
                     var restoredRole = normalizeRestoredMessageRole(m.role || m.sent_by);
-                    chatHistory.push({ role: restoredRole, content: m.content });
+                    chatHistory.push(attributedChatTurn(restoredRole, m.content, m));
                     appendIgMessage(restoredRole === 'user' ? 'user' : 'bot', m.content);
                     if (formMode.active && formMode.state) {
                         try {
@@ -2784,6 +2837,8 @@
                     // nudge fired — see storeData() in the general flow.
                     referred: !!(opts && opts.referred),
                 };
+                var formAttribution = currentFormResponseAttribution();
+                if (formAttribution.form_field_id) Object.assign(payload, formAttribution);
                 try {
                     var request = fetch(API + '/feedback_message_api/', {
                         method: 'POST',
@@ -2823,7 +2878,7 @@
 
             function requestBotTurn(userText) {
                 if (userText) {
-                    chatHistory.push({ role: 'user', content: userText });
+                    chatHistory.push(attributedChatTurn('user', userText, currentFormResponseAttribution()));
                     logMessageEverywhere('user', userText);
                     updateIgStripCollapsedLabel();
                 }
@@ -2836,7 +2891,7 @@
                     var pre = leaiFormMode.beforeTurn(formMode.state, userText || null);
                     if (pre && pre.shortCircuit) {
                         var synthReply = pre.syntheticResponse || '';
-                        chatHistory.push({ role: 'assistant', content: synthReply });
+                        chatHistory.push(attributedChatTurn('assistant', synthReply, currentFormResponseAttribution()));
                         logMessageEverywhere('bot', synthReply);
                         appendIgMessage('bot', synthReply);
                         renderFormModeProgress();
@@ -2878,7 +2933,7 @@
                             ended = true;
                         }
                         hideIgTyping();
-                        chatHistory.push({ role: 'assistant', content: displayed });
+                        chatHistory.push(attributedChatTurn('assistant', displayed, currentFormResponseAttribution()));
                         logMessageEverywhere('bot', displayed, { referred: referred });
                         appendIgMessage('bot', displayed);
                         updateIgStripCollapsedLabel();
@@ -2886,7 +2941,7 @@
                     }).catch(function () {
                         hideIgTyping();
                         var reply = 'Thanks for sharing. (Tell me more about how the team has been going.)';
-                        chatHistory.push({ role: 'assistant', content: reply });
+                        chatHistory.push(attributedChatTurn('assistant', reply, currentFormResponseAttribution()));
                         logMessageEverywhere('bot', reply);
                         appendIgMessage('bot', reply);
                         updateIgStripCollapsedLabel();
@@ -2898,7 +2953,7 @@
                 } else {
                     var reply = 'Hi, I\u2019m Teammate. You\u2019re sharing feedback as a member of ' + teamContext + '. ' +
                         'This conversation is anonymous. Let\u2019s start: how has the team been going overall?';
-                    chatHistory.push({ role: 'assistant', content: reply });
+                    chatHistory.push(attributedChatTurn('assistant', reply, currentFormResponseAttribution()));
                     logMessageEverywhere('bot', reply);
                     appendIgMessage('bot', reply);
                     updateIgStripCollapsedLabel();
@@ -3114,7 +3169,7 @@
                 }
                 hideTypingIndicator();
                 appendMessage('ai-message', introMessage, { referred: introReferred });
-                chatHistory.push({ role: 'assistant', content: introMessage });
+                chatHistory.push(attributedChatTurn('assistant', introMessage, currentFormResponseAttribution()));
             }).catch(function(err) {
                 console.error('Error generating introductory message:', err);
                 hideTypingIndicator();
@@ -3151,6 +3206,8 @@
                 client_seq: window.sessionData.msgSeq,
                 client_ts: Date.now()
             };
+            var formAttribution = currentFormResponseAttribution();
+            if (formAttribution.form_field_id) Object.assign(data, formAttribution);
             var request = $.ajax({
                 type: 'POST',
                 url: API + '/feedback_message_api/',
@@ -3444,7 +3501,7 @@
         });
 
         function getAIresponse(transcription) {
-            chatHistory.push({ role: 'user', content: transcription });
+            chatHistory.push(attributedChatTurn('user', transcription, currentFormResponseAttribution()));
 
             // ── form-mode pre-call hook ──────────────────────────────────
             // Engine may short-circuit (STOP intercept) or inject a per-turn
@@ -3454,7 +3511,7 @@
                 var pre = leaiFormMode.beforeTurn(formMode.state, transcription);
                 if (pre.shortCircuit) {
                     appendMessage('ai-message', pre.syntheticResponse);
-                    chatHistory.push({ role: 'assistant', content: pre.syntheticResponse });
+                    chatHistory.push(attributedChatTurn('assistant', pre.syntheticResponse, currentFormResponseAttribution()));
                     renderFormModeProgress();
                     if (pre.ended) lockChat();
                     return;
@@ -3536,7 +3593,7 @@
                 }
                 hideTypingIndicator();
                 appendMessage('ai-message', displayText, { referred: referred });
-                chatHistory.push({ role: 'assistant', content: displayText });
+                chatHistory.push(attributedChatTurn('assistant', displayText, currentFormResponseAttribution()));
                 if (ended) lockChat();
             }).catch(function(err) {
                 console.error('Error getting AI Response:', err);
@@ -3744,10 +3801,16 @@
             var out = [];
             src.forEach(function (m) {
                 if (m.role === 'system') return;
-                out.push({
-                    role: m.role === 'user' ? 'user' : 'assistant',
-                    text: m.content,
-                });
+                    out.push({
+                        role: m.role === 'user' ? 'user' : 'assistant',
+                        text: m.content,
+                        form_schema_id: m.form_schema_id,
+                        form_schema_version: m.form_schema_version,
+                        form_section_id: m.form_section_id,
+                        form_field_id: m.form_field_id,
+                        form_field_label: m.form_field_label,
+                        form_response_phase: m.form_response_phase,
+                    });
             });
             return out;
         }
