@@ -113,10 +113,21 @@ function initSidebar(activeNavId, onSignOut) {
     });
 
     document.getElementById('sidebar-signout').addEventListener('click', function () {
+        var instructorToken = stored && stored.instructorToken;
         if (onSignOut) onSignOut();
         clearSession();
         document.getElementById('app').style.display = 'none';
         document.getElementById('login-screen').style.display = 'flex';
+        if (instructorToken
+                && typeof leaiInstructorAuth !== 'undefined'
+                && leaiInstructorAuth
+                && typeof leaiInstructorAuth.signOut === 'function') {
+            leaiInstructorAuth.signOut(fetch, API, instructorToken)
+                .catch(function () {
+                    // Local sign-out is authoritative for the UI; server sessions also expire.
+                })
+                .finally(function () { window.location.href = 'PromptDesigner.html'; });
+        }
     });
 }
 
