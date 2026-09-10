@@ -267,7 +267,7 @@ Events are created server-side. For a successful state change, the mutation and 
 
 The log must never store passwords, password-reset material, raw session tokens, authorization headers, student feedback, prompts, uploaded document contents, analysis output, or other free-text course/student content.
 
-### 9.3 Events covered in this slice
+### 9.3 Audit-foundation events
 
 - instructor login succeeded;
 - instructor login denied, without exposing whether an email exists;
@@ -279,9 +279,11 @@ The log must never store passwords, password-reset material, raw session tokens,
 
 Course selection and ordinary page views are not security audit events because they are client navigation rather than authoritative state changes. If product-usage analytics later need them, they belong in a separately disclosed, fixed-enum product-event stream.
 
-### 9.4 Coverage as legacy endpoints become account-authorized
+### 9.4 Release-required coverage for course tools
 
-The audit table ships with the identity/home work, but full product coverage expands together with the planned legacy-endpoint authorization pass. Each authenticated state-changing endpoint must add an audit event in the same change that adds account authorization. The coverage matrix will ultimately include survey create/update/clone/status/delete, course customization, banner settings, team configuration, export, analysis generation/deletion, PDF ingest start/commit/revert, QuestionSet/FormSchema publishing, archive/rollover, and membership changes.
+The audit table ships with the identity/home work. Before the account-based Instructor Home can be released to real instructors, every state-changing or sensitive-export endpoint reachable from an account-based course tool must require the instructor bearer token, verify active membership/capability for the target course, and emit an audit event in the same change. This includes survey create/update/clone/status/delete, course customization, banner settings, team-configuration mutations, response/certificate export, analysis-session mutations and generation/deletion, and PDF ingest start/commit/revert. QuestionSet/FormSchema publishing, archive/rollover, and membership changes receive the same treatment when those capabilities are introduced.
+
+The endpoint inventory and its authorization/audit tests are a release gate, not an optional follow-up. Instructor Home may be developed locally in parallel, but it must not be deployed as the production account entry point while its reachable mutations can bypass account attribution.
 
 Legacy course-password actions cannot be reliably attributed to a specific instructor account. They remain explicitly marked as legacy/unattributed until their endpoint is converted; the system must not guess an actor from a course ID.
 
@@ -301,8 +303,9 @@ Recommended order remains:
 
 ```text
 Instructor identity foundation (implemented)
-→ account audit foundation + Instructor Home and global navigation (this spec)
-→ authorize remaining legacy instructor endpoints
+→ account audit foundation
+→ authorize and audit every account-reachable instructor mutation/export
+→ release Instructor Home and global navigation
 → occurrence-scoped ResponseSession migration
 → immutable QuestionSet drafts and revisions
 → isolated student preview
@@ -314,7 +317,7 @@ The create-course success handler should be isolated in one function so the Wiza
 
 Cross-course schema migration and course duplicate depend on immutable QuestionSet/FormSchema lineage. Their controls therefore belong in the future dashboard, but implementation must wait until the schema redesign defines exactly what is copied, referenced, or version-pinned.
 
-The audit migration is safe to apply before the larger data-schema restructure: it creates a new table and indexes only, with no backfill and no changes to existing course, survey, or response rows. It should ship before instructors begin using the new account flow so their meaningful actions are attributable from day one.
+The audit migration is safe to apply before the larger data-schema restructure: it creates a new table and indexes only, with no backfill and no changes to existing course, survey, or response rows. It and the account-authorization coverage gate must ship before instructors begin using the new account flow so their meaningful actions are attributable from day one.
 
 ## 11. Accessibility and interaction requirements
 
@@ -356,6 +359,7 @@ The audit migration is safe to apply before the larger data-schema restructure: 
 - Add a small centralized audit writer so endpoints do not construct unvalidated metadata independently.
 - Register the new identity, membership, session, and audit models in Django Admin with the audit log read-only.
 - Emit the initial security/profile/course events listed in Section 9 and add audit coverage whenever a legacy mutation endpoint is account-authorized.
+- Complete and test the account authorization/audit coverage matrix for every account-reachable mutation and sensitive export before production release of Instructor Home.
 - Preserve legacy course authentication during the planned additive cutover.
 
 ## 14. Verification and acceptance criteria
@@ -378,6 +382,7 @@ Automated coverage must prove:
 - login denial remains enumeration-safe and does not store a raw attempted email in unrestricted metadata;
 - audit payload validation rejects secrets, student content, and unknown metadata fields;
 - audit events are searchable/filterable but cannot be added, edited, or deleted through Django Admin.
+- every account-reachable instructor mutation/export in the release matrix rejects a token for the wrong course and emits exactly one attributable event for a successful authorized operation.
 
 Browser verification must exercise the real static pages against the local Django backend with real clicks and typing in Chromium and WebKit when available. Required visual states are signed out, forced password change, no-course empty state, many-course grid, create drawer with validation, Account, course selection, **All courses** return, mobile navigation, and sign out. Produce a scoped HTML report with screenshots.
 
