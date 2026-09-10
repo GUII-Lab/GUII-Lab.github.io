@@ -2,9 +2,9 @@
 
 **Date:** 2026-09-10
 
-**Status:** Direction approved; detailed spec awaiting review
+**Status:** Approved with account-audit amendment
 
-**Scope:** New instructor home, centralized onboarding, course switching, course creation, and basic account settings
+**Scope:** New instructor home, centralized onboarding, course switching, course creation, basic account settings, and administrator-visible account audit trail
 
 **Repositories:** `GUII-Lab.github.io` frontend plus the existing instructor-account API in `guiidatapipelines`
 
@@ -51,8 +51,9 @@ Any action that affects more than one course belongs in Instructor Home. Any act
 - Let an authenticated instructor create another course and continue directly into course setup.
 - Make switching from one course to another explicit and safe.
 - Provide functional personal settings for display name and password while email remains administrator-managed.
-- Preserve the additive identity and membership schema already implemented; this UI slice must not require a destructive database migration.
+- Preserve the additive identity and membership schema already implemented; the only new migration in this slice is an independent audit-event table that does not rewrite course, survey, or response data.
 - Create clean extension points for future rollover, duplicate, archive, collaborator, and schema-copy actions.
+- Give administrators a durable, filterable record of security-relevant and state-changing actions performed through instructor accounts.
 
 ## 4. Non-goals for this slice
 
@@ -61,6 +62,7 @@ Any action that affects more than one course belongs in Instructor Home. Any act
 - Course duplicate, rollover, archive, ownership transfer, or deletion.
 - Cross-course question-set or FormSchema copying.
 - Course-level activity feeds, response totals, or fabricated dashboard analytics.
+- General clickstream/page-view tracking or recording read-only browsing as audit events.
 - The full first-survey Wizard, QuestionSet schema redesign, or ResponseSession migration.
 - Student-facing changes.
 
@@ -239,7 +241,59 @@ Validation: trim whitespace, require 1–100 characters, reject unknown fields, 
 
 For institution display names on course cards, the frontend joins each course's `institution_slug` to the existing `institutions` array returned by `instructor_me`. No duplicated backend field is required.
 
-## 9. Relationship to the data-schema and Wizard roadmap
+## 9. Administrator account audit trail
+
+### 9.1 Current-state finding
+
+The current foundation does **not** yet provide a complete account audit trail. `InstructorSession` records session creation, expiry, last use, and revocation, but it does not explain what an instructor changed. Django's built-in admin log covers changes made through Django Admin only; it does not cover instructor API actions. The instructor identity models are also not yet registered in `datapipeline/admin.py`.
+
+Therefore, account auditability is a required part of this implementation rather than an already-complete capability.
+
+### 9.2 Audit model
+
+Add an append-only `InstructorAuditEvent` table with:
+
+- `occurred_at`;
+- nullable `actor` FK to `InstructorAccount` for events that can be attributed to an account;
+- nullable `session` FK to `InstructorSession`;
+- nullable `course` FK plus stable course-ID snapshot for historical filtering;
+- fixed-enum `action`;
+- fixed-enum `outcome` (`success`, `denied`, or `failed`);
+- optional target type and stable target identifier;
+- server-generated request/event ID;
+- allow-listed structured metadata with no unrestricted user text.
+
+Events are created server-side. For a successful state change, the mutation and its audit event are written in the same database transaction so either both persist or both roll back. Denied and failed attempts are recorded only after the server has reached that outcome. Audit rows are immutable in normal application and administrator workflows.
+
+The log must never store passwords, password-reset material, raw session tokens, authorization headers, student feedback, prompts, uploaded document contents, analysis output, or other free-text course/student content.
+
+### 9.3 Events covered in this slice
+
+- instructor login succeeded;
+- instructor login denied, without exposing whether an email exists;
+- instructor logout;
+- required or voluntary password change succeeded;
+- account display name updated;
+- course created;
+- institution or course authorization denied for an attempted state change.
+
+Course selection and ordinary page views are not security audit events because they are client navigation rather than authoritative state changes. If product-usage analytics later need them, they belong in a separately disclosed, fixed-enum product-event stream.
+
+### 9.4 Coverage as legacy endpoints become account-authorized
+
+The audit table ships with the identity/home work, but full product coverage expands together with the planned legacy-endpoint authorization pass. Each authenticated state-changing endpoint must add an audit event in the same change that adds account authorization. The coverage matrix will ultimately include survey create/update/clone/status/delete, course customization, banner settings, team configuration, export, analysis generation/deletion, PDF ingest start/commit/revert, QuestionSet/FormSchema publishing, archive/rollover, and membership changes.
+
+Legacy course-password actions cannot be reliably attributed to a specific instructor account. They remain explicitly marked as legacy/unattributed until their endpoint is converted; the system must not guess an actor from a course ID.
+
+### 9.5 Administrator experience
+
+Register `Institution`, `InstructorAccount`, `InstitutionMembership`, `InstructorSession`, `CourseMembership`, and `InstructorAuditEvent` in Django Admin with safe list displays and filters.
+
+The audit-event admin is read-only: no add, edit, or delete controls. It supports filtering by instructor, course, action, outcome, and date, plus search by instructor email, course ID, and event ID. Session token digests are never exposed as useful credentials and should be masked or omitted from list displays.
+
+This is an administrator backend capability only. Instructor Home does not show a cross-account activity feed.
+
+## 10. Relationship to the data-schema and Wizard roadmap
 
 This work intentionally precedes the QuestionSet/FormSchema restructure because it changes no survey-response data and gives the later Wizard a stable entry point.
 
@@ -247,7 +301,7 @@ Recommended order remains:
 
 ```text
 Instructor identity foundation (implemented)
-→ Instructor Home and global navigation (this spec)
+→ account audit foundation + Instructor Home and global navigation (this spec)
 → authorize remaining legacy instructor endpoints
 → occurrence-scoped ResponseSession migration
 → immutable QuestionSet drafts and revisions
@@ -260,7 +314,9 @@ The create-course success handler should be isolated in one function so the Wiza
 
 Cross-course schema migration and course duplicate depend on immutable QuestionSet/FormSchema lineage. Their controls therefore belong in the future dashboard, but implementation must wait until the schema redesign defines exactly what is copied, referenced, or version-pinned.
 
-## 10. Accessibility and interaction requirements
+The audit migration is safe to apply before the larger data-schema restructure: it creates a new table and indexes only, with no backfill and no changes to existing course, survey, or response rows. It should ship before instructors begin using the new account flow so their meaningful actions are attributable from day one.
+
+## 11. Accessibility and interaction requirements
 
 - All navigation and course cards are reachable and activatable by keyboard.
 - Visible focus states use LEAI tokens and meet contrast requirements.
@@ -271,7 +327,7 @@ Cross-course schema migration and course duplicate depend on immutable QuestionS
 - Destructive future actions will require explicit confirmation; none exist in this slice.
 - Reduced-motion preferences disable nonessential drawer and card transitions.
 
-## 11. Error and edge-case behavior
+## 12. Error and edge-case behavior
 
 - **No institution membership:** show a blocking explanation that an administrator must assign an institution; do not render a broken create form.
 - **Course removed while selected:** refresh membership data, clear the selected course fields, and show the dashboard notice.
@@ -282,7 +338,7 @@ Cross-course schema migration and course duplicate depend on immutable QuestionS
 - **Long course names/IDs:** wrap names, truncate only secondary metadata, and preserve full values for assistive text.
 - **Zero, one, or many courses:** use the same page structure; do not introduce one-course auto-redirect behavior.
 
-## 12. Implementation boundaries
+## 13. Implementation boundaries
 
 ### Frontend
 
@@ -296,10 +352,13 @@ Cross-course schema migration and course duplicate depend on immutable QuestionS
 ### Backend
 
 - Add `PATCH instructor_me` with validation and tests.
-- Do not add or alter database fields for this slice.
+- Add the isolated `InstructorAuditEvent` model migration; do not alter or backfill existing course, survey, or response fields.
+- Add a small centralized audit writer so endpoints do not construct unvalidated metadata independently.
+- Register the new identity, membership, session, and audit models in Django Admin with the audit log read-only.
+- Emit the initial security/profile/course events listed in Section 9 and add audit coverage whenever a legacy mutation endpoint is account-authorized.
 - Preserve legacy course authentication during the planned additive cutover.
 
-## 13. Verification and acceptance criteria
+## 14. Verification and acceptance criteria
 
 Automated coverage must prove:
 
@@ -314,13 +373,20 @@ Automated coverage must prove:
 - sign out revokes the session;
 - expired sessions return to sign-in;
 - legacy course sessions remain usable during cutover.
+- every initial successful account mutation emits exactly one correctly attributed audit event;
+- rolled-back or rejected mutations never emit a success event;
+- login denial remains enumeration-safe and does not store a raw attempted email in unrestricted metadata;
+- audit payload validation rejects secrets, student content, and unknown metadata fields;
+- audit events are searchable/filterable but cannot be added, edited, or deleted through Django Admin.
 
 Browser verification must exercise the real static pages against the local Django backend with real clicks and typing in Chromium and WebKit when available. Required visual states are signed out, forced password change, no-course empty state, many-course grid, create drawer with validation, Account, course selection, **All courses** return, mobile navigation, and sign out. Produce a scoped HTML report with screenshots.
 
 Before completion, run the full frontend and backend test suites, `git diff --check`, migration drift checks, and a production-safety review. Do not deploy or run a production migration as part of this feature without separate approval.
 
-## 14. Success definition
+## 15. Success definition
 
 An instructor with a manually provisioned account can sign in, choose a permanent password, understand where their courses live, create a first or additional course, enter its Prompt Designer, return to all courses, switch courses, edit their display name, change their password, and sign out without Harvey walking them through the interface.
 
 The resulting page is also the stable product surface where later rollover and cross-course reuse can be added after the data-schema work, without redesigning authentication or course selection again.
+
+From the first use of the account-based flow, an administrator can identify which account performed each covered security-relevant or state-changing operation, on which course and when, without exposing credentials or student feedback and without inferring identity for legacy password-based actions.
