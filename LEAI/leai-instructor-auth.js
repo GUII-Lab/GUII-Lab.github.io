@@ -95,6 +95,21 @@
         ));
     }
 
+    async function updateProfile(fetchImpl, apiBase, token, displayName) {
+        return parseResponse(await authorizedFetch(
+            fetchImpl,
+            token,
+            apiBase + '/instructor_me/',
+            {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    display_name: String(displayName || '').trim(),
+                }),
+            },
+        ));
+    }
+
     async function changePassword(fetchImpl, apiBase, token, currentPassword, newPassword) {
         return parseResponse(await authorizedFetch(
             fetchImpl,
@@ -165,6 +180,7 @@
         instructorHomeHref: instructorHomeHref,
         signIn: signIn,
         getAccount: getAccount,
+        updateProfile: updateProfile,
         changePassword: changePassword,
         listCourses: listCourses,
         createCourse: createCourse,

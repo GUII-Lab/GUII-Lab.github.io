@@ -55,6 +55,34 @@ test('authorized requests send the bearer token and parse JSON', async () => {
     assert.equal(calls[0].options.headers.Authorization, 'Bearer secret');
 });
 
+test('updateProfile sends a trimmed display name with bearer auth', async () => {
+    const calls = [];
+    const fetchImpl = async function (url, options) {
+        calls.push({ url: url, options: options });
+        return jsonResponse(200, { display_name: 'Prof. Updated' });
+    };
+
+    const account = await auth.updateProfile(
+        fetchImpl,
+        '/api',
+        'token',
+        '  Prof. Updated  ',
+    );
+
+    assert.equal(calls[0].url, '/api/instructor_me/');
+    assert.equal(calls[0].options.method, 'PATCH');
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+        display_name: 'Prof. Updated',
+    });
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
+    assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
+    assert.equal(account.display_name, 'Prof. Updated');
+});
+
+test('instructorHomeHref returns the stable relative account destination', () => {
+    assert.equal(auth.instructorHomeHref(), 'InstructorHome.html');
+});
+
 test('changePassword sends both passwords and preserves backend validation details', async () => {
     const fetchImpl = async function () {
         return jsonResponse(400, {
