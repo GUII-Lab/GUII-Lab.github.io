@@ -130,8 +130,15 @@ function initSidebar(activeNavId, onSignOut) {
         var instructorToken = stored && stored.instructorToken;
         if (onSignOut) onSignOut();
         clearSession();
-        document.getElementById('app').style.display = 'none';
-        document.getElementById('login-screen').style.display = 'flex';
+        function finishSignOut() {
+            if (typeof leaiInstructorAuth !== 'undefined'
+                    && leaiInstructorAuth
+                    && typeof leaiInstructorAuth.instructorHomeHref === 'function') {
+                window.location.href = leaiInstructorAuth.instructorHomeHref();
+            } else {
+                window.location.href = 'InstructorHome.html';
+            }
+        }
         if (instructorToken
                 && typeof leaiInstructorAuth !== 'undefined'
                 && leaiInstructorAuth
@@ -140,8 +147,8 @@ function initSidebar(activeNavId, onSignOut) {
                 .catch(function () {
                     // Local sign-out is authoritative for the UI; server sessions also expire.
                 })
-                .finally(function () { window.location.href = 'PromptDesigner.html'; });
-        }
+                .finally(finishSignOut);
+        } else finishSignOut();
     });
 }
 

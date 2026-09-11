@@ -16,56 +16,6 @@
             vertical-align: middle;
         }
 
-        /* Instructor onboarding */
-        .login-card.onboarding-card { max-width: 520px; }
-        .onboarding-panel { display: none; margin-top: 24px; }
-        .onboarding-panel.active { display: block; }
-        .onboarding-note {
-            color: var(--muted); font-size: 0.82rem; line-height: 1.6;
-            background: var(--surface-low); padding: 12px 14px;
-            border-radius: var(--radius-sm); margin-bottom: 18px;
-        }
-        .onboarding-heading {
-            color: var(--text); font-size: 1rem; font-weight: 700;
-            margin-bottom: 4px;
-        }
-        .onboarding-subheading {
-            color: var(--muted); font-size: 0.82rem; line-height: 1.55;
-            margin-bottom: 18px;
-        }
-        .onboarding-user-row {
-            display: flex; align-items: center; justify-content: space-between; gap: 16px;
-            padding: 12px 0 18px; border-bottom: 1px solid var(--surface-mid);
-            margin-bottom: 18px;
-        }
-        .onboarding-user-name { font-size: 0.9rem; font-weight: 700; color: var(--text); }
-        .onboarding-user-email { font-size: 0.76rem; color: var(--muted); }
-        .text-button {
-            border: none; background: none; color: var(--primary); cursor: pointer;
-            font: inherit; font-size: 0.76rem; font-weight: 700; padding: 4px;
-        }
-        .course-list { display: grid; gap: 10px; margin: 0 0 18px; }
-        .course-choice {
-            width: 100%; text-align: left; cursor: pointer;
-            background: var(--surface-card); border: 1px solid var(--outline);
-            border-radius: var(--radius-sm); padding: 14px 16px;
-            display: flex; justify-content: space-between; align-items: center; gap: 16px;
-            color: var(--text); font-family: inherit;
-        }
-        .course-choice:hover, .course-choice:focus {
-            border-color: var(--primary); background: var(--surface-low); outline: none;
-        }
-        .course-choice-name { display: block; font-size: 0.9rem; font-weight: 700; }
-        .course-choice-meta { display: block; color: var(--muted); font-size: 0.72rem; margin-top: 2px; }
-        .course-choice-arrow { color: var(--primary); font-size: 1.15rem; }
-        .new-course-panel {
-            display: none; background: var(--surface-low); padding: 18px;
-            border-radius: var(--radius-sm); margin-top: 12px;
-        }
-        .new-course-panel.active { display: block; }
-        .onboarding-actions { display: flex; gap: 10px; }
-        .onboarding-actions .btn { flex: 1; }
-
         @media (max-width: 767px) {
             .layout { grid-template-columns: 1fr !important; }
         }
@@ -236,68 +186,6 @@
 </head>
 <body>
 
-<!-- Login screen -->
-<div id="login-screen">
-    <div class="login-card onboarding-card">
-        <div class="login-logo">LEAI</div>
-        <h1>Instructor Dashboard</h1>
-        <p>Collect and analyze student feedback through AI-powered check-in surveys.</p>
-        <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide →</a></p>
-
-        <div id="instructor-signin-panel" class="onboarding-panel active">
-            <div class="onboarding-note">Your LEAI administrator provides your account and temporary password. Email verification and self-service password recovery are not enabled yet.</div>
-            <label>Email address</label>
-            <input type="email" id="instructor-email" autocomplete="username" placeholder="you@university.edu" />
-            <label>Password</label>
-            <input type="password" id="instructor-password" autocomplete="current-password" placeholder="Your password" />
-            <button class="btn btn-primary" id="instructor-signin-btn">Sign In</button>
-            <div id="instructor-signin-msg"></div>
-        </div>
-
-        <div id="password-change-panel" class="onboarding-panel">
-            <div class="onboarding-heading">Choose a new password</div>
-            <p class="onboarding-subheading">This temporary password can only be used for setup. Choose a password you do not use elsewhere.</p>
-            <label>New password</label>
-            <input type="password" id="new-account-password" autocomplete="new-password" placeholder="At least 8 characters" />
-            <label>Confirm new password</label>
-            <input type="password" id="confirm-account-password" autocomplete="new-password" placeholder="Type it again" />
-            <button class="btn btn-primary" id="change-password-btn">Save New Password</button>
-            <div id="password-change-msg"></div>
-        </div>
-
-        <div id="course-picker-panel" class="onboarding-panel">
-            <div class="onboarding-user-row">
-                <div>
-                    <div class="onboarding-user-name" id="onboarding-user-name"></div>
-                    <div class="onboarding-user-email" id="onboarding-user-email"></div>
-                </div>
-                <button type="button" class="text-button" id="onboarding-signout-btn">Sign out</button>
-            </div>
-            <div class="onboarding-heading">Choose a course</div>
-            <p class="onboarding-subheading">Open an existing course or create the next course you will teach.</p>
-            <div id="course-list" class="course-list"></div>
-            <button type="button" class="btn btn-secondary" id="show-new-course-btn">Create a New Course</button>
-            <div id="new-course-panel" class="new-course-panel">
-                <div class="onboarding-heading">New course</div>
-                <p class="onboarding-subheading">This creates an empty course owned by your instructor account.</p>
-                <label>Institution</label>
-                <select id="new-institution-slug"></select>
-            <label>Course ID <span style="color:var(--muted);font-weight:400">(lowercase, e.g. cm150-sp26)</span></label>
-            <input type="text" id="new-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
-            <label>Course Name</label>
-            <input type="text" id="new-course-name" placeholder="Foundations of Computational Media" />
-                <label>Instructor name shown to students</label>
-            <input type="text" id="new-instructor-name" placeholder="Prof. Jane Smith" />
-                <div class="onboarding-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-new-course-btn">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="create-course-btn">Create Course</button>
-                </div>
-            <div id="create-msg"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <!-- App -->
 <div id="app">
 
@@ -315,6 +203,10 @@
             </button>
         </div>
         <div class="sidebar-nav">
+            <a href="InstructorHome.html" class="sidebar-item" title="All courses">
+                <span class="material-symbols-outlined" aria-hidden="true">grid_view</span>
+                <span class="sidebar-label">All courses</span>
+            </a>
             <a href="PromptDesigner.html" class="sidebar-item" id="nav-prompt-designer" title="Prompt Designer">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -1012,8 +904,6 @@ When the conversation has organically reached a natural close — i.e. the stude
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
-    var activeInstructor = null;
-    var pendingCurrentPassword = null;
     var pendingAnswersImport = null;
 
     function buildGeneralSurveyPayload(source) {
@@ -1101,15 +991,6 @@ When the conversation has organically reached a natural close — i.e. the stude
     function setupSidebar() {
         initSidebar('nav-prompt-designer', function () {
             activeCourse = null;
-            activeInstructor = null;
-            pendingCurrentPassword = null;
-            document.getElementById('instructor-password').value = '';
-            document.getElementById('new-account-password').value = '';
-            document.getElementById('confirm-account-password').value = '';
-            clearMsg('create-msg');
-            clearMsg('instructor-signin-msg');
-            clearMsg('password-change-msg');
-            showOnboardingPanel('instructor-signin-panel');
         });
     }
 
@@ -1126,15 +1007,6 @@ When the conversation has organically reached a natural close — i.e. the stude
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
         if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
-    }
-
-    function lockCourse(courseId, courseName) {
-        activeCourse = { id: courseId, name: courseName };
-        saveSession(leaiInstructorAuth.selectCourse(getSession(), {
-            course_id: courseId,
-            course_name: courseName,
-        }));
-        enterApp();
     }
 
     // ===== MODE TABS (general vs in-group) =====
@@ -2207,258 +2079,44 @@ When the conversation has organically reached a natural close — i.e. the stude
         });
     }
 
-    // ===== INSTRUCTOR ONBOARDING =====
-    function showOnboardingPanel(panelId) {
-        document.querySelectorAll('.onboarding-panel').forEach(function (panel) {
-            panel.classList.toggle('active', panel.id === panelId);
-        });
-    }
-
-    function instructorSessionWithAccount(account) {
-        return Object.assign({}, getSession() || {}, {
-            instructorEmail: account.email,
-            instructorDisplayName: account.display_name,
-            mustChangePassword: account.must_change_password === true,
-        });
-    }
-
-    function renderCourseList(courses) {
-        var list = document.getElementById('course-list');
-        list.textContent = '';
-        if (!courses.length) {
-            var empty = document.createElement('div');
-            empty.className = 'onboarding-note';
-            empty.textContent = 'You do not have a course yet. Create one below to get started.';
-            list.appendChild(empty);
-            return;
-        }
-        courses.forEach(function (course) {
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'course-choice';
-
-            var text = document.createElement('span');
-            var name = document.createElement('span');
-            name.className = 'course-choice-name';
-            name.textContent = course.course_name;
-            var meta = document.createElement('span');
-            meta.className = 'course-choice-meta';
-            meta.textContent = course.course_id + ' · ' + course.role;
-            text.appendChild(name);
-            text.appendChild(meta);
-
-            var arrow = document.createElement('span');
-            arrow.className = 'course-choice-arrow';
-            arrow.setAttribute('aria-hidden', 'true');
-            arrow.textContent = '→';
-            button.appendChild(text);
-            button.appendChild(arrow);
-            button.addEventListener('click', function () {
-                lockCourse(course.course_id, course.course_name);
-            });
-            list.appendChild(button);
-        });
-    }
-
-    function showCoursePicker(account) {
-        activeInstructor = account;
-        saveSession(instructorSessionWithAccount(account));
-        document.getElementById('onboarding-user-name').textContent = account.display_name || 'Instructor';
-        document.getElementById('onboarding-user-email').textContent = account.email;
-        document.getElementById('new-instructor-name').value = account.display_name || '';
-
-        var institutionSelect = document.getElementById('new-institution-slug');
-        institutionSelect.textContent = '';
-        (account.institutions || []).forEach(function (institution) {
-            var option = document.createElement('option');
-            option.value = institution.slug;
-            option.textContent = institution.name;
-            institutionSelect.appendChild(option);
-        });
-        institutionSelect.disabled = !(account.institutions || []).length;
-
-        var courses = account.courses || [];
-        renderCourseList(courses);
-        document.getElementById('new-course-panel').classList.toggle('active', courses.length === 0);
-        document.getElementById('show-new-course-btn').style.display = courses.length === 0 ? 'none' : '';
-        showOnboardingPanel('course-picker-panel');
-    }
-
-    function loadInstructorWorkspace(allowPasswordChange) {
-        var session = getSession();
-        return leaiInstructorAuth.getAccount(fetch, API, session.instructorToken)
-            .then(function (account) {
-                activeInstructor = account;
-                saveSession(instructorSessionWithAccount(account));
-                if (account.must_change_password) {
-                    if (allowPasswordChange && pendingCurrentPassword) {
-                        showOnboardingPanel('password-change-panel');
-                        document.getElementById('new-account-password').focus();
-                        return;
-                    }
-                    return leaiInstructorAuth.signOut(fetch, API, session.instructorToken)
-                        .catch(function () {})
-                        .then(function () {
-                            clearSession();
-                            showOnboardingPanel('instructor-signin-panel');
-                            setMsg('instructor-signin-msg', 'Sign in again to finish choosing your password.', 'error');
-                        });
-                }
-
-                var selected = (account.courses || []).find(function (course) {
-                    return session.courseId && course.course_id === session.courseId;
-                });
-                if (selected) lockCourse(selected.course_id, selected.course_name);
-                else showCoursePicker(account);
-            });
-    }
-
-    document.getElementById('instructor-signin-btn').addEventListener('click', function () {
-        var email = document.getElementById('instructor-email').value;
-        var password = document.getElementById('instructor-password').value;
-        if (!leaiInstructorAuth.normalizeEmail(email) || !password) {
-            setMsg('instructor-signin-msg', 'Enter your email address and password.', 'error');
-            return;
-        }
-        var button = this;
-        button.disabled = true;
-        clearMsg('instructor-signin-msg');
-        leaiInstructorAuth.signIn(fetch, API, email, password)
-            .then(function (session) {
-                pendingCurrentPassword = password;
-                saveSession(Object.assign({}, session, {
-                    instructorEmail: leaiInstructorAuth.normalizeEmail(email),
-                }));
-                return loadInstructorWorkspace(true);
-            })
-            .catch(function (error) {
-                pendingCurrentPassword = null;
-                clearSession();
-                var message = error.code === 'invalid_credentials'
-                    ? 'That email address or password is incorrect.'
-                    : 'Could not sign in. Please try again.';
-                setMsg('instructor-signin-msg', message, 'error');
-            })
-            .finally(function () { button.disabled = false; });
-    });
-
-    document.getElementById('instructor-password').addEventListener('keydown', function (event) {
-        if (event.key === 'Enter') document.getElementById('instructor-signin-btn').click();
-    });
-
-    document.getElementById('change-password-btn').addEventListener('click', function () {
-        var nextPassword = document.getElementById('new-account-password').value;
-        var confirmation = document.getElementById('confirm-account-password').value;
-        if (!nextPassword || nextPassword !== confirmation) {
-            setMsg('password-change-msg', 'Enter the same new password in both fields.', 'error');
-            return;
-        }
-        if (!pendingCurrentPassword) {
-            clearSession();
-            showOnboardingPanel('instructor-signin-panel');
-            setMsg('instructor-signin-msg', 'Sign in again to change your temporary password.', 'error');
-            return;
-        }
-        var button = this;
-        var session = getSession();
-        button.disabled = true;
-        clearMsg('password-change-msg');
-        leaiInstructorAuth.changePassword(
-            fetch,
-            API,
-            session.instructorToken,
-            pendingCurrentPassword,
-            nextPassword
-        ).then(function () {
-            pendingCurrentPassword = null;
-            saveSession(Object.assign({}, getSession(), { mustChangePassword: false }));
-            return loadInstructorWorkspace(false);
-        }).catch(function (error) {
-            var message = error.details && error.details.length
-                ? error.details.join(' ')
-                : (error.code === 'invalid_current_password'
-                    ? 'Your temporary password is no longer valid. Sign in again.'
-                    : 'Could not change your password. Please try again.');
-            setMsg('password-change-msg', message, 'error');
-        }).finally(function () { button.disabled = false; });
-    });
-
-    document.getElementById('show-new-course-btn').addEventListener('click', function () {
-        document.getElementById('new-course-panel').classList.add('active');
-        this.style.display = 'none';
-        document.getElementById('new-course-id').focus();
-    });
-
-    document.getElementById('cancel-new-course-btn').addEventListener('click', function () {
-        document.getElementById('new-course-panel').classList.remove('active');
-        document.getElementById('show-new-course-btn').style.display = '';
-        clearMsg('create-msg');
-    });
-
-    document.getElementById('create-course-btn').addEventListener('click', function () {
-        var courseId = document.getElementById('new-course-id').value.trim().toLowerCase();
-        var courseName = document.getElementById('new-course-name').value.trim();
-        var instructorName = document.getElementById('new-instructor-name').value.trim();
-        var institutionSlug = document.getElementById('new-institution-slug').value;
-        if (!courseId || !courseName || !instructorName || !institutionSlug) {
-            setMsg('create-msg', 'Please fill in all fields.', 'error');
-            return;
-        }
-        if (!/^[a-z0-9-]+$/.test(courseId)) {
-            setMsg('create-msg', 'Course ID: lowercase letters, numbers, and hyphens only.', 'error');
-            return;
-        }
-        var button = this;
-        var session = getSession();
-        button.disabled = true;
-        leaiInstructorAuth.createCourse(fetch, API, session.instructorToken, {
-            course_id: courseId,
-            course_name: courseName,
-            instructor_name: instructorName,
-            institution_slug: institutionSlug,
-        }).then(function (course) {
-            lockCourse(course.course_id, course.course_name);
-        }).catch(function (error) {
-            var message = error.code === 'course_id_taken'
-                ? 'That Course ID is already taken. Please choose a different one.'
-                : (error.code === 'institution_access_denied'
-                    ? 'Your account no longer has access to that institution.'
-                    : 'Could not create course. Please try again.');
-            setMsg('create-msg', message, 'error');
-        }).finally(function () { button.disabled = false; });
-    });
-
-    document.getElementById('onboarding-signout-btn').addEventListener('click', function () {
-        var session = getSession();
-        this.disabled = true;
-        leaiInstructorAuth.signOut(fetch, API, session && session.instructorToken)
-            .catch(function () {})
-            .finally(function () {
-                clearSession();
-                activeInstructor = null;
-                pendingCurrentPassword = null;
-                document.getElementById('onboarding-signout-btn').disabled = false;
-                showOnboardingPanel('instructor-signin-panel');
-            });
-    });
-
     // ===== RESTORE SESSION =====
     document.addEventListener('DOMContentLoaded', function () {
         applyMode(localStorage.getItem(MODE_KEY) || 'general');
         var stored = getSession();
         if (leaiInstructorAuth.hasUsableInstructorSession(stored)) {
-            loadInstructorWorkspace(false).catch(function () {
-                clearSession();
-                showOnboardingPanel('instructor-signin-panel');
-                setMsg('instructor-signin-msg', 'Your session expired. Please sign in again.', 'error');
-            });
+            if (!stored.courseId || stored.mustChangePassword) {
+                window.location.replace('InstructorHome.html');
+                return;
+            }
+            leaiInstructorAuth.getAccount(fetch, API, stored.instructorToken)
+                .then(function (account) {
+                    var selected = (account.courses || []).find(function (course) {
+                        return course.course_id === stored.courseId;
+                    });
+                    if (!selected || account.must_change_password) {
+                        window.location.replace('InstructorHome.html');
+                        return;
+                    }
+                    activeCourse = { id: selected.course_id, name: selected.course_name };
+                    saveSession(Object.assign({}, stored, {
+                        courseName: selected.course_name,
+                        instructorEmail: account.email,
+                        instructorDisplayName: account.display_name,
+                        mustChangePassword: false,
+                    }));
+                    enterApp();
+                })
+                .catch(function () {
+                    clearSession();
+                    window.location.replace('InstructorHome.html');
+                });
         } else if (stored && stored.courseId && !stored.instructorToken) {
             // Preserve already-open legacy course sessions during the transition.
             activeCourse = { id: stored.courseId, name: stored.courseName };
             enterApp();
         } else {
             clearSession();
-            showOnboardingPanel('instructor-signin-panel');
+            window.location.replace('InstructorHome.html');
         }
     });
 
