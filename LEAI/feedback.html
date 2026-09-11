@@ -869,8 +869,8 @@
                 <span><strong>You can revise or add to any answer anytime.</strong> Just tell LEAI &mdash; for example, <em>&ldquo;actually, change what I said about &hellip;&rdquo;</em>, <em>&ldquo;I want to add to my answer about &hellip;&rdquo;</em>, or <em>&ldquo;go back to your earlier question about &hellip;&rdquo;</em></span>
             </div>
             <div class="input-area">
-                <textarea id="messageInput" placeholder="Share your thoughts about the class..." rows="2"></textarea>
-                <button id="micButton" type="button" aria-label="Dictate" aria-pressed="false" title="Dictate (click to record, click again to stop)">
+                <textarea id="messageInput" aria-label="Your answer" placeholder="Share your thoughts about the class..." rows="2"></textarea>
+                <button id="micButton" type="button" role="button" aria-label="Dictate" aria-pressed="false" title="Dictate (click to record, click again to stop)">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -2383,6 +2383,7 @@
             inputArea.className = 'input-area';
             var textarea = document.createElement('textarea');
             textarea.id = 'messageInput';
+            textarea.setAttribute('aria-label', 'Your answer');
             textarea.placeholder = 'Type your response...';
             textarea.rows = 2;
 
@@ -2391,6 +2392,7 @@
             var igMicBtn = document.createElement('button');
             igMicBtn.id = 'micButton';
             igMicBtn.type = 'button';
+            igMicBtn.setAttribute('role', 'button');
             igMicBtn.setAttribute('aria-label', 'Dictate');
             igMicBtn.setAttribute('aria-pressed', 'false');
             igMicBtn.title = 'Dictate (click to record, click again to stop)';
@@ -3721,7 +3723,30 @@
                 footer.appendChild(notice);
                 if (window.leaiPreviewToken) {
                     completeQuestionSetPreview().then(function () {
-                        notice.textContent = 'Preview complete — return to the builder to schedule this exact revision.';
+                        notice.textContent = 'Preview complete. You can optionally revise or add to an answer below, or return to the builder to publish.';
+                        $('#messageInput')
+                            .attr('aria-label', 'Optional: revise or add to an answer')
+                            .attr('placeholder', 'Optional: revise or add to an answer…');
+                        var returnButton = document.createElement('button');
+                        returnButton.type = 'button';
+                        returnButton.textContent = 'Return to builder';
+                        returnButton.style.cssText = 'display:block;margin:10px auto 0;padding:8px 14px;border:0;border-radius:4px;background:var(--primary);color:#fff;font:600 0.8rem Inter,sans-serif;cursor:pointer;';
+                        returnButton.addEventListener('click', function () {
+                            if (window.opener && !window.opener.closed) {
+                                window.opener.focus();
+                                window.close();
+                                return;
+                            }
+                            window.close();
+                            window.setTimeout(function () {
+                                if (window.history.length > 1) {
+                                    window.history.back();
+                                    return;
+                                }
+                                window.location.href = 'PromptDesigner.html';
+                            }, 100);
+                        });
+                        notice.appendChild(returnButton);
                     }).catch(function () {
                         notice.textContent = 'Preview could not be completed because a practice message was not saved. Return to the builder and launch a fresh preview.';
                         notice.style.color = '#9f403d';

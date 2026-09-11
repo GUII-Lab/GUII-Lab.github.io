@@ -103,6 +103,29 @@ test('survey idempotency key is stable for an exact revision', () => {
     );
 });
 
+test('mode switching only warns after the current mode has been edited', () => {
+    assert.equal(wizard.shouldConfirmModeSwitch(false), false);
+    assert.equal(wizard.shouldConfirmModeSwitch(true), true);
+});
+
+test('same-tab preview return state keeps only the identifiers needed to restore the wizard', () => {
+    assert.deepEqual(
+        wizard.buildPreviewReturnState(
+            { id: 'draft-1', version: 3 },
+            { id: 'revision-9' },
+            'preview-token',
+            'feedback.html?preview=preview-token',
+        ),
+        {
+            draftId: 'draft-1',
+            draftVersion: 3,
+            revisionId: 'revision-9',
+            previewToken: 'preview-token',
+            previewUrl: 'feedback.html?preview=preview-token',
+        },
+    );
+});
+
 test('Prompt Designer exposes the real four-step wizard and keeps legacy schema setup secondary', () => {
     const html = fs.readFileSync(
         path.join(__dirname, '..', 'PromptDesigner.html'),
@@ -112,7 +135,12 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     assert.match(html, /leai-question-set-wizard\.js/);
     assert.match(html, /id="question-set-wizard-open"/);
     assert.match(html, /id="question-set-wizard-root"/);
-    assert.match(html, /Use an existing database schema/);
+    assert.match(html, /Advanced: use an existing course schema/);
+    assert.match(html, /Create or resume a structured reflection/);
+    assert.match(html, /Saved drafts appear here/);
+    assert.match(html, /shouldConfirmModeSwitch\(modeDirty\[currentMode\]\)/);
+    assert.match(html, /questionSetWizardController\.close\(false\)/);
+    assert.match(html, /if \(restored !== false\) return/);
     assert.match(html, /leaiQuestionSetWizard\.mount/);
     const formSurveyRenderer = html.match(
         /function buildFormSurveyItem\(s\) \{([\s\S]*?)\n    function loadFormSurveys/,
@@ -121,7 +149,7 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
         formSurveyRenderer,
         /if \(!s\.question_set_revision_id\) \{[\s\S]*?appendChild\(dupBtn\)[\s\S]*?appendChild\(editBtn\)[\s\S]*?appendChild\(deleteBtn\)/,
     );
-    assert.match(html, /s\.question_set_revision_id[\s\S]*?\? 'Question set'/);
+    assert.match(html, /s\.question_set_revision_id[\s\S]*?\? 'Structured reflection'/);
     assert.doesNotMatch(html, /close or duplicate it later/i);
 
     const source = fs.readFileSync(
@@ -137,6 +165,23 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     assert.equal((source.match(/focusEditorStart\(\);/g) || []).length, 2);
     const busyBranch = source.match(/if \(busy\) \{([\s\S]*?)footerStatus\.textContent/)[1];
     assert.doesNotMatch(busyBranch, /closeButton/);
+    const launchPreview = source.match(
+        /function launchPreview\(\) \{([\s\S]*?)\n        function checkPreviewCompletion/,
+    )[1];
+    assert.doesNotMatch(launchPreview, /window\.open/);
+    assert.match(source, /Open preview in this tab/);
+    assert.match(source, /Open preview in a new tab/);
+    assert.match(source, /var stepNames = \['Choose', 'Edit', 'Preview', 'Publish'\]/);
+    assert.doesNotMatch(source, /ready to schedule|Continue to schedule|now schedule this revision/);
+    assert.match(source, /Week \/ milestone is an optional organizing number shown only in your instructor survey list/);
+    assert.match(source, /Resume editing/);
+    assert.match(source, /first answer needs more detail/);
+    assert.match(source, /ariaLabel: 'Conversation area ' \+ \(index \+ 1\) \+ ' short label'/);
+    assert.match(source, /ariaLabel: 'Conversation area ' \+ \(index \+ 1\) \+ ' main question'/);
+    assert.match(source, /ariaLabel: 'Conversation area ' \+ \(index \+ 1\) \+ ' optional follow-up'/);
+    assert.match(source, /onDraftsChanged/);
+    assert.match(source, /restoreSameTabPreview/);
+    assert.match(source, /api\.listDrafts\(activeCourse\.id\)[\s\S]*?notifyDraftsChanged\(\)/);
 });
 
 test('student page routes preview messages and completion away from research responses', () => {
@@ -153,4 +198,7 @@ test('student page routes preview messages and completion away from research res
     assert.equal((html.match(/previewPersistenceError = null/g) || []).length, 1);
     assert.match(html, /Checking that every practice answer was saved/);
     assert.match(html, /completeQuestionSetPreview\(\)\.then[\s\S]*?notice\.textContent = 'Preview complete/);
+    assert.match(html, /aria-label="Your answer"/);
+    assert.match(html, /Return to builder/);
+    assert.match(html, /Optional: revise or add to an answer/);
 });

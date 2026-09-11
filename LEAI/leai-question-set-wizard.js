@@ -136,6 +136,20 @@
         return 'question-set-survey-' + String(revisionId || '').trim();
     }
 
+    function shouldConfirmModeSwitch(isDirty) {
+        return isDirty === true;
+    }
+
+    function buildPreviewReturnState(draft, revision, previewToken, previewUrl) {
+        return {
+            draftId: draft && draft.id,
+            draftVersion: draft && draft.version,
+            revisionId: revision && revision.id,
+            previewToken: previewToken,
+            previewUrl: previewUrl,
+        };
+    }
+
     function isoOrNull(value) {
         if (!value) return null;
         var date = new Date(value);
@@ -165,6 +179,7 @@
             draft: null,
             revision: null,
             previewToken: null,
+            previewUrl: null,
             previewCompleted: false,
             dirty: false,
             idempotencyKey: randomIdempotencyKey(),
@@ -195,7 +210,7 @@
         header.appendChild(closeButton);
 
         var progress = element('ol', 'qsw-progress');
-        var stepNames = ['Choose', 'Edit', 'Preview', 'Schedule'];
+        var stepNames = ['Choose', 'Edit', 'Preview', 'Publish'];
         stepNames.forEach(function (name, index) {
             var item = element('li', 'qsw-progress-item');
             item.dataset.step = String(index + 1);
@@ -247,6 +262,12 @@
             notice.hidden = !message;
         }
 
+        function notifyDraftsChanged() {
+            if (typeof options.onDraftsChanged === 'function') {
+                options.onDraftsChanged(state.drafts.slice());
+            }
+        }
+
         function setBusy(busy, label) {
             state.busy = busy;
             rootEl.classList.toggle('qsw-busy', busy);
@@ -282,8 +303,12 @@
             if (options && options.type) input.type = options.type;
             if (options && options.placeholder) input.placeholder = options.placeholder;
             if (options && options.min) input.min = options.min;
+            if (options && options.ariaLabel) input.setAttribute('aria-label', options.ariaLabel);
             field.appendChild(label);
             field.appendChild(input);
+            if (options && options.hint) {
+                field.appendChild(element('span', 'qsw-field-hint', options.hint));
+            }
             return { field: field, input: input };
         }
 
@@ -310,7 +335,7 @@
                         draft.body.sections.length + ' questions · saved ' +
                             new Date(draft.updated_at).toLocaleString(),
                     ));
-                    var button = element('button', 'qsw-button qsw-button-secondary', 'Resume');
+                    var button = element('button', 'qsw-button qsw-button-secondary', 'Resume editing');
                     button.type = 'button';
                     button.addEventListener('click', function () {
                         setBusy(true, 'Loading the latest saved draft…');
@@ -321,6 +346,7 @@
                             });
                             state.revision = null;
                             state.previewToken = null;
+                            state.previewUrl = null;
                             state.previewCompleted = false;
                             state.dirty = false;
                             state.step = 2;
@@ -359,6 +385,7 @@
                     api.createDraft(activeCourse.id, template.id).then(function (draft) {
                         state.draft = draft;
                         state.drafts.unshift(draft);
+                        notifyDraftsChanged();
                         state.step = 2;
                         state.dirty = false;
                         setNotice('', '');
@@ -393,6 +420,7 @@
 
             var titleField = inputField('Question set title', body.title, {
                 placeholder: 'Weekly learning reflection',
+                hint: 'Students see this title at the top of the reflection.',
             });
             titleField.input.dataset.bind = 'title';
             main.appendChild(titleField.field);
@@ -413,13 +441,16 @@
                 cardHead.appendChild(element('span', 'qsw-question-number', String(index + 1)));
                 cardHead.appendChild(element('strong', '', 'Conversation area'));
                 card.appendChild(cardHead);
-                var sectionTitle = inputField('Short label', section.title);
+                var sectionTitle = inputField('Short label', section.title, {
+                    ariaLabel: 'Conversation area ' + (index + 1) + ' short label',
+                });
                 sectionTitle.input.dataset.sectionIndex = String(index);
                 sectionTitle.input.dataset.sectionKey = 'title';
                 card.appendChild(sectionTitle.field);
                 var prompt = inputField('Main question', section.opening_prompt, {
                     multiline: true,
                     rows: 3,
+                    ariaLabel: 'Conversation area ' + (index + 1) + ' main question',
                 });
                 prompt.input.dataset.sectionIndex = String(index);
                 prompt.input.dataset.sectionKey = 'opening_prompt';
@@ -427,6 +458,7 @@
                 var probe = inputField('Optional follow-up', section.depth_probe || '', {
                     multiline: true,
                     rows: 2,
+                    ariaLabel: 'Conversation area ' + (index + 1) + ' optional follow-up',
                 });
                 probe.input.dataset.sectionIndex = String(index);
                 probe.input.dataset.sectionKey = 'depth_probe';
@@ -446,7 +478,7 @@
             side.appendChild(element(
                 'p',
                 '',
-                'LEAI follows this order, asks at most one follow-up per area, then closes with your final feedback question.',
+                'LEAI follows this order. When a student’s first answer needs more detail, it may ask the optional follow-up; it never asks more than one follow-up per area.',
             ));
             var guardrails = element('ul', 'qsw-check-list');
             [
@@ -476,10 +508,10 @@
             secondaryButton.textContent = state.dirty ? 'Save draft' : 'Saved';
             secondaryButton.disabled = !state.dirty;
             primaryButton.hidden = false;
-            primaryButton.textContent = 'Save & prepare preview';
+            primaryButton.textContent = 'Save changes & prepare preview';
             footerStatus.textContent = state.dirty
                 ? 'Unsaved changes'
-                : 'Draft v' + state.draft.version + ' saved';
+                : 'Draft saved';
         }
 
         function collectBody() {
@@ -509,6 +541,7 @@
                     return candidate.id === draft.id ? draft : candidate;
                 });
                 state.dirty = false;
+                notifyDraftsChanged();
                 setNotice('Draft saved.', 'success');
                 return draft;
             }).catch(function (error) {
@@ -527,21 +560,60 @@
                 'p',
                 '',
                 state.previewCompleted
-                    ? 'Preview complete. This exact revision is ready to schedule.'
-                    : 'Open the preview and answer through the closing question. Practice messages stay separate from student data.',
+                    ? 'Preview complete. This exact version is ready to publish.'
+                    : 'Prepare the preview, then answer through the closing question. Practice messages stay separate from student data.',
             ));
-            var launch = element(
-                'button',
-                'qsw-button qsw-button-primary qsw-launch-button',
-                state.previewToken ? 'Open preview again ↗' : 'Launch real preview ↗',
-            );
-            launch.type = 'button';
-            launch.addEventListener('click', launchPreview);
-            visual.appendChild(launch);
+            if (!state.previewToken) {
+                var launch = element(
+                    'button',
+                    'qsw-button qsw-button-primary qsw-launch-button',
+                    'Prepare student preview',
+                );
+                launch.type = 'button';
+                launch.addEventListener('click', launchPreview);
+                visual.appendChild(launch);
+            } else if (state.previewUrl) {
+                var fallback = element('div', 'qsw-preview-fallback');
+                fallback.appendChild(element(
+                    'strong',
+                    '',
+                    state.previewCompleted ? 'Preview completed' : 'Your preview is ready',
+                ));
+                fallback.appendChild(element(
+                    'span',
+                    '',
+                    'Opening it in this tab gives you the most reliable return to the builder. A new tab keeps the builder visible.',
+                ));
+                var links = element('div', 'qsw-preview-fallback-links');
+                var sameTabLink = element('a', 'qsw-button qsw-button-secondary', 'Open preview in this tab');
+                sameTabLink.href = state.previewUrl;
+                function rememberPreviewReturn() {
+                    try {
+                        window.sessionStorage.setItem(
+                            'leai.questionSetWizard.return',
+                            JSON.stringify(buildPreviewReturnState(
+                                state.draft,
+                                state.revision,
+                                state.previewToken,
+                                state.previewUrl,
+                            )),
+                        );
+                    } catch (error) {}
+                }
+                sameTabLink.addEventListener('click', rememberPreviewReturn);
+                var newTabLink = element('a', 'qsw-button qsw-button-secondary', 'Open preview in a new tab ↗');
+                newTabLink.href = state.previewUrl;
+                newTabLink.target = '_blank';
+                newTabLink.rel = 'noopener';
+                newTabLink.addEventListener('click', rememberPreviewReturn);
+                links.appendChild(sameTabLink);
+                links.appendChild(newTabLink);
+                fallback.appendChild(links);
+                visual.appendChild(fallback);
+            }
             var exact = element('div', 'qsw-revision-card');
-            exact.appendChild(element('span', '', 'Frozen revision'));
-            exact.appendChild(element('strong', '', 'Revision ' + state.revision.revision_number));
-            exact.appendChild(element('code', '', state.revision.content_hash.slice(0, 12)));
+            exact.appendChild(element('span', '', 'Preview-ready version'));
+            exact.appendChild(element('strong', '', 'Questions saved and locked'));
             visual.appendChild(exact);
             wrap.appendChild(visual);
 
@@ -549,7 +621,7 @@
             checklist.appendChild(element('h3', '', 'Preview gate'));
             var items = [
                 ['Exact wording is frozen', true],
-                ['Real Form Mode engine', true],
+                ['Student conversation engine', true],
                 ['Practice data is isolated', true],
                 ['Closing reached', state.previewCompleted],
             ];
@@ -572,7 +644,7 @@
             backButton.textContent = 'Back to edit';
             secondaryButton.hidden = true;
             primaryButton.hidden = false;
-            primaryButton.textContent = state.previewCompleted ? 'Continue to schedule' : 'Complete preview first';
+            primaryButton.textContent = state.previewCompleted ? 'Continue to publish' : 'Complete preview first';
             primaryButton.disabled = !state.previewCompleted;
             footerStatus.textContent = state.previewCompleted
                 ? 'Preview completed for this exact revision'
@@ -580,21 +652,15 @@
         }
 
         function launchPreview() {
-            if (state.previewToken) {
-                window.open('feedback.html?preview=' + encodeURIComponent(state.previewToken), '_blank', 'noopener');
-                return;
-            }
-            var previewTab = window.open('about:blank', '_blank');
+            if (state.previewToken) return;
             setBusy(true, 'Preparing isolated preview…');
             api.createPreview(state.revision.id).then(function (result) {
                 state.previewToken = result.token;
                 var target = result.preview_url || ('feedback.html?preview=' + encodeURIComponent(result.token));
-                if (previewTab) previewTab.location.href = target;
-                else window.open(target, '_blank', 'noopener');
+                state.previewUrl = target;
                 startPolling();
                 render();
             }).catch(function (error) {
-                if (previewTab) previewTab.close();
                 handleError(error);
             }).finally(function () { setBusy(false); });
         }
@@ -605,7 +671,7 @@
                 state.previewCompleted = !!result.preview_completed;
                 if (state.previewCompleted) {
                     stopPolling();
-                    setNotice('Preview complete. You can now schedule this revision.', 'success');
+                    setNotice('Preview complete. You can now publish this survey.', 'success');
                     render();
                 }
                 return state.previewCompleted;
@@ -633,7 +699,7 @@
         }
 
         function renderSchedule() {
-            title.textContent = state.receipt ? 'Your survey is ready' : 'Schedule one survey';
+            title.textContent = state.receipt ? 'Your survey is ready' : 'Publish this survey';
             if (state.receipt) {
                 var receipt = element('div', 'qsw-receipt');
                 receipt.appendChild(element('span', 'qsw-receipt-check', '✓'));
@@ -678,15 +744,16 @@
             form.appendChild(element(
                 'p',
                 'qsw-lead',
-                'Create one shareable survey now. You can close or reopen it later from the survey list.',
+                'Publish one shareable survey now. It becomes available immediately unless you choose an opening time.',
             ));
             var label = inputField('Survey label', state.draft.body.title, {
                 placeholder: 'Week 3 learning reflection',
+                hint: 'Instructors see this label in the survey list; students see it on the consent screen.',
             });
             label.input.id = 'qsw-survey-label';
             form.appendChild(label.field);
             var dates = element('div', 'qsw-field-grid');
-            var week = inputField('Week / milestone', '', { type: 'number', min: '1' });
+            var week = inputField('Week / milestone (optional)', '', { type: 'number', min: '1' });
             week.input.id = 'qsw-week';
             var opens = inputField('Opens (optional)', '', { type: 'datetime-local' });
             opens.input.id = 'qsw-opens';
@@ -695,6 +762,11 @@
             dates.appendChild(week.field);
             dates.appendChild(opens.field);
             dates.appendChild(expires.field);
+            form.appendChild(element(
+                'p',
+                'qsw-field-grid-hint',
+                'Week / milestone is an optional organizing number shown only in your instructor survey list.',
+            ));
             form.appendChild(dates);
             var note = element('div', 'qsw-schedule-note');
             note.appendChild(element('strong', '', 'No close date?'));
@@ -705,7 +777,7 @@
             summary.appendChild(element('span', 'qsw-aside-kicker', 'Publication summary'));
             summary.appendChild(element('h3', '', state.draft.body.title));
             summary.appendChild(element('p', '', state.draft.body.sections.length + ' guided questions'));
-            summary.appendChild(element('p', '', 'Revision ' + state.revision.revision_number + ' · preview complete'));
+            summary.appendChild(element('p', '', 'Student preview complete'));
             summary.appendChild(element('p', '', 'Anonymous individual responses'));
             wrap.appendChild(summary);
             replaceChildren(content, wrap);
@@ -713,7 +785,7 @@
             backButton.textContent = 'Back to preview';
             secondaryButton.hidden = true;
             primaryButton.hidden = false;
-            primaryButton.textContent = 'Create survey & get link';
+            primaryButton.textContent = 'Publish survey & get link';
             primaryButton.disabled = false;
             footerStatus.textContent = 'Creates one survey; no recurring series';
         }
@@ -737,7 +809,7 @@
                 setNotice('Closing time must be after opening time.', 'error');
                 return;
             }
-            setBusy(true, 'Creating survey…');
+            setBusy(true, 'Publishing survey…');
             api.createSurvey(state.revision.id, {
                 courseId: course().id,
                 idempotencyKey: state.idempotencyKey,
@@ -795,6 +867,7 @@
             ]).then(function (results) {
                 state.templates = results[0].templates || [];
                 state.drafts = results[1].drafts || [];
+                notifyDraftsChanged();
                 render();
             }).catch(function (error) {
                 handleError(error);
@@ -809,13 +882,79 @@
 
         function close(force) {
             if (!force && state.dirty && !window.confirm('Close without saving your latest changes?')) {
-                return;
+                return false;
             }
             stopPolling();
             state.open = false;
             rootEl.hidden = true;
             document.body.classList.remove('qsw-open');
             openButton.focus();
+            return true;
+        }
+
+        function restoreSameTabPreview() {
+            var raw = null;
+            try {
+                raw = window.sessionStorage.getItem('leai.questionSetWizard.return');
+                window.sessionStorage.removeItem('leai.questionSetWizard.return');
+            } catch (error) {
+                return Promise.resolve(false);
+            }
+            if (!raw) return Promise.resolve(false);
+            var saved;
+            try { saved = JSON.parse(raw); }
+            catch (error) { return Promise.resolve(false); }
+            if (!saved || !saved.draftId || !saved.revisionId || !saved.previewToken) {
+                return Promise.resolve(false);
+            }
+            var activeCourse = course();
+            if (!activeCourse) return Promise.resolve(false);
+
+            state.open = true;
+            state.receipt = null;
+            state.dirty = false;
+            rootEl.hidden = false;
+            document.body.classList.add('qsw-open');
+            subtitle.textContent = activeCourse.name + ' · ' + activeCourse.id;
+            replaceChildren(content, element('p', 'qsw-lead', 'Restoring your completed preview…'));
+            closeButton.focus();
+            setBusy(true, 'Restoring your completed preview…');
+
+            return Promise.all([
+                api.getDraft(saved.draftId),
+                api.getPreview(saved.previewToken),
+                api.freezeDraft(saved.draftId, saved.draftVersion),
+                api.listDrafts(activeCourse.id),
+            ]).then(function (results) {
+                var draft = results[0];
+                var preview = results[1];
+                var revision = results[2].revision;
+                if (!revision || String(revision.id) !== String(saved.revisionId)) {
+                    throw new WizardApiError('preview_revision_mismatch', 409);
+                }
+                state.draft = draft;
+                state.revision = revision;
+                state.previewToken = saved.previewToken;
+                state.previewUrl = saved.previewUrl ||
+                    ('feedback.html?preview=' + encodeURIComponent(saved.previewToken));
+                state.previewCompleted = !!preview.preview_completed;
+                state.drafts = results[3].drafts || [];
+                notifyDraftsChanged();
+                state.idempotencyKey = idempotencyKeyForRevision(revision.id);
+                state.step = 3;
+                if (!state.previewCompleted) startPolling();
+                render();
+                return true;
+            }).catch(function (error) {
+                close(true);
+                return api.listDrafts(activeCourse.id).then(function (result) {
+                    state.drafts = result.drafts || [];
+                    notifyDraftsChanged();
+                }).catch(function () {}).then(function () {
+                    if (typeof options.onRestoreError === 'function') options.onRestoreError(error);
+                    return null;
+                });
+            }).finally(function () { setBusy(false); });
         }
 
         openButton.addEventListener('click', open);
@@ -872,6 +1011,7 @@
                     state.idempotencyKey = idempotencyKeyForRevision(result.revision.id);
                     state.previewCompleted = !!result.revision.preview_completed;
                     state.previewToken = null;
+                    state.previewUrl = null;
                     state.step = 3;
                     setNotice('', '');
                     render();
@@ -894,6 +1034,16 @@
         return {
             open: open,
             close: close,
+            restoreSameTabPreview: restoreSameTabPreview,
+            refreshDrafts: function () {
+                var activeCourse = course();
+                if (!activeCourse) return Promise.resolve([]);
+                return api.listDrafts(activeCourse.id).then(function (result) {
+                    state.drafts = result.drafts || [];
+                    notifyDraftsChanged();
+                    return state.drafts;
+                });
+            },
             getState: function () { return state; },
         };
     }
@@ -904,5 +1054,7 @@
         mount: mount,
         randomIdempotencyKey: randomIdempotencyKey,
         idempotencyKeyForRevision: idempotencyKeyForRevision,
+        shouldConfirmModeSwitch: shouldConfirmModeSwitch,
+        buildPreviewReturnState: buildPreviewReturnState,
     };
 }));

@@ -940,6 +940,8 @@
         isComplete: function (state) { return allCovered(state); },
         isEnded: function (state) { return !!state.ended; },
         progressLabel: function (state) {
+            if (state.ended) return 'Reflection complete';
+            if (state.closing_feedback_asked || allCovered(state)) return 'Closing question';
             var n = state.schema.sections.length;
             var i = state.current_area_index;
             var area = state.schema.sections[i - 1];

@@ -709,13 +709,13 @@ When the conversation has organically reached a natural close — i.e. the stude
                             <div class="card-title">Structured Reflection Builder</div>
 
                             <div class="builder-note">Start from a proven individual-reflection template, adjust the student-facing questions, complete the real conversation preview, and create one survey link.</div>
-                            <div id="question-set-wizard-status"></div>
+                            <div id="question-set-wizard-status" class="builder-note">Saved drafts appear here and remain separate from published surveys.</div>
                             <div style="margin:20px 0 8px">
-                                <button class="btn btn-primary" id="question-set-wizard-open">Create a structured reflection</button>
+                                <button class="btn btn-primary" id="question-set-wizard-open">Create or resume a structured reflection</button>
                             </div>
 
                             <details style="margin-top:18px;padding-top:16px;border-top:1px solid var(--outline)">
-                                <summary style="cursor:pointer;color:var(--text-variant);font-size:.78rem;font-weight:700">Use an existing database schema</summary>
+                                <summary style="cursor:pointer;color:var(--text-variant);font-size:.78rem;font-weight:700">Advanced: use an existing course schema</summary>
                                 <div style="padding-top:16px">
 
                             <div class="builder-note">Legacy setup for existing checked-in schemas. New question sets should use the guided builder above.</div>
@@ -777,13 +777,13 @@ When the conversation has organically reached a natural close — i.e. the stude
                     <div>
                         <div class="card" id="form-surveys-card">
                             <div class="card-title" style="justify-content:space-between">
-                                Your Form Surveys
+                                Your Structured Reflection Surveys
                                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                                     <button class="btn btn-outline" id="form-refresh-btn">Refresh</button>
                                 </div>
                             </div>
                             <div id="form-survey-list-container">
-                                <div class="empty-state">No form-mode surveys yet.</div>
+                                <div class="empty-state">No published structured reflections yet. Saved drafts remain in the builder.</div>
                             </div>
                         </div>
                     </div>
@@ -922,6 +922,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     var activeCourse = null;
     var pendingAnswersImport = null;
     var questionSetWizardController = null;
+    var modeDirty = { general: false, group: false, form: false };
 
     function initQuestionSetWizard() {
         if (questionSetWizardController || typeof leaiQuestionSetWizard === 'undefined') return;
@@ -932,6 +933,18 @@ When the conversation has organically reached a natural close — i.e. the stude
             authorizedFetch: authorizedFetch,
             fetch: fetch,
             getCourse: function () { return activeCourse; },
+            onDraftsChanged: function (drafts) {
+                var status = document.getElementById('question-set-wizard-status');
+                var openButton = document.getElementById('question-set-wizard-open');
+                var count = drafts.length;
+                status.className = 'builder-note';
+                status.textContent = count
+                    ? count + ' saved draft' + (count === 1 ? '' : 's') + ' ready to continue. Published surveys appear on the right.'
+                    : 'No saved drafts yet. New drafts remain separate from published surveys until you finish preview and publish.';
+                openButton.textContent = count
+                    ? 'Continue or create a structured reflection'
+                    : 'Create or resume a structured reflection';
+            },
             onCreated: function (survey) {
                 setMsg(
                     'question-set-wizard-status',
@@ -941,6 +954,19 @@ When the conversation has organically reached a natural close — i.e. the stude
                 );
                 loadFormSurveys();
             },
+            onRestoreError: function () {
+                var status = document.getElementById('question-set-wizard-status');
+                status.className = 'builder-note';
+                status.textContent = 'The preview is saved, but this tab could not restore it automatically. Open the builder to continue the saved draft.';
+            },
+        });
+        questionSetWizardController.restoreSameTabPreview().then(function (restored) {
+            if (restored !== false) return;
+            return questionSetWizardController.refreshDrafts();
+        }).catch(function () {
+            var status = document.getElementById('question-set-wizard-status');
+            status.className = 'builder-note';
+            status.textContent = 'Saved drafts are available inside the builder.';
         });
     }
 
@@ -1067,7 +1093,7 @@ When the conversation has organically reached a natural close — i.e. the stude
             badge.setAttribute('data-mode', mode);
             badge.textContent = (mode === 'general') ? 'General Mode'
                 : (mode === 'group') ? 'In-Group Mode'
-                : 'Form Mode';
+                : 'Structured Reflection';
         }
         localStorage.setItem(MODE_KEY, mode);
         if (mode === 'form') initFormModePanel();
@@ -1153,9 +1179,24 @@ When the conversation has organically reached a natural close — i.e. the stude
     document.querySelectorAll('.mode-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             var target = tab.dataset.mode;
-            if (target === (localStorage.getItem(MODE_KEY) || 'general')) return;
-            if (!confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
+            var currentMode = localStorage.getItem(MODE_KEY) || 'general';
+            if (target === currentMode) return;
+            var wizardRoot = document.getElementById('question-set-wizard-root');
+            if (questionSetWizardController && wizardRoot && !wizardRoot.hidden &&
+                    !questionSetWizardController.close(false)) return;
+            if (leaiQuestionSetWizard.shouldConfirmModeSwitch(modeDirty[currentMode]) &&
+                    !confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
             applyMode(target);
+        });
+    });
+
+    ['general', 'group', 'form'].forEach(function (mode) {
+        var panel = document.getElementById('mode-panel-' + mode);
+        if (!panel) return;
+        ['input', 'change'].forEach(function (eventName) {
+            panel.addEventListener(eventName, function (event) {
+                if (event.target.matches('input, textarea, select')) modeDirty[mode] = true;
+            });
         });
     });
 
@@ -2536,7 +2577,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         modeBadge.className = 'survey-type-badge';
         modeBadge.setAttribute('data-mode', 'form');
         modeBadge.textContent = s.question_set_revision_id
-            ? 'Question set'
+            ? 'Structured reflection'
             : (s.form_schema_id || 'Form');
 
         var title = document.createElement('div');
@@ -2667,7 +2708,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 if (!formRows.length) {
                     var empty = document.createElement('div');
                     empty.className = 'empty-state';
-                    empty.textContent = 'No form-mode surveys yet.';
+                    empty.textContent = 'No published structured reflections yet. Saved drafts remain in the builder.';
                     container.appendChild(empty);
                     return;
                 }

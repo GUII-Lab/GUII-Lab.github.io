@@ -65,6 +65,23 @@ test('initial state and opening directive target only the first labeled field', 
     assert.doesNotMatch(turn.directive.text, /Explain your mental model, confidence/);
 });
 
+test('progress moves from the last question to closing and completion states', () => {
+    const state = leaiFormMode.init(fallSchemaFixture());
+    state.current_area_index = 2;
+    state.field_cursor = 1;
+
+    assert.equal(
+        leaiFormMode.progressLabel(state),
+        'Area 2 of 2 — Collaboration Choices · Question 2 of 2'
+    );
+
+    state.closing_feedback_asked = true;
+    assert.equal(leaiFormMode.progressLabel(state), 'Closing question');
+
+    state.ended = true;
+    assert.equal(leaiFormMode.progressLabel(state), 'Reflection complete');
+});
+
 test('a substantive answer advances exactly one field and returns exact attribution', () => {
     const schema = fallSchemaFixture();
     const state = leaiFormMode.init(schema);
