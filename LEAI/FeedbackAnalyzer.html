@@ -1156,7 +1156,7 @@
     function loadData() {
         const courseParam = encodeURIComponent(session.courseId);
         Promise.all([
-            fetch(API + '/feedback_messages_by_course/?course_id=' + courseParam)
+            authorizedFetch(API + '/feedback_messages_by_course/?course_id=' + courseParam)
                 .then(function (r) { return r.json(); }),
             fetch(API + '/get_course_customization/?course_id=' + courseParam)
                 .then(function (r) { return r.json(); })
@@ -4307,7 +4307,7 @@
 
     function loadInGroupSurveys() {
         if (!session || !session.courseId) return;
-        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(session.courseId))
+        authorizedFetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(session.courseId))
             .then(function (r) { return r.json(); })
             .then(function (all) {
                 inGroupSurveys = (all || []).filter(function (s) { return s.mode === 'group'; });
@@ -4346,7 +4346,7 @@
         // hidden by the tab system, so no global section toggling here.
         var snapP = leaiTeamsApi.getSurveyTeamSnapshot(survey.id);
         var asgnP = leaiTeamsApi.listAssignmentsForSurvey(survey.id);
-        var msgsP = fetch(API + '/feedback_messages_by_gpt/?gpt_id=' + encodeURIComponent(survey.id))
+        var msgsP = authorizedFetch(API + '/feedback_messages_by_gpt/?gpt_id=' + encodeURIComponent(survey.id))
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 // Transform {sessions: {sid: [msg...]}, ...} into a flat chatLog

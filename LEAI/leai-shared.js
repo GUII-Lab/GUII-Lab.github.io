@@ -12,6 +12,20 @@ function getSession() {
 function saveSession(data) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); }
 function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
 
+function authorizedFetch(url, options) {
+    var stored = getSession();
+    var token = stored && stored.instructorToken;
+    if (!token) return fetch(url, options);
+    if (
+        typeof leaiInstructorAuth === 'undefined'
+        || !leaiInstructorAuth
+        || typeof leaiInstructorAuth.authorizedFetch !== 'function'
+    ) {
+        return Promise.reject(new Error('Instructor authentication is unavailable.'));
+    }
+    return leaiInstructorAuth.authorizedFetch(fetch, token, url, options);
+}
+
 // ===== UI HELPERS =====
 function setMsg(elId, text, type) {
     var el = document.getElementById(elId);
@@ -410,7 +424,7 @@ var leaiChat = {
         if (opts.body && !opts.headers['Content-Type']) {
             opts.headers['Content-Type'] = 'application/json';
         }
-        return fetch(API + path, opts).then(function(r) {
+        return authorizedFetch(API + path, opts).then(function(r) {
             if (r.status === 204) return null;
             if (r.status === 404 && opts._allow404) return null;
             if (!r.ok) return r.json().then(function(err) {
@@ -1814,7 +1828,7 @@ const leaiTeamsApi = (function () {
         }
         var q = new URLSearchParams({ course_id: String(courseId) });
         if (opts.includeArchived) q.set('include_archived', '1');
-        return fetch(API + '/team_configurations/?' + q.toString())
+        return authorizedFetch(API + '/team_configurations/?' + q.toString())
             .then(function (r) { return r.json(); });
     }
 
@@ -1840,7 +1854,7 @@ const leaiTeamsApi = (function () {
             _write(K_CONFIGS, all);
             return Promise.resolve(config);
         }
-        return fetch(API + '/team_configurations/create/', {
+        return authorizedFetch(API + '/team_configurations/create/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(Object.assign({ course_id: courseId }, payload)),
@@ -1876,7 +1890,7 @@ const leaiTeamsApi = (function () {
             _write(K_CONFIGS, all);
             return Promise.resolve(all[idx]);
         }
-        return fetch(API + '/team_configurations/update/', {
+        return authorizedFetch(API + '/team_configurations/update/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(Object.assign({ id: configId }, patch)),
@@ -1885,7 +1899,7 @@ const leaiTeamsApi = (function () {
 
     function archiveTeamConfiguration(configId) {
         if (USE_MOCK) return updateTeamConfiguration(configId, { archived: true });
-        return fetch(API + '/team_configurations/archive/', {
+        return authorizedFetch(API + '/team_configurations/archive/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: configId }),
@@ -1902,7 +1916,7 @@ const leaiTeamsApi = (function () {
             _write(K_CONFIGS, all);
             return Promise.resolve({ ok: true });
         }
-        return fetch(API + '/team_configurations/delete/', {
+        return authorizedFetch(API + '/team_configurations/delete/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: configId }),
@@ -2156,7 +2170,7 @@ const leaiPdfIngest = (function () {
         if (opts.body && typeof opts.body === 'string' && !opts.headers['Content-Type']) {
             opts.headers['Content-Type'] = 'application/json';
         }
-        return fetch(API + path, opts).then(function (r) {
+        return authorizedFetch(API + path, opts).then(function (r) {
             if (r.status === 204) return null;
             if (!r.ok) {
                 return r.json().then(function (err) {
@@ -2182,7 +2196,7 @@ const leaiPdfIngest = (function () {
         fd.append('attributions', JSON.stringify(attributions || {}));
         if (createdBy) fd.append('created_by', createdBy);
         files.forEach(function (f) { fd.append('files', f, f.name); });
-        return fetch(API + '/leai_pdf_ingest/start/', { method: 'POST', body: fd })
+        return authorizedFetch(API + '/leai_pdf_ingest/start/', { method: 'POST', body: fd })
             .then(function (r) {
                 if (!r.ok) return r.json().then(function (err) {
                     throw new Error(err.error || 'Upload failed: ' + r.status);

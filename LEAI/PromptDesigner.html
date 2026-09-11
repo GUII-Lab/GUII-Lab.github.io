@@ -1119,7 +1119,10 @@ When the conversation has organically reached a natural close — i.e. the stude
         document.getElementById('app').style.display = 'flex';
         setupSidebar();
         loadSurveys();
-        var isTestCourse = activeCourse && activeCourse.id.indexOf('test-') === 0;
+        var storedSession = getSession();
+        var isTestCourse = activeCourse
+            && activeCourse.id.indexOf('test-') === 0
+            && !(storedSession && storedSession.instructorToken);
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
         if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
@@ -1751,7 +1754,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         // on top of the team-aware prompt (e.g. HCI 271 Wk6 Parts 2 + 3).
         var schemaSel = document.getElementById('ig-schema-select');
         if (schemaSel && schemaSel.value) createPayload.form_schema_id = schemaSel.value;
-        fetch(API + '/create_feedback_gpt/', {
+        authorizedFetch(API + '/create_feedback_gpt/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(createPayload),
@@ -1821,7 +1824,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         loading.textContent = 'Loading\u2026';
         container.appendChild(loading);
 
-        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(igCourseId()))
+        authorizedFetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(igCourseId()))
             .then(function (r) { return r.json(); })
             .then(function (surveys) {
                 container.textContent = '';
@@ -1955,7 +1958,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         }
         toggleBtn.addEventListener('click', function () {
             toggleBtn.disabled = true;
-            fetch(API + '/set_survey_status/', {
+            authorizedFetch(API + '/set_survey_status/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ survey_id: s.id, action: s.is_closed ? 'reopen' : 'close' }),
@@ -1969,7 +1972,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         dupBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#e8eff1;color:#566164;text-transform:uppercase;letter-spacing:0.06em;';
         dupBtn.addEventListener('click', function () {
             dupBtn.disabled = true;
-            fetch(API + '/clone_survey/', {
+            authorizedFetch(API + '/clone_survey/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ survey_id: s.id }),
@@ -2103,7 +2106,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (schSel && schSel.value !== schSel.dataset.original) {
             payload.form_schema_id = schSel.value;
         }
-        fetch(API + '/update_survey/', {
+        authorizedFetch(API + '/update_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -2137,7 +2140,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var id = overlay.getAttribute('data-pending-id');
         if (!id) { igCloseDeleteModal(); return; }
         igDeleteConfirm.disabled = true;
-        fetch(API + '/delete_survey/', {
+        authorizedFetch(API + '/delete_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ survey_id: id }),
@@ -2621,7 +2624,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var anonymity = document.getElementById('s-anonymity').value;
 
         this.disabled = true;
-        fetch(API + '/create_feedback_gpt/', {
+        authorizedFetch(API + '/create_feedback_gpt/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(buildGeneralSurveyPayload({
@@ -2777,7 +2780,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (!instructions) { setMsg(msgId, 'Instructions (system prompt) are required.', 'error'); return; }
 
         this.disabled = true;
-        fetch(API + '/create_feedback_gpt/', {
+        authorizedFetch(API + '/create_feedback_gpt/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2899,7 +2902,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         }
         toggleBtn.addEventListener('click', function () {
             toggleBtn.disabled = true;
-            fetch(API + '/set_survey_status/', {
+            authorizedFetch(API + '/set_survey_status/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ survey_id: s.id, action: s.is_closed ? 'reopen' : 'close' }),
@@ -2913,7 +2916,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         dupBtn.style.cssText = 'font-family:inherit;font-size:0.72rem;font-weight:700;padding:5px 12px;border-radius:2px;cursor:pointer;border:none;background:#e8eff1;color:#566164;text-transform:uppercase;letter-spacing:0.06em;';
         dupBtn.addEventListener('click', function () {
             dupBtn.disabled = true;
-            fetch(API + '/clone_survey/', {
+            authorizedFetch(API + '/clone_survey/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ survey_id: s.id }),
@@ -2954,7 +2957,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         loading.textContent = 'Loading…';
         container.appendChild(loading);
 
-        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+        authorizedFetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
             .then(function (r) { return r.json(); })
             .then(function (rows) {
                 clearChildren(container);
@@ -2997,7 +3000,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         loading.textContent = 'Loading\u2026';
         container.appendChild(loading);
 
-        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+        authorizedFetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
         .then(function (r) { return r.json(); })
         .then(function (surveys) {
             container.textContent = '';
@@ -3107,7 +3110,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                     btn.addEventListener('click', function () {
                         var action = isClosed ? 'reopen' : 'close';
                         btn.disabled = true;
-                        fetch(API + '/set_survey_status/', {
+                        authorizedFetch(API + '/set_survey_status/', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ survey_id: surveyId, action: action })
@@ -3125,7 +3128,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 (function (surveyId, btn) {
                     btn.addEventListener('click', function () {
                         btn.disabled = true;
-                        fetch(API + '/clone_survey/', {
+                        authorizedFetch(API + '/clone_survey/', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ survey_id: surveyId })
@@ -3158,7 +3161,12 @@ When the conversation has organically reached a natural close — i.e. the stude
                 actionsRow.appendChild(editBtn);
                 actionsRow.appendChild(deleteBtn);
 
-                if (activeCourse && activeCourse.id.indexOf('test-') === 0) {
+                var currentSession = getSession();
+                if (
+                    activeCourse
+                    && activeCourse.id.indexOf('test-') === 0
+                    && !(currentSession && currentSession.instructorToken)
+                ) {
                     var importAnswersBtn = document.createElement('button');
                     importAnswersBtn.textContent = 'Import Answers';
                     importAnswersBtn.title = 'Import conversation data from a CSV file';
@@ -3257,7 +3265,7 @@ When the conversation has organically reached a natural close — i.e. the stude
             schSel.value !== schSel.dataset.original) {
             payload.form_schema_id = schSel.value;
         }
-        fetch(API + '/update_survey/', {
+        authorizedFetch(API + '/update_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -3297,7 +3305,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var btn = this;
         btn.disabled = true;
         btn.textContent = 'Deleting\u2026';
-        fetch(API + '/delete_survey/', {
+        authorizedFetch(API + '/delete_survey/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ survey_id: parseInt(surveyId, 10) })
@@ -3327,7 +3335,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var btn = this;
         btn.disabled = true;
         btn.textContent = 'Exporting\u2026';
-        fetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
+        authorizedFetch(API + '/feedback_gpts_by_course/?course_id=' + encodeURIComponent(activeCourse.id))
         .then(function (r) { return r.json(); })
         .then(function (surveys) {
             if (!surveys.length) {
@@ -3410,7 +3418,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                     return;
                 }
                 var s = surveys[i];
-                fetch(API + '/create_feedback_gpt/', {
+                authorizedFetch(API + '/create_feedback_gpt/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(buildGeneralSurveyPayload({
@@ -3631,6 +3639,16 @@ When the conversation has organically reached a natural close — i.e. the stude
 
             var sessionCount = Object.keys(sessions).length;
             var total = allMessages.length;
+
+            var currentSession = getSession();
+            if (currentSession && currentSession.instructorToken) {
+                setMsg(
+                    'survey-msg',
+                    'CSV answer import is unavailable for account courses. Use PDF upload in Feedback Analyzer.',
+                    'error'
+                );
+                return;
+            }
 
             setMsg('survey-msg', 'Importing ' + total + ' messages across ' + sessionCount + ' session(s)\u2026', 'success');
 

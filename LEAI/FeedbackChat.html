@@ -655,7 +655,7 @@
     // backend computes it with the session's exact scope, so it always
     // agrees with the rids the assistant emitted.
     function loadResponsesIndex() {
-        return fetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
+        return authorizedFetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
             .then(function (r) { return r.json(); })
             .then(function (surveys) {
                 if (!Array.isArray(surveys)) return;

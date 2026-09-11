@@ -1,0 +1,199 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const auth = require('../leai-instructor-auth.js');
+
+function response(status) {
+    return {
+        ok: status >= 200 && status < 300,
+        status: status,
+        text: async function () { return ''; },
+    };
+}
+
+function source(filename) {
+    return fs.readFileSync(path.join(__dirname, '..', filename), 'utf8');
+}
+
+function directFetchLines(contents, endpoint) {
+    const needle = "fetch(API + '/" + endpoint;
+    return contents.split('\n').filter(function (line) {
+        return line.includes(needle);
+    });
+}
+
+test('authorizedFetch merges bearer auth without losing caller headers', async () => {
+    const calls = [];
+    const result = await auth.authorizedFetch(
+        async function (url, options) {
+            calls.push({ url: url, options: options });
+            return response(200);
+        },
+        'account-token',
+        '/api/protected/',
+        {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Request-ID': 'request-1',
+            },
+            body: '{}',
+        },
+    );
+
+    assert.equal(result.status, 200);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer account-token');
+    assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
+    assert.equal(calls[0].options.headers['X-Request-ID'], 'request-1');
+});
+
+test('authorizedFetch keeps an explicit legacy request token-free', async () => {
+    const calls = [];
+    let cleared = false;
+    let routed = false;
+    const oldStorage = global.sessionStorage;
+    const oldWindow = global.window;
+    global.sessionStorage = {
+        removeItem: function () { cleared = true; },
+    };
+    global.window = {
+        location: { replace: function () { routed = true; } },
+    };
+    try {
+        const result = await auth.authorizedFetch(
+            async function (url, options) {
+                calls.push({ url: url, options: options });
+                return response(401);
+            },
+            '',
+            '/api/legacy/',
+            { headers: { Accept: 'application/json' } },
+        );
+        assert.equal(result.status, 401);
+        assert.equal(calls[0].options.headers.Authorization, undefined);
+        assert.equal(cleared, false);
+        assert.equal(routed, false);
+    } finally {
+        if (oldStorage === undefined) delete global.sessionStorage;
+        else global.sessionStorage = oldStorage;
+        if (oldWindow === undefined) delete global.window;
+        else global.window = oldWindow;
+    }
+});
+
+test('account 401 clears session, routes Home, and never retries a mutation', async () => {
+    let calls = 0;
+    const removed = [];
+    const routes = [];
+    const oldStorage = global.sessionStorage;
+    const oldWindow = global.window;
+    global.sessionStorage = {
+        removeItem: function (key) { removed.push(key); },
+    };
+    global.window = {
+        location: { replace: function (href) { routes.push(href); } },
+    };
+    try {
+        const result = await auth.authorizedFetch(
+            async function () {
+                calls += 1;
+                return response(401);
+            },
+            'expired-token',
+            '/api/protected-mutation/',
+            { method: 'POST', body: '{}' },
+        );
+        assert.equal(result.status, 401);
+        assert.equal(calls, 1);
+        assert.deepEqual(removed, ['leai_session']);
+        assert.deepEqual(routes, ['InstructorHome.html']);
+    } finally {
+        if (oldStorage === undefined) delete global.sessionStorage;
+        else global.sessionStorage = oldStorage;
+        if (oldWindow === undefined) delete global.window;
+        else global.window = oldWindow;
+    }
+});
+
+test('shared instructor chat, team, and PDF wrappers use authorizedFetch', () => {
+    const shared = source('leai-shared.js');
+    const genericProtectedCalls = shared.match(/authorizedFetch\(API \+ path, opts\)/g) || [];
+    assert.equal(genericProtectedCalls.length, 2, 'chat and PDF JSON wrappers');
+
+    [
+        'team_configurations/?',
+        'team_configurations/create/',
+        'team_configurations/update/',
+        'team_configurations/archive/',
+        'team_configurations/delete/',
+        'leai_pdf_ingest/start/',
+    ].forEach(function (endpoint) {
+        assert.deepEqual(directFetchLines(shared, endpoint), [], endpoint);
+    });
+
+    assert.match(shared, /authorizedFetch\(API \+ '\/team_configurations\/\?'/);
+    assert.match(shared, /authorizedFetch\(API \+ '\/leai_pdf_ingest\/start\/'/);
+});
+
+test('direct instructor page requests use authorizedFetch for protected endpoints', () => {
+    const expectations = {
+        'PromptDesigner.html': [
+            'create_feedback_gpt/',
+            'feedback_gpts_by_course/',
+            'set_survey_status/',
+            'clone_survey/',
+            'update_survey/',
+            'delete_survey/',
+        ],
+        'FeedbackAnalyzer.html': [
+            'feedback_messages_by_course/',
+            'feedback_gpts_by_course/',
+            'feedback_messages_by_gpt/',
+        ],
+        'FeedbackChat.html': ['feedback_messages_by_course/'],
+        'CourseBanner.html': ['update_course_banner/'],
+        'Customizations.html': ['update_course_customization/'],
+    };
+
+    Object.entries(expectations).forEach(function (entry) {
+        const filename = entry[0];
+        const contents = source(filename);
+        entry[1].forEach(function (endpoint) {
+            assert.deepEqual(
+                directFetchLines(contents, endpoint),
+                [],
+                filename + ' still directly fetches ' + endpoint,
+            );
+            assert.ok(
+                contents.includes("authorizedFetch(API + '/" + endpoint),
+                filename + ' does not authorize ' + endpoint,
+            );
+        });
+    });
+});
+
+test('student and explicit public/legacy requests remain token-free', () => {
+    const shared = source('leai-shared.js');
+    const student = source('feedback.html');
+    const promptDesigner = source('PromptDesigner.html');
+
+    assert.ok(shared.includes("fetch(API + '/feedback_session_resume/'"));
+    assert.ok(shared.includes("fetch(API + '/session_team_assignment/'"));
+    assert.ok(shared.includes("fetch(API + '/survey_team_snapshot/?'"));
+    assert.ok(student.includes("fetch(API + '/feedback_message_api/'"));
+    assert.ok(student.includes("fetch(API + '/register_session_identity/'"));
+    assert.ok(promptDesigner.includes("fetch(API + '/form_schemas/?active=1'"));
+    assert.ok(promptDesigner.includes("fetch(API + '/feedback_messages_bulk_api/'"));
+    const bulkEndpointIndex = promptDesigner.indexOf("fetch(API + '/feedback_messages_bulk_api/'");
+    const bulkGuard = promptDesigner.slice(Math.max(0, bulkEndpointIndex - 900), bulkEndpointIndex);
+    assert.match(
+        bulkGuard,
+        /currentSession && currentSession\.instructorToken[\s\S]*return;/,
+        'account sessions must return before the legacy mixed-course bulk endpoint',
+    );
+});

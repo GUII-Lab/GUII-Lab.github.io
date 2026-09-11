@@ -552,7 +552,7 @@
         };
         this.disabled = true;
         setSaveMsg('Saving…', '');
-        fetch(API + '/update_course_banner/', {
+        authorizedFetch(API + '/update_course_banner/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

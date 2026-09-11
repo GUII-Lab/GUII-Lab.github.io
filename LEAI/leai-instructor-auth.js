@@ -32,10 +32,45 @@
 
     function authorizedOptions(token, options) {
         var source = options || {};
-        var headers = Object.assign({}, source.headers || {}, {
-            Authorization: 'Bearer ' + token,
-        });
+        var sourceHeaders = source.headers || {};
+        var headers;
+        if (typeof Headers === 'function' && sourceHeaders instanceof Headers) {
+            headers = new Headers(sourceHeaders);
+            headers.set('Authorization', 'Bearer ' + token);
+        } else if (Array.isArray(sourceHeaders)) {
+            headers = Object.fromEntries(sourceHeaders);
+            headers.Authorization = 'Bearer ' + token;
+        } else {
+            headers = Object.assign({}, sourceHeaders, {
+                Authorization: 'Bearer ' + token,
+            });
+        }
         return Object.assign({}, source, { headers: headers });
+    }
+
+    function instructorHomeHref() {
+        return 'InstructorHome.html';
+    }
+
+    function expireAccountSession() {
+        if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+            try { sessionStorage.removeItem('leai_session'); } catch (error) {}
+        }
+        if (
+            typeof window !== 'undefined'
+            && window.location
+            && typeof window.location.replace === 'function'
+        ) {
+            window.location.replace(instructorHomeHref());
+        }
+    }
+
+    async function authorizedFetch(fetchImpl, token, url, options) {
+        var requestOptions = options || {};
+        if (token) requestOptions = authorizedOptions(token, requestOptions);
+        var response = await fetchImpl(url, requestOptions);
+        if (token && response.status === 401) expireAccountSession();
+        return response;
     }
 
     async function signIn(fetchImpl, apiBase, email, password) {
@@ -52,49 +87,59 @@
     }
 
     async function getAccount(fetchImpl, apiBase, token) {
-        return parseResponse(await fetchImpl(
+        return parseResponse(await authorizedFetch(
+            fetchImpl,
+            token,
             apiBase + '/instructor_me/',
-            authorizedOptions(token)
+            undefined,
         ));
     }
 
     async function changePassword(fetchImpl, apiBase, token, currentPassword, newPassword) {
-        return parseResponse(await fetchImpl(
+        return parseResponse(await authorizedFetch(
+            fetchImpl,
+            token,
             apiBase + '/instructor_password/',
-            authorizedOptions(token, {
+            {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     current_password: currentPassword,
                     new_password: newPassword,
                 }),
-            })
+            },
         ));
     }
 
     async function listCourses(fetchImpl, apiBase, token) {
-        return parseResponse(await fetchImpl(
+        return parseResponse(await authorizedFetch(
+            fetchImpl,
+            token,
             apiBase + '/instructor_courses/',
-            authorizedOptions(token)
+            undefined,
         ));
     }
 
     async function createCourse(fetchImpl, apiBase, token, course) {
-        return parseResponse(await fetchImpl(
+        return parseResponse(await authorizedFetch(
+            fetchImpl,
+            token,
             apiBase + '/instructor_courses/',
-            authorizedOptions(token, {
+            {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(course),
-            })
+            },
         ));
     }
 
     async function signOut(fetchImpl, apiBase, token) {
         if (!token) return;
-        var response = await fetchImpl(
+        var response = await authorizedFetch(
+            fetchImpl,
+            token,
             apiBase + '/instructor_sessions/current/',
-            authorizedOptions(token, { method: 'DELETE' })
+            { method: 'DELETE' },
         );
         if (response.status === 401 || response.status === 204) return;
         await parseResponse(response);
@@ -116,6 +161,8 @@
 
     return {
         normalizeEmail: normalizeEmail,
+        authorizedFetch: authorizedFetch,
+        instructorHomeHref: instructorHomeHref,
         signIn: signIn,
         getAccount: getAccount,
         changePassword: changePassword,

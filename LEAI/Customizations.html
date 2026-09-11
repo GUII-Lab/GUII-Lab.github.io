@@ -411,7 +411,7 @@
         var msg = el('exp-save-msg');
         msg.className = '';
         msg.textContent = 'Saving…';
-        fetch(API + '/update_course_customization/', {
+        authorizedFetch(API + '/update_course_customization/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -506,7 +506,7 @@
         };
         this.disabled = true;
         setSaveMsg('Saving…', '');
-        fetch(API + '/update_course_customization/', {
+        authorizedFetch(API + '/update_course_customization/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
