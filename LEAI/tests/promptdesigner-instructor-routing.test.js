@@ -31,6 +31,7 @@ test('global account onboarding exists only in Instructor Home', () => {
     ].forEach(function (id) {
         assert.doesNotMatch(promptDesigner, new RegExp('id="' + id + '"'));
     });
+    assert.doesNotMatch(promptDesigner, /login-screen/);
     assert.doesNotMatch(promptDesigner, /leaiInstructorAuth\.(signIn|changePassword|createCourse)\(/);
 });
 

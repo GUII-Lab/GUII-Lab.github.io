@@ -120,3 +120,16 @@ test('Home controller isolates course selection for the later setup wizard', () 
     assert.match(source, /PromptDesigner\.html/);
     assert.doesNotMatch(source, /FormSchema|QuestionSet|form_schema/);
 });
+
+test('sign out resets cross-account view and message state', () => {
+    const source = fs.readFileSync(CONTROLLER_PATH, 'utf8');
+    const start = source.indexOf('function showSignedOut(notice)');
+    const end = source.indexOf('function accountSession', start);
+    const signedOutBlock = source.slice(start, end);
+    assert.match(signedOutBlock, /currentView = 'courses'/);
+    assert.match(signedOutBlock, /account-profile-message/);
+    assert.match(signedOutBlock, /account-password-message/);
+    assert.match(signedOutBlock, /account-current-password/);
+    assert.match(signedOutBlock, /account-new-password/);
+    assert.match(signedOutBlock, /account-confirm-password/);
+});

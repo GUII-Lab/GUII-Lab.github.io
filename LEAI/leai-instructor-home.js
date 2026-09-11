@@ -103,10 +103,19 @@
         function showSignedOut(notice) {
             account = null;
             temporaryCurrentPassword = null;
+            currentView = 'courses';
             closeCreateDrawer(false);
             closeMobileDrawer(false);
             showGateway('home-auth-view');
+            byId('home-email').value = '';
             byId('home-password').value = '';
+            byId('setup-new-password').value = '';
+            byId('setup-confirm-password').value = '';
+            byId('account-current-password').value = '';
+            byId('account-new-password').value = '';
+            byId('account-confirm-password').value = '';
+            message('account-profile-message', '');
+            message('account-password-message', '');
             message('home-signin-message', notice || '', notice ? 'error' : 'error');
             root.setTimeout(function () { byId('home-email').focus(); }, 0);
         }
