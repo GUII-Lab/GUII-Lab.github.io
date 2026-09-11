@@ -50,7 +50,7 @@ Any action that affects more than one course belongs in Instructor Home. Any act
 - Make first-time onboarding and repeat course entry understandable without Harvey's manual guidance.
 - Let an authenticated instructor create another course and continue directly into course setup.
 - Make switching from one course to another explicit and safe.
-- Provide functional personal settings for display name and password while email remains administrator-managed.
+- Provide functional personal settings for display name, UCSC login email, and password without presenting an email or university verification state.
 - Preserve the additive identity and membership schema already implemented; the only new migration in this slice is an independent audit-event table that does not rewrite course, survey, or response data.
 - Create clean extension points for future rollover, duplicate, archive, collaborator, and schema-copy actions.
 - Give administrators a durable, filterable record of security-relevant and state-changing actions performed through instructor accounts.
@@ -58,7 +58,7 @@ Any action that affects more than one course belongs in Instructor Home. Any act
 ## 4. Non-goals for this slice
 
 - Canvas, LTI, roster, gradebook, or LMS integration.
-- Email verification, password-reset email, reminders, or browser notifications.
+- Email or university verification, password-reset email, reminders, or browser notifications.
 - Course duplicate, rollover, archive, ownership transfer, or deletion.
 - Cross-course question-set or FormSchema copying.
 - Course-level activity feeds, response totals, or fabricated dashboard analytics.
@@ -121,13 +121,11 @@ Every course-scoped instructor page adds **All courses** near the course identit
 The Account view is a full main-panel view, not a modal. It provides:
 
 - editable display name;
-- read-only email address;
-- a neutral explanation that email is currently administrator-managed;
-- authentication provider and verification state as informational metadata;
+- editable `@ucsc.edu` login email;
 - a functional change-password form requiring current password, new password, and confirmation;
 - sign out.
 
-Updating the account display name changes the account profile and the default instructor name for future courses. It does not silently rewrite historical `Course.instructor_name` values.
+The navigation rail shows only the display name, not the login email. A newly provisioned account defaults the display name to the email prefix when the operator does not supply one. Updating the account display name changes the account profile and the default instructor name for future courses; it does not silently rewrite historical `Course.instructor_name` values. Updating email normalizes it, requires the exact `ucsc.edu` domain and uniqueness, updates both the account and linked Django user atomically, and makes the new address the login identity immediately.
 
 ## 6. Page and navigation design
 
@@ -235,9 +233,9 @@ The dashboard reuses the implemented endpoints:
 
 One additive API capability is required for a useful account screen:
 
-- `PATCH /api/instructor_me/` with `{ "display_name": "..." }`.
+- `PATCH /api/instructor_me/` with any nonempty subset of `{ "display_name": "...", "email": "...@ucsc.edu" }`.
 
-Validation: trim whitespace, require 1–100 characters, reject unknown fields, require a valid instructor session, and reject changes while `must_change_password` is true. The response is the same serialized account shape as GET. No database migration is required because `InstructorAccount.display_name` already exists.
+Validation: trim display-name whitespace, require 1–100 characters, normalize email, require the exact `ucsc.edu` domain and uniqueness, reject unknown fields, require a valid instructor session, and reject changes while `must_change_password` is true. Account email and linked Django user email update in one transaction. The audit event records only the changed field names, never either email value. The response is the same serialized account shape as GET. No database migration is required because both persisted fields already exist.
 
 For institution display names on course cards, the frontend joins each course's `institution_slug` to the existing `institutions` array returned by `instructor_me`. No duplicated backend field is required.
 
@@ -273,7 +271,7 @@ The log must never store passwords, password-reset material, raw session tokens,
 - instructor login denied, without exposing whether an email exists;
 - instructor logout;
 - required or voluntary password change succeeded;
-- account display name updated;
+- account display name or login email updated, recording field names without email values;
 - course created;
 - institution or course authorization denied for an attempted state change.
 
@@ -390,7 +388,7 @@ Before completion, run the full frontend and backend test suites, `git diff --ch
 
 ## 15. Success definition
 
-An instructor with a manually provisioned account can sign in, choose a permanent password, understand where their courses live, create a first or additional course, enter its Prompt Designer, return to all courses, switch courses, edit their display name, change their password, and sign out without Harvey walking them through the interface.
+An instructor with a manually provisioned account can sign in, choose a permanent password, understand where their courses live, create a first or additional course, enter its Prompt Designer, return to all courses, switch courses, edit their display name and UCSC login email, change their password, and sign out without Harvey walking them through the interface.
 
 The resulting page is also the stable product surface where later rollover and cross-course reuse can be added after the data-schema work, without redesigning authentication or course selection again.
 

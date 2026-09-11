@@ -96,7 +96,7 @@
         ));
     }
 
-    async function updateProfile(fetchImpl, apiBase, token, displayName) {
+    async function updateProfile(fetchImpl, apiBase, token, displayName, email) {
         return parseResponse(await authorizedFetch(
             fetchImpl,
             token,
@@ -106,6 +106,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     display_name: String(displayName || '').trim(),
+                    email: normalizeEmail(email),
                 }),
             },
         ));

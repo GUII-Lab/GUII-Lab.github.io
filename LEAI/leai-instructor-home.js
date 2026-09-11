@@ -22,7 +22,13 @@
             .replace(/-+/g, '-');
     }
 
+    function isAllowedInstructorEmail(value) {
+        var email = String(value || '').trim().toLowerCase();
+        return /^[^\s@]+@ucsc\.edu$/.test(email);
+    }
+
     function institutionName(account, slug) {
+        if (slug === 'ucsc') return 'University of California, Santa Cruz';
         var institutions = account && Array.isArray(account.institutions) ? account.institutions : [];
         var match = institutions.find(function (institution) { return institution.slug === slug; });
         return match ? match.name : slug;
@@ -142,14 +148,9 @@
         function renderAccountIdentity() {
             var displayName = account.display_name || 'Instructor';
             ['rail-account-name', 'mobile-account-name'].forEach(function (id) { byId(id).textContent = displayName; });
-            ['rail-account-email', 'mobile-account-email'].forEach(function (id) { byId(id).textContent = account.email || ''; });
             byId('courses-greeting').textContent = 'Welcome, ' + displayName + '. Open a course to manage its feedback workspace.';
             byId('account-display-name').value = account.display_name || '';
             byId('account-email').value = account.email || '';
-            byId('account-provider').textContent = account.auth_provider || account.provider || 'Administrator-provided account';
-            byId('account-verification').textContent = account.email_verified === true ? 'Verified' : 'Managed by administrator';
-            var names = (account.institutions || []).map(function (institution) { return institution.name; });
-            byId('account-institutions').textContent = names.length ? names.join(', ') : 'None assigned';
         }
 
         function appendText(parent, className, value) {
@@ -326,7 +327,7 @@
             institutions.forEach(function (institution) {
                 var option = document.createElement('option');
                 option.value = institution.slug;
-                option.textContent = institution.name;
+                option.textContent = institutionName(account, institution.slug);
                 select.appendChild(option);
             });
             select.disabled = institutions.length === 0;
@@ -531,17 +532,27 @@
         byId('account-profile-form').addEventListener('submit', function (event) {
             event.preventDefault();
             var displayName = byId('account-display-name').value.trim();
+            var email = byId('account-email').value.trim().toLowerCase();
             if (!displayName) { message('account-profile-message', 'Enter a display name.', 'error'); byId('account-display-name').focus(); return; }
+            if (!isAllowedInstructorEmail(email)) { message('account-profile-message', 'Enter your @ucsc.edu email address.', 'error'); byId('account-email').focus(); return; }
             var button = byId('account-profile-button');
             setBusy(button, true, 'Saving…');
             message('account-profile-message', '');
-            auth.updateProfile(root.fetch, apiBase, session().instructorToken, displayName).then(function (nextAccount) {
+            auth.updateProfile(root.fetch, apiBase, session().instructorToken, displayName, email).then(function (nextAccount) {
                 account = nextAccount;
                 persist(accountSession(account));
                 renderAccountIdentity();
                 message('account-profile-message', 'Profile saved.', 'success');
                 announce('Profile saved');
-            }).catch(function (error) { handleSessionError(error, 'account-profile-message'); })
+            }).catch(function (error) {
+                if (error.code === 'invalid_email') {
+                    message('account-profile-message', 'Enter your @ucsc.edu email address.', 'error');
+                    byId('account-email').focus();
+                } else if (error.code === 'email_in_use') {
+                    message('account-profile-message', 'That email address is already connected to another account.', 'error');
+                    byId('account-email').focus();
+                } else handleSessionError(error, 'account-profile-message');
+            })
                 .finally(function () { setBusy(button, false); });
         });
 
@@ -579,6 +590,7 @@
 
     return {
         slugSuggestion: slugSuggestion,
+        isAllowedInstructorEmail: isAllowedInstructorEmail,
         institutionName: institutionName,
         courseCardViewModel: courseCardViewModel,
         init: init,

@@ -31,23 +31,35 @@
 - Modify: `LEAI/tests/leai-instructor-auth.test.js`
 
 **Interfaces:**
-- Produces: `updateProfile(fetchImpl, apiBase, token, displayName) -> Promise<Account>`.
+- Produces: `updateProfile(fetchImpl, apiBase, token, displayName, email) -> Promise<Account>`.
 - Produces: `instructorHomeHref() -> 'InstructorHome.html'`.
 - Preserves: `signIn`, `getAccount`, `changePassword`, `listCourses`, `createCourse`, `signOut`, `selectCourse`, and `hasUsableInstructorSession`.
 
 - [ ] **Step 1: Write failing adapter tests**
 
 ```javascript
-test('updateProfile sends a trimmed display name with bearer auth', async () => {
+test('updateProfile sends a trimmed display name and normalized email with bearer auth', async () => {
     const calls = [];
     const fetchImpl = async (url, options) => {
         calls.push({ url, options });
-        return jsonResponse(200, { display_name: 'Prof. Updated' });
+        return jsonResponse(200, {
+            display_name: 'Prof. Updated',
+            email: 'prof.updated@ucsc.edu',
+        });
     };
-    const account = await auth.updateProfile(fetchImpl, '/api', 'token', '  Prof. Updated  ');
+    const account = await auth.updateProfile(
+        fetchImpl,
+        '/api',
+        'token',
+        '  Prof. Updated  ',
+        ' Prof.Updated@UCSC.EDU ',
+    );
     assert.equal(calls[0].url, '/api/instructor_me/');
     assert.equal(calls[0].options.method, 'PATCH');
-    assert.deepEqual(JSON.parse(calls[0].options.body), { display_name: 'Prof. Updated' });
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+        display_name: 'Prof. Updated',
+        email: 'prof.updated@ucsc.edu',
+    });
     assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
     assert.equal(account.display_name, 'Prof. Updated');
 });
@@ -100,13 +112,13 @@ Read `InstructorHome.html` and assert shared CSS/config/version/auth scripts, pe
 
 ```javascript
 assert.equal(home.slugSuggestion('Foundations of Game Design'), 'foundations-of-game-design');
-assert.equal(home.institutionName(account, 'ucsc'), 'UC Santa Cruz');
+assert.equal(home.institutionName(account, 'ucsc'), 'University of California, Santa Cruz');
 assert.deepEqual(
     home.courseCardViewModel(course, account, { courseId: course.course_id }),
     {
         courseId: 'cmpm80k-sm26',
         courseName: 'Foundations of Game Design',
-        institutionName: 'UC Santa Cruz',
+        institutionName: 'University of California, Santa Cruz',
         roleLabel: 'Owner',
         isCurrent: true,
     },
@@ -150,7 +162,7 @@ Render cards from DOM methods and `textContent`, never HTML interpolation. Join 
 
 The drawer suggests a slug only until the instructor manually edits the ID. It traps focus, closes with Escape, restores trigger focus, preserves fields after API errors, and focuses the first invalid field. On success, call `selectCourse`, save the merged session, and enter Prompt Designer.
 
-- [ ] **Step 7: Implement Account view**
+- [x] **Step 7: Implement Account view**
 
 Profile save calls `updateProfile`, updates `instructorDisplayName` in storage, refreshes visible account copy, and leaves historical course names untouched server-side. Email is read-only with administrator-managed explanation. Password change requires current/new/confirmation fields, calls `changePassword`, clears all password inputs, and shows a non-color-only success message.
 

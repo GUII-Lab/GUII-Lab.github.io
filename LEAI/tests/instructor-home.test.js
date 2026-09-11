@@ -80,12 +80,32 @@ test('first release renders only real navigation and no future course actions', 
     assert.doesNotMatch(html, /three-dot|more_vert|ellipsis-menu/i);
 });
 
+test('Account keeps only editable display name, UCSC email, and password controls', () => {
+    const html = homeSource();
+    const emailInput = html.match(/<input id="account-email"[^>]*>/)[0];
+    assert.doesNotMatch(emailInput, /readonly|aria-readonly/);
+    assert.match(emailInput, /required/);
+    assert.doesNotMatch(html, /id="(?:rail|mobile)-account-email"/);
+    assert.doesNotMatch(html, /account-details-title|account-provider|account-verification|account-institutions/);
+    assert.doesNotMatch(html, /Email status|Institution access|Sign-in method|Managed by administrator/);
+});
+
+test('Home accepts only UCSC instructor email addresses', () => {
+    delete require.cache[require.resolve(CONTROLLER_PATH)];
+    const home = require(CONTROLLER_PATH);
+    assert.equal(home.isAllowedInstructorEmail('name@ucsc.edu'), true);
+    assert.equal(home.isAllowedInstructorEmail(' NAME@UCSC.EDU '), true);
+    assert.equal(home.isAllowedInstructorEmail('name@example.edu'), false);
+    assert.equal(home.isAllowedInstructorEmail('name@sub.ucsc.edu'), false);
+    assert.equal(home.isAllowedInstructorEmail('name space@ucsc.edu'), false);
+});
+
 test('pure Home helpers normalize slugs, institutions, and course cards', () => {
     delete require.cache[require.resolve(CONTROLLER_PATH)];
     const home = require(CONTROLLER_PATH);
     const account = {
         display_name: 'Prof. Rivera',
-        institutions: [{ slug: 'ucsc', name: 'UC Santa Cruz' }],
+        institutions: [{ slug: 'ucsc', name: 'University of California, Santa Cruz' }],
     };
     const course = {
         course_id: 'cmpm80k-sm26',
@@ -99,14 +119,17 @@ test('pure Home helpers normalize slugs, institutions, and course cards', () => 
         'foundations-of-game-design',
     );
     assert.equal(home.slugSuggestion('HCI & AI!!!'), 'hci-ai');
-    assert.equal(home.institutionName(account, 'ucsc'), 'UC Santa Cruz');
+    assert.equal(
+        home.institutionName(account, 'ucsc'),
+        'University of California, Santa Cruz',
+    );
     assert.equal(home.institutionName(account, 'missing'), 'missing');
     assert.deepEqual(
         home.courseCardViewModel(course, account, { courseId: course.course_id }),
         {
             courseId: 'cmpm80k-sm26',
             courseName: 'Foundations of Game Design',
-            institutionName: 'UC Santa Cruz',
+            institutionName: 'University of California, Santa Cruz',
             roleLabel: 'Owner',
             isCurrent: true,
         },

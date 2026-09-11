@@ -84,8 +84,7 @@
         .rail-link[aria-current="page"] { background: #e4f3f9; color: #0d506f; }
         .rail-icon { width: 22px; text-align: center; font-size: 1.05rem; }
         .rail-account { margin-top: auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.12); }
-        .rail-account-name { font-size: 0.87rem; font-weight: 700; overflow-wrap: anywhere; }
-        .rail-account-email { color: #a9c1cc; font-size: 0.72rem; margin: 2px 0 14px; overflow-wrap: anywhere; }
+        .rail-account-name { font-size: 0.92rem; line-height: 1.35; font-weight: 700; margin-bottom: 14px; overflow-wrap: anywhere; }
         .rail-signout { color: #d7e7ed; }
 
         .mobile-bar {
@@ -132,15 +131,12 @@
         .empty-state h2 { font-size: 1.6rem; letter-spacing: -0.025em; }
         .empty-state p { color: var(--muted); max-width: 530px; margin: 10px auto 24px; }
 
-        .account-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 0.68fr); gap: 24px; align-items: start; }
+        .account-layout { width: min(100%, 760px); }
         .settings-card { background: var(--surface-card); padding: 28px; border-radius: 10px; box-shadow: 0 8px 24px rgba(28,48,57,0.04); }
         .settings-card + .settings-card { margin-top: 24px; }
         .settings-card h2 { font-size: 1.16rem; margin-bottom: 5px; }
         .settings-intro { color: var(--muted); font-size: 0.84rem; margin-bottom: 24px; }
         .read-only-note { color: var(--muted); font-size: 0.75rem; margin-top: -10px; margin-bottom: 20px; }
-        .account-meta { display: grid; gap: 20px; }
-        .meta-row dt { color: var(--muted); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-        .meta-row dd { margin-top: 4px; font-weight: 650; overflow-wrap: anywhere; }
 
         .scrim { position: fixed; inset: 0; background: rgba(11, 27, 34, 0.48); z-index: 60; }
         .drawer {
@@ -256,7 +252,6 @@
             </nav>
             <div class="rail-account">
                 <div id="rail-account-name" class="rail-account-name">Instructor</div>
-                <div id="rail-account-email" class="rail-account-email"></div>
                 <button id="rail-signout-button" class="rail-link rail-signout" type="button"><span class="rail-icon" aria-hidden="true">↪</span><span>Sign out</span></button>
                 <div class="version-line">LEAI <span data-leai-version></span></div>
             </div>
@@ -296,40 +291,29 @@
                         </div>
                     </header>
                     <div class="account-layout">
-                        <div>
-                            <form id="account-profile-form" class="settings-card" novalidate>
-                                <h2>Profile</h2>
-                                <p class="settings-intro">Your display name becomes the default instructor name for courses you create later.</p>
-                                <label for="account-display-name">Display name</label>
-                                <input id="account-display-name" type="text" autocomplete="name" maxlength="100" required>
-                                <label for="account-email">Email address</label>
-                                <input id="account-email" type="email" readonly aria-readonly="true">
-                                <p class="read-only-note">Email addresses are currently managed by an administrator.</p>
-                                <button id="account-profile-button" class="btn btn-primary primary-action" type="submit">Save profile</button>
-                                <div id="account-profile-message" class="status-message" role="status"></div>
-                            </form>
-                            <form id="account-password-form" class="settings-card" novalidate>
-                                <h2>Password</h2>
-                                <p class="settings-intro">Changing your password keeps this signed-in session active.</p>
-                                <label for="account-current-password">Current password</label>
-                                <input id="account-current-password" type="password" autocomplete="current-password" required>
-                                <label for="account-new-password">New password</label>
-                                <input id="account-new-password" type="password" autocomplete="new-password" required>
-                                <label for="account-confirm-password">Confirm new password</label>
-                                <input id="account-confirm-password" type="password" autocomplete="new-password" required>
-                                <button id="account-password-button" class="btn btn-primary primary-action" type="submit">Change password</button>
-                                <div id="account-password-message" class="status-message" role="status"></div>
-                            </form>
-                        </div>
-                        <aside class="settings-card" aria-labelledby="account-details-title">
-                            <h2 id="account-details-title">Account details</h2>
-                            <p class="settings-intro">These details describe how you access LEAI.</p>
-                            <dl class="account-meta">
-                                <div class="meta-row"><dt>Sign-in method</dt><dd id="account-provider">Administrator-provided account</dd></div>
-                                <div class="meta-row"><dt>Email status</dt><dd id="account-verification">Managed by administrator</dd></div>
-                                <div class="meta-row"><dt>Institution access</dt><dd id="account-institutions">None assigned</dd></div>
-                            </dl>
-                        </aside>
+                        <form id="account-profile-form" class="settings-card" novalidate>
+                            <h2>Profile</h2>
+                            <p class="settings-intro">Update the name shown in LEAI and the UCSC email address you use to sign in.</p>
+                            <label for="account-display-name">Display name</label>
+                            <input id="account-display-name" type="text" autocomplete="name" maxlength="100" required>
+                            <label for="account-email">Email address</label>
+                            <input id="account-email" type="email" autocomplete="email" maxlength="254" required>
+                            <p class="read-only-note">Use your @ucsc.edu address. A saved change becomes your new sign-in email.</p>
+                            <button id="account-profile-button" class="btn btn-primary primary-action" type="submit">Save profile</button>
+                            <div id="account-profile-message" class="status-message" role="status"></div>
+                        </form>
+                        <form id="account-password-form" class="settings-card" novalidate>
+                            <h2>Password</h2>
+                            <p class="settings-intro">Changing your password keeps this signed-in session active.</p>
+                            <label for="account-current-password">Current password</label>
+                            <input id="account-current-password" type="password" autocomplete="current-password" required>
+                            <label for="account-new-password">New password</label>
+                            <input id="account-new-password" type="password" autocomplete="new-password" required>
+                            <label for="account-confirm-password">Confirm new password</label>
+                            <input id="account-confirm-password" type="password" autocomplete="new-password" required>
+                            <button id="account-password-button" class="btn btn-primary primary-action" type="submit">Change password</button>
+                            <div id="account-password-message" class="status-message" role="status"></div>
+                        </form>
                     </div>
                 </section>
             </div>
@@ -378,7 +362,6 @@
         </nav>
         <div class="rail-account">
             <div id="mobile-account-name" class="rail-account-name">Instructor</div>
-            <div id="mobile-account-email" class="rail-account-email"></div>
             <button id="mobile-signout-button" class="rail-link rail-signout" type="button"><span class="rail-icon" aria-hidden="true">↪</span><span>Sign out</span></button>
         </div>
     </section>

@@ -15,6 +15,14 @@ function response(status) {
     };
 }
 
+function jsonResponse(status, payload) {
+    return {
+        ok: status >= 200 && status < 300,
+        status: status,
+        text: async function () { return JSON.stringify(payload); },
+    };
+}
+
 function source(filename) {
     return fs.readFileSync(path.join(__dirname, '..', filename), 'utf8');
 }
@@ -149,6 +157,31 @@ test('account 401 on Instructor Home clears session without reloading the same p
         if (oldWindow === undefined) delete global.window;
         else global.window = oldWindow;
     }
+});
+
+test('profile update sends normalized email and display name together', async () => {
+    const calls = [];
+    const result = await auth.updateProfile(
+        async function (url, options) {
+            calls.push({ url: url, options: options });
+            return jsonResponse(200, {
+                email: 'name@ucsc.edu',
+                display_name: 'Name',
+            });
+        },
+        '/api',
+        'account-token',
+        '  Name  ',
+        '  NAME@UCSC.EDU  ',
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, '/api/instructor_me/');
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+        display_name: 'Name',
+        email: 'name@ucsc.edu',
+    });
+    assert.equal(result.email, 'name@ucsc.edu');
 });
 
 test('shared instructor chat, team, and PDF wrappers use authorizedFetch', () => {

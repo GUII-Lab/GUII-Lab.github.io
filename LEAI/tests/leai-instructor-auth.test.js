@@ -55,11 +55,14 @@ test('authorized requests send the bearer token and parse JSON', async () => {
     assert.equal(calls[0].options.headers.Authorization, 'Bearer secret');
 });
 
-test('updateProfile sends a trimmed display name with bearer auth', async () => {
+test('updateProfile sends a trimmed display name and normalized email with bearer auth', async () => {
     const calls = [];
     const fetchImpl = async function (url, options) {
         calls.push({ url: url, options: options });
-        return jsonResponse(200, { display_name: 'Prof. Updated' });
+        return jsonResponse(200, {
+            display_name: 'Prof. Updated',
+            email: 'prof.updated@ucsc.edu',
+        });
     };
 
     const account = await auth.updateProfile(
@@ -67,12 +70,14 @@ test('updateProfile sends a trimmed display name with bearer auth', async () => 
         '/api',
         'token',
         '  Prof. Updated  ',
+        '  Prof.Updated@UCSC.EDU  ',
     );
 
     assert.equal(calls[0].url, '/api/instructor_me/');
     assert.equal(calls[0].options.method, 'PATCH');
     assert.deepEqual(JSON.parse(calls[0].options.body), {
         display_name: 'Prof. Updated',
+        email: 'prof.updated@ucsc.edu',
     });
     assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
     assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
