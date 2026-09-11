@@ -120,6 +120,37 @@ test('account 401 clears session, routes Home, and never retries a mutation', as
     }
 });
 
+test('account 401 on Instructor Home clears session without reloading the same page', async () => {
+    const removed = [];
+    const routes = [];
+    const oldStorage = global.sessionStorage;
+    const oldWindow = global.window;
+    global.sessionStorage = {
+        removeItem: function (key) { removed.push(key); },
+    };
+    global.window = {
+        location: {
+            pathname: '/LEAI/InstructorHome.html',
+            replace: function (href) { routes.push(href); },
+        },
+    };
+    try {
+        const result = await auth.authorizedFetch(
+            async function () { return response(401); },
+            'expired-token',
+            '/api/instructor_me/',
+        );
+        assert.equal(result.status, 401);
+        assert.deepEqual(removed, ['leai_session']);
+        assert.deepEqual(routes, []);
+    } finally {
+        if (oldStorage === undefined) delete global.sessionStorage;
+        else global.sessionStorage = oldStorage;
+        if (oldWindow === undefined) delete global.window;
+        else global.window = oldWindow;
+    }
+});
+
 test('shared instructor chat, team, and PDF wrappers use authorizedFetch', () => {
     const shared = source('leai-shared.js');
     const genericProtectedCalls = shared.match(/authorizedFetch\(API \+ path, opts\)/g) || [];

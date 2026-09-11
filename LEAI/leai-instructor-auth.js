@@ -60,6 +60,7 @@
             typeof window !== 'undefined'
             && window.location
             && typeof window.location.replace === 'function'
+            && !/\/InstructorHome\.html$/.test(window.location.pathname || '')
         ) {
             window.location.replace(instructorHomeHref());
         }
