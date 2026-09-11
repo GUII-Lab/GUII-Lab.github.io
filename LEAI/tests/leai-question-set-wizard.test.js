@@ -169,11 +169,23 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
         /function launchPreview\(\) \{([\s\S]*?)\n        function checkPreviewCompletion/,
     )[1];
     assert.doesNotMatch(launchPreview, /window\.open/);
-    assert.match(source, /Open preview in this tab/);
-    assert.match(source, /Open preview in a new tab/);
+    const previewRenderer = source.match(
+        /function renderPreview\(\) \{([\s\S]*?)\n        function launchPreview/,
+    )[1];
+    assert.match(previewRenderer, /Open preview in a new tab/);
+    assert.doesNotMatch(
+        previewRenderer,
+        /Open preview in this tab|qsw-preview-fallback|qsw-revision-card|Preview-ready version|Questions saved and locked|Opening it in this tab/,
+    );
     assert.match(source, /var stepNames = \['Choose', 'Edit', 'Preview', 'Publish'\]/);
     assert.doesNotMatch(source, /ready to schedule|Continue to schedule|now schedule this revision/);
     assert.match(source, /Week \/ milestone is an optional organizing number shown only in your instructor survey list/);
+    assert.doesNotMatch(source, /14-day default/);
+    assert.match(source, /if \(!state\.previewCompleted\) startPolling\(\)/);
+    assert.match(
+        source,
+        /state\.previewCompleted = state\.previewCompleted \|\| !!result\.preview_completed/,
+    );
     assert.match(source, /Resume editing/);
     assert.match(source, /first answer needs more detail/);
     assert.match(source, /ariaLabel: 'Conversation area ' \+ \(index \+ 1\) \+ ' short label'/);

@@ -556,13 +556,6 @@
             var visual = element('div', 'qsw-preview-visual');
             visual.appendChild(element('span', 'qsw-preview-badge', 'PRACTICE PREVIEW'));
             visual.appendChild(element('h3', '', state.draft.body.title));
-            visual.appendChild(element(
-                'p',
-                '',
-                state.previewCompleted
-                    ? 'Preview complete. This exact version is ready to publish.'
-                    : 'Prepare the preview, then answer through the closing question. Practice messages stay separate from student data.',
-            ));
             if (!state.previewToken) {
                 var launch = element(
                     'button',
@@ -573,48 +566,12 @@
                 launch.addEventListener('click', launchPreview);
                 visual.appendChild(launch);
             } else if (state.previewUrl) {
-                var fallback = element('div', 'qsw-preview-fallback');
-                fallback.appendChild(element(
-                    'strong',
-                    '',
-                    state.previewCompleted ? 'Preview completed' : 'Your preview is ready',
-                ));
-                fallback.appendChild(element(
-                    'span',
-                    '',
-                    'Opening it in this tab gives you the most reliable return to the builder. A new tab keeps the builder visible.',
-                ));
-                var links = element('div', 'qsw-preview-fallback-links');
-                var sameTabLink = element('a', 'qsw-button qsw-button-secondary', 'Open preview in this tab');
-                sameTabLink.href = state.previewUrl;
-                function rememberPreviewReturn() {
-                    try {
-                        window.sessionStorage.setItem(
-                            'leai.questionSetWizard.return',
-                            JSON.stringify(buildPreviewReturnState(
-                                state.draft,
-                                state.revision,
-                                state.previewToken,
-                                state.previewUrl,
-                            )),
-                        );
-                    } catch (error) {}
-                }
-                sameTabLink.addEventListener('click', rememberPreviewReturn);
-                var newTabLink = element('a', 'qsw-button qsw-button-secondary', 'Open preview in a new tab ↗');
+                var newTabLink = element('a', 'qsw-button qsw-button-primary qsw-launch-button', 'Open preview in a new tab ↗');
                 newTabLink.href = state.previewUrl;
                 newTabLink.target = '_blank';
                 newTabLink.rel = 'noopener';
-                newTabLink.addEventListener('click', rememberPreviewReturn);
-                links.appendChild(sameTabLink);
-                links.appendChild(newTabLink);
-                fallback.appendChild(links);
-                visual.appendChild(fallback);
+                visual.appendChild(newTabLink);
             }
-            var exact = element('div', 'qsw-revision-card');
-            exact.appendChild(element('span', '', 'Preview-ready version'));
-            exact.appendChild(element('strong', '', 'Questions saved and locked'));
-            visual.appendChild(exact);
             wrap.appendChild(visual);
 
             var checklist = element('aside', 'qsw-preview-check');
@@ -658,7 +615,7 @@
                 state.previewToken = result.token;
                 var target = result.preview_url || ('feedback.html?preview=' + encodeURIComponent(result.token));
                 state.previewUrl = target;
-                startPolling();
+                if (!state.previewCompleted) startPolling();
                 render();
             }).catch(function (error) {
                 handleError(error);
@@ -668,7 +625,7 @@
         function checkPreviewCompletion() {
             if (!state.previewToken) return Promise.resolve(false);
             return api.getPreview(state.previewToken).then(function (result) {
-                state.previewCompleted = !!result.preview_completed;
+                state.previewCompleted = state.previewCompleted || !!result.preview_completed;
                 if (state.previewCompleted) {
                     stopPolling();
                     setNotice('Preview complete. You can now publish this survey.', 'success');
@@ -768,10 +725,6 @@
                 'Week / milestone is an optional organizing number shown only in your instructor survey list.',
             ));
             form.appendChild(dates);
-            var note = element('div', 'qsw-schedule-note');
-            note.appendChild(element('strong', '', 'No close date?'));
-            note.appendChild(document.createTextNode(' LEAI will use the current 14-day default.'));
-            form.appendChild(note);
             wrap.appendChild(form);
             var summary = element('aside', 'qsw-publish-summary');
             summary.appendChild(element('span', 'qsw-aside-kicker', 'Publication summary'));
