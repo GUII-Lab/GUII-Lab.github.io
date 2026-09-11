@@ -187,7 +187,8 @@ test('profile update sends normalized email and display name together', async ()
 test('shared instructor chat, team, and PDF wrappers use authorizedFetch', () => {
     const shared = source('leai-shared.js');
     const genericProtectedCalls = shared.match(/authorizedFetch\(API \+ path, opts\)/g) || [];
-    assert.equal(genericProtectedCalls.length, 2, 'chat and PDF JSON wrappers');
+    assert.equal(genericProtectedCalls.length, 1, 'PDF JSON wrapper');
+    assert.match(shared, /opts\._public \? fetch : authorizedFetch/);
 
     [
         'team_configurations/?',
@@ -260,4 +261,13 @@ test('student and explicit public/legacy requests remain token-free', () => {
         /currentSession && currentSession\.instructorToken[\s\S]*return;/,
         'account sessions must return before the legacy mixed-course bulk endpoint',
     );
+});
+
+test('student chat calls explicitly use the public chat transport', () => {
+    const student = source('feedback.html');
+    const chatCalls = student.match(/leaiChat\.chat\(/g) || [];
+    const publicChatOptions = student.match(/publicRequest:\s*true/g) || [];
+
+    assert.equal(chatCalls.length, 3);
+    assert.equal(publicChatOptions.length, chatCalls.length);
 });

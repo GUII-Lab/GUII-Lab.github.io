@@ -791,6 +791,13 @@
             color: #b7791f; padding: 2px; line-height: 0; border-radius: 4px;
         }
         .leai-course-banner .lcb-close:hover { background: rgba(183,121,31,.15); }
+        #preview-banner[hidden] { display: none; }
+        .leai-preview-banner {
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+            padding: 10px 18px; color: #114f51; background: #dff5f1;
+            border-bottom: 1px solid #9ddbd1; font-size: .82rem; font-weight: 650;
+        }
+        .leai-preview-banner strong { color: #006f70; letter-spacing: .04em; text-transform: uppercase; }
     </style>
 </head>
 
@@ -820,6 +827,11 @@
             </a>
         </div>
     </header>
+
+    <div id="preview-banner" class="leai-preview-banner" hidden>
+        <strong>Instructor preview</strong>
+        <span>Practice answers never count as student responses or appear in analysis.</span>
+    </div>
 
     <!-- Course notification banner — populated from the survey's course config.
          One banner for the whole course; shown across general/group/form modes. -->
@@ -920,7 +932,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js?v=v0.3.0"></script>
+    <script src="leai-shared.js?v=v0.3.0-wizard"></script>
     <script src="leai-completion.js?v=v0.3.0"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
@@ -1422,6 +1434,9 @@
             // pointer at chat-start; the download/transcript code reads it.
             chatHistory: null,
         };
+        window.leaiPreviewToken = null;
+        var previewPersistenceChain = Promise.resolve();
+        var previewPersistenceError = null;
 
         // Capture attribution before beforeTurn() advances the cursor. Both
         // the regular and in-group persistence paths call this while the
@@ -1566,6 +1581,10 @@
         }
 
         function updateMainDownloadStrip(opts) {
+            if (window.leaiPreviewToken) {
+                if (_mainStripUi && _mainStripUi.strip) _mainStripUi.strip.hidden = true;
+                return;
+            }
             var mode = currentMainStripMode();
             var state = buildStudentFooterState({
                 mode: mode,
@@ -1889,6 +1908,7 @@
         // .chat-header-right container — create one on the fly when missing
         // so the chip has somewhere to land.
         function renderResumeCopyChip() {
+            if (window.leaiPreviewToken) return;
             if (document.getElementById('leai-resume-chip')) return;
             var header = document.querySelector('.chat-header');
             if (!header) return;
@@ -2041,6 +2061,39 @@
                 errP.textContent = 'Survey not found. Please check your link.';
                 document.getElementById('transcription').appendChild(errP);
             });
+        }
+
+        function loadQuestionSetPreview(rawToken) {
+            $('.select-wrapper').hide();
+            window.leaiPreviewToken = rawToken;
+            var previewBanner = document.getElementById('preview-banner');
+            if (previewBanner) previewBanner.hidden = false;
+            fetch(API + '/question_set_preview/' + encodeURIComponent(rawToken) + '/')
+                .then(function (response) {
+                    return response.json().then(function (payload) {
+                        if (!response.ok) throw new Error(payload.error || 'preview_unavailable');
+                        return payload;
+                    });
+                })
+                .then(function (previewConfig) {
+                    gptConfig = Object.assign({}, previewConfig, normalizedCourseDownloadSettings(previewConfig));
+                    window.leaiBotName = 'LEAI';
+                    $('h2').text(previewConfig.survey_label || previewConfig.name || 'Question set preview');
+                    return activateFormMode(previewConfig).then(function (active) {
+                        if (!active) throw new Error('preview_schema_unavailable');
+                        initGpt(gptConfig);
+                    });
+                })
+                .catch(function () {
+                    $('h2').text('Preview unavailable');
+                    var revisionTip = document.querySelector('[aria-label="Revision tip"]');
+                    if (revisionTip) revisionTip.hidden = true;
+                    var errP = document.createElement('p');
+                    errP.style.cssText = 'color:#9f403d;padding:20px;font-size:0.9rem;';
+                    errP.textContent = 'This preview is unavailable or has expired. Return to the builder and launch a fresh preview.';
+                    document.getElementById('transcription').appendChild(errP);
+                    $('#messageInput, #sendMessage, #micButton').prop('disabled', true);
+                });
         }
 
         // ===== IN-GROUP FLOW =====
@@ -2913,7 +2966,7 @@
                     showIgTyping();
                     leaiChat.chat(
                         userText || 'Begin the conversation. Greet the student briefly and ask your first question.',
-                        { chatHistory: msgs }
+                        { chatHistory: msgs, publicRequest: true }
                     ).then(function (data) {
                         var raw = (data && data.response) ? data.response.trim() : 'Thanks for sharing.';
                         var displayed = raw;
@@ -3104,6 +3157,7 @@
             // Check for ?id= URL param — direct link mode
             const urlParams = new URLSearchParams(window.location.search);
             const directId = urlParams.get('id');
+            const previewToken = urlParams.get('preview');
 
             // Server-side restore: when the URL fragment carries #cid=<uuid>,
             // we adopt that as the session id and resume the existing
@@ -3113,7 +3167,7 @@
             var resumeCid = (typeof leaiSession !== 'undefined')
                 ? leaiSession.parseHashCid()
                 : null;
-            var uniqueID = resumeCid || getOrCreateAnonSessionId(directId);
+            var uniqueID = resumeCid || getOrCreateAnonSessionId(previewToken ? 'preview' : directId);
 
             window.sessionData = {
                 sessionID: uniqueID,
@@ -3133,7 +3187,9 @@
                 leaiSession.setHashCid(uniqueID);
             }
 
-            if (directId) {
+            if (previewToken) {
+                loadQuestionSetPreview(previewToken);
+            } else if (directId) {
                 // Activation is fully server-driven: loadDirectGpt fetches the
                 // survey, reads gpt.mode, and routes to the right flow. URL
                 // params no longer control mode.
@@ -3157,7 +3213,10 @@
             }
             setInputBusy(true);
             showTypingIndicator();
-            leaiChat.chat(openingUser, { chatHistory: msgs }).then(function(data) {
+            leaiChat.chat(openingUser, {
+                chatHistory: msgs,
+                publicRequest: true,
+            }).then(function(data) {
                 var raw = data.response.trim();
                 var introMessage = raw;
                 var introReferred = false;
@@ -3208,6 +3267,32 @@
             };
             var formAttribution = currentFormResponseAttribution();
             if (formAttribution.form_field_id) Object.assign(data, formAttribution);
+            if (window.leaiPreviewToken) {
+                previewPersistenceChain = previewPersistenceChain.then(function () {
+                    return fetch(
+                        API + '/question_set_preview/' +
+                            encodeURIComponent(window.leaiPreviewToken) + '/messages/',
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                role: normalizedSentBy,
+                                content: content,
+                                attribution: formAttribution,
+                            }),
+                        }
+                    ).then(function (response) {
+                        if (!response.ok) {
+                            throw new Error('Preview message save failed: HTTP ' + response.status);
+                        }
+                        return response.json();
+                    });
+                }).catch(function (error) {
+                    if (!previewPersistenceError) previewPersistenceError = error;
+                    console.error('Preview message persistence failed:', error);
+                });
+                return previewPersistenceChain;
+            }
             var request = $.ajax({
                 type: 'POST',
                 url: API + '/feedback_message_api/',
@@ -3575,7 +3660,8 @@
             showTypingIndicator();
 
             leaiChat.chat(transcription, {
-                chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined
+                chatHistory: chatHistoryFormatted.length > 0 ? chatHistoryFormatted : undefined,
+                publicRequest: true,
             }).then(function(data) {
                 var responseText = data.response.trim();
                 var displayText, ended;
@@ -3629,10 +3715,20 @@
                 // its "ready" state to celebrate completion (mirrors the
                 // in-group flow's UX).
                 notice.id = 'formmode-completion-notice';
-                notice.textContent =
-                    'All sections captured — you can keep chatting to revise or add anything before downloading.';
+                notice.textContent = window.leaiPreviewToken
+                    ? 'Checking that every practice answer was saved…'
+                    : 'All sections captured — you can keep chatting to revise or add anything before downloading.';
                 footer.appendChild(notice);
-                markFormModeDownloadReady();
+                if (window.leaiPreviewToken) {
+                    completeQuestionSetPreview().then(function () {
+                        notice.textContent = 'Preview complete — return to the builder to schedule this exact revision.';
+                    }).catch(function () {
+                        notice.textContent = 'Preview could not be completed because a practice message was not saved. Return to the builder and launch a fresh preview.';
+                        notice.style.color = '#9f403d';
+                    });
+                } else {
+                    markFormModeDownloadReady();
+                }
             } else {
                 chatLocked = true;
                 $('#messageInput').prop('disabled', true).val('');
@@ -3647,6 +3743,32 @@
                 footer.appendChild(notice);
                 updateMainDownloadStrip();
             }
+        }
+
+        var previewCompletionRequest = null;
+        function completeQuestionSetPreview() {
+            if (!window.leaiPreviewToken) return Promise.resolve(null);
+            if (previewCompletionRequest) return previewCompletionRequest;
+            previewCompletionRequest = previewPersistenceChain.then(function () {
+                if (previewPersistenceError) throw previewPersistenceError;
+                return fetch(
+                    API + '/question_set_preview/' +
+                        encodeURIComponent(window.leaiPreviewToken) + '/complete/',
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: '{}',
+                    }
+                );
+            }).then(function (response) {
+                if (!response.ok) throw new Error('Preview completion failed: HTTP ' + response.status);
+                return response.json();
+            }).catch(function (error) {
+                previewCompletionRequest = null;
+                console.error(error);
+                throw error;
+            });
+            return previewCompletionRequest;
         }
 
         // Lazy-load the docx UMD bundle the first time the user clicks

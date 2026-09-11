@@ -2330,6 +2330,12 @@
         }[field.kind] || 'Invite one focused response.';
         var directiveKind = isProbe ? 'field_probe' : (isOpening ? 'field_opening' : 'field_question');
         var studentQuestion = studentQuestionForField(field);
+        var authoredProbe = (
+            isProbe
+            && fields.length === 1
+            && typeof area.depth_probe === 'string'
+            && area.depth_probe.trim()
+        ) ? area.depth_probe.trim() : null;
         var lines = [
             '[DIRECTIVE FOR THIS TURN — FIELD ' + (fieldIndex + 1) + ' OF ' + fields.length + ']',
             isOpening
@@ -2337,13 +2343,21 @@
                 : 'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair), then ask the question.',
             'CURRENT CANONICAL FIELD LABEL: "' + field.label + '"',
             isProbe
-                ? 'Ask ONLY this field. Rephrase it more concretely without changing its meaning.'
+                ? (
+                    authoredProbe
+                        ? 'REQUIRED FOLLOW-UP — ask this exact question verbatim: "' + authoredProbe + '"'
+                        : 'Ask ONLY this field. Rephrase it more concretely without changing its meaning.'
+                )
                 : 'REQUIRED STUDENT QUESTION — ask this exact question verbatim: "' + studentQuestion + '"',
             'Do NOT ask, mention, preview, or combine any other field in this section.',
             kindGuidance,
         ];
         if (isProbe) {
-            lines.push('This is the one allowed same-field follow-up. Rephrase the current label more concretely or ask for one specific example. Do NOT switch fields and do NOT probe this field again after the student replies.');
+            lines.push(
+                authoredProbe
+                    ? 'This is the one allowed same-field follow-up. Preserve its wording exactly. Do NOT switch fields and do NOT probe this field again after the student replies.'
+                    : 'This is the one allowed same-field follow-up. Rephrase the current label more concretely or ask for one specific example. Do NOT switch fields and do NOT probe this field again after the student replies.'
+            );
         }
         lines.push('Use exactly one question. Under 350 characters. Output only what you would say to the student.');
         return {

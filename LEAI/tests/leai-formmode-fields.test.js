@@ -105,6 +105,18 @@ test('a thin answer gets one same-field probe and the next answer advances', () 
     assert.equal(state.field_coverage['mental-model'].probe_used, true);
 });
 
+test('a one-field question-set area uses its authored follow-up verbatim', () => {
+    const schema = fallSchemaFixture();
+    schema.sections[0].fields = [schema.sections[0].fields[0]];
+    const state = leaiFormMode.init(schema);
+    leaiFormMode.beforeTurn(state, '');
+
+    const probeTurn = leaiFormMode.beforeTurn(state, 'Not sure.');
+
+    assert.equal(probeTurn.directive.kind, 'field_probe');
+    assert.match(probeTurn.directive.text, /What specific moment shaped that answer\?/);
+});
+
 test('an ordinary concise answer advances when the schema has no custom thin threshold', () => {
     const schema = fallSchemaFixture();
     delete schema.shallow_word_threshold;

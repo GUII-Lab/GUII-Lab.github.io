@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
     <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
+    <link rel="stylesheet" href="leai-question-set-wizard.css?v=v0.3.0">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -705,9 +706,19 @@ When the conversation has organically reached a natural close — i.e. the stude
                 <div class="layout">
                     <div>
                         <div class="card" id="form-survey-card">
-                            <div class="card-title">New Structured-Reflection Survey</div>
+                            <div class="card-title">Structured Reflection Builder</div>
 
-                            <div class="builder-note">Pick a checked-in schema and write the bot's voice — the engine walks every section in order. Schemas are managed in the database; instructors don't author them in-app yet.</div>
+                            <div class="builder-note">Start from a proven individual-reflection template, adjust the student-facing questions, complete the real conversation preview, and create one survey link.</div>
+                            <div id="question-set-wizard-status"></div>
+                            <div style="margin:20px 0 8px">
+                                <button class="btn btn-primary" id="question-set-wizard-open">Create a structured reflection</button>
+                            </div>
+
+                            <details style="margin-top:18px;padding-top:16px;border-top:1px solid var(--outline)">
+                                <summary style="cursor:pointer;color:var(--text-variant);font-size:.78rem;font-weight:700">Use an existing database schema</summary>
+                                <div style="padding-top:16px">
+
+                            <div class="builder-note">Legacy setup for existing checked-in schemas. New question sets should use the guided builder above.</div>
 
                             <div class="builder-section">
                                 <div class="builder-section-title">Survey Details</div>
@@ -759,6 +770,8 @@ When the conversation has organically reached a natural close — i.e. the stude
                             <div style="margin-top: 20px">
                                 <button class="btn btn-primary" id="form-create-btn">Create Survey &amp; Get Link</button>
                             </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
                     <div>
@@ -776,6 +789,8 @@ When the conversation has organically reached a natural close — i.e. the stude
                     </div>
                 </div>
             </div><!-- /#mode-panel-form -->
+
+            <div id="question-set-wizard-root" hidden></div>
 
             <!-- Delete Survey confirmation modal (shared across all modes — must live outside the mode panels so it's visible regardless of which tab is active) -->
             <div class="modal-overlay" id="delete-modal">
@@ -898,13 +913,36 @@ When the conversation has organically reached a natural close — i.e. the stude
 </div>
 
 <script src="leai-instructor-auth.js?v=v0.3.0"></script>
-<script src="leai-shared.js?v=v0.3.0"></script>
+<script src="leai-shared.js?v=v0.3.0-wizard"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
+<script src="leai-question-set-wizard.js?v=v0.3.0-wizard"></script>
 <script src="leai-version.js"></script>
 <script>
     const BASE_URL = window.location.origin + window.location.pathname.replace('PromptDesigner.html', 'feedback.html');
     var activeCourse = null;
     var pendingAnswersImport = null;
+    var questionSetWizardController = null;
+
+    function initQuestionSetWizard() {
+        if (questionSetWizardController || typeof leaiQuestionSetWizard === 'undefined') return;
+        questionSetWizardController = leaiQuestionSetWizard.mount({
+            root: '#question-set-wizard-root',
+            openButton: '#question-set-wizard-open',
+            apiBase: API,
+            authorizedFetch: authorizedFetch,
+            fetch: fetch,
+            getCourse: function () { return activeCourse; },
+            onCreated: function (survey) {
+                setMsg(
+                    'question-set-wizard-status',
+                    'Survey created. The link below is for this survey only: ' +
+                        BASE_URL + '?id=' + survey.public_id,
+                    'success'
+                );
+                loadFormSurveys();
+            },
+        });
+    }
 
     function buildGeneralSurveyPayload(source) {
         if (typeof leaiCompletion !== 'undefined'
@@ -1005,6 +1043,7 @@ When the conversation has organically reached a natural close — i.e. the stude
             && !(storedSession && storedSession.instructorToken);
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
+        initQuestionSetWizard();
         if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
     }
 
@@ -1864,9 +1903,11 @@ When the conversation has organically reached a natural close — i.e. the stude
         deleteBtn.addEventListener('click', function () { igOpenDeleteModal(s); });
 
         actionsRow.appendChild(toggleBtn);
-        actionsRow.appendChild(dupBtn);
-        actionsRow.appendChild(editBtn);
-        actionsRow.appendChild(deleteBtn);
+        if (!s.question_set_revision_id) {
+            actionsRow.appendChild(dupBtn);
+            actionsRow.appendChild(editBtn);
+            actionsRow.appendChild(deleteBtn);
+        }
 
         item.appendChild(titleRow);
         item.appendChild(meta);
@@ -2494,7 +2535,9 @@ When the conversation has organically reached a natural close — i.e. the stude
         var modeBadge = document.createElement('span');
         modeBadge.className = 'survey-type-badge';
         modeBadge.setAttribute('data-mode', 'form');
-        modeBadge.textContent = s.form_schema_id || 'Form';
+        modeBadge.textContent = s.question_set_revision_id
+            ? 'Question set'
+            : (s.form_schema_id || 'Form');
 
         var title = document.createElement('div');
         title.className = 'survey-item-title';
@@ -2594,9 +2637,11 @@ When the conversation has organically reached a natural close — i.e. the stude
         deleteBtn.addEventListener('click', function () { openDeleteModal(s); });
 
         actionsRow.appendChild(toggleBtn);
-        actionsRow.appendChild(dupBtn);
-        actionsRow.appendChild(editBtn);
-        actionsRow.appendChild(deleteBtn);
+        if (!s.question_set_revision_id) {
+            actionsRow.appendChild(dupBtn);
+            actionsRow.appendChild(editBtn);
+            actionsRow.appendChild(deleteBtn);
+        }
 
         item.appendChild(titleRow);
         item.appendChild(meta);

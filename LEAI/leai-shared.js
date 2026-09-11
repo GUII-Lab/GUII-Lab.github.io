@@ -427,11 +427,16 @@ var DEFAULT_FEEDBACK_CHAT_SYSTEM_PROMPT = (
 var leaiChat = {
     _fetch: function(path, opts) {
         opts = opts || {};
+        var requestFetch = opts._public ? fetch : authorizedFetch;
+        if (opts._public) {
+            opts = Object.assign({}, opts);
+            delete opts._public;
+        }
         opts.headers = opts.headers || {};
         if (opts.body && !opts.headers['Content-Type']) {
             opts.headers['Content-Type'] = 'application/json';
         }
-        return authorizedFetch(API + path, opts).then(function(r) {
+        return requestFetch(API + path, opts).then(function(r) {
             if (r.status === 204) return null;
             if (r.status === 404 && opts._allow404) return null;
             if (!r.ok) return r.json().then(function(err) {
@@ -483,6 +488,7 @@ var leaiChat = {
         return leaiChat._fetch('/openai-chat/', {
             method: 'POST',
             body: JSON.stringify(body),
+            _public: !!opts.publicRequest,
         });
     },
 
