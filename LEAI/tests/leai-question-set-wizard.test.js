@@ -196,6 +196,18 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     assert.match(source, /api\.listDrafts\(activeCourse\.id\)[\s\S]*?notifyDraftsChanged\(\)/);
 });
 
+test('Prompt Designer columns resist long published-survey content', () => {
+    const html = fs.readFileSync(
+        path.join(__dirname, '..', 'PromptDesigner.html'),
+        'utf8',
+    );
+
+    assert.match(
+        html,
+        /\.layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/,
+    );
+});
+
 test('student page routes preview messages and completion away from research responses', () => {
     const html = fs.readFileSync(
         path.join(__dirname, '..', 'feedback.html'),
