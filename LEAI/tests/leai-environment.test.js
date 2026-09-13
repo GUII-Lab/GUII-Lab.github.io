@@ -37,3 +37,44 @@ test('unknown hosts fail instead of using production', () => {
     assert.equal(unknown.known, false);
     assert.throws(() => env.requireApiBase(unknown), /LEAI_UNKNOWN_ENVIRONMENT/);
 });
+
+test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
+    const locationLike = {
+        hostname: 'guii-lab.github.io',
+        origin: 'https://guii-lab.github.io',
+        pathname: '/LEAI-QA/LEAI/InstructorHome.html',
+    };
+    [
+        {
+            environment: 'qa',
+            apiBase: 'https://',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://',
+        },
+        {
+            environment: 'qa',
+            apiBase: '',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'http://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'http://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+    ].forEach(function (override) {
+        const resolved = env.resolveEnvironment(locationLike, override);
+        assert.equal(resolved.known, false);
+        assert.equal(resolved.apiBase, '');
+        assert.equal(resolved.publicBaseUrl, '');
+        assert.throws(() => env.requireApiBase(resolved), /LEAI_UNKNOWN_ENVIRONMENT/);
+    });
+});

@@ -15,11 +15,12 @@ const PAGES = [
     'PromptDesigner.html',
     'feedback.html',
 ];
+const ENVIRONMENT_RELEASE_KEY = 'leai-env-r1';
 
 function scriptSources(html) {
     return Array.from(
         html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*><\/script>/gi),
-        function (match) { return match[1].split('?')[0]; },
+        function (match) { return match[1]; },
     );
 }
 
@@ -27,13 +28,19 @@ test('LEAI pages load deployment configuration, environment, and shared code in 
     PAGES.forEach(function (page) {
         const html = fs.readFileSync(path.join(LEAI_DIR, page), 'utf8');
         const sources = scriptSources(html);
-        const deploymentIndex = sources.indexOf('leai-deployment-config.js');
+        const deploymentIndex = sources.indexOf(
+            'leai-deployment-config.js?v=' + ENVIRONMENT_RELEASE_KEY,
+        );
 
         assert.ok(deploymentIndex >= 0, page + ' must load the deployment config');
         assert.deepEqual(
             sources.slice(deploymentIndex, deploymentIndex + 3),
-            ['leai-deployment-config.js', 'leai-environment.js', 'leai-shared.js'],
-            page + ' must load the environment contract immediately before shared code',
+            [
+                'leai-deployment-config.js?v=' + ENVIRONMENT_RELEASE_KEY,
+                'leai-environment.js?v=' + ENVIRONMENT_RELEASE_KEY,
+                'leai-shared.js?v=' + ENVIRONMENT_RELEASE_KEY,
+            ],
+            page + ' must load the versioned environment contract immediately before shared code',
         );
         assert.doesNotMatch(html, /(?:const|let|var)\s+API\s*=/);
         assert.doesNotMatch(html, /guiidata-b6c968e6ed85\.herokuapp\.com|localhost:8000\/datapipeline\/api/);

@@ -17,10 +17,19 @@
         return String(value || '').replace(/\/+$/, '') + '/';
     }
 
+    function isHttpsUrl(value) {
+        try {
+            const url = new URL(String(value || ''));
+            return url.protocol === 'https:' && url.hostname !== '';
+        } catch (error) {
+            return false;
+        }
+    }
+
     function resolveEnvironment(locationLike, override) {
         if (override && override.environment === 'qa') {
-            const valid = /^https:\/\//.test(override.apiBase || '')
-                && /^https:\/\//.test(override.publicBaseUrl || '');
+            const valid = isHttpsUrl(override.apiBase)
+                && isHttpsUrl(override.publicBaseUrl);
             return Object.freeze({
                 name: 'qa',
                 apiBase: valid ? String(override.apiBase).replace(/\/$/, '') : '',
