@@ -57,7 +57,13 @@ Create an organization-owned project repository named `LEAI-QA` and enable GitHu
 
 `https://guii-lab.github.io/LEAI-QA/`
 
-The source repository remains `GUII-Lab/GUII-Lab.github.io`. A workflow triggered by pushes to its `qa` branch publishes only the LEAI static artifact to the `LEAI-QA` repository. Production Pages configuration remains unchanged.
+The QA application itself remains under the same source-relative directory:
+
+`https://guii-lab.github.io/LEAI-QA/LEAI/`
+
+The QA repository root provides only a generated entry redirect to the QA LEAI landing page. The source repository remains `GUII-Lab/GUII-Lab.github.io`. A workflow triggered by pushes to its `qa` branch publishes an artifact that preserves the source `LEAI/` directory to the `LEAI-QA` repository. Production Pages configuration remains unchanged.
+
+No source folder is renamed, moved, or exchanged between branches. Both `main` and `qa` retain the same repository paths. Advancing QA changes to production is a normal reviewed Git merge of commits; deployment-only copying happens in the temporary Actions workspace and target Pages repository.
 
 Cross-repository deployment uses a fine-grained credential limited to content write access on the target QA repository. Store it in a GitHub Actions environment named `qa`; do not reuse a broad personal token when a narrower deploy credential is available.
 
@@ -67,10 +73,11 @@ The current frontend treats every non-local hostname as production. Replace that
 
 - `environment`: `local`, `qa`, or `production`
 - `apiBase`: the matching backend base URL
+- `publicBaseUrl`: the environment-specific absolute base used to create shareable student links
 - `buildId`: the deployed source commit
 - `emailEnabled`: `false` for the first QA release
 
-The QA deployment workflow generates or selects the QA configuration. Production retains its production API base. API URLs are public configuration, not secrets.
+The QA deployment workflow generates or selects the QA configuration. Production retains its production API and public base URLs. API and public frontend URLs are public configuration, not secrets. All generated student, transcript, HTML, Markdown, and DOCX conversation links use the shared `publicBaseUrl` helper instead of the currently hard-coded production URL.
 
 Unknown environments fail closed: instructor mutation and publication controls remain unavailable if a valid API base and environment identifier are not present. They must never silently fall back to production.
 
