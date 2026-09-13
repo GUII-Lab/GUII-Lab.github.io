@@ -1,0 +1,106 @@
+name: Deploy fixed LEAI QA site
+
+on:
+  push:
+    branches:
+      - qa
+  workflow_dispatch:
+
+concurrency:
+  group: leai-qa-pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/qa'
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Run frontend Node tests
+        working-directory: source
+        run: |
+          node --test LEAI/tests/*.test.js
+
+      - name: Run frontend Python tests
+        working-directory: source
+        run: |
+          UV_CACHE_DIR="$RUNNER_TEMP/uv-cache" uv run python -m unittest discover -s LEAI/tests -p 'test_*.py' -v
+
+      - name: Build QA artifact
+        working-directory: source
+        run: |
+          uv run python scripts/build-leai-qa-artifact.py \
+            --source . \
+            --output "$RUNNER_TEMP/leai-qa" \
+            --api-base "${{ vars.LEAI_QA_API_BASE }}" \
+            --build-id "${{ github.sha }}"
+
+      - name: Verify QA artifact before target checkout
+        env:
+          LEAI_QA_API_BASE: ${{ vars.LEAI_QA_API_BASE }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          test -f "$RUNNER_TEMP/leai-qa/index.html"
+          test -f "$RUNNER_TEMP/leai-qa/LEAI/InstructorHome.html"
+          test ! -e "$RUNNER_TEMP/leai-qa/SCAI"
+          test -z "$(find "$RUNNER_TEMP/leai-qa" -name .git -print -quit)"
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const configPath = `${process.env.RUNNER_TEMP}/leai-qa/LEAI/leai-deployment-config.js`;
+          const source = fs.readFileSync(configPath, 'utf8');
+          const match = source.match(/^window\.LEAI_DEPLOYMENT_CONFIG = (.+);\n$/);
+          assert.ok(match, 'deployment config must be one JSON assignment');
+          assert.deepEqual(JSON.parse(match[1]), {
+              environment: 'qa',
+              apiBase: process.env.LEAI_QA_API_BASE,
+              publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+              buildId: process.env.SOURCE_SHA,
+              emailEnabled: false,
+          });
+          NODE
+
+      - name: Checkout QA Pages target
+        uses: actions/checkout@v7
+        with:
+          repository: GUII-Lab/LEAI-QA
+          ref: main
+          path: target
+          token: ${{ secrets.LEAI_QA_PAGES_TOKEN }}
+
+      - name: Synchronize QA artifact
+        run: |
+          rsync --archive --delete --exclude='.git/' "$RUNNER_TEMP/leai-qa/" target/
+
+      - name: Verify synchronized QA site
+        run: |
+          test -d target/.git
+          test -f target/index.html
+          test -f target/LEAI/InstructorHome.html
+          test ! -e target/SCAI
+          cmp "$RUNNER_TEMP/leai-qa/LEAI/leai-deployment-config.js" target/LEAI/leai-deployment-config.js
+          diff -qr --exclude='.git' "$RUNNER_TEMP/leai-qa" target
+
+      - name: Commit and push changed QA site
+        run: |
+          git -C target config user.name "github-actions[bot]"
+          git -C target config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C target add --all -- .
+          if git -C target diff --cached --quiet; then
+            echo "QA site already matches source ${GITHUB_SHA}"
+          else
+            git -C target commit -m "Deploy LEAI QA from ${GITHUB_SHA}"
+            git -C target push origin HEAD:main
+          fi
