@@ -72,6 +72,36 @@ jobs:
           });
           NODE
 
+      - name: Verify QA backend identity
+        env:
+          LEAI_QA_API_BASE: ${{ vars.LEAI_QA_API_BASE }}
+          FRONTEND_BUILD_ID: ${{ github.sha }}
+        run: |
+          http_status="$(curl --silent --show-error --proto '=https' --output "$RUNNER_TEMP/leai-qa-backend-environment.json" --write-out '%{http_code}' "${LEAI_QA_API_BASE}/environment/")"
+          case "$http_status" in
+            2??)
+              ;;
+            *)
+              echo "QA backend environment check returned HTTP ${http_status}" >&2
+              exit 1
+              ;;
+          esac
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const identityPath = `${process.env.RUNNER_TEMP}/leai-qa-backend-environment.json`;
+          const identity = JSON.parse(fs.readFileSync(identityPath, 'utf8'));
+          assert.equal(identity.environment, 'qa');
+          assert.equal(identity.email_enabled, false);
+          assert.match(identity.build_id, /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
+          console.log(JSON.stringify({
+              frontend_build_id: process.env.FRONTEND_BUILD_ID,
+              backend_build_id: identity.build_id,
+              backend_environment: identity.environment,
+              backend_email_enabled: identity.email_enabled,
+          }));
+          NODE
+
       - name: Checkout QA Pages target
         uses: actions/checkout@v7
         with:

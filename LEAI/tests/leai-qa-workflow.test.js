@@ -232,6 +232,48 @@ if (!workflow) {
         });
     });
 
+    test('QA backend identity is validated and safely logged before any target token exists', () => {
+        const artifactPreflight = namedStep(steps, 'Verify QA artifact before target checkout');
+        const backendPreflight = namedStep(steps, 'Verify QA backend identity');
+        const targetCheckout = namedStep(steps, 'Checkout QA Pages target');
+
+        assert.ok(artifactPreflight.index < backendPreflight.index);
+        assert.ok(backendPreflight.index < targetCheckout.index);
+        assert.deepEqual(Object.fromEntries(backendPreflight.env), {
+            LEAI_QA_API_BASE: '${{ vars.LEAI_QA_API_BASE }}',
+            FRONTEND_BUILD_ID: '${{ github.sha }}',
+        });
+        assert.match(
+            compactCommand(backendPreflight.run),
+            /http_status="\$\(curl --silent --show-error --proto '=https' --output "\$RUNNER_TEMP\/leai-qa-backend-environment\.json" --write-out '%\{http_code\}' "\$\{LEAI_QA_API_BASE\}\/environment\/"\)"/,
+        );
+        assert.match(backendPreflight.run, /case "\$http_status" in[\s\S]*2\?\?\)[\s\S]*\*\)[\s\S]*exit 1[\s\S]*esac/);
+        assert.match(backendPreflight.run, /assert\.equal\(identity\.environment, 'qa'\)/);
+        assert.match(backendPreflight.run, /assert\.equal\(identity\.email_enabled, false\)/);
+        assert.match(
+            backendPreflight.run,
+            /assert\.match\(identity\.build_id, \/\^\[A-Za-z0-9\]\[A-Za-z0-9\._-\]\{0,127\}\$\//,
+        );
+        assert.match(backendPreflight.run, /frontend_build_id:\s*process\.env\.FRONTEND_BUILD_ID/);
+        assert.match(backendPreflight.run, /backend_build_id:\s*identity\.build_id/);
+        assert.match(backendPreflight.run, /backend_environment:\s*identity\.environment/);
+        assert.match(backendPreflight.run, /backend_email_enabled:\s*identity\.email_enabled/);
+
+        const beforeTargetCheckout = steps
+            .slice(0, targetCheckout.index)
+            .flatMap((step) => step.source)
+            .join('\n');
+        assert.doesNotMatch(beforeTargetCheckout, /secrets\.|^\s*token:/m);
+
+        const targetCheckoutMarker = '      - name: Checkout QA Pages target';
+        const targetCheckoutOffset = workflow.indexOf(targetCheckoutMarker);
+        assert.notEqual(targetCheckoutOffset, -1);
+        assert.doesNotMatch(
+            workflow.slice(0, targetCheckoutOffset),
+            /secrets\.|LEAI_QA_PAGES_TOKEN|^\s*token:/m,
+        );
+    });
+
     test('sync deletes stale target files while preserving git and verifies the copied site', () => {
         const targetCheckout = namedStep(steps, 'Checkout QA Pages target');
         const sync = namedStep(steps, 'Synchronize QA artifact');
