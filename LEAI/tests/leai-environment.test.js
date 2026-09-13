@@ -29,6 +29,33 @@ test('local, production, and explicit QA resolve without crossing environments',
     assert.equal(qa.publicBaseUrl, 'https://guii-lab.github.io/LEAI-QA/LEAI/');
 });
 
+test('QA overrides are bound to the fixed QA host and path, with localhost preserved', () => {
+    const override = {
+        environment: 'qa',
+        apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+        publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        buildId: 'abc1234',
+        emailEnabled: false,
+    };
+    [
+        { hostname: 'example.test', origin: 'https://example.test', pathname: '/LEAI-QA/LEAI/' },
+        { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI/InstructorHome.html' },
+        { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/not-leai/' },
+    ].forEach(function (locationLike) {
+        const resolved = env.resolveEnvironment(locationLike, override);
+        assert.equal(resolved.known, false);
+        assert.equal(resolved.apiBase, '');
+        assert.throws(() => env.requireApiBase(resolved), /LEAI_UNKNOWN_ENVIRONMENT/);
+    });
+
+    const localQa = env.resolveEnvironment(
+        { hostname: 'localhost', origin: 'http://localhost:8080', pathname: '/LEAI/InstructorHome.html' },
+        override,
+    );
+    assert.equal(localQa.name, 'qa');
+    assert.equal(localQa.known, true);
+});
+
 test('unknown hosts fail instead of using production', () => {
     const unknown = env.resolveEnvironment(
         { hostname: 'example.test', origin: 'https://example.test', pathname: '/LEAI/' },
@@ -115,5 +142,45 @@ test('publicUrl preserves the resolved public base and encodes query and hash va
     assert.throws(
         () => env.publicUrl(qa, 'https://guii-lab.github.io/LEAI/feedback.html'),
         /LEAI_PUBLIC_URL_PATH/,
+    );
+});
+
+test('QA instructor mutations require verified environment identity with both build IDs', () => {
+    const qa = env.resolveEnvironment(
+        { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/PromptDesigner.html' },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+            buildId: 'abc1234',
+            emailEnabled: false,
+        },
+    );
+
+    assert.throws(
+        () => env.requireInstructorMutation(qa, { verified: false }, { method: 'POST' }),
+        /LEAI_QA_IDENTITY_UNVERIFIED/,
+    );
+    assert.throws(
+        () => env.requireInstructorMutation(qa, null, { method: 'DELETE' }),
+        /LEAI_QA_IDENTITY_UNVERIFIED/,
+    );
+    assert.doesNotThrow(
+        () => env.requireInstructorMutation(qa, { verified: false }, { method: 'GET' }),
+    );
+    assert.doesNotThrow(
+        () => env.requireInstructorMutation(qa, {
+            verified: true,
+            frontendBuildId: 'abc1234',
+            backendBuildId: 'backend-def5678',
+        }, { method: 'PATCH' }),
+    );
+    assert.throws(
+        () => env.requireInstructorMutation(qa, {
+            verified: true,
+            frontendBuildId: 'abc1234',
+            backendBuildId: '',
+        }, { method: 'PATCH' }),
+        /LEAI_QA_IDENTITY_UNVERIFIED/,
     );
 });

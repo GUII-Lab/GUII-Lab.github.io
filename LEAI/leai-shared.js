@@ -11,6 +11,15 @@ function saveSession(data) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(
 function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
 
 function authorizedFetch(url, options) {
+    try {
+        leaiEnvironment.requireInstructorMutation(
+            window.LEAI_ENVIRONMENT,
+            window.LEAI_ENVIRONMENT_IDENTITY,
+            options,
+        );
+    } catch (error) {
+        return Promise.reject(error);
+    }
     var stored = getSession();
     var token = stored && stored.instructorToken;
     if (!token) return fetch(url, options);

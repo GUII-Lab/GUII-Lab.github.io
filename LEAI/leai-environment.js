@@ -13,6 +13,18 @@
         );
         if (window.LEAI_ENVIRONMENT.name === 'qa' && window.LEAI_ENVIRONMENT.known === true) {
             var documentLike = window.document;
+            var config = window.LEAI_ENVIRONMENT;
+            var instructorPage = /\/(?:InstructorHome|PromptDesigner|Customizations|CourseBanner|FeedbackAnalyzer|FeedbackChat|feedbackResponses)\.html$/.test(
+                window.location.pathname || '',
+            );
+            var markerText = 'QA environment · identity checking · frontend build '
+                + (config.buildId || 'unavailable')
+                + ' · backend build checking · instructor changes disabled';
+
+            function setInstructorInterfaceBlocked(blocked) {
+                if (instructorPage && documentLike.body) documentLike.body.inert = blocked;
+            }
+
             function addQaBanner() {
                 if (documentLike.querySelector('.leai-environment-banner')) return;
                 var target = documentLike.body || documentLike.documentElement;
@@ -20,14 +32,55 @@
                 var banner = documentLike.createElement('div');
                 banner.className = 'leai-environment-banner';
                 banner.setAttribute('role', 'status');
-                banner.textContent = 'QA environment · test data only';
+                banner.textContent = markerText;
                 target.insertBefore(banner, target.firstChild || null);
+                setInstructorInterfaceBlocked(true);
             }
+
+            function applyIdentity(identity) {
+                window.LEAI_ENVIRONMENT_IDENTITY = identity;
+                markerText = identity.verified
+                    ? 'QA environment · test data only · frontend build '
+                        + identity.frontendBuildId + ' · backend build ' + identity.backendBuildId
+                    : 'QA environment blocked · frontend build '
+                        + (identity.frontendBuildId || 'unavailable') + ' · backend build '
+                        + (identity.backendBuildId || 'unavailable')
+                        + ' · instructor changes disabled';
+                var banner = documentLike.querySelector('.leai-environment-banner');
+                if (banner) banner.textContent = markerText;
+                setInstructorInterfaceBlocked(!identity.verified);
+                return identity;
+            }
+
+            window.LEAI_ENVIRONMENT_IDENTITY = Object.freeze({
+                verified: false,
+                frontendBuildId: String(config.buildId || ''),
+                backendBuildId: '',
+            });
+            setInstructorInterfaceBlocked(true);
             if (documentLike.readyState === 'loading') {
                 documentLike.addEventListener('DOMContentLoaded', addQaBanner);
             } else {
                 addQaBanner();
             }
+            window.LEAI_ENVIRONMENT_IDENTITY_READY = Promise.resolve()
+                .then(function () {
+                    return window.fetch(environment.requireApiBase(config) + '/environment/', {
+                        method: 'GET',
+                        headers: { Accept: 'application/json' },
+                        cache: 'no-store',
+                    });
+                })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('LEAI_QA_IDENTITY_UNAVAILABLE');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    return applyIdentity(environment.evaluateQaIdentity(config, payload));
+                })
+                .catch(function () {
+                    return applyIdentity(environment.evaluateQaIdentity(config, null));
+                });
         }
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
@@ -38,9 +91,19 @@
         return String(value || '').replace(/\/+$/, '') + '/';
     }
 
+    function isLocalLocation(locationLike) {
+        return locationLike.hostname === 'localhost' || locationLike.hostname === '127.0.0.1';
+    }
+
+    function isFixedQaLocation(locationLike) {
+        return locationLike.hostname === 'guii-lab.github.io'
+            && /^\/LEAI-QA\/LEAI(?:\/|$)/.test(locationLike.pathname || '');
+    }
+
     function resolveEnvironment(locationLike, override) {
         if (override && override.environment === 'qa') {
-            const valid = override.apiBase === QA_API_BASE
+            const valid = (isLocalLocation(locationLike) || isFixedQaLocation(locationLike))
+                && override.apiBase === QA_API_BASE
                 && override.publicBaseUrl === QA_PUBLIC_BASE;
             return Object.freeze({
                 name: 'qa',
@@ -51,7 +114,7 @@
                 known: valid,
             });
         }
-        if (locationLike.hostname === 'localhost' || locationLike.hostname === '127.0.0.1') {
+        if (isLocalLocation(locationLike)) {
             return Object.freeze({
                 name: 'local',
                 apiBase: 'http://localhost:8000/datapipeline/api',
@@ -81,6 +144,40 @@
         return config.apiBase;
     }
 
+    function evaluateQaIdentity(config, payload) {
+        var frontendBuildId = String(config && config.buildId || '').trim();
+        var backendBuildId = String(payload && payload.build_id || '').trim();
+        var verified = !!config
+            && config.name === 'qa'
+            && config.known === true
+            && config.emailEnabled === false
+            && frontendBuildId !== ''
+            && !!payload
+            && payload.environment === 'qa'
+            && payload.email_enabled === false
+            && backendBuildId !== '';
+        return Object.freeze({
+            verified: verified,
+            frontendBuildId: frontendBuildId,
+            backendBuildId: backendBuildId,
+        });
+    }
+
+    function requireInstructorMutation(config, identity, options) {
+        var method = String(options && options.method || 'GET').toUpperCase();
+        if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+        if (config && config.name === 'qa' && config.known === true) {
+            var buildId = String(config.buildId || '').trim();
+            if (!identity
+                    || identity.verified !== true
+                    || !buildId
+                    || identity.frontendBuildId !== buildId
+                    || !String(identity.backendBuildId || '').trim()) {
+                throw new Error('LEAI_QA_IDENTITY_UNVERIFIED');
+            }
+        }
+    }
+
     function publicUrl(config, relativePath, query, hash) {
         if (!config || config.known !== true || !config.publicBaseUrl) {
             throw new Error('LEAI_UNKNOWN_ENVIRONMENT');
@@ -108,6 +205,8 @@
     return Object.freeze({
         resolveEnvironment: resolveEnvironment,
         requireApiBase: requireApiBase,
+        evaluateQaIdentity: evaluateQaIdentity,
+        requireInstructorMutation: requireInstructorMutation,
         publicUrl: publicUrl,
     });
 }));

@@ -66,7 +66,23 @@
         }
     }
 
+    function requireQaMutationIdentity(options) {
+        if (typeof window === 'undefined'
+                || !window.LEAI_ENVIRONMENT
+                || window.LEAI_ENVIRONMENT.name !== 'qa') return;
+        if (!window.leaiEnvironment
+                || typeof window.leaiEnvironment.requireInstructorMutation !== 'function') {
+            throw new Error('LEAI_QA_IDENTITY_UNVERIFIED');
+        }
+        window.leaiEnvironment.requireInstructorMutation(
+            window.LEAI_ENVIRONMENT,
+            window.LEAI_ENVIRONMENT_IDENTITY,
+            options,
+        );
+    }
+
     async function authorizedFetch(fetchImpl, token, url, options) {
+        requireQaMutationIdentity(options);
         var requestOptions = options || {};
         if (token) requestOptions = authorizedOptions(token, requestOptions);
         var response = await fetchImpl(url, requestOptions);

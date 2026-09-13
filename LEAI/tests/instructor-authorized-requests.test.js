@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const auth = require('../leai-instructor-auth.js');
+const environment = require('../leai-environment.js');
 
 function response(status) {
     return {
@@ -128,6 +129,45 @@ test('account 401 clears session, routes Home, and never retries a mutation', as
     }
 });
 
+test('QA account mutations fail before fetch until environment identity matches', async () => {
+    let calls = 0;
+    const oldWindow = global.window;
+    global.window = {
+        LEAI_ENVIRONMENT: { name: 'qa', known: true, buildId: 'abc1234' },
+        LEAI_ENVIRONMENT_IDENTITY: { verified: false },
+        leaiEnvironment: environment,
+    };
+    try {
+        await assert.rejects(
+            auth.authorizedFetch(
+                async function () { calls += 1; return response(200); },
+                'account-token',
+                '/api/protected-mutation/',
+                { method: 'POST', body: '{}' },
+            ),
+            /LEAI_QA_IDENTITY_UNVERIFIED/,
+        );
+        assert.equal(calls, 0);
+
+        global.window.LEAI_ENVIRONMENT_IDENTITY = {
+            verified: true,
+            frontendBuildId: 'abc1234',
+            backendBuildId: 'backend-def5678',
+        };
+        const result = await auth.authorizedFetch(
+            async function () { calls += 1; return response(200); },
+            'account-token',
+            '/api/protected-mutation/',
+            { method: 'POST', body: '{}' },
+        );
+        assert.equal(result.status, 200);
+        assert.equal(calls, 1);
+    } finally {
+        if (oldWindow === undefined) delete global.window;
+        else global.window = oldWindow;
+    }
+});
+
 test('account 401 on Instructor Home clears session without reloading the same page', async () => {
     const removed = [];
     const routes = [];
@@ -203,6 +243,20 @@ test('shared instructor chat, team, and PDF wrappers use authorizedFetch', () =>
 
     assert.match(shared, /authorizedFetch\(API \+ '\/team_configurations\/\?'/);
     assert.match(shared, /authorizedFetch\(API \+ '\/leai_pdf_ingest\/start\/'/);
+});
+
+test('shared request wrapper checks QA identity before legacy token fallback', () => {
+    const shared = source('leai-shared.js');
+    const wrapper = shared.slice(
+        shared.indexOf('function authorizedFetch(url, options)'),
+        shared.indexOf('// ===== UI HELPERS ====='),
+    );
+
+    assert.match(wrapper, /requireInstructorMutation/);
+    assert.ok(
+        wrapper.indexOf('requireInstructorMutation') < wrapper.indexOf('if (!token) return fetch'),
+        'QA mutation identity must be checked before a token-free request can escape',
+    );
 });
 
 test('direct instructor page requests use authorizedFetch for protected endpoints', () => {

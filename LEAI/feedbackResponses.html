@@ -75,6 +75,21 @@
         li:hover {
             background: #f9f9f9;
         }
+
+        .leai-environment-banner {
+            position: sticky;
+            top: 0;
+            z-index: 300;
+            width: 100%;
+            padding: 7px 16px;
+            box-sizing: border-box;
+            background: #7c2d12;
+            color: #fff7ed;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-align: center;
+        }
     </style>
 </head>
 
@@ -104,11 +119,14 @@
         </div>
     </div>
 
+    <script src="leai-deployment-config.js?v=leai-env-r1"></script>
+    <script src="leai-environment.js?v=leai-env-r1"></script>
+    <script src="leai-shared.js?v=leai-env-r1"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const applyFiltersBtn = document.getElementById('applyFilters');
 
-            fetch('https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api/feedbackList/')
+            fetch(API + '/feedbackList/')
                 .then(response => response.json())
                 .then(data => {
                     console.log(data);
