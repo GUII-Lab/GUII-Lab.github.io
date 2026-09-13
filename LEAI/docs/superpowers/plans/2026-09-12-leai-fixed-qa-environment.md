@@ -449,7 +449,7 @@ git commit -m "Build path-preserving LEAI QA artifacts"
 **Interfaces:**
 - Trigger: push to `qa` and manual `workflow_dispatch`.
 - Consumes GitHub environment variable: `LEAI_QA_API_BASE`.
-- Consumes GitHub environment secret: `LEAI_QA_PAGES_TOKEN`, scoped only to `GUII-Lab/LEAI-QA` content write.
+- Consumes GitHub `qa` environment secret: `LEAI_QA_PAGES_DEPLOY_KEY`, the private half of an SSH deploy key whose public half has write access only to `GUII-Lab/LEAI-QA`.
 - Publishes target: `GUII-Lab/LEAI-QA`, branch `main`, root Pages source.
 
 - [ ] **Step 1: Write failing workflow contract tests**
@@ -532,7 +532,7 @@ Inspect the current Postgres plan, storage, table count, and connection use with
 gh repo create GUII-Lab/LEAI-QA --public --description "Persistent QA deployment for LEAI"
 ```
 
-Initialize `main`, enable Pages from `main` `/ (root)`, create the source repository environment `qa`, set public variable `LEAI_QA_API_BASE=https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api`, and store a fine-grained target-repository token as `LEAI_QA_PAGES_TOKEN`. Do not print the token.
+Initialize `main`, enable Pages from `main` `/ (root)`, create the source repository environment `qa`, and set public variable `LEAI_QA_API_BASE=https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api`. Install an SSH deploy public key with write access only on `GUII-Lab/LEAI-QA`, and store its private key only as the source repository's `qa` environment secret `LEAI_QA_PAGES_DEPLOY_KEY`; do not print either key. Revoke access by removing that target-repository deploy key and deleting the environment secret. Rotate it by installing a replacement public key, replacing the secret, verifying deployment, and then removing the old public key. Do not create either key until the independently reviewed remote-infrastructure task.
 
 - [ ] **Step 4: Create the QA Heroku app and attach the existing database**
 

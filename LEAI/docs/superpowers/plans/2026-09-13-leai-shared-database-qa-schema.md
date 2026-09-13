@@ -168,7 +168,7 @@ git commit -m "Isolate LEAI QA in its database schema"
 
 - [ ] **Step 1: Write failing browser and workflow contract tests**
 
-Add tests proving valid QA identity requires `database_schema: 'leai_qa'`; missing, `public`, mixed-case, or multi-schema values keep instructor UI inert. Assert the workflow checks the exact schema before `LEAI_QA_PAGES_TOKEN` appears.
+Add tests proving valid QA identity requires `database_schema: 'leai_qa'`; missing, `public`, mixed-case, or multi-schema values keep instructor UI inert. Assert the workflow checks the exact schema before the target-only `LEAI_QA_PAGES_DEPLOY_KEY` appears.
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
@@ -232,7 +232,7 @@ Create/reconcile non-force `qa` branches, deploy the backend, and require Releas
 
 - [ ] **Step 6: Create Pages target and deploy frontend**
 
-Create/configure `GUII-Lab/LEAI-QA`, least-privilege environment secret, and public QA API variable. Push the accepted frontend `qa` branch and require workflow backend preflight plus Pages publication success.
+Create/configure `GUII-Lab/LEAI-QA`, the public QA API variable, and a write-enabled SSH deploy key limited to that repository. Store its private key only as `LEAI_QA_PAGES_DEPLOY_KEY` in the source repository's `qa` environment. Revoke it by removing the target deploy key and deleting the secret; rotate it by installing a replacement public key, replacing the secret, verifying deployment, and then removing the old public key. Push the accepted frontend `qa` branch and require workflow backend preflight plus Pages publication success.
 
 ---
 

@@ -67,7 +67,7 @@ The QA repository root provides only a generated entry redirect to the QA LEAI l
 
 No source folder is renamed, moved, or exchanged between branches. Both `main` and `qa` retain the same repository paths. Advancing QA changes to production is a normal reviewed Git merge of commits; deployment-only copying happens in the temporary Actions workspace and target Pages repository.
 
-Cross-repository deployment uses a fine-grained credential limited to content write access on the target QA repository. Store it in a GitHub Actions environment named `qa`; do not reuse a broad personal token when a narrower deploy credential is available.
+Cross-repository deployment uses an SSH deploy key whose public key has write access only to `GUII-Lab/LEAI-QA`. Store the private key only as `LEAI_QA_PAGES_DEPLOY_KEY` in the source repository's GitHub Actions `qa` environment; do not use a personal or organization-wide token. The revocation boundary is the one target repository: remove the public deploy key from `GUII-Lab/LEAI-QA` and delete the environment secret. Rotate it by installing a new public deploy key, replacing the environment secret with its private key, verifying deployment, and then removing the old public key.
 
 ### 5.2 Runtime environment configuration
 
@@ -209,7 +209,7 @@ Add explicit frontend/backend environment identity, remove silent production fal
 
 ### Phase B: Remote QA infrastructure
 
-Reauthenticate GitHub and Heroku, create the target Pages repository, GitHub `qa` environment, and Heroku QA app. Attach the existing Postgres add-on through Heroku, create the guarded `leai_qa` schema, and configure least-privilege deployment credentials without exposing secret values.
+Reauthenticate GitHub and Heroku, create the target Pages repository, GitHub `qa` environment, and Heroku QA app. Attach the existing Postgres add-on through Heroku, create the guarded `leai_qa` schema, and configure the write-enabled, single-repository SSH deploy key without exposing its private key.
 
 ### Phase C: Seed and reset tooling
 

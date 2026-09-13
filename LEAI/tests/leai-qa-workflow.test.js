@@ -153,7 +153,7 @@ if (!workflow) {
         assert.equal(job.get('environment'), 'qa');
     });
 
-    test('official current actions keep source credentials separate from the target token', () => {
+    test('official current actions scope the SSH deploy key to the target checkout', () => {
         const sourceCheckout = namedStep(steps, 'Checkout source');
         const setupUv = namedStep(steps, 'Set up uv');
         const targetCheckout = namedStep(steps, 'Checkout QA Pages target');
@@ -175,12 +175,14 @@ if (!workflow) {
             repository: 'GUII-Lab/LEAI-QA',
             ref: 'main',
             path: 'target',
-            token: '${{ secrets.LEAI_QA_PAGES_TOKEN }}',
+            'ssh-key': '${{ secrets.LEAI_QA_PAGES_DEPLOY_KEY }}',
         });
 
-        const tokenSteps = steps.filter((step) => step.source.join('\n').includes('LEAI_QA_PAGES_TOKEN'));
-        assert.deepEqual(tokenSteps.map((step) => step.name), ['Checkout QA Pages target']);
-        assert.equal((workflow.match(/secrets\.LEAI_QA_PAGES_TOKEN/g) || []).length, 1);
+        assert.equal(targetCheckout.with.has('token'), false);
+        const credentialSteps = steps.filter((step) => step.source.join('\n').includes('secrets.'));
+        assert.deepEqual(credentialSteps.map((step) => step.name), ['Checkout QA Pages target']);
+        assert.equal((workflow.match(/secrets\.LEAI_QA_PAGES_DEPLOY_KEY/g) || []).length, 1);
+        assert.doesNotMatch(workflow, /LEAI_QA_PAGES_TOKEN|^\s*token:/m);
     });
 
     test('all frontend tests and the Task 5 builder run from source before any target credential exists', () => {
@@ -232,7 +234,7 @@ if (!workflow) {
         });
     });
 
-    test('QA backend identity is validated and safely logged before any target token exists', () => {
+    test('QA backend identity is validated and safely logged before any target credential exists', () => {
         const artifactPreflight = namedStep(steps, 'Verify QA artifact before target checkout');
         const backendPreflight = namedStep(steps, 'Verify QA backend identity');
         const targetCheckout = namedStep(steps, 'Checkout QA Pages target');
@@ -272,7 +274,7 @@ if (!workflow) {
         assert.notEqual(targetCheckoutOffset, -1);
         assert.doesNotMatch(
             workflow.slice(0, targetCheckoutOffset),
-            /secrets\.|LEAI_QA_PAGES_TOKEN|^\s*token:/m,
+            /secrets\.|LEAI_QA_PAGES_DEPLOY_KEY|LEAI_QA_PAGES_TOKEN|^\s*(?:ssh-key|token):/m,
         );
     });
 

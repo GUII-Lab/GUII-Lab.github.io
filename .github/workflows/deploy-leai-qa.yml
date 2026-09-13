@@ -110,7 +110,7 @@ jobs:
           repository: GUII-Lab/LEAI-QA
           ref: main
           path: target
-          token: ${{ secrets.LEAI_QA_PAGES_TOKEN }}
+          ssh-key: ${{ secrets.LEAI_QA_PAGES_DEPLOY_KEY }}
 
       - name: Synchronize QA artifact
         run: |
