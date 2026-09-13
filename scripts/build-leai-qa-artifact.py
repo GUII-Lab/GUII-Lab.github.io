@@ -29,7 +29,7 @@ FORBIDDEN_PRODUCTION_API_HOSTNAMES = (
 )
 PROVEN_QA_INERT_PRODUCTION_FILES = {
     "LEAI/leai-environment.js": (
-        "9fb7f91253ffeed9132204f9418899e3cf92148d6a0d137d92d0e5ec647490d9"
+        "f7af30036b2393b7ffde7756ebcb74aacbef962326f99d61413ac89f37163919"
     ),
 }
 BROWSER_EXECUTABLE_SUFFIXES = frozenset({".css", ".htm", ".html", ".js", ".json", ".mjs"})
