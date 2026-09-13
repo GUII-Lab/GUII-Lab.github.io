@@ -12,7 +12,7 @@ from unittest import mock
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "build-leai-qa-artifact.py"
-QA_API_BASE = "https://guiidata-leai-qa.herokuapp.com/datapipeline/api"
+QA_API_BASE = "https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api"
 QA_PUBLIC_BASE = "https://guii-lab.github.io/LEAI-QA/LEAI/"
 PRODUCTION_API_HOST = "guiidata-b6c968e6ed85.herokuapp.com"
 PAGES = (
@@ -290,8 +290,10 @@ class BuildLeaiQaArtifactTests(unittest.TestCase):
 
     def test_rejects_any_api_base_except_the_exact_https_qa_base(self) -> None:
         invalid_api_bases = (
-            "http://guiidata-leai-qa.herokuapp.com/datapipeline/api",
-            "https://guiidata-leai-qa.herokuapp.com/datapipeline/api/",
+            "http://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api",
+            "https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api/",
+            "https://guiidata-leai-qa.herokuapp.com/datapipeline/api",
+            "https://guiidata-leai-qa-*.herokuapp.com/datapipeline/api",
             "https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api",
             "https://example.test/datapipeline/api",
             "",

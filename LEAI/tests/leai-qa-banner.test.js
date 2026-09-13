@@ -43,7 +43,7 @@ function loadEnvironment(options) {
         },
         LEAI_DEPLOYMENT_CONFIG: settings.environment === 'production' ? null : {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: settings.environment === 'invalid-qa'
                 ? 'http://guii-lab.github.io/LEAI-QA/LEAI/'
                 : 'https://guii-lab.github.io/LEAI-QA/LEAI/',
@@ -90,7 +90,7 @@ test('QA marker persists distinct frontend and backend build identities', async 
     assert.equal(identity.databaseSchema, 'leai_qa');
     assert.equal(page.body.inert, false);
     assert.deepEqual(page.calls, [
-        'https://guiidata-leai-qa.herokuapp.com/datapipeline/api/environment/',
+        'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api/environment/',
     ]);
     assert.equal(page.body.children.length, 1);
     assert.equal(

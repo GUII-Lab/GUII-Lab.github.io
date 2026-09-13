@@ -90,7 +90,7 @@
         }
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-    const QA_API_BASE = 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api';
+    const QA_API_BASE = 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api';
     const QA_PUBLIC_BASE = 'https://guii-lab.github.io/LEAI-QA/LEAI/';
 
     function normalizeBase(value) {

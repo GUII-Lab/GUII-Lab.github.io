@@ -16,7 +16,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 
-QA_API_BASE = "https://guiidata-leai-qa.herokuapp.com/datapipeline/api"
+QA_API_BASE = "https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api"
 QA_PUBLIC_BASE = "https://guii-lab.github.io/LEAI-QA/LEAI/"
 BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 ENVIRONMENT_SCRIPTS = (
@@ -29,7 +29,7 @@ FORBIDDEN_PRODUCTION_API_HOSTNAMES = (
 )
 PROVEN_QA_INERT_PRODUCTION_FILES = {
     "LEAI/leai-environment.js": (
-        "f7af30036b2393b7ffde7756ebcb74aacbef962326f99d61413ac89f37163919"
+        "e851b7b6d640f6f392c409013fdd30bbdee39055f9c872a2224be1ad3c464644"
     ),
 }
 BROWSER_EXECUTABLE_SUFFIXES = frozenset({".css", ".htm", ".html", ".js", ".json", ".mjs"})

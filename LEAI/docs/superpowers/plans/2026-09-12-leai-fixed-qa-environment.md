@@ -71,7 +71,7 @@ test('local, production, and explicit QA resolve without crossing environments',
         { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/InstructorHome.html' },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
             buildId: 'abc1234',
             emailEnabled: false,
@@ -392,7 +392,7 @@ git commit -m "Add guarded LEAI QA seed data"
 - Create: `LEAI/tests/test_build_leai_qa_artifact.py`
 
 **Interfaces:**
-- Command: `uv run python scripts/build-leai-qa-artifact.py --source . --output /private/tmp/leai-qa-artifact-plan --api-base https://guiidata-leai-qa.herokuapp.com/datapipeline/api --build-id local-plan-test`.
+- Command: `uv run python scripts/build-leai-qa-artifact.py --source . --output /private/tmp/leai-qa-artifact-plan --api-base https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api --build-id local-plan-test`.
 - Produces: `/private/tmp/leai-qa-artifact-plan/LEAI/` with the source directory structure unchanged in the documented local example.
 - Produces: `/private/tmp/leai-qa-artifact-plan/index.html` redirecting to `LEAI/InstructorHome.html`.
 - Produces: artifact-only `/private/tmp/leai-qa-artifact-plan/LEAI/leai-deployment-config.js` with QA values.
@@ -403,7 +403,7 @@ git commit -m "Add guarded LEAI QA seed data"
 ```python
 def test_artifact_preserves_leai_folder_and_does_not_mutate_source(self):
     before = sha256((SOURCE / 'LEAI' / 'leai-deployment-config.js').read_bytes()).hexdigest()
-    build_artifact(SOURCE, output, 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api', 'abc1234')
+    build_artifact(SOURCE, output, 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api', 'abc1234')
     self.assertTrue((output / 'LEAI' / 'InstructorHome.html').exists())
     self.assertIn('/LEAI-QA/LEAI/', (output / 'LEAI' / 'leai-deployment-config.js').read_text())
     self.assertEqual(before, sha256((SOURCE / 'LEAI' / 'leai-deployment-config.js').read_bytes()).hexdigest())
@@ -425,7 +425,7 @@ Use `pathlib`, `tempfile`, `shutil.copytree`, and `json.dumps`. Resolve and vali
 
 ```bash
 QA_ARTIFACT_DIR=$(mktemp -d /private/tmp/leai-qa-artifact.XXXXXX)
-UV_CACHE_DIR=/private/tmp/leai-uv-cache uv run python scripts/build-leai-qa-artifact.py --source . --output "$QA_ARTIFACT_DIR" --api-base https://guiidata-leai-qa.herokuapp.com/datapipeline/api --build-id local-plan-test
+UV_CACHE_DIR=/private/tmp/leai-uv-cache uv run python scripts/build-leai-qa-artifact.py --source . --output "$QA_ARTIFACT_DIR" --api-base https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api --build-id local-plan-test
 find "$QA_ARTIFACT_DIR" -maxdepth 2 -type f | sort | head -40
 ```
 
@@ -532,7 +532,7 @@ Inspect the current Postgres plan, storage, table count, and connection use with
 gh repo create GUII-Lab/LEAI-QA --public --description "Persistent QA deployment for LEAI"
 ```
 
-Initialize `main`, enable Pages from `main` `/ (root)`, create the source repository environment `qa`, set public variable `LEAI_QA_API_BASE=https://guiidata-leai-qa.herokuapp.com/datapipeline/api`, and store a fine-grained target-repository token as `LEAI_QA_PAGES_TOKEN`. Do not print the token.
+Initialize `main`, enable Pages from `main` `/ (root)`, create the source repository environment `qa`, set public variable `LEAI_QA_API_BASE=https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api`, and store a fine-grained target-repository token as `LEAI_QA_PAGES_TOKEN`. Do not print the token.
 
 - [ ] **Step 4: Create the QA Heroku app and attach the existing database**
 
@@ -541,7 +541,7 @@ heroku create guiidata-leai-qa
 heroku addons:attach guiidata-b6c968e6ed85::DATABASE --app guiidata-leai-qa --as DATABASE
 ```
 
-Resolve and verify the exact production add-on attachment name in Step 1 before using the command; do not invent it or copy its URL. Set `LEAI_ENV=qa`, `LEAI_DB_SCHEMA=leai_qa`, `LEAI_BUILD_ID`, `LEAI_EMAIL_ENABLED=false`, `LEAI_ALLOWED_HOSTS=guiidata-leai-qa.herokuapp.com`, `LEAI_ALLOWED_ORIGINS=https://guii-lab.github.io`, and QA-specific Django/provider secrets through Heroku config without displaying their values. Production remains `LEAI_ENV=production` and `LEAI_DB_SCHEMA=public`. Confirm both apps report the same non-secret add-on identity but different configured and active schemas.
+Resolve and verify the exact production add-on attachment name in Step 1 before using the command; do not invent it or copy its URL. Set `LEAI_ENV=qa`, `LEAI_DB_SCHEMA=leai_qa`, `LEAI_BUILD_ID`, `LEAI_EMAIL_ENABLED=false`, `LEAI_ALLOWED_HOSTS=guiidata-leai-qa-f30daf4812c3.herokuapp.com`, `LEAI_ALLOWED_ORIGINS=https://guii-lab.github.io`, and QA-specific Django/provider secrets through Heroku config without displaying their values. Production remains `LEAI_ENV=production` and `LEAI_DB_SCHEMA=public`. Confirm both apps report the same non-secret add-on identity but different configured and active schemas.
 
 - [ ] **Step 5: Create one logical QA release line across the two repositories**
 
@@ -570,7 +570,7 @@ In Heroku Dashboard, place `guiidata-leai-qa` in the staging stage of the produc
 ```bash
 heroku run python manage.py verify_leai_environment --expect qa --json -a guiidata-leai-qa
 heroku run python manage.py showmigrations datapipeline -a guiidata-leai-qa
-curl --fail https://guiidata-leai-qa.herokuapp.com/datapipeline/api/environment/
+curl --fail https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api/environment/
 ```
 
 Expected: environment `qa`, configured and active schema `leai_qa`, QA build ID, email disabled, all required migrations applied in the QA schema, and no production hostname in responses.
@@ -587,8 +587,8 @@ Expected: environment `qa`, configured and active schema `leai_qa`, QA build ID,
 
 **Interfaces:**
 - QA frontend: `https://guii-lab.github.io/LEAI-QA/LEAI/InstructorHome.html`.
-- QA backend: `https://guiidata-leai-qa.herokuapp.com/datapipeline/api/`.
-- QA admin: `https://guiidata-leai-qa.herokuapp.com/admin/`.
+- QA backend: `https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api/`.
+- QA admin: `https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/admin/`.
 
 - [ ] **Step 1: Seed QA and verify every persisted count**
 
@@ -605,7 +605,7 @@ Record production migration state, selected model row counts, and immutable Wiza
 
 - [ ] **Step 3: Verify the QA frontend artifact and network boundary**
 
-Open the real QA URL with Chromium. Confirm the visible QA banner and build ID. Inspect browser network requests while signing in and assert every API request uses `guiidata-leai-qa.herokuapp.com`; fail immediately on any request to `guiidata-b6c968e6ed85.herokuapp.com`.
+Open the real QA URL with Chromium. Confirm the visible QA banner and build ID. Inspect browser network requests while signing in and assert every API request uses `guiidata-leai-qa-f30daf4812c3.herokuapp.com`; fail immediately on any request to `guiidata-b6c968e6ed85.herokuapp.com`.
 
 - [ ] **Step 4: Exercise the instructor journey with real gestures**
 

@@ -19,7 +19,7 @@ test('local, production, and explicit QA resolve without crossing environments',
         { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/InstructorHome.html' },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
             buildId: 'abc1234',
             emailEnabled: false,
@@ -32,7 +32,7 @@ test('local, production, and explicit QA resolve without crossing environments',
 test('QA overrides are bound to the fixed QA host and path, with localhost preserved', () => {
     const override = {
         environment: 'qa',
-        apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+        apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
         publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
         buildId: 'abc1234',
         emailEnabled: false,
@@ -79,7 +79,7 @@ test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
         },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://',
         },
         {
@@ -89,12 +89,22 @@ test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
         },
         {
             environment: 'qa',
-            apiBase: 'http://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'http://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
         },
         {
             environment: 'qa',
             apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa-*.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'http://guii-lab.github.io/LEAI-QA/LEAI/',
         },
         {
@@ -104,7 +114,7 @@ test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
         },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI/',
         },
         {
@@ -126,7 +136,7 @@ test('publicUrl preserves the resolved public base and encodes query and hash va
         { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/InstructorHome.html' },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
         },
     );
@@ -150,7 +160,7 @@ test('QA instructor mutations require verified environment identity with both bu
         { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/PromptDesigner.html' },
         {
             environment: 'qa',
-            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
             buildId: 'abc1234',
             emailEnabled: false,

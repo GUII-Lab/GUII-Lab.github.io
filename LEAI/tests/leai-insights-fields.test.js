@@ -93,7 +93,7 @@ test('insights VM keeps unknown and invalid QA environments fail-closed', () => 
         pathname: '/LEAI-QA/LEAI/FeedbackAnalyzer.html',
     }), {
         environment: 'qa',
-        apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+        apiBase: 'https://guiidata-leai-qa-f30daf4812c3.herokuapp.com/datapipeline/api',
         publicBaseUrl: 'http://guii-lab.github.io/LEAI-QA/LEAI/',
     });
     assert.equal(invalidQa.known, false);
