@@ -1,7 +1,5 @@
 // ===== API BASE URL =====
-const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000/datapipeline/api'
-    : 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api';
+const API = leaiEnvironment.requireApiBase(window.LEAI_ENVIRONMENT);
 
 // ===== SESSION HELPERS =====
 const SESSION_KEY = 'leai_session';
