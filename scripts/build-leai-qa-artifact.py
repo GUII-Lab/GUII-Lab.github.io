@@ -236,6 +236,9 @@ def build_artifact(
     try:
         leai_output = staging_root / "LEAI"
         shutil.copytree(source_leai, leai_output, symlinks=True, copy_function=shutil.copy2)
+        copied_manifest = tree_manifest(leai_output)
+        if before_manifest != copied_manifest:
+            raise RuntimeError("Copied LEAI tree does not match source manifest")
         _write_qa_config(leai_output, api_base, build_id)
         _rewrite_environment_cache_keys(leai_output, build_id)
         (staging_root / "index.html").write_text(INDEX_HTML, encoding="utf-8")

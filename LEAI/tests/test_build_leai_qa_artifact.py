@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -104,6 +105,31 @@ class BuildLeaiQaArtifactTests(unittest.TestCase):
             output,
             QA_API_BASE,
             build_id,
+        )
+
+    def copytree_race(self, source_entry: Path, create_replacement):
+        real_copytree = artifact_builder.shutil.copytree
+        backup = self.workspace / f"{source_entry.name}.race-backup"
+
+        def racing_copytree(source, destination, *args, **kwargs):
+            source_entry.rename(backup)
+            create_replacement(source_entry)
+            try:
+                with mock.patch.object(
+                    artifact_builder.shutil,
+                    "copytree",
+                    real_copytree,
+                ):
+                    return real_copytree(source, destination, *args, **kwargs)
+            finally:
+                if source_entry.is_symlink() or source_entry.exists():
+                    source_entry.unlink()
+                backup.rename(source_entry)
+
+        return mock.patch.object(
+            artifact_builder.shutil,
+            "copytree",
+            side_effect=racing_copytree,
         )
 
     def test_artifact_preserves_paths_rewrites_cache_keys_and_does_not_mutate_source(self) -> None:
@@ -274,6 +300,51 @@ class BuildLeaiQaArtifactTests(unittest.TestCase):
             '<!doctype html><html><body><script src="leai-shared.js?v=old"></script></body></html>\n',
         )
         self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+
+    def test_copy_race_cannot_promote_a_transient_escaping_symlink(self) -> None:
+        source_entry = self.leai / "assets" / "nested" / "fixture.bin"
+        original_bytes = source_entry.read_bytes()
+        outside = self.workspace / "outside-secret.txt"
+        outside.write_text("must not be copied", encoding="utf-8")
+        output = self.workspace / "artifact"
+        output.mkdir()
+
+        with self.copytree_race(
+            source_entry,
+            lambda path: path.symlink_to(outside.resolve()),
+        ):
+            with self.assertRaisesRegex(ValueError, "Absolute source symlink"):
+                self.build(output)
+
+        self.assertTrue(source_entry.is_file())
+        self.assertFalse(source_entry.is_symlink())
+        self.assertEqual(source_entry.read_bytes(), original_bytes)
+        self.assertEqual(list(output.iterdir()), [])
+        self.assertFalse((output / "LEAI").exists())
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+        self.assertEqual(list(self.workspace.glob("*.race-backup")), [])
+
+    def test_copy_race_cannot_promote_transient_regular_file_bytes(self) -> None:
+        source_entry = self.leai / "assets" / "nested" / "fixture.bin"
+        original_bytes = source_entry.read_bytes()
+        output = self.workspace / "artifact"
+
+        with self.copytree_race(
+            source_entry,
+            lambda path: path.write_bytes(b"transient copied content"),
+        ):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Copied LEAI tree does not match source manifest",
+            ):
+                self.build(output)
+
+        self.assertTrue(source_entry.is_file())
+        self.assertFalse(source_entry.is_symlink())
+        self.assertEqual(source_entry.read_bytes(), original_bytes)
+        self.assertFalse(output.exists())
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+        self.assertEqual(list(self.workspace.glob("*.race-backup")), [])
 
     def test_rejects_source_symlinks_that_escape_leai_without_copying_them(self) -> None:
         outside = self.workspace / "outside-secret.txt"
