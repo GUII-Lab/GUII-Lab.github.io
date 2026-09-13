@@ -199,7 +199,7 @@ test('account 401 on Instructor Home clears session without reloading the same p
     }
 });
 
-test('profile update sends normalized email and display name together', async () => {
+test('profile update sends normalized changed fields together', async () => {
     const calls = [];
     const result = await auth.updateProfile(
         async function (url, options) {
@@ -211,8 +211,10 @@ test('profile update sends normalized email and display name together', async ()
         },
         '/api',
         'account-token',
-        '  Name  ',
-        '  NAME@UCSC.EDU  ',
+        {
+            display_name: '  Name  ',
+            email: '  NAME@UCSC.EDU  ',
+        },
     );
 
     assert.equal(calls.length, 1);

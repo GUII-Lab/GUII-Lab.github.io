@@ -112,7 +112,15 @@
         ));
     }
 
-    async function updateProfile(fetchImpl, apiBase, token, displayName, email) {
+    async function updateProfile(fetchImpl, apiBase, token, patch) {
+        var source = patch || {};
+        var payload = {};
+        if (Object.prototype.hasOwnProperty.call(source, 'display_name')) {
+            payload.display_name = String(source.display_name || '').trim();
+        }
+        if (Object.prototype.hasOwnProperty.call(source, 'email')) {
+            payload.email = normalizeEmail(source.email);
+        }
         return parseResponse(await authorizedFetch(
             fetchImpl,
             token,
@@ -120,10 +128,7 @@
             {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    display_name: String(displayName || '').trim(),
-                    email: normalizeEmail(email),
-                }),
+                body: JSON.stringify(payload),
             },
         ));
     }

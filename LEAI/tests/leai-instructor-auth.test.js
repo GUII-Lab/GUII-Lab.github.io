@@ -69,8 +69,10 @@ test('updateProfile sends a trimmed display name and normalized email with beare
         fetchImpl,
         '/api',
         'token',
-        '  Prof. Updated  ',
-        '  Prof.Updated@UCSC.EDU  ',
+        {
+            display_name: '  Prof. Updated  ',
+            email: '  Prof.Updated@UCSC.EDU  ',
+        },
     );
 
     assert.equal(calls[0].url, '/api/instructor_me/');
@@ -82,6 +84,25 @@ test('updateProfile sends a trimmed display name and normalized email with beare
     assert.equal(calls[0].options.headers.Authorization, 'Bearer token');
     assert.equal(calls[0].options.headers['Content-Type'], 'application/json');
     assert.equal(account.display_name, 'Prof. Updated');
+});
+
+test('updateProfile omits email when the partial patch changes only display name', async () => {
+    const calls = [];
+    const fetchImpl = async function (url, options) {
+        calls.push({ url: url, options: options });
+        return jsonResponse(200, {
+            display_name: 'QA Instructor Updated',
+            email: 'instructor@qa.invalid',
+        });
+    };
+
+    await auth.updateProfile(fetchImpl, '/api', 'token', {
+        display_name: '  QA Instructor Updated  ',
+    });
+
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+        display_name: 'QA Instructor Updated',
+    });
 });
 
 test('instructorHomeHref returns the stable relative account destination', () => {

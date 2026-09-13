@@ -27,6 +27,20 @@
         return /^[^\s@]+@ucsc\.edu$/.test(email);
     }
 
+    function profilePatch(account, displayName, email) {
+        var current = account || {};
+        var nextDisplayName = String(displayName || '').trim();
+        var nextEmail = String(email || '').trim().toLowerCase();
+        var patch = {};
+        if (nextDisplayName !== String(current.display_name || '').trim()) {
+            patch.display_name = nextDisplayName;
+        }
+        if (nextEmail !== String(current.email || '').trim().toLowerCase()) {
+            patch.email = nextEmail;
+        }
+        return patch;
+    }
+
     function institutionName(account, slug) {
         if (slug === 'ucsc') return 'University of California, Santa Cruz';
         var institutions = account && Array.isArray(account.institutions) ? account.institutions : [];
@@ -534,11 +548,13 @@
             var displayName = byId('account-display-name').value.trim();
             var email = byId('account-email').value.trim().toLowerCase();
             if (!displayName) { message('account-profile-message', 'Enter a display name.', 'error'); byId('account-display-name').focus(); return; }
-            if (!isAllowedInstructorEmail(email)) { message('account-profile-message', 'Enter your @ucsc.edu email address.', 'error'); byId('account-email').focus(); return; }
+            var patch = profilePatch(account, displayName, email);
+            if (Object.prototype.hasOwnProperty.call(patch, 'email') && !isAllowedInstructorEmail(patch.email)) { message('account-profile-message', 'Enter your @ucsc.edu email address.', 'error'); byId('account-email').focus(); return; }
+            if (!Object.keys(patch).length) { message('account-profile-message', 'No changes to save.', 'success'); return; }
             var button = byId('account-profile-button');
             setBusy(button, true, 'Saving…');
             message('account-profile-message', '');
-            auth.updateProfile(root.fetch, apiBase, session().instructorToken, displayName, email).then(function (nextAccount) {
+            auth.updateProfile(root.fetch, apiBase, session().instructorToken, patch).then(function (nextAccount) {
                 account = nextAccount;
                 persist(accountSession(account));
                 renderAccountIdentity();
@@ -591,6 +607,7 @@
     return {
         slugSuggestion: slugSuggestion,
         isAllowedInstructorEmail: isAllowedInstructorEmail,
+        profilePatch: profilePatch,
         institutionName: institutionName,
         courseCardViewModel: courseCardViewModel,
         init: init,

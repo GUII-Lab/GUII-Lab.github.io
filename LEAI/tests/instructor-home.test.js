@@ -96,8 +96,39 @@ test('Home accepts only UCSC instructor email addresses', () => {
     assert.equal(home.isAllowedInstructorEmail('name@ucsc.edu'), true);
     assert.equal(home.isAllowedInstructorEmail(' NAME@UCSC.EDU '), true);
     assert.equal(home.isAllowedInstructorEmail('name@example.edu'), false);
+    assert.equal(home.isAllowedInstructorEmail('instructor@qa.invalid'), false);
     assert.equal(home.isAllowedInstructorEmail('name@sub.ucsc.edu'), false);
     assert.equal(home.isAllowedInstructorEmail('name space@ucsc.edu'), false);
+});
+
+test('profile patch omits an unchanged seeded QA email on a display-name-only save', () => {
+    delete require.cache[require.resolve(CONTROLLER_PATH)];
+    const home = require(CONTROLLER_PATH);
+
+    assert.deepEqual(home.profilePatch({
+        display_name: 'QA Instructor',
+        email: 'instructor@qa.invalid',
+    }, '  QA Instructor Updated  ', '  INSTRUCTOR@QA.INVALID  '), {
+        display_name: 'QA Instructor Updated',
+    });
+});
+
+test('profile patch normalizes a changed UCSC email and omits unchanged fields', () => {
+    delete require.cache[require.resolve(CONTROLLER_PATH)];
+    const home = require(CONTROLLER_PATH);
+    const account = {
+        display_name: 'Prof. Rivera',
+        email: 'prof.rivera@ucsc.edu',
+    };
+
+    assert.deepEqual(
+        home.profilePatch(account, 'Prof. Rivera', '  NEW.ADDRESS@UCSC.EDU  '),
+        { email: 'new.address@ucsc.edu' },
+    );
+    assert.deepEqual(
+        home.profilePatch(account, '  Prof. Rivera  ', '  PROF.RIVERA@UCSC.EDU  '),
+        {},
+    );
 });
 
 test('pure Home helpers normalize slugs, institutions, and course cards', () => {
