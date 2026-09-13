@@ -9,6 +9,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Mapping
 from html.parser import HTMLParser
@@ -175,6 +176,95 @@ def tree_manifest(root: Path) -> dict[str, tuple[str, str]]:
 
     visit(resolved_root)
     return manifest
+
+
+def _git_tracked_leai_paths(source_root: Path) -> frozenset[str]:
+    completed = subprocess.run(
+        (
+            "git",
+            "-C",
+            str(source_root),
+            "ls-files",
+            "--cached",
+            "-z",
+            "--",
+            "LEAI",
+        ),
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode(errors="replace").strip()
+        raise ValueError(f"Source must be a readable Git worktree: {detail}")
+
+    tracked: set[str] = set()
+    for raw_path in completed.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        repository_path = Path(os.fsdecode(raw_path))
+        try:
+            relative_path = repository_path.relative_to("LEAI")
+        except ValueError as exc:
+            raise ValueError(f"Tracked path escaped LEAI: {repository_path}") from exc
+        if not relative_path.parts or any(part in {"", ".", ".."} for part in relative_path.parts):
+            raise ValueError(f"Tracked LEAI path is unsafe: {repository_path}")
+        tracked.add(relative_path.as_posix())
+
+    if not tracked:
+        raise ValueError("Git index contains no tracked LEAI files")
+    return frozenset(tracked)
+
+
+def _tracked_tree_manifest(
+    root: Path,
+    tracked_paths: frozenset[str],
+) -> dict[str, tuple[str, str]]:
+    resolved_root = root.resolve(strict=True)
+    manifest: dict[str, tuple[str, str]] = {".": ("directory", "")}
+    for relative in sorted(tracked_paths):
+        relative_path = Path(relative)
+        for parent in relative_path.parents:
+            if parent != Path("."):
+                manifest[parent.as_posix()] = ("directory", "")
+
+        path = resolved_root / relative_path
+        if path.is_symlink():
+            link_target = os.readlink(path)
+            if Path(link_target).is_absolute():
+                raise ValueError(f"Absolute source symlink is unsafe to copy: {path}")
+            try:
+                target = path.resolve(strict=True)
+            except (FileNotFoundError, RuntimeError) as exc:
+                raise ValueError(f"Broken or cyclic source symlink: {path}") from exc
+            if not _is_relative_to(target, resolved_root):
+                raise ValueError(f"Source symlink escapes LEAI: {path}")
+            manifest[relative] = ("symlink", link_target)
+        elif path.is_file():
+            manifest[relative] = (
+                "file",
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+        else:
+            raise ValueError(f"Tracked LEAI entry is missing or unsupported: {path}")
+    return manifest
+
+
+def _tracked_copy_ignore(root: Path, tracked_paths: frozenset[str]):
+    resolved_root = root.resolve(strict=True)
+    included = set(tracked_paths)
+    for relative in tracked_paths:
+        included.update(
+            parent.as_posix()
+            for parent in Path(relative).parents
+            if parent != Path(".")
+        )
+
+    def ignore(directory: str, names: list[str]) -> set[str]:
+        relative_directory = Path(directory).resolve().relative_to(resolved_root)
+        prefix = "" if relative_directory == Path(".") else f"{relative_directory.as_posix()}/"
+        return {name for name in names if f"{prefix}{name}" not in included}
+
+    return ignore
 
 
 def manifest_hash(manifest: Mapping[str, tuple[str, str]]) -> str:
@@ -383,13 +473,21 @@ def build_artifact(
     api_base: str,
     build_id: str,
 ) -> dict[str, str | int]:
-    _, source_leai, output_root = _validate_inputs(
+    source_root, source_leai, output_root = _validate_inputs(
         source,
         output,
         api_base,
         build_id,
     )
-    before_manifest = tree_manifest(source_leai)
+    tracked_paths = _git_tracked_leai_paths(source_root)
+    required_paths = {"InstructorHome.html", *ENVIRONMENT_SCRIPTS}
+    missing_required = sorted(required_paths.difference(tracked_paths))
+    if missing_required:
+        raise ValueError(
+            "Required source files are not tracked by Git: "
+            + ", ".join(missing_required)
+        )
+    before_manifest = _tracked_tree_manifest(source_leai, tracked_paths)
     before_hash = manifest_hash(before_manifest)
 
     staging_root = Path(
@@ -400,7 +498,13 @@ def build_artifact(
     )
     try:
         leai_output = staging_root / "LEAI"
-        shutil.copytree(source_leai, leai_output, symlinks=True, copy_function=shutil.copy2)
+        shutil.copytree(
+            source_leai,
+            leai_output,
+            symlinks=True,
+            copy_function=shutil.copy2,
+            ignore=_tracked_copy_ignore(source_leai, tracked_paths),
+        )
         copied_manifest = tree_manifest(leai_output)
         if before_manifest != copied_manifest:
             raise RuntimeError("Copied LEAI tree does not match source manifest")
@@ -409,7 +513,7 @@ def build_artifact(
         (staging_root / "index.html").write_text(INDEX_HTML, encoding="utf-8")
         _assert_no_production_api_literals(staging_root)
 
-        after_manifest = tree_manifest(source_leai)
+        after_manifest = _tracked_tree_manifest(source_leai, tracked_paths)
         if before_manifest != after_manifest:
             raise RuntimeError("Source LEAI tree changed while building the artifact")
 
