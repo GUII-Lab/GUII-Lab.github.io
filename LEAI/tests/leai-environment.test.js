@@ -78,3 +78,23 @@ test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
         assert.throws(() => env.requireApiBase(resolved), /LEAI_UNKNOWN_ENVIRONMENT/);
     });
 });
+
+test('publicUrl preserves the resolved public base and encodes query and hash values', () => {
+    const qa = env.resolveEnvironment(
+        { hostname: 'guii-lab.github.io', origin: 'https://guii-lab.github.io', pathname: '/LEAI-QA/LEAI/InstructorHome.html' },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+    );
+
+    assert.equal(
+        env.publicUrl(qa, 'feedback.html', { id: 'survey 1' }, 'cid=session 1'),
+        'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html?id=survey+1#cid=session%201',
+    );
+    assert.throws(
+        () => env.publicUrl(qa, 'https://guii-lab.github.io/LEAI/feedback.html'),
+        /LEAI_PUBLIC_URL_PATH/,
+    );
+});

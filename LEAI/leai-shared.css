@@ -185,6 +185,18 @@ input[type="checkbox"], input[type="radio"] {
 /* ===== APP SHELL ===== */
 #app { display: none; height: 100vh; overflow: hidden; }
 
+/* ===== ENVIRONMENT MARKER ===== */
+.leai-environment-banner {
+    position: sticky; top: 0; z-index: 300;
+    width: 100%; padding: 7px 16px;
+    background: #7c2d12; color: #fff7ed;
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.04em; text-align: center;
+}
+@media (max-width: 767px) {
+    .leai-environment-banner { padding: 6px 12px; font-size: 0.68rem; }
+}
+
 /* ===== SIDEBAR ===== */
 /* Dark sidebar per Stitch institutional spec */
 .sidebar {

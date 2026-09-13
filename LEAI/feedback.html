@@ -4020,6 +4020,7 @@
             var renderOpts = {
                 sessionId: (window.sessionData && window.sessionData.sessionID) || '',
                 publicId: (new URLSearchParams(window.location.search)).get('id') || '',
+                publicBaseUrl: window.LEAI_ENVIRONMENT.publicBaseUrl,
             };
             if (format === 'docx') {
                 return leaiFormMode.renderStructuredDocx(formMode.state, transcript, renderOpts)

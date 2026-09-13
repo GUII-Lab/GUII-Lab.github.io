@@ -11,6 +11,24 @@
             window.location,
             window.LEAI_DEPLOYMENT_CONFIG,
         );
+        if (window.LEAI_ENVIRONMENT.name === 'qa' && window.LEAI_ENVIRONMENT.known === true) {
+            var documentLike = window.document;
+            function addQaBanner() {
+                if (documentLike.querySelector('.leai-environment-banner')) return;
+                var target = documentLike.body || documentLike.documentElement;
+                if (!target) return;
+                var banner = documentLike.createElement('div');
+                banner.className = 'leai-environment-banner';
+                banner.setAttribute('role', 'status');
+                banner.textContent = 'QA environment · test data only';
+                target.insertBefore(banner, target.firstChild || null);
+            }
+            if (documentLike.readyState === 'loading') {
+                documentLike.addEventListener('DOMContentLoaded', addQaBanner);
+            } else {
+                addQaBanner();
+            }
+        }
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     function normalizeBase(value) {
@@ -69,8 +87,27 @@
         return config.apiBase;
     }
 
+    function publicUrl(config, relativePath, query, hash) {
+        if (!config || config.known !== true || !config.publicBaseUrl) {
+            throw new Error('LEAI_UNKNOWN_ENVIRONMENT');
+        }
+        var path = String(relativePath || '');
+        if (!path || /^\/+|^[a-z][a-z0-9+.-]*:/i.test(path)) {
+            throw new Error('LEAI_PUBLIC_URL_PATH');
+        }
+        var base = new URL(config.publicBaseUrl);
+        var url = new URL(path, base);
+        if (url.href.slice(0, base.href.length) !== base.href) {
+            throw new Error('LEAI_PUBLIC_URL_PATH');
+        }
+        if (query) url.search = new URLSearchParams(query).toString();
+        if (hash) url.hash = String(hash);
+        return url.href;
+    }
+
     return Object.freeze({
         resolveEnvironment: resolveEnvironment,
         requireApiBase: requireApiBase,
+        publicUrl: publicUrl,
     });
 }));

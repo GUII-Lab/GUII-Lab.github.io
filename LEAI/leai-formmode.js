@@ -356,6 +356,14 @@
         return v > MIN_TOTAL_TURN_BUDGET ? v : MIN_TOTAL_TURN_BUDGET;
     }
 
+    function conversationUrl(opts) {
+        if (!opts.publicId || !opts.sessionId || !opts.publicBaseUrl) return '';
+        var url = new URL('feedback.html', opts.publicBaseUrl);
+        url.search = new URLSearchParams({ id: opts.publicId }).toString();
+        url.hash = 'cid=' + encodeURIComponent(opts.sessionId);
+        return url.href;
+    }
+
     // ─── public surface ────────────────────────────────────────────────────
 
     var leaiFormMode = {
@@ -986,9 +994,8 @@
                     .join(', ') + (state.roster.indexOf('self') !== -1 ? ', + self' : ''));
             }
             lines.push('- **Date submitted:** ' + new Date().toISOString().slice(0, 10));
-            if (opts.publicId && opts.sessionId) {
-                var convoUrlMd = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
-                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+            var convoUrlMd = conversationUrl(opts);
+            if (convoUrlMd) {
                 lines.push('- **Conversation:** [' + convoUrlMd + '](' + convoUrlMd + ')');
             }
             lines.push('');
@@ -1067,9 +1074,8 @@
                 html += '<div><strong>Team roster:</strong> ' + esc(rosterPretty) + '</div>';
             }
             html += '<div><strong>Date submitted:</strong> ' + date + '</div>';
-            if (opts.publicId && opts.sessionId) {
-                var convoUrlHtml = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
-                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+            var convoUrlHtml = conversationUrl(opts);
+            if (convoUrlHtml) {
                 html += '<div><strong>Conversation:</strong> <a href="' + esc(convoUrlHtml) + '">' + esc(convoUrlHtml) + '</a></div>';
             }
             html += '</div>';
@@ -1342,9 +1348,8 @@
             children.push(metaP('Team roster:', rosterPretty));
         }
         children.push(metaP('Date submitted:', new Date().toISOString().slice(0, 10)));
-        if (opts.publicId && opts.sessionId) {
-            var convoUrl = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
-                encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+        var convoUrl = conversationUrl(opts);
+        if (convoUrl) {
             var linkRun = d.ExternalHyperlink
                 ? new d.ExternalHyperlink({
                     link: convoUrl,

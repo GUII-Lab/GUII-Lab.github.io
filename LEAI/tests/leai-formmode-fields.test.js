@@ -257,6 +257,61 @@ test('structured artifacts render exact attributed student responses field by fi
     assert.match(html, /How confident are you in that explanation, and why\?/);
 });
 
+test('structured artifacts keep QA conversation links inside the QA public base', async () => {
+    const state = leaiFormMode.init(fallSchemaFixture());
+    const transcript = [];
+    const opts = {
+        publicId: 'qa-survey',
+        sessionId: 'qa-session',
+        publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+    };
+
+    const markdown = leaiFormMode.renderStructuredMarkdown(state, transcript, opts);
+    const html = leaiFormMode.renderStructuredHtml(state, transcript, opts);
+    assert.match(markdown, /LEAI-QA\/LEAI\/feedback\.html\?id=qa-survey#cid=qa-session/);
+    assert.match(html, /LEAI-QA\/LEAI\/feedback\.html\?id=qa-survey#cid=qa-session/);
+    assert.doesNotMatch(markdown, /guii-lab\.github\.io\/LEAI\/feedback/);
+    assert.doesNotMatch(html, /guii-lab\.github\.io\/LEAI\/feedback/);
+
+    const encodedMarkdown = leaiFormMode.renderStructuredMarkdown(state, transcript, {
+        publicId: 'qa survey',
+        sessionId: 'qa#session',
+        publicBaseUrl: opts.publicBaseUrl,
+    });
+    assert.match(encodedMarkdown, /id=qa\+survey#cid=qa%23session/);
+
+    const originalDocx = globalThis.docx;
+    class FakeDocxNode {
+        constructor(options) { this.options = options; }
+    }
+    globalThis.docx = {
+        Paragraph: FakeDocxNode,
+        TextRun: FakeDocxNode,
+        TableCell: FakeDocxNode,
+        TableRow: FakeDocxNode,
+        Table: FakeDocxNode,
+        Document: FakeDocxNode,
+        ExternalHyperlink: FakeDocxNode,
+        Packer: { toBlob: async function (document) { return document; } },
+    };
+    try {
+        const document = await leaiFormMode.renderStructuredDocx(state, transcript, opts);
+        const children = document.options.sections[0].children;
+        const linkParagraph = children.find(function (node) {
+            return node.options.children && node.options.children.some(function (child) {
+                return child.options && child.options.link;
+            });
+        });
+        const link = linkParagraph.options.children.find(function (child) {
+            return child.options && child.options.link;
+        });
+        assert.equal(link.options.link, 'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html?id=qa-survey#cid=qa-session');
+    } finally {
+        if (originalDocx === undefined) delete globalThis.docx;
+        else globalThis.docx = originalDocx;
+    }
+});
+
 test('table and rating kinds turn their field metadata into one shaped question each', () => {
     const schema = {
         schema_id: 'team-kind-shapes',
