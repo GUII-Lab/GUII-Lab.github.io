@@ -119,20 +119,77 @@
         </div>
     </div>
 
+    <script src="leai-instructor-auth.js?v=leai-env-identity-r1"></script>
     <script src="leai-deployment-config.js?v=leai-env-r1"></script>
     <script src="leai-environment.js?v=leai-env-r1"></script>
     <script src="leai-shared.js?v=leai-env-r1"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', async function () {
             const applyFiltersBtn = document.getElementById('applyFilters');
+            const messageDisplay = document.getElementById('messageDisplay');
+            const session = getSession();
 
-            fetch(API + '/feedbackList/')
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    populateGptUsedOptions(data);
-                    applyFiltersBtn.onclick = () => applyFilters(data);
-                });
+            function redirectToInstructorHome() {
+                window.location.replace(leaiInstructorAuth.instructorHomeHref());
+            }
+
+            if (!leaiInstructorAuth.hasUsableInstructorSession(session)
+                    || !String(session.courseId || '').trim()) {
+                redirectToInstructorHome();
+                return;
+            }
+
+            if (window.LEAI_ENVIRONMENT && window.LEAI_ENVIRONMENT.name === 'qa') {
+                let identity;
+                try {
+                    identity = await window.LEAI_ENVIRONMENT_IDENTITY_READY;
+                } catch (error) {
+                    identity = null;
+                }
+                if (!identity || identity.verified !== true) {
+                    messageDisplay.textContent = 'QA environment identity could not be verified. Responses are unavailable.';
+                    return;
+                }
+            }
+
+            let response;
+            try {
+                response = await authorizedFetch(
+                    API + '/feedbackList/?course_id=' + encodeURIComponent(session.courseId)
+                );
+            } catch (error) {
+                messageDisplay.textContent = 'Responses are unavailable. Please try again.';
+                return;
+            }
+
+            if (response.status === 401) {
+                redirectToInstructorHome();
+                return;
+            }
+            if (response.status === 403) {
+                messageDisplay.textContent = 'You do not have access to this course\'s responses.';
+                return;
+            }
+            if (!response.ok) {
+                messageDisplay.textContent = 'Responses are unavailable. Please try again.';
+                return;
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (error) {
+                messageDisplay.textContent = 'Responses are unavailable. Please try again.';
+                return;
+            }
+            if (!data || typeof data !== 'object' || Array.isArray(data)
+                    || !Object.values(data).every(Array.isArray)) {
+                messageDisplay.textContent = 'Responses are unavailable. Please try again.';
+                return;
+            }
+
+            populateGptUsedOptions(data);
+            applyFiltersBtn.onclick = () => applyFilters(data);
 
             function populateGptUsedOptions(data) {
                 const gptUsedSelect = document.getElementById('gptUsed');
@@ -173,7 +230,7 @@
 
             function displaySessions(data) {
                 const sessionList = document.getElementById('sessionList');
-                sessionList.innerHTML = ''; // Clear existing sessions
+                sessionList.replaceChildren();
                 Object.entries(data).forEach(([sessionId, messages]) => {
                     const listItem = document.createElement('li');
                     listItem.textContent = `Session ${sessionId} (${messages.length} messages) - ${messages[0].gpt_used}`;
@@ -184,12 +241,25 @@
 
             function displayMessages(sessionId, messages) {
                 const messageDisplay = document.getElementById('messageDisplay');
-                messageDisplay.innerHTML = ''; // Clear previous messages
+                messageDisplay.replaceChildren();
                 messages.forEach(message => {
                     const div = document.createElement('div');
-                    div.className = `message ${message.sent_by}`;
-                    div.innerHTML = `<p><strong>${message.sent_by.replace('_', ' ').toUpperCase()}:</strong> ${message.content}</p>
-                             <p><small>Sent on: ${message.created_at}</small></p>`;
+                    const sender = String(message.sent_by || 'unknown');
+                    const contentLine = document.createElement('p');
+                    const senderLabel = document.createElement('strong');
+                    const content = document.createElement('span');
+                    const sentLine = document.createElement('p');
+                    const sentAt = document.createElement('small');
+
+                    div.className = 'message ' + (sender === 'student' ? 'student-message' : 'ai-message');
+                    senderLabel.textContent = sender.replace('_', ' ').toUpperCase() + ':';
+                    content.textContent = ' ' + String(message.content || '');
+                    sentAt.textContent = 'Sent on: ' + String(message.created_at || '');
+                    contentLine.appendChild(senderLabel);
+                    contentLine.appendChild(content);
+                    sentLine.appendChild(sentAt);
+                    div.appendChild(contentLine);
+                    div.appendChild(sentLine);
                     messageDisplay.appendChild(div);
                 });
             }
