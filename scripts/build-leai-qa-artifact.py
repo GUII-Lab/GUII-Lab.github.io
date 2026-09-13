@@ -19,15 +19,6 @@ from urllib.parse import unquote, urlsplit
 QA_API_BASE = "https://guiidata-leai-qa.herokuapp.com/datapipeline/api"
 QA_PUBLIC_BASE = "https://guii-lab.github.io/LEAI-QA/LEAI/"
 BUILD_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
-PAGES = (
-    "CourseBanner.html",
-    "Customizations.html",
-    "FeedbackAnalyzer.html",
-    "FeedbackChat.html",
-    "InstructorHome.html",
-    "PromptDesigner.html",
-    "feedback.html",
-)
 ENVIRONMENT_SCRIPTS = (
     "leai-deployment-config.js",
     "leai-environment.js",
@@ -144,7 +135,7 @@ def _validate_inputs(
         if any(output_root.iterdir()):
             raise ValueError("Existing output directory must be empty")
 
-    for name in (*PAGES, *ENVIRONMENT_SCRIPTS):
+    for name in ("InstructorHome.html", *ENVIRONMENT_SCRIPTS):
         _require_regular_file(source_leai / name)
 
     return source_root, source_leai, output_root
@@ -197,21 +188,44 @@ def manifest_hash(manifest: Mapping[str, tuple[str, str]]) -> str:
     return digest.hexdigest()
 
 
+def _environment_script_pattern(script_name: str) -> re.Pattern[str]:
+    return re.compile(
+        r"(?P<prefix>\bsrc\s*=\s*)(?P<quote>[\"'])(?P<path>(?:\.\.?/)*"
+        + re.escape(script_name)
+        + r")(?:\?[^\"']*)?(?P=quote)",
+        re.IGNORECASE,
+    )
+
+
 def _rewrite_environment_cache_keys(leai_output: Path, build_id: str) -> None:
-    for page in PAGES:
-        html_path = leai_output / page
+    html_paths: list[Path] = []
+    for relative, (entry_type, _) in tree_manifest(leai_output).items():
+        relative_path = Path(relative)
+        if (
+            entry_type in {"file", "symlink"}
+            and relative_path.suffix.lower() in {".htm", ".html"}
+        ):
+            html_paths.append(leai_output / relative_path)
+
+    rewrites: list[tuple[Path, str]] = []
+    for html_path in sorted(html_paths):
         html = html_path.read_text(encoding="utf-8")
+        patterns = {
+            script_name: _environment_script_pattern(script_name)
+            for script_name in ENVIRONMENT_SCRIPTS
+        }
+        if not any(pattern.search(html) for pattern in patterns.values()):
+            continue
+
         for script_name in ENVIRONMENT_SCRIPTS:
-            pattern = re.compile(
-                r"(?P<prefix>\bsrc\s*=\s*)(?P<quote>[\"'])"
-                + re.escape(script_name)
-                + r"(?:\?[^\"']*)?(?P=quote)",
-                re.IGNORECASE,
-            )
+            pattern = patterns[script_name]
 
             def replacement(match: re.Match[str]) -> str:
                 quote = match.group("quote")
-                return f'{match.group("prefix")}{quote}{script_name}?v={build_id}{quote}'
+                return (
+                    f'{match.group("prefix")}{quote}{match.group("path")}'
+                    f"?v={build_id}{quote}"
+                )
 
             html, replacement_count = pattern.subn(replacement, html)
             if replacement_count != 1:
@@ -219,6 +233,11 @@ def _rewrite_environment_cache_keys(leai_output: Path, build_id: str) -> None:
                     f"Expected exactly one {script_name} reference in {html_path}; "
                     f"found {replacement_count}"
                 )
+        rewrites.append((html_path, html))
+
+    if not rewrites:
+        raise ValueError("No copied HTML page loads the LEAI environment script stack")
+    for html_path, html in rewrites:
         html_path.write_text(html, encoding="utf-8")
 
 

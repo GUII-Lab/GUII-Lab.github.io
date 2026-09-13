@@ -23,6 +23,7 @@ PAGES = (
     "InstructorHome.html",
     "PromptDesigner.html",
     "feedback.html",
+    "feedbackResponses.html",
 )
 ENVIRONMENT_SCRIPTS = (
     "leai-deployment-config.js",
@@ -166,6 +167,47 @@ class BuildLeaiQaArtifactTests(unittest.TestCase):
         self.assertEqual(result["output"], str(output.resolve()))
         self.assertEqual(result["source_manifest_sha256"], artifact_builder.manifest_hash(before))
         self.assertEqual(result["source_entry_count"], len(before))
+
+    def test_discovers_future_nested_pages_that_load_the_environment_stack(self) -> None:
+        future_page = self.leai / "future" / "NestedTool.html"
+        future_page.parent.mkdir()
+        future_page.write_text(
+            "<!doctype html><html><body>"
+            + "".join(
+                f'<script src="../{name}?v=old-release"></script>'
+                for name in ENVIRONMENT_SCRIPTS
+            )
+            + "</body></html>\n",
+            encoding="utf-8",
+        )
+        output = self.workspace / "artifact"
+
+        self.build(output, "discovered-build")
+
+        copied_html = (output / "LEAI" / "future" / "NestedTool.html").read_text(
+            encoding="utf-8"
+        )
+        for script_name in ENVIRONMENT_SCRIPTS:
+            self.assertIn(f'{script_name}?v=discovered-build', copied_html)
+        self.assertNotIn("old-release", copied_html)
+
+    def test_rejects_discovered_page_with_an_incomplete_environment_stack(self) -> None:
+        partial_page = self.leai / "PartialTool.html"
+        partial_page.write_text(
+            '<!doctype html><script src="leai-environment.js?v=old-release"></script>\n',
+            encoding="utf-8",
+        )
+        output = self.workspace / "artifact"
+        output.mkdir()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Expected exactly one leai-deployment-config\.js reference.*PartialTool\.html",
+        ):
+            self.build(output)
+
+        self.assertEqual(list(output.iterdir()), [])
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
 
     def test_artifact_writes_exact_json_qa_configuration(self) -> None:
         output = self.workspace / "artifact"
