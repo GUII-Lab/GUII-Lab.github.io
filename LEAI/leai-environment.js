@@ -19,7 +19,7 @@
             );
             var markerText = 'QA environment · identity checking · frontend build '
                 + (config.buildId || 'unavailable')
-                + ' · backend build checking · instructor changes disabled';
+                + ' · backend build checking · database schema checking · instructor changes disabled';
 
             function setInstructorInterfaceBlocked(blocked) {
                 if (instructorPage && documentLike.body) documentLike.body.inert = blocked;
@@ -39,10 +39,15 @@
 
             function applyIdentity(identity) {
                 window.LEAI_ENVIRONMENT_IDENTITY = identity;
+                var databaseSchema = identity.databaseSchema === 'leai_qa'
+                    ? identity.databaseSchema
+                    : 'unavailable';
                 markerText = identity.verified
-                    ? 'QA environment · test data only · frontend build '
+                    ? 'QA environment · test data only · database schema ' + databaseSchema
+                        + ' · frontend build '
                         + identity.frontendBuildId + ' · backend build ' + identity.backendBuildId
-                    : 'QA environment blocked · frontend build '
+                    : 'QA environment blocked · database schema ' + databaseSchema
+                        + ' · frontend build '
                         + (identity.frontendBuildId || 'unavailable') + ' · backend build '
                         + (identity.backendBuildId || 'unavailable')
                         + ' · instructor changes disabled';
@@ -56,6 +61,7 @@
                 verified: false,
                 frontendBuildId: String(config.buildId || ''),
                 backendBuildId: '',
+                databaseSchema: '',
             });
             setInstructorInterfaceBlocked(true);
             if (documentLike.readyState === 'loading') {
@@ -147,6 +153,9 @@
     function evaluateQaIdentity(config, payload) {
         var frontendBuildId = String(config && config.buildId || '').trim();
         var backendBuildId = String(payload && payload.build_id || '').trim();
+        var databaseSchema = typeof (payload && payload.database_schema) === 'string'
+            ? payload.database_schema
+            : '';
         var verified = !!config
             && config.name === 'qa'
             && config.known === true
@@ -155,11 +164,13 @@
             && !!payload
             && payload.environment === 'qa'
             && payload.email_enabled === false
-            && backendBuildId !== '';
+            && backendBuildId !== ''
+            && databaseSchema === 'leai_qa';
         return Object.freeze({
             verified: verified,
             frontendBuildId: frontendBuildId,
             backendBuildId: backendBuildId,
+            databaseSchema: databaseSchema,
         });
     }
 

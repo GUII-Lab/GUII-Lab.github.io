@@ -250,6 +250,7 @@ if (!workflow) {
         assert.match(backendPreflight.run, /case "\$http_status" in[\s\S]*2\?\?\)[\s\S]*\*\)[\s\S]*exit 1[\s\S]*esac/);
         assert.match(backendPreflight.run, /assert\.equal\(identity\.environment, 'qa'\)/);
         assert.match(backendPreflight.run, /assert\.equal\(identity\.email_enabled, false\)/);
+        assert.match(backendPreflight.run, /assert\.equal\(identity\.database_schema, 'leai_qa'\)/);
         assert.match(
             backendPreflight.run,
             /assert\.match\(identity\.build_id, \/\^\[A-Za-z0-9\]\[A-Za-z0-9\._-\]\{0,127\}\$\//,
@@ -258,6 +259,7 @@ if (!workflow) {
         assert.match(backendPreflight.run, /backend_build_id:\s*identity\.build_id/);
         assert.match(backendPreflight.run, /backend_environment:\s*identity\.environment/);
         assert.match(backendPreflight.run, /backend_email_enabled:\s*identity\.email_enabled/);
+        assert.match(backendPreflight.run, /backend_database_schema:\s*identity\.database_schema/);
 
         const beforeTargetCheckout = steps
             .slice(0, targetCheckout.index)

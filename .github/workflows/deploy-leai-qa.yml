@@ -93,12 +93,14 @@ jobs:
           const identity = JSON.parse(fs.readFileSync(identityPath, 'utf8'));
           assert.equal(identity.environment, 'qa');
           assert.equal(identity.email_enabled, false);
+          assert.equal(identity.database_schema, 'leai_qa');
           assert.match(identity.build_id, /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/);
           console.log(JSON.stringify({
               frontend_build_id: process.env.FRONTEND_BUILD_ID,
               backend_build_id: identity.build_id,
               backend_environment: identity.environment,
               backend_email_enabled: identity.email_enabled,
+              backend_database_schema: identity.database_schema,
           }));
           NODE
 
