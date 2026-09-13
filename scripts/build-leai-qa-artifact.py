@@ -11,7 +11,9 @@ import re
 import shutil
 import tempfile
 from collections.abc import Mapping
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 
 QA_API_BASE = "https://guiidata-leai-qa.herokuapp.com/datapipeline/api"
@@ -31,6 +33,21 @@ ENVIRONMENT_SCRIPTS = (
     "leai-environment.js",
     "leai-shared.js",
 )
+FORBIDDEN_PRODUCTION_API_HOSTNAMES = (
+    "guiidata-b6c968e6ed85.herokuapp.com",
+)
+PROVEN_QA_INERT_PRODUCTION_FILES = {
+    "LEAI/leai-environment.js": (
+        "9fb7f91253ffeed9132204f9418899e3cf92148d6a0d137d92d0e5ec647490d9"
+    ),
+}
+BROWSER_EXECUTABLE_SUFFIXES = frozenset({".css", ".htm", ".html", ".js", ".json", ".mjs"})
+NODE_TEST_REQUIRE_PATTERN = re.compile(r"\brequire\(\s*(['\"])node:test\1\s*\)")
+LOCAL_BROWSER_REFERENCE_PATTERN = re.compile(
+    r"(?P<quote>['\"])(?P<reference>[^'\"<>]*\.(?:css|html?|js|json|mjs)"
+    r"(?:[?#][^'\"<>]*)?)(?P=quote)",
+    re.IGNORECASE,
+)
 INDEX_HTML = """<!doctype html>
 <html lang="en">
 <head>
@@ -46,6 +63,24 @@ INDEX_HTML = """<!doctype html>
 </body>
 </html>
 """
+
+
+class _ArtifactReferenceParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.references: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attributes: list[tuple[str, str | None]],
+    ) -> None:
+        del tag
+        for name, value in attributes:
+            if name.lower() in {"action", "data", "formaction", "href", "src"} and value:
+                self.references.append(value)
+
+    handle_startendtag = handle_starttag
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -202,6 +237,117 @@ def _write_qa_config(leai_output: Path, api_base: str, build_id: str) -> None:
     )
 
 
+def _is_proven_inert_node_test(relative_path: Path, path: Path) -> bool:
+    if (
+        len(relative_path.parts) < 3
+        or relative_path.parts[:2] != ("LEAI", "tests")
+        or not relative_path.name.endswith(".test.js")
+    ):
+        return False
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return False
+    require_match = NODE_TEST_REQUIRE_PATTERN.search(text)
+    hostname_offsets = [
+        text.casefold().find(hostname.casefold())
+        for hostname in FORBIDDEN_PRODUCTION_API_HOSTNAMES
+    ]
+    present_offsets = [offset for offset in hostname_offsets if offset >= 0]
+    return (
+        require_match is not None
+        and (not present_offsets or require_match.start() < min(present_offsets))
+    )
+
+
+def _resolve_artifact_reference(
+    artifact_root: Path,
+    referring_path: Path,
+    reference: str,
+) -> Path | None:
+    parsed = urlsplit(reference)
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return None
+
+    reference_path = unquote(parsed.path)
+    if reference_path.startswith("/LEAI-QA/LEAI/"):
+        candidate = artifact_root / "LEAI" / reference_path.removeprefix("/LEAI-QA/LEAI/")
+    elif reference_path.startswith("/LEAI/"):
+        candidate = artifact_root / "LEAI" / reference_path.removeprefix("/LEAI/")
+    elif reference_path.startswith("/"):
+        candidate = artifact_root / reference_path.removeprefix("/")
+    else:
+        candidate = referring_path.parent / reference_path
+
+    resolved_candidate = candidate.resolve(strict=False)
+    resolved_root = artifact_root.resolve(strict=True)
+    if not _is_relative_to(resolved_candidate, resolved_root):
+        return None
+    return resolved_candidate
+
+
+def _assert_no_production_api_literals(artifact_root: Path) -> None:
+    manifest = tree_manifest(artifact_root)
+    executable_paths: set[Path] = set()
+    for relative, (entry_type, _) in manifest.items():
+        relative_path = Path(relative)
+        if (
+            relative != "."
+            and entry_type in {"file", "symlink"}
+            and relative_path.suffix.lower() in BROWSER_EXECUTABLE_SUFFIXES
+            and not _is_proven_inert_node_test(
+                relative_path,
+                artifact_root / relative_path,
+            )
+        ):
+            executable_paths.add(artifact_root / relative_path)
+
+    pending = list(executable_paths)
+    inspected: set[Path] = set()
+    while pending:
+        path = pending.pop()
+        resolved_path = path.resolve(strict=True)
+        if resolved_path in inspected or not resolved_path.is_file():
+            continue
+        inspected.add(resolved_path)
+        try:
+            text = resolved_path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"Browser-executable artifact file is not UTF-8: {path}") from exc
+
+        folded_text = text.casefold()
+        for hostname in FORBIDDEN_PRODUCTION_API_HOSTNAMES:
+            if hostname.casefold() in folded_text:
+                relative = path.relative_to(artifact_root).as_posix()
+                approved_hash = PROVEN_QA_INERT_PRODUCTION_FILES.get(relative)
+                if (
+                    approved_hash is not None
+                    and hashlib.sha256(resolved_path.read_bytes()).hexdigest()
+                    == approved_hash
+                ):
+                    continue
+                raise ValueError(
+                    f"Forbidden production API hostname in finished artifact: {relative}"
+                )
+
+        references = [
+            match.group("reference")
+            for match in LOCAL_BROWSER_REFERENCE_PATTERN.finditer(text)
+        ]
+        if path.suffix.lower() in {".htm", ".html"}:
+            parser = _ArtifactReferenceParser()
+            parser.feed(text)
+            references.extend(parser.references)
+        for reference in references:
+            target = _resolve_artifact_reference(artifact_root, path, reference)
+            if (
+                target is not None
+                and target.suffix.lower() in BROWSER_EXECUTABLE_SUFFIXES
+                and target.exists()
+            ):
+                pending.append(target)
+
+
 def _promote_staging(staging_root: Path, output_root: Path) -> None:
     if output_root.exists():
         if not output_root.is_dir() or output_root.is_symlink():
@@ -242,6 +388,7 @@ def build_artifact(
         _write_qa_config(leai_output, api_base, build_id)
         _rewrite_environment_cache_keys(leai_output, build_id)
         (staging_root / "index.html").write_text(INDEX_HTML, encoding="utf-8")
+        _assert_no_production_api_literals(staging_root)
 
         after_manifest = tree_manifest(source_leai)
         if before_manifest != after_manifest:

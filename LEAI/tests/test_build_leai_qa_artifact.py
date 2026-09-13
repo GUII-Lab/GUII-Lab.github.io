@@ -14,6 +14,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "build-leai-qa-artifact.py"
 QA_API_BASE = "https://guiidata-leai-qa.herokuapp.com/datapipeline/api"
 QA_PUBLIC_BASE = "https://guii-lab.github.io/LEAI-QA/LEAI/"
+PRODUCTION_API_HOST = "guiidata-b6c968e6ed85.herokuapp.com"
 PAGES = (
     "CourseBanner.html",
     "Customizations.html",
@@ -299,6 +300,111 @@ class BuildLeaiQaArtifactTests(unittest.TestCase):
             broken_page.read_text(encoding="utf-8"),
             '<!doctype html><html><body><script src="leai-shared.js?v=old"></script></body></html>\n',
         )
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+
+    def test_rejects_production_api_hostname_in_finished_runtime_artifact(self) -> None:
+        runtime_script = self.leai / "leai-shared.js"
+        dangerous_source = (
+            "window.LEAI_SHARED_SOURCE = true;\n"
+            f'fetch("https://{PRODUCTION_API_HOST}/datapipeline/api/message/");\n'
+        )
+        runtime_script.write_text(dangerous_source, encoding="utf-8")
+        output = self.workspace / "artifact"
+        output.mkdir()
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Forbidden production API hostname.*leai-shared\.js",
+        ):
+            self.build(output)
+
+        self.assertEqual(runtime_script.read_text(encoding="utf-8"), dangerous_source)
+        self.assertEqual(list(output.iterdir()), [])
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+
+    def test_allows_unreferenced_inert_production_api_examples(self) -> None:
+        documentation = self.leai / "docs" / "production-api-example.md"
+        documentation.parent.mkdir()
+        documentation.write_text(
+            f"Historical example: https://{PRODUCTION_API_HOST}/datapipeline/api\n",
+            encoding="utf-8",
+        )
+        source_fixture = self.leai / "tests" / "production-api-example.test.js"
+        source_fixture.parent.mkdir()
+        source_fixture.write_text(
+            "'use strict';\n"
+            "const test = require('node:test');\n"
+            f"const historicalExample = 'https://{PRODUCTION_API_HOST}/datapipeline/api';\n",
+            encoding="utf-8",
+        )
+        output = self.workspace / "artifact"
+
+        self.build(output)
+
+        self.assertEqual(
+            (output / "LEAI" / documentation.relative_to(self.leai)).read_bytes(),
+            documentation.read_bytes(),
+        )
+        self.assertEqual(
+            (output / "LEAI" / source_fixture.relative_to(self.leai)).read_bytes(),
+            source_fixture.read_bytes(),
+        )
+
+    def test_allows_exact_reviewed_production_router_as_qa_inert(self) -> None:
+        reviewed_router = (REPOSITORY_ROOT / "LEAI" / "leai-environment.js").read_bytes()
+        (self.leai / "leai-environment.js").write_bytes(reviewed_router)
+        output = self.workspace / "artifact"
+
+        try:
+            self.build(output)
+        except ValueError as exc:
+            self.fail(f"reviewed QA-inert production router was rejected: {exc}")
+
+        self.assertEqual(
+            (output / "LEAI" / "leai-environment.js").read_bytes(),
+            reviewed_router,
+        )
+
+    def test_rejects_changed_reviewed_production_router(self) -> None:
+        reviewed_router = (REPOSITORY_ROOT / "LEAI" / "leai-environment.js").read_bytes()
+        (self.leai / "leai-environment.js").write_bytes(
+            reviewed_router + b"\n// unreviewed router change\n"
+        )
+        output = self.workspace / "artifact"
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Forbidden production API hostname.*leai-environment\.js",
+        ):
+            self.build(output)
+
+        self.assertFalse(output.exists())
+        self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
+
+    def test_rejects_referenced_production_api_source_example(self) -> None:
+        source_fixture = self.leai / "tests" / "production-api-example.test.js"
+        source_fixture.parent.mkdir()
+        source_fixture.write_text(
+            "'use strict';\n"
+            "const test = require('node:test');\n"
+            f'fetch("https://{PRODUCTION_API_HOST}/datapipeline/api/message/");\n',
+            encoding="utf-8",
+        )
+        runtime_script = self.leai / "leai-shared.js"
+        runtime_script.write_text(
+            runtime_script.read_text(encoding="utf-8")
+            + 'import("./tests/production-api-example.test.js");\n',
+            encoding="utf-8",
+        )
+        output = self.workspace / "artifact"
+
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Forbidden production API hostname.*tests/production-api-example\.test\.js",
+        ):
+            self.build(output)
+
+        self.assertFalse(output.exists())
         self.assertEqual(list(self.workspace.glob(".artifact.staging-*")), [])
 
     def test_copy_race_cannot_promote_a_transient_escaping_symlink(self) -> None:
