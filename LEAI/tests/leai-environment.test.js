@@ -70,6 +70,21 @@ test('malformed, missing, and non-HTTPS QA URLs fail closed', () => {
             apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
             publicBaseUrl: 'http://guii-lab.github.io/LEAI-QA/LEAI/',
         },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-b6c968e6ed85.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI-QA/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api',
+            publicBaseUrl: 'https://guii-lab.github.io/LEAI/',
+        },
+        {
+            environment: 'qa',
+            apiBase: 'https://arbitrary.example.test/datapipeline/api',
+            publicBaseUrl: 'https://arbitrary.example.test/LEAI/',
+        },
     ].forEach(function (override) {
         const resolved = env.resolveEnvironment(locationLike, override);
         assert.equal(resolved.known, false);
@@ -92,6 +107,10 @@ test('publicUrl preserves the resolved public base and encodes query and hash va
     assert.equal(
         env.publicUrl(qa, 'feedback.html', { id: 'survey 1' }, 'cid=session 1'),
         'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html?id=survey+1#cid=session%201',
+    );
+    assert.equal(
+        env.publicUrl(qa, 'feedback.html', null, 'cid=s /?#%&'),
+        'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html#cid=s%20%2F%3F%23%25%26',
     );
     assert.throws(
         () => env.publicUrl(qa, 'https://guii-lab.github.io/LEAI/feedback.html'),

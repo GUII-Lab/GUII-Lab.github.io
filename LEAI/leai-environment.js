@@ -31,27 +31,21 @@
         }
     }
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    const QA_API_BASE = 'https://guiidata-leai-qa.herokuapp.com/datapipeline/api';
+    const QA_PUBLIC_BASE = 'https://guii-lab.github.io/LEAI-QA/LEAI/';
+
     function normalizeBase(value) {
         return String(value || '').replace(/\/+$/, '') + '/';
     }
 
-    function isHttpsUrl(value) {
-        try {
-            const url = new URL(String(value || ''));
-            return url.protocol === 'https:' && url.hostname !== '';
-        } catch (error) {
-            return false;
-        }
-    }
-
     function resolveEnvironment(locationLike, override) {
         if (override && override.environment === 'qa') {
-            const valid = isHttpsUrl(override.apiBase)
-                && isHttpsUrl(override.publicBaseUrl);
+            const valid = override.apiBase === QA_API_BASE
+                && override.publicBaseUrl === QA_PUBLIC_BASE;
             return Object.freeze({
                 name: 'qa',
-                apiBase: valid ? String(override.apiBase).replace(/\/$/, '') : '',
-                publicBaseUrl: valid ? normalizeBase(override.publicBaseUrl) : '',
+                apiBase: valid ? QA_API_BASE : '',
+                publicBaseUrl: valid ? QA_PUBLIC_BASE : '',
                 buildId: String(override.buildId || ''),
                 emailEnabled: override.emailEnabled === true,
                 known: valid,
@@ -101,7 +95,13 @@
             throw new Error('LEAI_PUBLIC_URL_PATH');
         }
         if (query) url.search = new URLSearchParams(query).toString();
-        if (hash) url.hash = String(hash);
+        if (hash) {
+            var rawHash = String(hash);
+            var separator = rawHash.indexOf('=');
+            url.hash = separator === -1
+                ? encodeURIComponent(rawHash)
+                : rawHash.slice(0, separator + 1) + encodeURIComponent(rawHash.slice(separator + 1));
+        }
         return url.href;
     }
 

@@ -280,6 +280,17 @@ test('structured artifacts keep QA conversation links inside the QA public base'
     });
     assert.match(encodedMarkdown, /id=qa\+survey#cid=qa%23session/);
 
+    const reservedSessionOpts = {
+        publicId: 'qa-survey',
+        sessionId: 's /?#%&',
+        publicBaseUrl: opts.publicBaseUrl,
+    };
+    const reservedMarkdown = leaiFormMode.renderStructuredMarkdown(state, transcript, reservedSessionOpts);
+    const reservedHtml = leaiFormMode.renderStructuredHtml(state, transcript, reservedSessionOpts);
+    const reservedTarget = 'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html?id=qa-survey#cid=s%20%2F%3F%23%25%26';
+    assert.match(reservedMarkdown, new RegExp(reservedTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(reservedHtml, new RegExp(reservedTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
     const originalDocx = globalThis.docx;
     class FakeDocxNode {
         constructor(options) { this.options = options; }
@@ -295,7 +306,7 @@ test('structured artifacts keep QA conversation links inside the QA public base'
         Packer: { toBlob: async function (document) { return document; } },
     };
     try {
-        const document = await leaiFormMode.renderStructuredDocx(state, transcript, opts);
+        const document = await leaiFormMode.renderStructuredDocx(state, transcript, reservedSessionOpts);
         const children = document.options.sections[0].children;
         const linkParagraph = children.find(function (node) {
             return node.options.children && node.options.children.some(function (child) {
@@ -305,7 +316,7 @@ test('structured artifacts keep QA conversation links inside the QA public base'
         const link = linkParagraph.options.children.find(function (child) {
             return child.options && child.options.link;
         });
-        assert.equal(link.options.link, 'https://guii-lab.github.io/LEAI-QA/LEAI/feedback.html?id=qa-survey#cid=qa-session');
+        assert.equal(link.options.link, reservedTarget);
     } finally {
         if (originalDocx === undefined) delete globalThis.docx;
         else globalThis.docx = originalDocx;
