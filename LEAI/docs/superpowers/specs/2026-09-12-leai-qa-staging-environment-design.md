@@ -8,16 +8,18 @@
 
 ## 1. Decision
 
-LEAI will have one long-lived QA environment whose frontend, backend, accounts, data, audit events, and deployment credentials are isolated from production. The QA frontend may be publicly downloadable like the existing static site, but all instructor operations require QA credentials and can reach only the QA backend. The environment does not use production student or instructor data.
+LEAI will have one long-lived QA environment whose frontend, backend, accounts, data, audit events, and deployment credentials are logically isolated from production. The QA frontend may be publicly downloadable like the existing static site, but all instructor operations require QA credentials and can reach only the QA backend. The environment does not use production student or instructor data.
 
-GitHub Pages supports one Pages site per repository. The existing organization site therefore remains the production target, while a separate project repository hosts the QA Pages site. A GitHub Actions workflow in the source repository publishes the approved QA branch to that target repository. Heroku hosts a separate QA Django app with its own Postgres add-on.
+GitHub Pages supports one Pages site per repository. The existing organization site therefore remains the production target, while a separate project repository hosts the QA Pages site. A GitHub Actions workflow in the source repository publishes the approved QA branch to that target repository. Heroku hosts a separate QA Django app. To avoid another database charge during the internal pilot, that app attaches the existing Heroku Postgres add-on but uses only a dedicated PostgreSQL schema named `leai_qa`; production remains in `public`.
+
+This is logical rather than physical database isolation. The two apps share database capacity, availability, backups, and the add-on's owner credential. The application therefore treats the schema boundary as a release-critical invariant and fails closed when the configured and active schemas do not match the environment. Move QA to an independent database before external beta testing, realistic or sensitive QA data, materially concurrent QA load, or any requirement for independent recovery, credentials, or availability.
 
 Per-branch preview URLs, Heroku Review Apps, Canvas integration, reminders, and email verification are outside this design.
 
 ## 2. Goals
 
 - Give Harvey and invited instructors one stable URL for testing LEAI before production release.
-- Keep QA and production databases physically separate; neither environment may attach or share the other's `DATABASE_URL`.
+- Keep QA and production tables, migration histories, accounts, and records in separate schemas even though the pilot shares one physical Postgres add-on.
 - Keep local development and remote QA behavior comparable through the same migrations and deterministic synthetic seed dataset.
 - Rehearse schema migrations, instructor self-service, the Question Set Wizard, student completion, analysis, and audit logging without changing production.
 - Make the active environment obvious in the interface and observable in deployment logs.
@@ -41,7 +43,7 @@ Per-branch preview URLs, Heroku Review Apps, Canvas integration, reminders, and 
 | Frontend host | `localhost` | Separate `GUII-Lab/LEAI-QA` Pages repository | Existing `GUII-Lab.github.io` Pages site |
 | Backend source | Matching local backend branch | Long-lived `qa` branch in backend repository | `main` |
 | Backend host | Local Django server | New Heroku QA app | Existing Heroku production app |
-| Database | Local Postgres | New, independently provisioned Heroku Postgres | Existing production Postgres |
+| Database | Local Postgres (`public`) | Existing Heroku Postgres, dedicated `leai_qa` schema | Existing Heroku Postgres, `public` schema |
 | Accounts | Synthetic/local | QA-only instructor/admin accounts | Production accounts |
 | Data | Deterministic QA seed plus local edits | Same seed version plus QA testing edits | Real course data |
 | Email | Disabled/console | Disabled | Separately enabled when production email is approved |
@@ -89,12 +91,13 @@ Every QA instructor page displays a persistent `QA environment` marker. The acco
 
 ### 6.1 Heroku application
 
-Create a new Heroku app dedicated to QA, provision a new Postgres add-on, and add the app to the staging stage of the same Heroku Pipeline as production when the current account and app generation permit it. The production app remains in the production stage.
+Create a new Heroku app dedicated to QA and attach the existing production Postgres add-on to it through Heroku's managed attachment mechanism. Do not copy a database URL into config manually. Make the attachment the QA app's `DATABASE_URL`, set `LEAI_DB_SCHEMA=leai_qa`, and add the app to the staging stage of the same Heroku Pipeline as production when the current account and app generation permit it. The production app remains in the production stage with `LEAI_DB_SCHEMA=public`.
 
 Minimum QA configuration includes:
 
 - `LEAI_ENV=qa`
-- QA-specific `DATABASE_URL` supplied by its own add-on
+- `DATABASE_URL` supplied by the managed attachment to the existing add-on
+- `LEAI_DB_SCHEMA=leai_qa` and a connection search path containing only `leai_qa`
 - QA-specific Django secret and allowed hosts
 - QA frontend origin in the CORS/CSRF allowlist
 - `LEAI_EMAIL_ENABLED=false`
@@ -105,7 +108,7 @@ Production credentials, database URLs, and instructor passwords are never copied
 
 ### 6.2 Isolation checks
 
-Deployment verification records non-secret database/add-on identifiers for QA and production and fails if they match. It also confirms:
+Deployment verification records the non-secret shared add-on identifier plus each app's configured and active database schema. Sharing the add-on identifier is expected; any schema mismatch fails. It also confirms:
 
 - the QA frontend calls only the QA API;
 - the QA API reports `qa` from a health/environment endpoint;
@@ -114,7 +117,7 @@ Deployment verification records non-secret database/add-on identifiers for QA an
 - a production instructor cannot authenticate against QA unless a separate QA account was intentionally created;
 - QA activity appears only in the QA audit log.
 
-The QA database must never be a follower, attachment, or shared credential for the production database.
+The QA app must use Heroku's managed attachment rather than a copied credential. It must never use the `public` schema. Production must never use `leai_qa`. QA migration, seed, and reset commands require both `LEAI_ENV=qa` and configured plus active schema `leai_qa`; production requires `LEAI_ENV=production` and schema `public`. The QA connection search path must not include `public`, and schema-qualified references to `public.*` are forbidden in QA application code.
 
 ## 7. QA accounts and authentication
 
@@ -126,7 +129,7 @@ QA credentials are delivered manually and stored only in the appropriate passwor
 
 ## 8. Local and QA data parity
 
-"Same as local" means the same schema, migration set, and versioned synthetic seed—not one shared database.
+"Same as local" means the same table structure, migration set, and versioned synthetic seed. Local development and remote QA do not share records. Remote QA and production share one physical Postgres add-on during the internal pilot but use separate PostgreSQL schemas and separate `django_migrations` histories.
 
 The backend repository owns a deterministic, idempotent QA seed command that creates only synthetic records, including:
 
@@ -146,13 +149,15 @@ Production exports are not seed input. If production-shaped migration rehearsal 
 The QA backend deploys before the QA frontend when an API or schema contract changes:
 
 1. Run backend tests and migration consistency checks locally.
-2. Back up the current QA database when it contains test evidence worth retaining.
-3. Deploy the accepted backend QA commit.
-4. Run additive migrations in Heroku Release Phase or an explicitly monitored release command.
-5. Verify migration state, QA health, environment identity, and required endpoint compatibility.
-6. Run or update the deterministic seed only when the release requires it.
-7. Deploy the matching frontend QA commit.
-8. Run end-to-end QA acceptance tests and record both commit hashes.
+2. Back up the shared Postgres add-on before first schema creation or when QA contains test evidence worth retaining.
+3. Attach the existing add-on to the QA app through Heroku and verify the non-secret attachment identity without printing its URL.
+4. Create `leai_qa` idempotently through the guarded database-preparation command; never add `public` to the QA search path.
+5. Deploy the accepted backend QA commit.
+6. Run additive migrations in Heroku Release Phase or an explicitly monitored release command, then verify the active schema and independent QA migration history.
+7. Verify QA health, environment identity, and required endpoint compatibility.
+8. Run or update the deterministic seed only when the release requires it.
+9. Deploy the matching frontend QA commit.
+10. Run end-to-end QA acceptance tests and record both commit hashes.
 
 Production migration remains a separate approval gate. Passing QA does not authorize a production migration, merge, push, or deploy.
 
@@ -184,7 +189,7 @@ There is no automatic production promotion. The QA branch can contain work that 
 The environment is ready only when all of the following pass against the real deployed URLs:
 
 - QA and production frontend URLs both remain available and visibly distinct.
-- QA and production API and database identifiers are distinct.
+- QA and production API hosts are distinct; the shared database attachment is documented, while configured and active schemas are exactly `leai_qa` and `public` respectively.
 - Browser network inspection shows no QA request to the production Heroku hostname.
 - QA account login succeeds only in QA and protects instructor mutation endpoints.
 - Instructor course creation, course switching, profile settings, Question Set Wizard, exact student preview, survey publication, and link retrieval work in QA.
@@ -204,7 +209,7 @@ Add explicit frontend/backend environment identity, remove silent production fal
 
 ### Phase B: Remote QA infrastructure
 
-Reauthenticate GitHub and Heroku, create the target Pages repository, GitHub `qa` environment, Heroku QA app, and independent Postgres add-on. Configure least-privilege deployment credentials without exposing secret values.
+Reauthenticate GitHub and Heroku, create the target Pages repository, GitHub `qa` environment, and Heroku QA app. Attach the existing Postgres add-on through Heroku, create the guarded `leai_qa` schema, and configure least-privilege deployment credentials without exposing secret values.
 
 ### Phase C: Seed and reset tooling
 
@@ -221,6 +226,6 @@ Only after QA acceptance and the separate migration rehearsal, prepare a product
 ## 14. Setup prerequisites
 
 - Restore authenticated access to the GUII-Lab GitHub organization with permission to create/configure the QA repository and Actions environment.
-- Restore Heroku authentication with permission to create an app, provision an add-on, and inspect or configure the existing production Pipeline.
+- Restore Heroku authentication with permission to create an app, attach the existing add-on, create one PostgreSQL schema, and inspect or configure the existing production Pipeline.
 - Confirm the final QA repository and Heroku app names are available. Naming changes do not alter the architecture.
-- Determine the least-cost Heroku dyno and Postgres plans that support the expected QA workload before provisioning billable resources.
+- Verify the existing Postgres plan has enough storage, table, and connection headroom for a second schema. Determine the least-cost Heroku dyno plan before provisioning billable compute; no additional Postgres add-on is planned for the internal pilot.

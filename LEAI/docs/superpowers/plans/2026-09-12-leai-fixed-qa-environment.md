@@ -4,7 +4,7 @@
 
 **Goal:** Deploy one persistent LEAI QA website, backend, database, account set, and synthetic dataset that cannot read from or write to production.
 
-**Architecture:** The frontend and backend repositories each gain one long-lived `qa` branch. Source paths remain unchanged; a GitHub Actions job copies the frontend repository's `LEAI/` directory into a temporary artifact and publishes it under `LEAI-QA/LEAI/`, while a separate Heroku app deploys the backend `qa` branch against its own Postgres add-on. Explicit runtime environment configuration, public-link generation, environment health reporting, guarded seed/reset commands, and deployed browser checks prevent silent production fallback.
+**Architecture:** The frontend and backend repositories each gain one long-lived `qa` branch. Source paths remain unchanged; a GitHub Actions job copies the frontend repository's `LEAI/` directory into a temporary artifact and publishes it under `LEAI-QA/LEAI/`, while a separate Heroku app deploys the backend `qa` branch against a dedicated `leai_qa` schema on the existing Postgres add-on. Explicit runtime environment configuration, schema-aware health reporting, guarded seed/reset commands, and deployed browser checks prevent silent production fallback. The schema-boundary amendment is implemented by `LEAI/docs/superpowers/plans/2026-09-13-leai-shared-database-qa-schema.md` before this plan's remote Task 7.
 
 **Tech Stack:** Static HTML/CSS/vanilla JavaScript, Node built-in test runner, Python standard library, GitHub Actions and Pages, Django 4.2, PostgreSQL, Heroku Pipeline/Release Phase, `uv`, Playwright/web verification.
 
@@ -15,12 +15,12 @@
 - Use one fixed QA environment; do not create per-feature or per-PR deployments.
 - Keep `LEAI/` at the same path in `main`, `qa`, and every feature branch. No source folder is moved, renamed, or exchanged during deployment or promotion.
 - QA source promotion is a reviewed Git merge/cherry-pick of commits. Artifact copying occurs only inside a temporary Actions workspace and the dedicated `GUII-Lab/LEAI-QA` repository.
-- QA and production must use different Heroku apps, Postgres add-ons, accounts, session tokens, audit rows, and deployment credentials.
-- Local and QA use the same schema, migrations, and versioned synthetic seed, not one shared physical database.
+- QA and production use different Heroku apps, schemas, accounts, session tokens, audit rows, and deployment credentials. During the internal pilot they share one physical Postgres add-on.
+- Production uses only `public`; QA uses only `leai_qa`. Each schema has its own tables and `django_migrations` history. The QA search path never includes `public`.
 - Unknown frontend hosts and missing deployment configuration fail closed; they never fall back to the production API.
 - Do not clone production data into QA. Do not send real email from QA.
 - Do not change, migrate, backfill, deploy, or restart production while executing Tasks 1–7.
-- Provisioning a billable Heroku dyno or Postgres plan requires showing the current plan and price to Harvey immediately before creation.
+- Provisioning a billable Heroku dyno requires showing the current plan and price to Harvey immediately before creation. No additional Postgres plan is provisioned for the internal pilot.
 - Use TDD, focused commits, exact-path staging, and real browser gestures. Preserve unrelated dirty-worktree changes.
 - Work in `/private/tmp/leai-question-set-wizard/frontend` and `/private/tmp/leai-question-set-wizard/backend` until the explicit QA-branch task.
 
@@ -494,12 +494,14 @@ git commit -m "Deploy one fixed LEAI QA site"
 
 ### Task 7: Create the two QA branches and remote infrastructure
 
+> **Amendment (2026-09-13):** Complete `2026-09-13-leai-shared-database-qa-schema.md` first. References below to an independent QA Postgres add-on are superseded by a managed attachment of the existing add-on plus the dedicated `leai_qa` schema. Never run the obsolete `addons:create` command in Step 4.
+
 **Files:**
 - No source files unless the Heroku app name requires updating an already-tested public configuration assertion.
 - Remote GitHub repository: `GUII-Lab/LEAI-QA`.
 - Remote GitHub environments: `qa` in both source repositories.
 - Remote Heroku app: `guiidata-leai-qa`.
-- Remote Heroku Postgres: a new add-on attached only to `guiidata-leai-qa`.
+- Remote Heroku Postgres: the existing add-on attached through Heroku to `guiidata-leai-qa`, with QA restricted to `leai_qa`.
 
 **Interfaces:**
 - Frontend QA branch points to the accepted frontend release commit.
@@ -520,9 +522,9 @@ heroku addons -a guiidata-b6c968e6ed85
 
 Record app generation, pipeline membership, region, stack, current dyno plan, and Postgres plan without printing config values.
 
-- [ ] **Step 2: Present current billable plan choices and obtain approval**
+- [ ] **Step 2: Confirm shared-database headroom and compute cost**
 
-Run `heroku addons:plans heroku-postgresql` and inspect available dyno plans. Show Harvey the least-cost plan that supports the QA workload. Do not provision until that specific cost is approved.
+Inspect the current Postgres plan, storage, table count, and connection use without printing credentials. Confirm there is headroom for a second schema. Show Harvey the least-cost dyno plan that supports the QA workload; no additional database is purchased.
 
 - [ ] **Step 3: Create the target Pages repository and QA deployment environment**
 
@@ -532,15 +534,14 @@ gh repo create GUII-Lab/LEAI-QA --public --description "Persistent QA deployment
 
 Initialize `main`, enable Pages from `main` `/ (root)`, create the source repository environment `qa`, set public variable `LEAI_QA_API_BASE=https://guiidata-leai-qa.herokuapp.com/datapipeline/api`, and store a fine-grained target-repository token as `LEAI_QA_PAGES_TOKEN`. Do not print the token.
 
-- [ ] **Step 4: Create the QA Heroku app and independent database**
+- [ ] **Step 4: Create the QA Heroku app and attach the existing database**
 
 ```bash
 heroku create guiidata-leai-qa
-LEAI_QA_POSTGRES_PLAN=essential-0
-heroku addons:create "heroku-postgresql:${LEAI_QA_POSTGRES_PLAN}" -a guiidata-leai-qa
+heroku addons:attach guiidata-b6c968e6ed85::DATABASE --app guiidata-leai-qa --as DATABASE
 ```
 
-Use `essential-0` only if Step 2 confirms that exact plan remains available and Harvey approves its displayed price; otherwise amend this command with the exact approved plan before execution. Set `LEAI_ENV=qa`, `LEAI_BUILD_ID`, `LEAI_EMAIL_ENABLED=false`, `LEAI_ALLOWED_HOSTS=guiidata-leai-qa.herokuapp.com`, `LEAI_ALLOWED_ORIGINS=https://guii-lab.github.io`, and QA-specific Django/provider secrets through Heroku config without displaying their values. Confirm the QA and production add-on identifiers differ.
+Resolve and verify the exact production add-on attachment name in Step 1 before using the command; do not invent it or copy its URL. Set `LEAI_ENV=qa`, `LEAI_DB_SCHEMA=leai_qa`, `LEAI_BUILD_ID`, `LEAI_EMAIL_ENABLED=false`, `LEAI_ALLOWED_HOSTS=guiidata-leai-qa.herokuapp.com`, `LEAI_ALLOWED_ORIGINS=https://guii-lab.github.io`, and QA-specific Django/provider secrets through Heroku config without displaying their values. Production remains `LEAI_ENV=production` and `LEAI_DB_SCHEMA=public`. Confirm both apps report the same non-secret add-on identity but different configured and active schemas.
 
 - [ ] **Step 5: Create one logical QA release line across the two repositories**
 
@@ -572,7 +573,7 @@ heroku run python manage.py showmigrations datapipeline -a guiidata-leai-qa
 curl --fail https://guiidata-leai-qa.herokuapp.com/datapipeline/api/environment/
 ```
 
-Expected: environment `qa`, QA build ID, email disabled, all required migrations applied, and no production hostname in responses.
+Expected: environment `qa`, configured and active schema `leai_qa`, QA build ID, email disabled, all required migrations applied in the QA schema, and no production hostname in responses.
 
 ---
 
