@@ -269,18 +269,18 @@
             <div class="page-header">
                 <h1>
                     Prompt Designer
-                    <span class="mode-badge" id="mode-badge" data-mode="general">General Mode</span>
+                    <span class="mode-badge" id="mode-badge" data-mode="form">Structured Feedback</span>
                 </h1>
                 <p>Create and manage AI-powered feedback surveys for your course.</p>
             </div>
 
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
-                <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
+                <button class="mode-tab active" role="tab" data-mode="form" aria-selected="true">Structured Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
-                <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
+                <button class="mode-tab" role="tab" data-mode="general" aria-selected="false">General Course Feedback</button>
             </div>
 
-            <div id="mode-panel-general" role="tabpanel">
+            <div id="mode-panel-general" role="tabpanel" style="display:none">
             <div class="layout">
                 <div>
                     <!-- New Survey -->
@@ -702,16 +702,17 @@ When the conversation has organically reached a natural close — i.e. the stude
                  Schema bodies live in the FormSchema DB table — edit via
                  Django admin to revise without a redeploy.
                  ============================================================ -->
-            <div id="mode-panel-form" class="formmode-scope" role="tabpanel" style="display:none">
+            <div id="mode-panel-form" class="formmode-scope" role="tabpanel">
                 <div class="layout">
                     <div>
                         <div class="card" id="form-survey-card">
-                            <div class="card-title">Structured Reflection Builder</div>
+                            <div class="card-title">Structured Feedback Builder</div>
 
                             <div class="builder-note">Start from a proven individual-reflection template, adjust the student-facing questions, complete the real conversation preview, and create one survey link.</div>
-                            <div id="question-set-wizard-status" class="builder-note">Saved drafts appear here and remain separate from published surveys.</div>
+                            <div id="question-set-wizard-status" class="builder-note">Your unfinished setup appears here. Published surveys appear on the right.</div>
                             <div style="margin:20px 0 8px">
-                                <button class="btn btn-primary" id="question-set-wizard-open">Create or resume a structured reflection</button>
+                                <button class="btn btn-primary" id="question-set-wizard-open">Create a new structured feedback</button>
+                                <button class="btn btn-outline" id="question-set-wizard-resume" hidden>Continue your previous session</button>
                             </div>
 
                             <details style="margin-top:18px;padding-top:16px;border-top:1px solid var(--outline)">
@@ -777,13 +778,13 @@ When the conversation has organically reached a natural close — i.e. the stude
                     <div>
                         <div class="card" id="form-surveys-card">
                             <div class="card-title" style="justify-content:space-between">
-                                Your Structured Reflection Surveys
+                                Your Structured Feedback Surveys
                                 <div style="display:flex;gap:6px;flex-wrap:wrap">
                                     <button class="btn btn-outline" id="form-refresh-btn">Refresh</button>
                                 </div>
                             </div>
                             <div id="form-survey-list-container">
-                                <div class="empty-state">No published structured reflections yet. Saved drafts remain in the builder.</div>
+                                <div class="empty-state">No published structured feedback yet. Continue your unfinished setup on the left.</div>
                             </div>
                         </div>
                     </div>
@@ -931,26 +932,23 @@ When the conversation has organically reached a natural close — i.e. the stude
         questionSetWizardController = leaiQuestionSetWizard.mount({
             root: '#question-set-wizard-root',
             openButton: '#question-set-wizard-open',
+            resumeButton: '#question-set-wizard-resume',
             apiBase: API,
             authorizedFetch: authorizedFetch,
             fetch: fetch,
             getCourse: function () { return activeCourse; },
             onDraftsChanged: function (drafts) {
                 var status = document.getElementById('question-set-wizard-status');
-                var openButton = document.getElementById('question-set-wizard-open');
                 var count = drafts.length;
                 status.className = 'builder-note';
                 status.textContent = count
-                    ? count + ' saved draft' + (count === 1 ? '' : 's') + ' ready to continue. Published surveys appear on the right.'
-                    : 'No saved drafts yet. New drafts remain separate from published surveys until you finish preview and publish.';
-                openButton.textContent = count
-                    ? 'Continue or create a structured reflection'
-                    : 'Create or resume a structured reflection';
+                    ? 'Your previous session is ready to continue. Published surveys appear on the right.'
+                    : 'No unfinished setup. Create a new structured feedback to get started.';
             },
             onCreated: function (survey) {
                 setMsg(
                     'question-set-wizard-status',
-                    'Survey created. The link below is for this survey only: ' +
+                    'Structured Feedback published. The link below is for this survey only: ' +
                         BASE_URL + '?id=' + survey.public_id,
                     'success'
                 );
@@ -1072,7 +1070,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
         initQuestionSetWizard();
-        if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
+        applyMode('form');
     }
 
     // ===== MODE TABS (general vs in-group) =====
@@ -1095,7 +1093,7 @@ When the conversation has organically reached a natural close — i.e. the stude
             badge.setAttribute('data-mode', mode);
             badge.textContent = (mode === 'general') ? 'General Mode'
                 : (mode === 'group') ? 'In-Group Mode'
-                : 'Structured Reflection';
+                : 'Structured Feedback';
         }
         localStorage.setItem(MODE_KEY, mode);
         if (mode === 'form') initFormModePanel();
@@ -1181,7 +1179,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     document.querySelectorAll('.mode-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             var target = tab.dataset.mode;
-            var currentMode = localStorage.getItem(MODE_KEY) || 'general';
+            var currentMode = localStorage.getItem(MODE_KEY) || 'form';
             if (target === currentMode) return;
             var wizardRoot = document.getElementById('question-set-wizard-root');
             if (questionSetWizardController && wizardRoot && !wizardRoot.hidden &&
@@ -2164,7 +2162,6 @@ When the conversation has organically reached a natural close — i.e. the stude
 
     // ===== RESTORE SESSION =====
     document.addEventListener('DOMContentLoaded', function () {
-        applyMode(localStorage.getItem(MODE_KEY) || 'general');
         var stored = getSession();
         if (leaiInstructorAuth.hasUsableInstructorSession(stored)) {
             if (!stored.courseId || stored.mustChangePassword) {
@@ -2579,7 +2576,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         modeBadge.className = 'survey-type-badge';
         modeBadge.setAttribute('data-mode', 'form');
         modeBadge.textContent = s.question_set_revision_id
-            ? 'Structured reflection'
+            ? 'Structured feedback'
             : (s.form_schema_id || 'Form');
 
         var title = document.createElement('div');
@@ -2710,7 +2707,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 if (!formRows.length) {
                     var empty = document.createElement('div');
                     empty.className = 'empty-state';
-                    empty.textContent = 'No published structured reflections yet. Saved drafts remain in the builder.';
+                    empty.textContent = 'No published structured feedback yet. Continue your unfinished setup on the left.';
                     container.appendChild(empty);
                     return;
                 }

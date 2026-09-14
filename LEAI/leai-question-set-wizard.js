@@ -7,11 +7,13 @@
 }(typeof self !== 'undefined' ? self : this, function () {
     'use strict';
 
-    function WizardApiError(code, status, message) {
+    function WizardApiError(code, status, message, payload) {
         this.name = 'WizardApiError';
         this.code = code || 'request_failed';
         this.status = status || 0;
         this.message = message || this.code;
+        this.ready_at = payload && payload.ready_at;
+        this.retry_after_ms = payload && payload.retry_after_ms;
         if (Error.captureStackTrace) Error.captureStackTrace(this, WizardApiError);
     }
     WizardApiError.prototype = Object.create(Error.prototype);
@@ -30,6 +32,7 @@
                         payload.error,
                         response.status,
                         payload.message || payload.error,
+                        payload,
                     );
                 }
                 return payload;
@@ -61,10 +64,11 @@
             listDrafts: function (courseId) {
                 return auth('/question_set_drafts/?course_id=' + encodeURIComponent(courseId));
             },
-            createDraft: function (courseId, templateId) {
+            createDraft: function (courseId, templateId, confirmAbandonActive) {
                 return auth('/question_set_drafts/', jsonOptions('POST', {
                     course_id: courseId,
                     template_id: templateId,
+                    ...(confirmAbandonActive === true ? { confirm_abandon_active: true } : {}),
                 }));
             },
             getDraft: function (draftId) {
@@ -94,6 +98,10 @@
             getPreview: function (token) {
                 return plain('/question_set_preview/' + encodeURIComponent(token) + '/');
             },
+            updatePreviewSettings: function (token, settings) {
+                return auth('/question_set_preview/' + encodeURIComponent(token) + '/settings/',
+                    jsonOptions('PATCH', settings));
+            },
             createSurvey: function (revisionId, source) {
                 return auth(
                     '/question_set_revisions/' + encodeURIComponent(revisionId) + '/surveys/',
@@ -104,6 +112,7 @@
                         week_number: source.weekNumber,
                         opens_at: source.opensAt,
                         expires_at: source.expiresAt,
+                        preview_token: source.previewToken,
                     }),
                 );
             },
@@ -164,6 +173,8 @@
             ? document.querySelector(options.openButton)
             : options.openButton;
         if (!rootEl || !openButton) return null;
+        const resumeButton = typeof options.resumeButton === 'string'
+            ? document.querySelector(options.resumeButton) : options.resumeButton;
 
         var api = createApi({
             apiBase: options.apiBase,
@@ -185,7 +196,19 @@
             idempotencyKey: randomIdempotencyKey(),
             receipt: null,
             pollTimer: null,
+            progressTimer: null,
+            epoch: 0,
+            previewReady: false,
+            readyAt: null,
+            preparationStarted: null,
+            preparationProgress: 0,
+            settings: {},
+            settingsSaving: {},
+            settingsStatus: {},
+            confirmAbandonActive: false,
         };
+        let previewRead = null;
+        let renderedStep = null;
 
         rootEl.className = 'qsw-overlay';
         rootEl.hidden = true;
@@ -196,13 +219,13 @@
         var panel = element('section', 'qsw-panel');
         var header = element('header', 'qsw-header');
         var headerCopy = element('div', 'qsw-header-copy');
-        var eyebrow = element('div', 'qsw-eyebrow', 'Structured reflection builder');
-        var title = element('h2', '', 'Create a question set');
+        var eyebrow = element('div', 'qsw-eyebrow', 'Structured Feedback builder');
+        var title = element('h2', '', 'Create structured feedback');
         title.id = 'qsw-title';
         var subtitle = element('p', 'qsw-subtitle');
         var closeButton = element('button', 'qsw-icon-button', '×');
         closeButton.type = 'button';
-        closeButton.setAttribute('aria-label', 'Close question set builder');
+        closeButton.setAttribute('aria-label', 'Close Structured Feedback builder');
         headerCopy.appendChild(eyebrow);
         headerCopy.appendChild(title);
         headerCopy.appendChild(subtitle);
@@ -263,6 +286,7 @@
         }
 
         function notifyDraftsChanged() {
+            if (resumeButton) resumeButton.hidden = !state.drafts.length;
             if (typeof options.onDraftsChanged === 'function') {
                 options.onDraftsChanged(state.drafts.slice());
             }
@@ -281,7 +305,8 @@
             closeButton.disabled = false;
             backButton.disabled = false;
             secondaryButton.disabled = state.step === 2 ? !state.dirty : false;
-            primaryButton.disabled = state.step === 3 ? !state.previewCompleted : false;
+            primaryButton.disabled = state.step === 3
+                ? !state.previewReady || !state.previewCompleted || settingsPending() : false;
         }
 
         function updateProgress() {
@@ -322,45 +347,6 @@
             );
             wrap.appendChild(intro);
 
-            if (state.drafts.length) {
-                var resumeSection = element('section', 'qsw-resume');
-                resumeSection.appendChild(element('h3', '', 'Continue a saved draft'));
-                state.drafts.forEach(function (draft) {
-                    var row = element('div', 'qsw-resume-row');
-                    var copy = element('div');
-                    copy.appendChild(element('strong', '', draft.title));
-                    copy.appendChild(element(
-                        'span',
-                        '',
-                        draft.body.sections.length + ' questions · saved ' +
-                            new Date(draft.updated_at).toLocaleString(),
-                    ));
-                    var button = element('button', 'qsw-button qsw-button-secondary', 'Resume editing');
-                    button.type = 'button';
-                    button.addEventListener('click', function () {
-                        setBusy(true, 'Loading the latest saved draft…');
-                        api.getDraft(draft.id).then(function (latest) {
-                            state.draft = latest;
-                            state.drafts = state.drafts.map(function (candidate) {
-                                return candidate.id === latest.id ? latest : candidate;
-                            });
-                            state.revision = null;
-                            state.previewToken = null;
-                            state.previewUrl = null;
-                            state.previewCompleted = false;
-                            state.dirty = false;
-                            state.step = 2;
-                            render();
-                            focusEditorStart();
-                        }).catch(handleError).finally(function () { setBusy(false); });
-                    });
-                    row.appendChild(copy);
-                    row.appendChild(button);
-                    resumeSection.appendChild(row);
-                });
-                wrap.appendChild(resumeSection);
-            }
-
             var templateHeading = element('div', 'qsw-section-heading');
             templateHeading.appendChild(element('h3', '', 'Choose a template'));
             templateHeading.appendChild(element('span', '', 'Individual responses only'));
@@ -380,18 +366,26 @@
                 ));
                 card.addEventListener('click', function () {
                     var activeCourse = course();
-                    if (!activeCourse) return;
+                    if (!activeCourse || state.busy) return;
+                    if (state.drafts.length && !state.confirmAbandonActive) {
+                        if (!window.confirm('Your unfinished setup will be replaced. Its history will be kept. Continue?')) return;
+                        state.confirmAbandonActive = true;
+                    }
+                    const epoch = state.epoch;
                     setBusy(true, 'Creating your draft…');
-                    api.createDraft(activeCourse.id, template.id).then(function (draft) {
+                    api.createDraft(activeCourse.id, template.id, state.confirmAbandonActive).then(function (draft) {
+                        if (!isCurrent(epoch)) return;
                         state.draft = draft;
-                        state.drafts.unshift(draft);
+                        state.drafts = [draft];
+                        state.confirmAbandonActive = false;
                         notifyDraftsChanged();
                         state.step = 2;
                         state.dirty = false;
                         setNotice('', '');
                         render();
                         focusEditorStart();
-                    }).catch(handleError).finally(function () { setBusy(false); });
+                    }).catch(error => { if (isCurrent(epoch)) handleError(error); })
+                        .finally(() => { if (isCurrent(epoch)) setBusy(false); });
                 });
                 grid.appendChild(card);
             });
@@ -508,7 +502,7 @@
             secondaryButton.textContent = state.dirty ? 'Save draft' : 'Saved';
             secondaryButton.disabled = !state.dirty;
             primaryButton.hidden = false;
-            primaryButton.textContent = 'Save changes & prepare preview';
+            primaryButton.textContent = 'Generate preview';
             footerStatus.textContent = state.dirty
                 ? 'Unsaved changes'
                 : 'Draft saved';
@@ -530,12 +524,14 @@
 
         function saveCurrentDraft() {
             if (!state.dirty) return Promise.resolve(state.draft);
+            const epoch = state.epoch;
             setBusy(true, 'Saving draft…');
             return api.saveDraft(
                 state.draft.id,
                 state.draft.version,
                 collectBody(),
             ).then(function (draft) {
+                if (!isCurrent(epoch)) return null;
                 state.draft = draft;
                 state.drafts = state.drafts.map(function (candidate) {
                     return candidate.id === draft.id ? draft : candidate;
@@ -545,9 +541,9 @@
                 setNotice('Draft saved.', 'success');
                 return draft;
             }).catch(function (error) {
-                handleError(error);
+                if (isCurrent(epoch)) handleError(error);
                 throw error;
-            }).finally(function () { setBusy(false); });
+            }).finally(function () { if (isCurrent(epoch)) setBusy(false); });
         }
 
         function renderPreview() {
@@ -560,13 +556,27 @@
                 var launch = element(
                     'button',
                     'qsw-button qsw-button-primary qsw-launch-button',
-                    'Prepare student preview',
+                    'Generate a fresh preview',
                 );
                 launch.type = 'button';
                 launch.addEventListener('click', launchPreview);
                 visual.appendChild(launch);
+            } else if (!state.previewReady) {
+                visual.classList.add('is-preparing');
+                const preparation = element('div', 'qsw-preparation');
+                const label = element('p', '', 'Preparing your student preview…');
+                label.setAttribute('aria-live', 'polite');
+                const bar = element('div', 'qsw-preparation-bar');
+                bar.setAttribute('role', 'progressbar');
+                bar.setAttribute('aria-label', 'Preparing student preview');
+                bar.setAttribute('aria-valuemin', '0');
+                bar.setAttribute('aria-valuemax', '100');
+                bar.appendChild(element('span', 'qsw-preparation-fill'));
+                preparation.appendChild(label);
+                preparation.appendChild(bar);
+                visual.appendChild(preparation);
             } else if (state.previewUrl) {
-                var newTabLink = element('a', 'qsw-button qsw-button-primary qsw-launch-button', 'Open preview in a new tab ↗');
+                var newTabLink = element('a', 'qsw-button qsw-button-primary qsw-launch-button', 'Open preview in a new tab');
                 newTabLink.href = state.previewUrl;
                 newTabLink.target = '_blank';
                 newTabLink.rel = 'noopener';
@@ -588,71 +598,262 @@
                 row.appendChild(element('span', '', item[0]));
                 checklist.appendChild(row);
             });
-            if (!state.previewCompleted && state.previewToken) {
+            if (!state.previewCompleted && state.previewReady) {
                 var check = element('button', 'qsw-button qsw-button-secondary', 'Check completion');
                 check.type = 'button';
                 check.addEventListener('click', checkPreviewCompletion);
                 checklist.appendChild(check);
             }
+            if (state.previewToken && typeof state.settings.completion_certificate_enabled === 'boolean') {
+                checklist.appendChild(renderSettings());
+            }
             wrap.appendChild(checklist);
             replaceChildren(content, wrap);
+            updatePreparationProgress();
 
             backButton.hidden = false;
             backButton.textContent = 'Back to edit';
             secondaryButton.hidden = true;
             primaryButton.hidden = false;
             primaryButton.textContent = state.previewCompleted ? 'Continue to publish' : 'Complete preview first';
-            primaryButton.disabled = !state.previewCompleted;
+            primaryButton.disabled = !state.previewReady || !state.previewCompleted || settingsPending();
             footerStatus.textContent = state.previewCompleted
                 ? 'Preview completed for this exact revision'
                 : 'Survey creation stays locked until the closing is reached';
         }
 
         function launchPreview() {
-            if (state.previewToken) return;
+            if (state.previewToken) return Promise.resolve();
+            const epoch = state.epoch;
             setBusy(true, 'Preparing isolated preview…');
-            api.createPreview(state.revision.id).then(function (result) {
+            return api.createPreview(state.revision.id).then(function (result) {
+                if (!isCurrent(epoch)) return;
                 state.previewToken = result.token;
                 var target = result.preview_url || ('feedback.html?preview=' + encodeURIComponent(result.token));
                 state.previewUrl = target;
-                if (!state.previewCompleted) startPolling();
+                state.previewCompleted = false;
+                state.previewReady = false;
+                state.readyAt = result.ready_at;
+                state.preparationStarted = Date.now();
+                state.preparationProgress = 0;
+                state.settings = completionSettings(result);
+                state.settingsSaving = {};
+                state.settingsStatus = {};
+                state.step = 3;
+                rememberPreview();
                 render();
+                startPolling();
             }).catch(function (error) {
-                handleError(error);
-            }).finally(function () { setBusy(false); });
+                if (isCurrent(epoch)) handleError(error);
+            }).finally(function () { if (isCurrent(epoch)) setBusy(false); });
         }
 
         function checkPreviewCompletion() {
-            if (!state.previewToken) return Promise.resolve(false);
-            return api.getPreview(state.previewToken).then(function (result) {
+            if (!state.previewToken || !state.open || state.step !== 3) return Promise.resolve(false);
+            if (previewRead) return previewRead;
+            if (state.pollTimer) window.clearTimeout(state.pollTimer);
+            state.pollTimer = null;
+            const epoch = state.epoch;
+            const token = state.previewToken;
+            const current = () => isCurrent(epoch) && state.previewToken === token && state.step === 3;
+            const settingsAtRead = state.settings;
+            let retry = 2000;
+            previewRead = api.getPreview(token).then(function (result) {
+                if (!current()) return false;
+                if (result.question_set_revision_id && String(result.question_set_revision_id) !== String(state.revision.id)) {
+                    throw new WizardApiError('preview_revision_mismatch', 409);
+                }
+                const wasReady = state.previewReady;
+                const wasCompleted = state.previewCompleted;
+                state.previewReady = true;
+                state.preparationProgress = 100;
+                if (!wasReady && settingsAtRead === state.settings && !settingsPending()) {
+                    state.settings = completionSettings(result);
+                }
                 state.previewCompleted = state.previewCompleted || !!result.preview_completed;
                 if (state.previewCompleted) {
                     stopPolling();
                     setNotice('Preview complete. You can now publish this survey.', 'success');
-                    render();
                 }
+                if (!wasReady || wasCompleted !== state.previewCompleted) render();
                 return state.previewCompleted;
             }).catch(function (error) {
+                if (!current()) return false;
+                if (error.code === 'preview_preparing' && error.status === 425) {
+                    state.readyAt = error.ready_at || state.readyAt;
+                    retry = Number.isFinite(error.retry_after_ms) && error.retry_after_ms > 0
+                        ? error.retry_after_ms : 500;
+                    updatePreparationProgress();
+                    return false;
+                }
                 if (error.code === 'preview_expired') {
                     state.previewToken = null;
+                    state.previewUrl = null;
+                    state.previewReady = false;
+                    state.previewCompleted = false;
+                    forgetPreview();
                     stopPolling();
-                    setNotice('That preview expired. Launch a fresh preview.', 'error');
+                    setNotice('That preview expired. Generate a fresh preview.', 'error');
                     render();
                     return false;
                 }
                 handleError(error);
                 return false;
+            }).finally(function () {
+                if (!isCurrent(epoch)) return;
+                previewRead = null;
+                if (current() && state.previewToken && !state.previewCompleted) {
+                    state.pollTimer = window.setTimeout(checkPreviewCompletion, Math.min(2147483647, retry));
+                }
             });
+            return previewRead;
         }
 
         function startPolling() {
             stopPolling();
-            state.pollTimer = window.setInterval(checkPreviewCompletion, 2000);
+            updatePreparationProgress();
+            checkPreviewCompletion();
         }
 
         function stopPolling() {
-            if (state.pollTimer) window.clearInterval(state.pollTimer);
+            if (state.pollTimer) window.clearTimeout(state.pollTimer);
+            if (state.progressTimer) window.clearTimeout(state.progressTimer);
             state.pollTimer = null;
+            state.progressTimer = null;
+        }
+
+        function isCurrent(epoch) {
+            return state.open && state.epoch === epoch;
+        }
+
+        function cancelPending() {
+            stopPolling();
+            state.epoch += 1;
+            previewRead = null;
+            state.settingsSaving = {};
+        }
+
+        function rememberPreview() {
+            try {
+                window.sessionStorage.setItem('leai.questionSetWizard.return', JSON.stringify(
+                    buildPreviewReturnState(state.draft, state.revision, state.previewToken, state.previewUrl)));
+            } catch (error) { /* Storage may be unavailable; this open tab still works. */ }
+        }
+
+        function forgetPreview() {
+            try { window.sessionStorage.removeItem('leai.questionSetWizard.return'); } catch (error) { /* Optional storage. */ }
+        }
+
+        function updatePreparationProgress() {
+            if (state.progressTimer) window.clearTimeout(state.progressTimer);
+            state.progressTimer = null;
+            if (!state.open || state.step !== 3 || !state.previewToken || state.previewReady) return;
+            const start = state.preparationStarted || Date.now();
+            const duration = Date.parse(state.readyAt) - start;
+            const measured = duration > 0 ? Math.floor(100 * (Date.now() - start) / duration) : 0;
+            state.preparationProgress = Math.max(state.preparationProgress, Math.min(99, Math.max(0, measured)));
+            const bar = content.querySelector('[role="progressbar"]');
+            if (bar) {
+                bar.setAttribute('aria-valuenow', String(state.preparationProgress));
+                bar.setAttribute('aria-valuetext', state.preparationProgress + '% prepared; waiting for the server');
+                bar.firstChild.style.width = state.preparationProgress + '%';
+            }
+            state.progressTimer = window.setTimeout(updatePreparationProgress, 100);
+        }
+
+        function completionSettings(result) {
+            return {
+                completion_certificate_enabled: result.completion_certificate_enabled === true,
+                parsed_document_download_enabled: result.parsed_document_download_enabled === true,
+            };
+        }
+
+        function settingsPending() {
+            return Object.values(state.settingsSaving).some(Boolean);
+        }
+
+        function renderSettings() {
+            // Keep controls and their pending handlers alive when readiness or
+            // completion updates the surrounding Preview step.
+            const existing = content.querySelector('.qsw-settings');
+            if (existing && existing.dataset.token === state.previewToken) {
+                existing.querySelectorAll('input').forEach(input => {
+                    if (!state.settingsSaving[input.dataset.setting]) {
+                        input.checked = state.settings[input.dataset.setting] === true;
+                    }
+                });
+                return existing;
+            }
+            const wrap = element('section', 'qsw-settings');
+            wrap.dataset.token = state.previewToken;
+            wrap.appendChild(element('h3', '', 'Completion downloads'));
+            [
+                ['completion_certificate_enabled', 'Completion certificate', 'After finishing, students can download a PDF certificate. During instructor preview it is watermarked Instructor preview - not valid and is not verifiable.'],
+                ['parsed_document_download_enabled', 'Completion form', 'After finishing, students can download a DOCX summary of their conversation. It contains their preview or student answers; store and share it with care.'],
+            ].forEach(([key, name, explanation]) => {
+                const row = element('div', 'qsw-setting');
+                const line = element('div', 'qsw-setting-line');
+                const label = element('label', 'qsw-switch-label');
+                const input = element('input');
+                input.type = 'checkbox';
+                input.dataset.setting = key;
+                input.setAttribute('role', 'switch');
+                input.setAttribute('aria-label', name);
+                input.checked = state.settings[key] === true;
+                input.disabled = !!state.settingsSaving[key];
+                label.appendChild(input);
+                label.appendChild(element('span', '', name));
+                const help = element('button', 'qsw-help-button', '?');
+                help.type = 'button';
+                help.setAttribute('aria-label', 'About ' + name);
+                help.setAttribute('aria-expanded', 'false');
+                const description = element('p', 'qsw-setting-help', explanation);
+                description.id = 'qsw-help-' + key;
+                description.hidden = true;
+                help.setAttribute('aria-controls', description.id);
+                help.addEventListener('click', () => {
+                    description.hidden = !description.hidden;
+                    help.setAttribute('aria-expanded', String(!description.hidden));
+                });
+                const status = element('p', 'qsw-setting-status', state.settingsStatus[key] || '');
+                status.setAttribute('role', 'status');
+                status.setAttribute('aria-live', 'polite');
+                input.addEventListener('change', () => {
+                    const epoch = state.epoch;
+                    const token = state.previewToken;
+                    const persisted = state.settings[key];
+                    const selected = input.checked === true;
+                    state.settingsSaving[key] = true;
+                    input.disabled = true;
+                    status.textContent = 'Saving…';
+                    primaryButton.disabled = true;
+                    api.updatePreviewSettings(token, { [key]: selected }).then(result => {
+                        if (!isCurrent(epoch) || state.previewToken !== token) return;
+                        state.settings = { ...state.settings, [key]: result[key] === true };
+                        input.checked = state.settings[key];
+                        state.settingsStatus[key] = 'Applied live';
+                        status.textContent = 'Applied live';
+                    }).catch(() => {
+                        if (!isCurrent(epoch) || state.previewToken !== token) return;
+                        input.checked = persisted;
+                        state.settingsStatus[key] = 'Could not save ' + name + '. Try again.';
+                        status.textContent = state.settingsStatus[key];
+                    }).finally(() => {
+                        if (!isCurrent(epoch) || state.previewToken !== token) return;
+                        state.settingsSaving[key] = false;
+                        input.disabled = false;
+                        setBusy(state.busy);
+                    });
+                });
+                line.appendChild(label);
+                line.appendChild(help);
+                row.appendChild(line);
+                row.appendChild(description);
+                row.appendChild(status);
+                wrap.appendChild(row);
+            });
+            wrap.appendChild(element('p', 'qsw-field-hint', 'Reload the already-open preview, or open it again, to check changes.'));
+            return wrap;
         }
 
         function renderSchedule() {
@@ -692,7 +893,7 @@
                 primaryButton.hidden = false;
                 primaryButton.textContent = 'Done';
                 primaryButton.disabled = false;
-                footerStatus.textContent = 'Saved to the Structured Reflection survey list';
+                footerStatus.textContent = 'Saved to the Structured Feedback survey list';
                 return;
             }
 
@@ -732,6 +933,8 @@
             summary.appendChild(element('p', '', state.draft.body.sections.length + ' guided questions'));
             summary.appendChild(element('p', '', 'Student preview complete'));
             summary.appendChild(element('p', '', 'Anonymous individual responses'));
+            summary.appendChild(element('p', '', 'Completion certificate: ' + (state.settings.completion_certificate_enabled ? 'On' : 'Off')));
+            summary.appendChild(element('p', '', 'Completion form: ' + (state.settings.parsed_document_download_enabled ? 'On' : 'Off')));
             wrap.appendChild(summary);
             replaceChildren(content, wrap);
             backButton.hidden = false;
@@ -749,6 +952,8 @@
         }
 
         function createSurvey() {
+            if (!state.previewReady || !state.previewCompleted || settingsPending() || state.busy) return;
+            const epoch = state.epoch;
             var label = document.getElementById('qsw-survey-label').value.trim();
             var weekValue = document.getElementById('qsw-week').value;
             var opensAt = document.getElementById('qsw-opens').value;
@@ -770,12 +975,18 @@
                 weekNumber: weekValue ? parseInt(weekValue, 10) : null,
                 opensAt: isoOrNull(opensAt),
                 expiresAt: isoOrNull(expiresAt),
+                previewToken: state.previewToken,
             }).then(function (receipt) {
+                if (!isCurrent(epoch)) return;
                 state.receipt = receipt;
+                state.drafts = [];
+                forgetPreview();
+                notifyDraftsChanged();
                 setNotice('', '');
                 if (typeof options.onCreated === 'function') options.onCreated(receipt);
                 render();
-            }).catch(handleError).finally(function () { setBusy(false); });
+            }).catch(error => { if (isCurrent(epoch)) handleError(error); })
+                .finally(() => { if (isCurrent(epoch)) setBusy(false); });
         }
 
         function handleError(error) {
@@ -790,18 +1001,36 @@
         }
 
         function render() {
+            const changedStep = renderedStep !== state.step;
+            const focused = document.activeElement;
             updateProgress();
             if (state.step === 1) renderChoose();
             if (state.step === 2) renderEdit();
             if (state.step === 3) renderPreview();
             if (state.step === 4) renderSchedule();
+            if (changedStep) content.scrollTop = 0;
+            else if (focused && focused.isConnected && content.contains(focused)) focused.focus({ preventScroll: true });
+            renderedStep = state.step;
         }
 
-        function open() {
+        function open(resume) {
             var activeCourse = course();
-            if (!activeCourse) return;
+            if (!activeCourse) return Promise.resolve(false);
+            const resumeDraft = resume === true ? state.drafts[0] : null;
+            if (resume === true && !resumeDraft) return Promise.resolve(false);
+            const replace = !resumeDraft && state.drafts.length > 0;
+            if (replace && !window.confirm('Create a new structured feedback? Your unfinished setup will be replaced. Its history will be kept.')) return Promise.resolve(false);
+            cancelPending();
+            const epoch = state.epoch;
             state.open = true;
+            state.confirmAbandonActive = replace;
             state.step = 1;
+            state.dirty = false;
+            state.revision = null;
+            state.previewToken = null;
+            state.previewUrl = null;
+            state.previewReady = false;
+            state.previewCompleted = false;
             state.receipt = null;
             state.idempotencyKey = randomIdempotencyKey();
             setNotice('', '');
@@ -814,15 +1043,31 @@
             primaryButton.hidden = true;
             closeButton.focus();
             setBusy(true, 'Loading templates and saved drafts…');
-            Promise.all([
+            if (resumeDraft) {
+                return Promise.all([api.getDraft(resumeDraft.id), api.listTemplates()]).then(([latest, templates]) => {
+                    if (!isCurrent(epoch)) return;
+                    if (latest.workflow_status && latest.workflow_status !== 'active') throw new WizardApiError('inactive_draft', 409);
+                    state.templates = templates.templates || [];
+                    state.draft = latest;
+                    state.drafts = [latest];
+                    state.step = 2;
+                    notifyDraftsChanged();
+                    render();
+                    focusEditorStart();
+                }).catch(error => { if (isCurrent(epoch)) handleError(error); })
+                    .finally(() => { if (isCurrent(epoch)) setBusy(false); });
+            }
+            return Promise.all([
                 api.listTemplates(),
                 api.listDrafts(activeCourse.id),
             ]).then(function (results) {
+                if (!isCurrent(epoch)) return;
                 state.templates = results[0].templates || [];
-                state.drafts = results[1].drafts || [];
+                state.drafts = activeDrafts(results[1]);
                 notifyDraftsChanged();
                 render();
             }).catch(function (error) {
+                if (!isCurrent(epoch)) return;
                 handleError(error);
                 replaceChildren(content, element(
                     'p',
@@ -830,14 +1075,14 @@
                     'The builder could not load. Close it and try again.',
                 ));
                 footerStatus.textContent = 'Nothing was changed.';
-            }).finally(function () { setBusy(false); });
+            }).finally(function () { if (isCurrent(epoch)) setBusy(false); });
         }
 
         function close(force) {
             if (!force && state.dirty && !window.confirm('Close without saving your latest changes?')) {
                 return false;
             }
-            stopPolling();
+            cancelPending();
             state.open = false;
             rootEl.hidden = true;
             document.body.classList.remove('qsw-open');
@@ -864,25 +1109,27 @@
             if (!activeCourse) return Promise.resolve(false);
 
             state.open = true;
+            cancelPending();
+            const epoch = state.epoch;
             state.receipt = null;
             state.dirty = false;
             rootEl.hidden = false;
             document.body.classList.add('qsw-open');
             subtitle.textContent = activeCourse.name + ' · ' + activeCourse.id;
-            replaceChildren(content, element('p', 'qsw-lead', 'Restoring your completed preview…'));
+            replaceChildren(content, element('p', 'qsw-lead', 'Restoring your preview…'));
             closeButton.focus();
-            setBusy(true, 'Restoring your completed preview…');
+            setBusy(true, 'Restoring your preview…');
 
             return Promise.all([
                 api.getDraft(saved.draftId),
-                api.getPreview(saved.previewToken),
                 api.freezeDraft(saved.draftId, saved.draftVersion),
                 api.listDrafts(activeCourse.id),
             ]).then(function (results) {
+                if (!isCurrent(epoch)) return false;
                 var draft = results[0];
-                var preview = results[1];
-                var revision = results[2].revision;
-                if (!revision || String(revision.id) !== String(saved.revisionId)) {
+                var revision = results[1].revision;
+                if (!revision || String(revision.id) !== String(saved.revisionId) ||
+                        (draft.workflow_status && draft.workflow_status !== 'active')) {
                     throw new WizardApiError('preview_revision_mismatch', 409);
                 }
                 state.draft = draft;
@@ -890,27 +1137,42 @@
                 state.previewToken = saved.previewToken;
                 state.previewUrl = saved.previewUrl ||
                     ('feedback.html?preview=' + encodeURIComponent(saved.previewToken));
-                state.previewCompleted = !!preview.preview_completed;
-                state.drafts = results[3].drafts || [];
+                state.previewCompleted = false;
+                state.previewReady = false;
+                state.settings = {};
+                state.settingsSaving = {};
+                state.settingsStatus = {};
+                state.readyAt = null;
+                state.preparationStarted = Date.now();
+                state.preparationProgress = 0;
+                state.drafts = activeDrafts(results[2]);
                 notifyDraftsChanged();
                 state.idempotencyKey = idempotencyKeyForRevision(revision.id);
                 state.step = 3;
-                if (!state.previewCompleted) startPolling();
                 render();
+                rememberPreview();
+                startPolling();
                 return true;
             }).catch(function (error) {
+                if (!isCurrent(epoch)) return false;
                 close(true);
                 return api.listDrafts(activeCourse.id).then(function (result) {
-                    state.drafts = result.drafts || [];
+                    if (state.open) return;
+                    state.drafts = activeDrafts(result);
                     notifyDraftsChanged();
                 }).catch(function () {}).then(function () {
                     if (typeof options.onRestoreError === 'function') options.onRestoreError(error);
                     return null;
                 });
-            }).finally(function () { setBusy(false); });
+            }).finally(function () { if (isCurrent(epoch)) setBusy(false); });
         }
 
-        openButton.addEventListener('click', open);
+        function activeDrafts(result) {
+            return (result.drafts || []).filter(draft => !draft.workflow_status || draft.workflow_status === 'active').slice(0, 1);
+        }
+
+        openButton.addEventListener('click', () => open(false));
+        if (resumeButton) resumeButton.addEventListener('click', () => open(true));
         closeButton.addEventListener('click', function () { close(false); });
         rootEl.addEventListener('click', function (event) {
             if (event.target === rootEl) close(false);
@@ -940,36 +1202,56 @@
             }
         });
         backButton.addEventListener('click', function () {
+            if (state.busy) return;
             if (state.step === 2) {
                 if (state.dirty && !window.confirm('Go back without saving your latest changes?')) return;
+                // Returning to templates is another explicit replacement choice.
+                if (!window.confirm('Choose a new template? Your unfinished setup will be replaced when you select it. Its history will be kept.')) return;
+                state.confirmAbandonActive = true;
+                state.dirty = false;
                 state.step = 1;
             } else if (state.step === 3) {
+                cancelPending();
+                forgetPreview();
                 state.step = 2;
             } else if (state.step === 4) {
                 state.step = 3;
+                startPolling();
             }
             render();
         });
         secondaryButton.addEventListener('click', function () {
-            if (state.step === 2) saveCurrentDraft().then(render).catch(function () {});
+            if (state.step !== 2 || state.busy) return;
+            const epoch = state.epoch;
+            saveCurrentDraft().then(() => {
+                if (isCurrent(epoch)) render();
+            }).catch(function () {});
         });
         primaryButton.addEventListener('click', function () {
+            if (state.busy) return;
             if (state.step === 2) {
+                cancelPending();
+                forgetPreview();
+                const epoch = state.epoch;
                 var save = state.dirty ? saveCurrentDraft() : Promise.resolve(state.draft);
+                setBusy(true, 'Saving and preparing preview…');
                 save.then(function (draft) {
+                    if (!isCurrent(epoch)) return null;
                     setBusy(true, 'Freezing exact revision…');
                     return api.freezeDraft(draft.id, draft.version);
                 }).then(function (result) {
+                    if (!isCurrent(epoch) || !result) return;
                     state.revision = result.revision;
                     state.idempotencyKey = idempotencyKeyForRevision(result.revision.id);
-                    state.previewCompleted = !!result.revision.preview_completed;
+                    state.previewCompleted = false;
                     state.previewToken = null;
                     state.previewUrl = null;
-                    state.step = 3;
                     setNotice('', '');
-                    render();
-                }).catch(handleError).finally(function () { setBusy(false); });
-            } else if (state.step === 3 && state.previewCompleted) {
+                    return launchPreview();
+                }).catch(error => { if (isCurrent(epoch)) handleError(error); })
+                    .finally(() => { if (isCurrent(epoch)) setBusy(false); });
+            } else if (state.step === 3 && state.previewReady && state.previewCompleted && !settingsPending()) {
+                stopPolling();
                 state.step = 4;
                 render();
             } else if (state.step === 4 && state.receipt) {
@@ -992,7 +1274,7 @@
                 var activeCourse = course();
                 if (!activeCourse) return Promise.resolve([]);
                 return api.listDrafts(activeCourse.id).then(function (result) {
-                    state.drafts = result.drafts || [];
+                    state.drafts = activeDrafts(result);
                     notifyDraftsChanged();
                     return state.drafts;
                 });
