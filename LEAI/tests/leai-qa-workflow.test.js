@@ -187,12 +187,15 @@ if (!workflow) {
 
     test('all frontend tests and the Task 5 builder run from source before any target credential exists', () => {
         const setupUv = namedStep(steps, 'Set up uv');
+        const installNode = namedStep(steps, 'Install frontend Node dependencies');
         const nodeTests = namedStep(steps, 'Run frontend Node tests');
         const pythonTests = namedStep(steps, 'Run frontend Python tests');
         const build = namedStep(steps, 'Build QA artifact');
         const preflight = namedStep(steps, 'Verify QA artifact before target checkout');
         const targetCheckout = namedStep(steps, 'Checkout QA Pages target');
 
+        assert.equal(installNode['working-directory'], 'source');
+        assert.equal(compactCommand(installNode.run), 'npm ci');
         assert.equal(nodeTests['working-directory'], 'source');
         assert.equal(compactCommand(nodeTests.run), 'node --test LEAI/tests/*.test.js');
         assert.equal(pythonTests['working-directory'], 'source');
@@ -206,6 +209,7 @@ if (!workflow) {
             'uv run python scripts/build-leai-qa-artifact.py --source . --output "$RUNNER_TEMP/leai-qa" --api-base "${{ vars.LEAI_QA_API_BASE }}" --build-id "${{ github.sha }}"',
         );
         assert.ok(setupUv.index < pythonTests.index);
+        assert.ok(installNode.index < nodeTests.index);
         assert.ok(nodeTests.index < pythonTests.index);
         assert.ok(pythonTests.index < build.index);
         assert.ok(build.index < preflight.index);
