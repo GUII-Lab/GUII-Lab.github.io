@@ -47,7 +47,12 @@ test('Structured Feedback is first and initializes after course authentication',
 // external API is replaced; live backend/QA verification is a separate release gate.
 const puppeteer = require('puppeteer');
 let browser;
-test.before(async () => { browser = await puppeteer.launch({headless: true}); });
+test.before(async () => {
+    browser = await puppeteer.launch({
+        headless: true,
+        args: process.env.CI ? ['--no-sandbox'] : [],
+    });
+});
 test.after(async () => { if (browser) await browser.close(); });
 
 async function mounted(t, config = {}) {
