@@ -95,11 +95,11 @@ body.qsw-open { overflow: hidden; }
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    padding: 15px 8px 14px;
+    gap: 10px;
+    padding: 16px 8px 15px;
     color: #879397;
-    font-size: .74rem;
-    font-weight: 700;
+    font-size: .9rem;
+    font-weight: 800;
 }
 
 .qsw-progress-item::after {
@@ -117,12 +117,12 @@ body.qsw-open { overflow: hidden; }
 .qsw-progress-item.is-complete { color: #007b7b; }
 .qsw-progress-number {
     display: grid;
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
     place-items: center;
     border: 1px solid currentColor;
     border-radius: 50%;
-    font-size: .66rem;
+    font-size: .78rem;
 }
 .qsw-progress-item.is-complete .qsw-progress-number {
     color: #fff;

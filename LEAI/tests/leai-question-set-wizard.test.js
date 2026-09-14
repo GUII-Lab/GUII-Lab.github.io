@@ -29,8 +29,12 @@ test('replacement, settings, preparation metadata and publication bind the exact
     assert.equal(calls[1].url, '/api/question_set_preview/exact%2Ftoken/settings/');
     assert.equal(calls[1].method, 'PATCH');
     assert.deepEqual(JSON.parse(calls[1].body), {completion_certificate_enabled: false});
+    await api.skipPreview('exact/token', true);
+    assert.equal(calls[2].url, '/api/question_set_preview/exact%2Ftoken/skip/');
+    assert.equal(calls[2].method, 'POST');
+    assert.deepEqual(JSON.parse(calls[2].body), {acknowledge_warning: true});
     await api.createSurvey('revision', {previewToken: 'exact/token'});
-    assert.equal(JSON.parse(calls[2].body).preview_token, 'exact/token');
+    assert.equal(JSON.parse(calls[3].body).preview_token, 'exact/token');
     await assert.rejects(api.getPreview('exact/token'), error =>
         error.status === 425 && error.ready_at === '2026-09-14T12:00:03Z' && error.retry_after_ms === 750);
 });
@@ -72,7 +76,7 @@ async function mounted(t, config = {}) {
         ], closing: {feedback_prompt: 'How was this reflection?'}};
         window.fixture = {calls: [], draft: {id: 'draft-1', course_id: 'course', version: 1, title: body.title, body, workflow_status: 'active'},
             settings: {completion_certificate_enabled: true, parsed_document_download_enabled: false},
-            ready: !!config.ready, completed: !!config.completed, expired: false,
+            ready: !!config.ready, completed: !!config.completed, skipped: !!config.skipped, expired: false,
             active: !!config.active, delaySettings: false, failSettings: false, holdRead: false};
         window.confirm = () => !!config.confirm;
         const fetcher = async (url, options = {}) => {
@@ -102,11 +106,15 @@ async function mounted(t, config = {}) {
                 if (f.delaySettings) await new Promise(resolve => { f.releaseSettings = resolve; });
                 if (f.failSettings) { status = 503; result = {error: 'unavailable'}; }
                 else { Object.assign(f.settings, data); result = {...f.settings}; }
+            } else if (url.endsWith('/skip/')) {
+                if (!data || data.acknowledge_warning !== true) {
+                    status = 409; result = {error: 'preview_skip_confirmation_required'};
+                } else { f.skipped = true; result = {preview_skipped: true}; }
             } else if (url.endsWith('/question_set_preview/token-1/')) {
                 if (f.holdRead) await new Promise(resolve => { f.releaseRead = resolve; });
                 if (f.expired) { status = 410; result = {error: 'preview_expired'}; }
                 else if (!f.ready) { status = 425; result = {error: 'preview_preparing', ready_at: new Date(Date.now() + 2000).toISOString(), retry_after_ms: 300}; }
-                else result = {preview_completed: f.completed, question_set_revision_id: 'revision-1', ...f.settings};
+                else result = {preview_completed: f.completed, preview_skipped: f.skipped, question_set_revision_id: 'revision-1', ...f.settings};
             } else if (url.endsWith('/surveys/')) {
                 if (data.course_id !== f.draft.course_id) { status = 400; result = {error: 'course_mismatch'}; }
                 else { f.active = false; result = {public_id: 'survey-1', survey_label: data.survey_label}; }
@@ -133,7 +141,7 @@ async function edit(page) {
 
 async function generate(page) {
     await edit(page);
-    assert.equal(await page.$eval('.qsw-footer .qsw-button-primary', el => el.textContent), 'Generate preview');
+    assert.equal(await page.$eval('.qsw-footer .qsw-button-primary', el => el.textContent), 'Next');
     await page.type('[data-bind="title"]', ' edited');
     await page.click('.qsw-footer .qsw-button-primary');
     await page.waitForSelector('.qsw-preview-layout');
@@ -161,7 +169,7 @@ test('resumed setup can return to templates and replace it after confirmation', 
     const page = await mounted(t, {active: true, confirm: true});
     await page.click('#resume');
     await page.waitForSelector('[data-bind="title"]');
-    await page.click('.qsw-footer .qsw-button-secondary');
+    await page.click('.qsw-footer-actions button:nth-child(1)');
     assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
     await page.click('.qsw-template-card');
     await page.waitForSelector('[data-bind="title"]');
@@ -194,6 +202,45 @@ test('Generate saves then freezes then issues; backend readiness gates a monoton
     assert.equal(await page.$eval('.qsw-footer .qsw-button-primary', el => el.disabled), true);
     const times = await page.evaluate(() => fixture.calls.filter(c => c.url.endsWith('/question_set_preview/token-1/')).map(c => c.time));
     assert.ok(times[1] - times[0] >= 280, 'honors server retry_after_ms');
+});
+
+test('Preview uses Back, Next, and first-time confirmed Skip without pretending the preview completed', async t => {
+    const page = await mounted(t, {ready: true, completed: false, confirm: true});
+    await generate(page);
+    await page.waitForSelector('a.qsw-launch-button');
+    const labels = await page.$$eval('.qsw-footer-actions button', els => els
+        .filter(el => getComputedStyle(el).display !== 'none')
+        .map(el => el.textContent));
+    assert.deepEqual(labels, ['Back', 'Skip', 'Next']);
+    assert.equal(await page.$eval('.qsw-footer .qsw-button-primary', el => el.disabled), true);
+    await page.click('.qsw-footer-actions button:nth-child(2)');
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert.deepEqual(await page.evaluate(() => ({
+        step: controller.getState().step,
+        busy: controller.getState().busy,
+        calls: fixture.calls.filter(call => call.url.endsWith('/skip/')).map(call => call.data),
+    })), {step: 4, busy: false, calls: [{acknowledge_warning: false}, {acknowledge_warning: true}]});
+    await page.waitForSelector('.qsw-publish-summary');
+    assert.match(await page.$eval('.qsw-publish-summary', el => el.textContent), /Student preview skipped/);
+    assert.deepEqual(
+        await page.evaluate(() => fixture.calls.filter(call => call.url.endsWith('/skip/')).at(-1).data),
+        {acknowledge_warning: true},
+    );
+    await page.click('.qsw-footer-actions button:nth-child(1)');
+    assert.equal(await page.$eval('.qsw-footer .qsw-button-primary', el => el.disabled), false);
+    assert.equal(await page.$eval('.qsw-footer-actions button:nth-child(2)', el => getComputedStyle(el).display), 'none');
+    await page.click('.qsw-footer .qsw-button-primary');
+    await page.waitForSelector('.qsw-publish-summary');
+});
+
+test('Wizard step labels use a readable desktop size', async t => {
+    const page = await mounted(t);
+    await page.click('#open');
+    await page.waitForSelector('.qsw-progress-item');
+    assert.ok(
+        Number.parseFloat(await page.$eval('.qsw-progress-item', el => getComputedStyle(el).fontSize)) >= 14,
+        'four-step navigation is readable without relying on the footer labels',
+    );
 });
 
 test('Preview starts at the top after a scrolled editor and hides the extra footer action', async t => {
@@ -250,7 +297,7 @@ test('back and close invalidate in-flight preview reads and clear timers', async
     await page.evaluate(() => { fixture.holdRead = true; });
     await generate(page);
     await page.waitForFunction(() => !!fixture.releaseRead);
-    await page.click('.qsw-footer .qsw-button-secondary');
+    await page.click('.qsw-footer-actions button:nth-child(1)');
     await page.evaluate(() => { fixture.ready = true; fixture.completed = true; fixture.releaseRead(); });
     await page.waitForSelector('[data-bind="title"]');
     assert.equal(await page.evaluate(() => controller.getState().previewCompleted), false);
@@ -277,7 +324,7 @@ test('a late save from a closed editor does not redraw a later editing session',
     await edit(page);
     await page.type('[data-bind="title"]', ' first');
     await page.evaluate(() => { fixture.holdSave = true; });
-    await page.click('.qsw-footer-actions button:nth-child(2)');
+    await page.click('.qsw-footer .qsw-button-primary');
     await page.waitForFunction(() => !!fixture.releaseSave);
     await page.click('.qsw-icon-button');
     await page.click('#resume');
@@ -342,8 +389,8 @@ test('restored previews retain templates when returning through Edit to Choose',
     const page = await mounted(t, {active: true, ready: true, confirm: true});
     await restoreSaved(page);
     await page.waitForSelector('a.qsw-launch-button');
-    await page.click('.qsw-footer .qsw-button-secondary');
-    await page.click('.qsw-footer .qsw-button-secondary');
+    await page.click('.qsw-footer-actions button:nth-child(1)');
+    await page.click('.qsw-footer-actions button:nth-child(1)');
     assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
 });
 
@@ -357,7 +404,7 @@ test('template load failure during restore leaves the current course recoverable
     await page.evaluate(() => { fixture.failTemplates = false; });
     await page.click('#resume');
     await page.waitForSelector('[data-bind="title"]');
-    await page.click('.qsw-footer .qsw-button-secondary');
+    await page.click('.qsw-footer-actions button:nth-child(1)');
     assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
 });
 
@@ -366,7 +413,7 @@ test('Tab and Shift+Tab stay inside the modal from pending-save status focus', a
     await edit(page);
     await page.type('[data-bind="title"]', ' before save');
     await page.evaluate(() => { fixture.holdSave = true; });
-    await page.click('.qsw-footer-actions button:nth-child(2)');
+    await page.click('.qsw-footer .qsw-button-primary');
     await page.waitForFunction(() => !!fixture.releaseSave);
     assert.equal(await page.$eval('.qsw-footer-status', el => document.activeElement === el), true);
     for (const key of ['Tab', 'Shift+Tab']) {
@@ -382,7 +429,7 @@ test('Tab and Shift+Tab stay inside the modal from pending-save status focus', a
     assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), true);
     await page.evaluate(() => fixture.releaseSave());
     await page.waitForFunction(() => !controller.getState().busy);
-    assert.equal(await page.$eval('[data-bind="title"]', el => document.activeElement === el && !el.disabled), true);
+    await page.waitForSelector('.qsw-preview-layout');
 });
 
 for (const fails of [false, true]) {
@@ -392,7 +439,7 @@ for (const fails of [false, true]) {
         await page.type('[data-bind="title"]', ' before save');
         const submitted = await page.$eval('[data-bind="title"]', el => el.value);
         await page.evaluate(fails => { fixture.holdSave = true; fixture.failSave = fails; }, fails);
-        await page.click('.qsw-footer-actions button:nth-child(2)');
+        await page.click('.qsw-footer .qsw-button-primary');
         await page.waitForFunction(() => !!fixture.releaseSave);
         assert.equal(await page.$eval('.qsw-footer-status', el => document.activeElement === el), true, 'saving status receives focus without activating Close when Space is typed');
         await page.focus('[data-bind="title"]');
@@ -402,12 +449,17 @@ for (const fails of [false, true]) {
         assert.equal(await page.$eval('.qsw-icon-button', el => el.disabled), false);
         await page.evaluate(() => fixture.releaseSave());
         await page.waitForFunction(() => !controller.getState().busy);
-        assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), false);
-        assert.equal(await page.$eval('[data-bind="title"]', el => document.activeElement === el), true);
-        assert.equal(await page.$eval('[data-bind="title"]', el => el.value), submitted);
-        await page.keyboard.type(' after save');
-        assert.match(await page.$eval('[data-bind="title"]', el => el.value), /after save/);
-        assert.equal(await page.evaluate(() => controller.getState().dirty), true);
+        if (fails) {
+            assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), false);
+            assert.equal(await page.$eval('[data-bind="title"]', el => document.activeElement === el), true);
+            assert.equal(await page.$eval('[data-bind="title"]', el => el.value), submitted);
+            await page.keyboard.type(' after save');
+            assert.match(await page.$eval('[data-bind="title"]', el => el.value), /after save/);
+            assert.equal(await page.evaluate(() => controller.getState().dirty), true);
+        } else {
+            await page.waitForSelector('.qsw-preview-layout');
+            assert.equal(await page.evaluate(() => controller.getState().step), 3);
+        }
     });
 }
 
@@ -577,7 +629,7 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     );
     assert.match(source, /notice\.setAttribute\('aria-live', 'polite'\)/);
     assert.match(source, /event\.key === 'Tab'/);
-    assert.match(source, /function markDirty\(\)[\s\S]*?secondaryButton\.textContent = 'Save draft'/);
+    assert.match(source, /function markDirty\(\)[\s\S]*?footerStatus\.textContent = 'Unsaved changes'/);
     assert.match(source, /state\.drafts = state\.drafts\.map/);
     assert.match(source, /closeButton\.focus\(\);[\s\S]*?Promise\.all/);
     assert.match(source, /function focusEditorStart\(\)/);

@@ -102,6 +102,10 @@
                 return auth('/question_set_preview/' + encodeURIComponent(token) + '/settings/',
                     jsonOptions('PATCH', settings));
             },
+            skipPreview: function (token, acknowledgeWarning) {
+                return auth('/question_set_preview/' + encodeURIComponent(token) + '/skip/',
+                    jsonOptions('POST', { acknowledge_warning: acknowledgeWarning === true }));
+            },
             createSurvey: function (revisionId, source) {
                 return auth(
                     '/question_set_revisions/' + encodeURIComponent(revisionId) + '/surveys/',
@@ -192,6 +196,7 @@
             previewToken: null,
             previewUrl: null,
             previewCompleted: false,
+            previewSkipped: false,
             dirty: false,
             idempotencyKey: randomIdempotencyKey(),
             receipt: null,
@@ -312,9 +317,12 @@
             }
             closeButton.disabled = false;
             backButton.disabled = false;
-            secondaryButton.disabled = state.step === 2 ? !state.dirty : false;
+            secondaryButton.disabled = false;
             primaryButton.disabled = state.step === 3
-                ? !state.previewReady || !state.previewCompleted || settingsPending() : false;
+                ? !state.previewReady ||
+                    (!state.previewCompleted && !state.previewSkipped) ||
+                    settingsPending()
+                : false;
         }
 
         function updateProgress() {
@@ -409,8 +417,6 @@
         function markDirty() {
             state.dirty = true;
             footerStatus.textContent = 'Unsaved changes';
-            secondaryButton.textContent = 'Save draft';
-            secondaryButton.disabled = false;
         }
 
         function renderEdit() {
@@ -505,12 +511,10 @@
                 input.addEventListener('input', markDirty);
             });
             backButton.hidden = false;
-            backButton.textContent = 'Back to templates';
-            secondaryButton.hidden = false;
-            secondaryButton.textContent = state.dirty ? 'Save draft' : 'Saved';
-            secondaryButton.disabled = !state.dirty;
+            backButton.textContent = 'Back';
+            secondaryButton.hidden = true;
             primaryButton.hidden = false;
-            primaryButton.textContent = 'Generate preview';
+            primaryButton.textContent = 'Next';
             footerStatus.textContent = state.dirty
                 ? 'Unsaved changes'
                 : 'Draft saved';
@@ -620,14 +624,19 @@
             updatePreparationProgress();
 
             backButton.hidden = false;
-            backButton.textContent = 'Back to edit';
-            secondaryButton.hidden = true;
+            backButton.textContent = 'Back';
+            secondaryButton.hidden = !state.previewReady || state.previewCompleted || state.previewSkipped;
+            secondaryButton.textContent = 'Skip';
+            secondaryButton.disabled = !state.previewReady || state.previewSkipped || settingsPending();
             primaryButton.hidden = false;
-            primaryButton.textContent = state.previewCompleted ? 'Continue to publish' : 'Complete preview first';
-            primaryButton.disabled = !state.previewReady || !state.previewCompleted || settingsPending();
+            primaryButton.textContent = 'Next';
+            primaryButton.disabled = !state.previewReady ||
+                (!state.previewCompleted && !state.previewSkipped) || settingsPending();
             footerStatus.textContent = state.previewCompleted
                 ? 'Preview completed for this exact revision'
-                : 'Survey creation stays locked until the closing is reached';
+                : state.previewSkipped
+                    ? 'Preview skipped for this exact revision'
+                    : 'Complete the preview or Skip to continue.';
         }
 
         function launchPreview() {
@@ -640,6 +649,7 @@
                 var target = result.preview_url || ('feedback.html?preview=' + encodeURIComponent(result.token));
                 state.previewUrl = target;
                 state.previewCompleted = false;
+                state.previewSkipped = false;
                 state.previewReady = false;
                 state.readyAt = result.ready_at;
                 state.preparationStarted = Date.now();
@@ -673,17 +683,19 @@
                 }
                 const wasReady = state.previewReady;
                 const wasCompleted = state.previewCompleted;
+                const wasSkipped = state.previewSkipped;
                 state.previewReady = true;
                 state.preparationProgress = 100;
                 if (!wasReady && settingsAtRead === state.settings && !settingsPending()) {
                     state.settings = completionSettings(result);
                 }
                 state.previewCompleted = state.previewCompleted || !!result.preview_completed;
+                state.previewSkipped = state.previewSkipped || !!result.preview_skipped;
                 if (state.previewCompleted) {
                     stopPolling();
                     setNotice('Preview complete. You can now publish this survey.', 'success');
                 }
-                if (!wasReady || wasCompleted !== state.previewCompleted) render();
+                if (!wasReady || wasCompleted !== state.previewCompleted || wasSkipped !== state.previewSkipped) render();
                 return state.previewCompleted;
             }).catch(function (error) {
                 if (!current()) return false;
@@ -699,6 +711,7 @@
                     state.previewUrl = null;
                     state.previewReady = false;
                     state.previewCompleted = false;
+                    state.previewSkipped = false;
                     forgetPreview();
                     stopPolling();
                     setNotice('That preview expired. Generate a fresh preview.', 'error');
@@ -710,7 +723,7 @@
             }).finally(function () {
                 if (!isCurrent(epoch)) return;
                 previewRead = null;
-                if (current() && state.previewToken && !state.previewCompleted) {
+                if (current() && state.previewToken && !state.previewCompleted && !state.previewSkipped) {
                     state.pollTimer = window.setTimeout(checkPreviewCompletion, Math.min(2147483647, retry));
                 }
             });
@@ -939,17 +952,21 @@
             summary.appendChild(element('span', 'qsw-aside-kicker', 'Publication summary'));
             summary.appendChild(element('h3', '', state.draft.body.title));
             summary.appendChild(element('p', '', state.draft.body.sections.length + ' guided questions'));
-            summary.appendChild(element('p', '', 'Student preview complete'));
+            summary.appendChild(element(
+                'p',
+                '',
+                state.previewCompleted ? 'Student preview complete' : 'Student preview skipped',
+            ));
             summary.appendChild(element('p', '', 'Anonymous individual responses'));
             summary.appendChild(element('p', '', 'Completion certificate: ' + (state.settings.completion_certificate_enabled ? 'On' : 'Off')));
             summary.appendChild(element('p', '', 'Completion form: ' + (state.settings.parsed_document_download_enabled ? 'On' : 'Off')));
             wrap.appendChild(summary);
             replaceChildren(content, wrap);
             backButton.hidden = false;
-            backButton.textContent = 'Back to preview';
+            backButton.textContent = 'Back';
             secondaryButton.hidden = true;
             primaryButton.hidden = false;
-            primaryButton.textContent = 'Publish survey & get link';
+            primaryButton.textContent = 'Publish';
             primaryButton.disabled = false;
             footerStatus.textContent = 'Creates one survey; no recurring series';
         }
@@ -960,7 +977,12 @@
         }
 
         function createSurvey() {
-            if (!state.previewReady || !state.previewCompleted || settingsPending() || state.busy) return;
+            if (
+                !state.previewReady ||
+                (!state.previewCompleted && !state.previewSkipped) ||
+                settingsPending() ||
+                state.busy
+            ) return;
             const epoch = state.epoch;
             var label = document.getElementById('qsw-survey-label').value.trim();
             var weekValue = document.getElementById('qsw-week').value;
@@ -1002,6 +1024,8 @@
                 stale_draft: 'This draft changed in another tab. Close and reopen the builder to load the latest version.',
                 invalid_question_set: error && error.message,
                 preview_required: 'Complete the real preview before creating this survey.',
+                preview_incomplete: 'Complete or skip this exact preview before creating the survey.',
+                preview_skip_denied: 'This preview cannot be skipped after it has been published.',
                 preview_expired: 'The preview link expired. Launch a fresh preview.',
                 capability_denied: 'Your course role does not allow publishing.',
             };
@@ -1039,6 +1063,7 @@
             state.previewUrl = null;
             state.previewReady = false;
             state.previewCompleted = false;
+            state.previewSkipped = false;
             state.receipt = null;
             state.idempotencyKey = randomIdempotencyKey();
             setNotice('', '');
@@ -1152,6 +1177,7 @@
                     state.previewUrl = saved.previewUrl ||
                         ('feedback.html?preview=' + encodeURIComponent(saved.previewToken));
                     state.previewCompleted = false;
+                    state.previewSkipped = false;
                     state.previewReady = false;
                     state.settings = {};
                     state.settingsSaving = {};
@@ -1243,13 +1269,40 @@
             render();
         });
         secondaryButton.addEventListener('click', function () {
-            if (state.step !== 2 || state.busy) return;
+            if (
+                state.step !== 3 ||
+                state.busy ||
+                !state.previewToken ||
+                !state.previewReady ||
+                state.previewCompleted ||
+                settingsPending()
+            ) return;
             const epoch = state.epoch;
-            saveCurrentDraft().then(() => {
-                if (isCurrent(epoch)) render();
-            }).catch(function () {}).finally(() => {
-                if (isCurrent(epoch) && state.step === 2) focusEditorStart();
-            });
+            const token = state.previewToken;
+            const skip = function (acknowledgeWarning) {
+                setBusy(true, 'Skipping student preview…');
+                return api.skipPreview(token, acknowledgeWarning).then(function (result) {
+                    if (!isCurrent(epoch) || state.previewToken !== token) return;
+                    state.previewSkipped = result.preview_skipped === true;
+                    stopPolling();
+                    state.step = 4;
+                    setNotice('Student preview skipped for this exact revision.', 'success');
+                    render();
+                }).catch(function (error) {
+                    if (!isCurrent(epoch) || state.previewToken !== token) return;
+                    if (error.code !== 'preview_skip_confirmation_required') {
+                        handleError(error);
+                        return;
+                    }
+                    if (window.confirm('Skip the student preview? You can still go back before publishing, but you may miss wording or conversation-flow issues.')) {
+                        return skip(true);
+                    }
+                    return null;
+                }).finally(function () {
+                    if (isCurrent(epoch) && state.previewToken === token) setBusy(false);
+                });
+            };
+            skip(false);
         });
         primaryButton.addEventListener('click', function () {
             if (state.busy) return;
@@ -1268,13 +1321,23 @@
                     state.revision = result.revision;
                     state.idempotencyKey = idempotencyKeyForRevision(result.revision.id);
                     state.previewCompleted = false;
+                    state.previewSkipped = false;
                     state.previewToken = null;
                     state.previewUrl = null;
                     setNotice('', '');
                     return launchPreview();
-                }).catch(error => { if (isCurrent(epoch)) handleError(error); })
+                }).catch(error => {
+                    if (!isCurrent(epoch)) return;
+                    handleError(error);
+                    if (state.step === 2) focusEditorStart();
+                })
                     .finally(() => { if (isCurrent(epoch)) setBusy(false); });
-            } else if (state.step === 3 && state.previewReady && state.previewCompleted && !settingsPending()) {
+            } else if (
+                state.step === 3 &&
+                state.previewReady &&
+                (state.previewCompleted || state.previewSkipped) &&
+                !settingsPending()
+            ) {
                 stopPolling();
                 state.step = 4;
                 render();
