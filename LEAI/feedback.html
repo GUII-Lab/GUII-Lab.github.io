@@ -1333,22 +1333,38 @@
             var source = options || {};
             var publicId = String(source.publicId || '').trim();
             var sessionId = String(source.sessionId || '').trim();
-            if (!publicId || !sessionId) {
+            var previewToken = String(source.previewToken || window.leaiPreviewToken || '').trim();
+            if ((!previewToken && !publicId) || !sessionId) {
                 return Promise.reject(new Error('Missing certificate session details.'));
             }
-            var payload = {
-                public_id: publicId,
-                session_id: sessionId,
-                progress_snapshot: buildCertificateProgressSnapshot({
+            var progressSnapshot = buildCertificateProgressSnapshot({
                     mode: source.mode || 'general',
                     persistedStudentMessageCount: source.persistedStudentMessageCount || 0,
                     complete: !!source.complete,
-                }),
-            };
-            return fetch(API + '/issue_completion_certificate/', {
+                });
+            var request = (typeof leaiCompletion !== 'undefined'
+                    && leaiCompletion
+                    && typeof leaiCompletion.completionCertificateRequest === 'function')
+                ? leaiCompletion.completionCertificateRequest({
+                    previewToken: previewToken,
+                    publicId: publicId,
+                    sessionId: sessionId,
+                    progressSnapshot: progressSnapshot,
+                })
+                : {
+                    endpoint: previewToken
+                        ? '/question_set_preview/' + encodeURIComponent(previewToken) + '/completion_certificate/'
+                        : '/issue_completion_certificate/',
+                    payload: previewToken ? null : {
+                        public_id: publicId,
+                        session_id: sessionId,
+                        progress_snapshot: progressSnapshot,
+                    },
+                };
+            return fetch(API + request.endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                headers: request.payload ? { 'Content-Type': 'application/json' } : {},
+                body: request.payload ? JSON.stringify(request.payload) : null,
             }).then(function (response) {
                 if (response.status === 409) {
                     var conflict = new Error('Your certificate unlocks after your first saved response. Please wait a moment, then try again.');
@@ -1583,10 +1599,6 @@
         }
 
         function updateMainDownloadStrip(opts) {
-            if (window.leaiPreviewToken) {
-                if (_mainStripUi && _mainStripUi.strip) _mainStripUi.strip.hidden = true;
-                return;
-            }
             var mode = currentMainStripMode();
             var state = buildStudentFooterState({
                 mode: mode,
@@ -1618,6 +1630,7 @@
                         requestCompletionCertificate({
                             publicId: gptConfig && gptConfig.public_id,
                             sessionId: window.sessionData && window.sessionData.sessionID,
+                            previewToken: window.leaiPreviewToken,
                             mode: formMode.active ? 'form' : 'general',
                             persistedStudentMessageCount: _mainPersistedStudentMessageCount,
                             complete: currentMainStripComplete(),
@@ -3291,6 +3304,13 @@
                         }
                         return response.json();
                     });
+                }).then(function (result) {
+                    if (normalizedSentBy === 'user') {
+                        _mainPersistedStudentMessageCount += 1;
+                        _mainFirstStudentPersistState = 'succeeded';
+                        updateMainDownloadStrip({ silent: true });
+                    }
+                    return result;
                 }).catch(function (error) {
                     if (!previewPersistenceError) previewPersistenceError = error;
                     console.error('Preview message persistence failed:', error);

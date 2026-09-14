@@ -854,3 +854,29 @@ test('filenameFromDisposition prefers encoded filenames and rejects path or cont
         'completion-certificate.pdf'
     );
 });
+
+test('completionCertificateRequest routes a preview capability to its transient endpoint and a survey to formal issuance', () => {
+    const leaiCompletion = loadCompletionFresh();
+
+    assert.deepEqual(leaiCompletion.completionCertificateRequest({
+        previewToken: 'preview-raw-capability',
+        publicId: 'preview-public-id',
+        sessionId: 'preview-session',
+        progressSnapshot: { complete: true },
+    }), {
+        endpoint: '/question_set_preview/preview-raw-capability/completion_certificate/',
+        payload: null,
+    });
+    assert.deepEqual(leaiCompletion.completionCertificateRequest({
+        publicId: 'published-survey',
+        sessionId: 'anon-session',
+        progressSnapshot: { complete: true },
+    }), {
+        endpoint: '/issue_completion_certificate/',
+        payload: {
+            public_id: 'published-survey',
+            session_id: 'anon-session',
+            progress_snapshot: { complete: true },
+        },
+    });
+});

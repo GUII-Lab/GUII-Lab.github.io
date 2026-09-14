@@ -474,6 +474,25 @@
         return fallbackName;
     }
 
+    function completionCertificateRequest(options) {
+        const source = options || {};
+        const previewToken = String(source.previewToken || '').trim();
+        if (previewToken) {
+            return {
+                endpoint: '/question_set_preview/' + encodeURIComponent(previewToken) + '/completion_certificate/',
+                payload: null,
+            };
+        }
+        return {
+            endpoint: '/issue_completion_certificate/',
+            payload: {
+                public_id: source.publicId,
+                session_id: source.sessionId,
+                progress_snapshot: source.progressSnapshot,
+            },
+        };
+    }
+
     return {
         normalizeCodes: normalizeCodes,
         courseDownloadSettings: courseDownloadSettings,
@@ -490,5 +509,6 @@
         verificationBatch: verificationBatch,
         summarizeVerification: summarizeVerification,
         filenameFromDisposition: filenameFromDisposition,
+        completionCertificateRequest: completionCertificateRequest,
     };
 });
