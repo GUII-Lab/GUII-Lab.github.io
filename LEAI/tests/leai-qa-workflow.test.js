@@ -160,7 +160,7 @@ if (!workflow) {
 
         assert.deepEqual(
             steps.filter((step) => step.uses).map((step) => step.uses),
-            ['actions/checkout@v7', 'astral-sh/setup-uv@v10', 'actions/checkout@v7'],
+            ['actions/checkout@v7', 'astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4', 'actions/checkout@v7'],
         );
 
         assert.equal(sourceCheckout.index, 0);
@@ -169,7 +169,7 @@ if (!workflow) {
         assert.equal(sourceCheckout.with.get('persist-credentials'), 'false');
         assert.equal(sourceCheckout.with.has('token'), false);
 
-        assert.equal(setupUv.uses, 'astral-sh/setup-uv@v10');
+        assert.equal(setupUv.uses, 'astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4');
         assert.equal(targetCheckout.uses, 'actions/checkout@v7');
         assert.deepEqual(Object.fromEntries(targetCheckout.with), {
             repository: 'GUII-Lab/LEAI-QA',
