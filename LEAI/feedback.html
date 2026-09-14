@@ -1353,8 +1353,11 @@
                 })
                 : {
                     endpoint: previewToken
-                        ? '/question_set_preview/' + encodeURIComponent(previewToken) + '/completion_certificate/'
+                        ? '/issue_preview_completion_certificate/'
                         : '/issue_completion_certificate/',
+                    headers: previewToken
+                        ? { Authorization: 'Bearer ' + previewToken }
+                        : { 'Content-Type': 'application/json' },
                     payload: previewToken ? null : {
                         public_id: publicId,
                         session_id: sessionId,
@@ -1363,7 +1366,8 @@
                 };
             return fetch(API + request.endpoint, {
                 method: 'POST',
-                headers: request.payload ? { 'Content-Type': 'application/json' } : {},
+                headers: request.headers,
+                referrerPolicy: previewToken ? 'no-referrer' : undefined,
                 body: request.payload ? JSON.stringify(request.payload) : null,
             }).then(function (response) {
                 if (response.status === 409) {

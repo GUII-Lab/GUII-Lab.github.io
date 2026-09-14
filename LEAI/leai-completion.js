@@ -479,12 +479,14 @@
         const previewToken = String(source.previewToken || '').trim();
         if (previewToken) {
             return {
-                endpoint: '/question_set_preview/' + encodeURIComponent(previewToken) + '/completion_certificate/',
+                endpoint: '/issue_preview_completion_certificate/',
+                headers: { Authorization: 'Bearer ' + previewToken },
                 payload: null,
             };
         }
         return {
             endpoint: '/issue_completion_certificate/',
+            headers: { 'Content-Type': 'application/json' },
             payload: {
                 public_id: source.publicId,
                 session_id: source.sessionId,

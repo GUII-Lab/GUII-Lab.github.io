@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const MODULE_PATH = path.join(__dirname, '..', 'leai-completion.js');
 const PROMPT_DESIGNER_PATH = path.join(__dirname, '..', 'PromptDesigner.html');
@@ -864,7 +865,8 @@ test('completionCertificateRequest routes a preview capability to its transient 
         sessionId: 'preview-session',
         progressSnapshot: { complete: true },
     }), {
-        endpoint: '/question_set_preview/preview-raw-capability/completion_certificate/',
+        endpoint: '/issue_preview_completion_certificate/',
+        headers: { Authorization: 'Bearer preview-raw-capability' },
         payload: null,
     });
     assert.deepEqual(leaiCompletion.completionCertificateRequest({
@@ -873,10 +875,52 @@ test('completionCertificateRequest routes a preview capability to its transient 
         progressSnapshot: { complete: true },
     }), {
         endpoint: '/issue_completion_certificate/',
+        headers: { 'Content-Type': 'application/json' },
         payload: {
             public_id: 'published-survey',
             session_id: 'anon-session',
             progress_snapshot: { complete: true },
         },
     });
+});
+
+test('feedback certificate fetch keeps preview capabilities out of URLs and referrers, with and without the shared helper', async () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'feedback.html'), 'utf8');
+    const start = html.indexOf('        function requestCompletionCertificate(options) {');
+    const end = html.indexOf('        function buildCompletionMarkerKey(options) {', start);
+    assert.ok(start >= 0 && end > start);
+
+    for (const sharedHelper of [true, false]) {
+        const requests = [];
+        const context = {
+            API: '/datapipeline/api',
+            window: { leaiPreviewToken: 'private-preview-capability' },
+            buildCertificateProgressSnapshot: () => ({ complete: true }),
+            fetch: async (url, options) => {
+                requests.push({ url, options });
+                return { status: 409 };
+            },
+        };
+        if (sharedHelper) context.leaiCompletion = loadCompletionFresh();
+        vm.createContext(context);
+        vm.runInContext(html.slice(start, end), context);
+
+        await assert.rejects(context.requestCompletionCertificate({ sessionId: 'preview-session' }));
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0].url, '/datapipeline/api/issue_preview_completion_certificate/');
+        assert.equal(requests[0].options.headers.Authorization, 'Bearer private-preview-capability');
+        assert.equal(requests[0].options.referrerPolicy, 'no-referrer');
+        assert.equal(requests[0].options.body, null);
+
+        context.window.leaiPreviewToken = null;
+        await assert.rejects(context.requestCompletionCertificate({ publicId: 'survey-id', sessionId: 'student-session' }));
+        assert.equal(requests[1].url, '/datapipeline/api/issue_completion_certificate/');
+        assert.equal(requests[1].options.headers.Authorization, undefined);
+        assert.equal(requests[1].options.headers['Content-Type'], 'application/json');
+        assert.deepEqual(JSON.parse(requests[1].options.body), {
+            public_id: 'survey-id',
+            session_id: 'student-session',
+            progress_snapshot: { complete: true },
+        });
+    }
 });
