@@ -787,8 +787,8 @@ var leaiSession = {
 // Spec: LEAI/docs/instructor-clarifications/wk6-form-mode-SPEC.md \u00a79
 //
 // F5 generates a 350\u2013500-word "data-insights brief" via /openai-chat/ over a
-// student's form-mode transcript. F6 plays that brief through OpenAI TTS using
-// the openaiKey served by /getOAI/ \u2014 no Heroku change needed (per H3, \u00a71).
+// student's form-mode transcript. F6 routes speech through /openai-tts/ so the
+// provider key remains server-side.
 // ---------------------------------------------------------------------------
 var leaiInsights = (function () {
     'use strict';
