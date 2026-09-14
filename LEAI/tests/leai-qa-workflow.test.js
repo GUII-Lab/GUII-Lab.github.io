@@ -308,6 +308,7 @@ if (!workflow) {
 
         assert.match(publish.run, /git -C target config user\.name "github-actions\[bot\]"/);
         assert.match(publish.run, /git -C target config user\.email "41898282\+github-actions\[bot\]@users\.noreply\.github\.com"/);
+        assert.match(publish.run, /git -C target remote set-url origin git@github\.com:GUII-Lab\/LEAI-QA\.git/);
         assert.match(publish.run, /git -C target add --all -- \./);
         assert.match(
             publish.run,
