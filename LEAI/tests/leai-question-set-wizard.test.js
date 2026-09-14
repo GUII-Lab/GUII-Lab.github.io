@@ -208,6 +208,26 @@ test('Prompt Designer columns resist long published-survey content', () => {
     );
 });
 
+test('question set wizard keeps its footer reachable when a notice collapses', () => {
+    const css = fs.readFileSync(
+        path.join(__dirname, '..', 'leai-question-set-wizard.css'),
+        'utf8',
+    );
+    const panel = css.match(/\.qsw-panel\s*\{([\s\S]*?)\n\}/)[1];
+    assert.match(css, /\.qsw-panel:has\(\.qsw-notice:not\(\[hidden\]\)\)\s*\{/);
+    const panelWithNotice = css.match(
+        /\.qsw-panel:has\(\.qsw-notice:not\(\[hidden\]\)\)\s*\{([\s\S]*?)\n\}/,
+    )[1];
+    const content = css.match(/\.qsw-content\s*\{([\s\S]*?)\n\}/)[1];
+
+    assert.match(panel, /height:\s*min\(860px,\s*calc\(100dvh - 48px\)\)/);
+    assert.match(panel, /grid-template-rows:\s*auto\s+auto\s+minmax\(0,\s*1fr\)\s+auto/);
+    assert.match(panelWithNotice, /grid-template-rows:\s*auto\s+auto\s+auto\s+minmax\(0,\s*1fr\)\s+auto/);
+    assert.match(panel, /overflow:\s*hidden/);
+    assert.match(content, /min-height:\s*0/);
+    assert.match(content, /overflow:\s*auto/);
+});
+
 test('student page routes preview messages and completion away from research responses', () => {
     const html = fs.readFileSync(
         path.join(__dirname, '..', 'feedback.html'),

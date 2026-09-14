@@ -15,15 +15,19 @@ body.qsw-open { overflow: hidden; }
 
 .qsw-panel {
     width: min(1180px, 100%);
-    height: min(860px, calc(100vh - 48px));
+    height: min(860px, calc(100dvh - 48px));
     display: grid;
-    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
     overflow: hidden;
     color: var(--text, #2a3437);
     background: #f7fafb;
     border: 1px solid rgba(169, 180, 183, 0.46);
     border-radius: 18px;
     box-shadow: 0 32px 100px rgba(18, 36, 43, 0.26);
+}
+
+.qsw-panel:has(.qsw-notice:not([hidden])) {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
 }
 
 .qsw-header {
