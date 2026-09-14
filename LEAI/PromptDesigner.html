@@ -954,10 +954,12 @@ When the conversation has organically reached a natural close — i.e. the stude
                 );
                 loadFormSurveys();
             },
-            onRestoreError: function () {
+            onRestoreError: function (error) {
                 var status = document.getElementById('question-set-wizard-status');
                 status.className = 'builder-note';
-                status.textContent = 'The preview is saved, but this tab could not restore it automatically. Open the builder to continue the saved draft.';
+                status.textContent = error && error.code === 'course_mismatch'
+                    ? 'That saved preview belongs to another course. You can create or continue structured feedback for this course.'
+                    : 'This tab could not restore the preview. Continue your saved draft, or try again if the templates could not load.';
             },
         });
         questionSetWizardController.restoreSameTabPreview().then(function (restored) {

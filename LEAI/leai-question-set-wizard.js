@@ -249,6 +249,7 @@
         var content = element('div', 'qsw-content');
         var footer = element('footer', 'qsw-footer');
         var footerStatus = element('div', 'qsw-footer-status');
+        footerStatus.tabIndex = -1;
         var footerActions = element('div', 'qsw-footer-actions');
         var backButton = element('button', 'qsw-button qsw-button-secondary', 'Back');
         backButton.type = 'button';
@@ -295,11 +296,18 @@
         function setBusy(busy, label) {
             state.busy = busy;
             rootEl.classList.toggle('qsw-busy', busy);
+            content.setAttribute('aria-busy', String(busy));
+            if (state.step === 2) {
+                content.querySelectorAll('input, textarea, select').forEach(input => {
+                    input.disabled = busy;
+                });
+            }
             if (busy) {
                 [backButton, secondaryButton, primaryButton].forEach(function (button) {
                     button.disabled = true;
                 });
                 footerStatus.textContent = label || '';
+                if (state.step === 2) footerStatus.focus();
                 return;
             }
             closeButton.disabled = false;
@@ -1108,60 +1116,71 @@
             var activeCourse = course();
             if (!activeCourse) return Promise.resolve(false);
 
-            state.open = true;
             cancelPending();
             const epoch = state.epoch;
-            state.receipt = null;
-            state.dirty = false;
-            rootEl.hidden = false;
-            document.body.classList.add('qsw-open');
-            subtitle.textContent = activeCourse.name + ' · ' + activeCourse.id;
-            replaceChildren(content, element('p', 'qsw-lead', 'Restoring your preview…'));
-            closeButton.focus();
-            setBusy(true, 'Restoring your preview…');
+            const restoreIsCurrent = () => state.epoch === epoch && course() && course().id === activeCourse.id;
 
-            return Promise.all([
-                api.getDraft(saved.draftId),
-                api.freezeDraft(saved.draftId, saved.draftVersion),
-                api.listDrafts(activeCourse.id),
-            ]).then(function (results) {
-                if (!isCurrent(epoch)) return false;
-                var draft = results[0];
-                var revision = results[1].revision;
-                if (!revision || String(revision.id) !== String(saved.revisionId) ||
-                        (draft.workflow_status && draft.workflow_status !== 'active')) {
-                    throw new WizardApiError('preview_revision_mismatch', 409);
+            return api.getDraft(saved.draftId).then(function (draft) {
+                if (!restoreIsCurrent()) return false;
+                if (draft.course_id !== activeCourse.id) {
+                    throw new WizardApiError('course_mismatch', 400);
                 }
-                state.draft = draft;
-                state.revision = revision;
-                state.previewToken = saved.previewToken;
-                state.previewUrl = saved.previewUrl ||
-                    ('feedback.html?preview=' + encodeURIComponent(saved.previewToken));
-                state.previewCompleted = false;
-                state.previewReady = false;
-                state.settings = {};
-                state.settingsSaving = {};
-                state.settingsStatus = {};
-                state.readyAt = null;
-                state.preparationStarted = Date.now();
-                state.preparationProgress = 0;
-                state.drafts = activeDrafts(results[2]);
-                notifyDraftsChanged();
-                state.idempotencyKey = idempotencyKeyForRevision(revision.id);
-                state.step = 3;
-                render();
-                rememberPreview();
-                startPolling();
-                return true;
+                state.open = true;
+                state.receipt = null;
+                state.dirty = false;
+                rootEl.hidden = false;
+                document.body.classList.add('qsw-open');
+                subtitle.textContent = activeCourse.name + ' · ' + activeCourse.id;
+                replaceChildren(content, element('p', 'qsw-lead', 'Restoring your preview…'));
+                closeButton.focus();
+                setBusy(true, 'Restoring your preview…');
+
+                return Promise.all([
+                    api.freezeDraft(saved.draftId, saved.draftVersion),
+                    api.listDrafts(activeCourse.id),
+                    api.listTemplates(),
+                ]).then(function (results) {
+                    if (!isCurrent(epoch) || !restoreIsCurrent()) return false;
+                    const revision = results[0].revision;
+                    if (!revision || String(revision.id) !== String(saved.revisionId) ||
+                            (draft.workflow_status && draft.workflow_status !== 'active')) {
+                        throw new WizardApiError('preview_revision_mismatch', 409);
+                    }
+                    state.draft = draft;
+                    state.revision = revision;
+                    state.previewToken = saved.previewToken;
+                    state.previewUrl = saved.previewUrl ||
+                        ('feedback.html?preview=' + encodeURIComponent(saved.previewToken));
+                    state.previewCompleted = false;
+                    state.previewReady = false;
+                    state.settings = {};
+                    state.settingsSaving = {};
+                    state.settingsStatus = {};
+                    state.readyAt = null;
+                    state.preparationStarted = Date.now();
+                    state.preparationProgress = 0;
+                    state.drafts = activeDrafts(results[1]);
+                    state.templates = results[2].templates || [];
+                    notifyDraftsChanged();
+                    state.idempotencyKey = idempotencyKeyForRevision(revision.id);
+                    state.step = 3;
+                    render();
+                    rememberPreview();
+                    startPolling();
+                    return true;
+                });
             }).catch(function (error) {
-                if (!isCurrent(epoch)) return false;
-                close(true);
+                if (!restoreIsCurrent()) return false;
+                if (state.open) close(true);
+                else cancelPending();
+                const recoveryEpoch = state.epoch;
+                const recoveryIsCurrent = () => state.epoch === recoveryEpoch && !state.open && course() && course().id === activeCourse.id;
                 return api.listDrafts(activeCourse.id).then(function (result) {
-                    if (state.open) return;
+                    if (!recoveryIsCurrent()) return;
                     state.drafts = activeDrafts(result);
                     notifyDraftsChanged();
                 }).catch(function () {}).then(function () {
-                    if (typeof options.onRestoreError === 'function') options.onRestoreError(error);
+                    if (recoveryIsCurrent() && typeof options.onRestoreError === 'function') options.onRestoreError(error);
                     return null;
                 });
             }).finally(function () { if (isCurrent(epoch)) setBusy(false); });
@@ -1225,7 +1244,9 @@
             const epoch = state.epoch;
             saveCurrentDraft().then(() => {
                 if (isCurrent(epoch)) render();
-            }).catch(function () {});
+            }).catch(function () {}).finally(() => {
+                if (isCurrent(epoch) && state.step === 2) focusEditorStart();
+            });
         });
         primaryButton.addEventListener('click', function () {
             if (state.busy) return;

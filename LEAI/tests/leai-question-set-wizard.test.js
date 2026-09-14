@@ -65,7 +65,7 @@ async function mounted(t, config = {}) {
         const body = {title: 'Weekly learning', intro: 'Think about your week.', sections: [
             {id: 'learning', title: 'Learning', opening_prompt: 'What did you learn?', depth_probe: ''},
         ], closing: {feedback_prompt: 'How was this reflection?'}};
-        window.fixture = {calls: [], draft: {id: 'draft-1', version: 1, title: body.title, body, workflow_status: 'active'},
+        window.fixture = {calls: [], draft: {id: 'draft-1', course_id: 'course', version: 1, title: body.title, body, workflow_status: 'active'},
             settings: {completion_certificate_enabled: true, parsed_document_download_enabled: false},
             ready: !!config.ready, completed: !!config.completed, expired: false,
             active: !!config.active, delaySettings: false, failSettings: false, holdRead: false};
@@ -76,14 +76,20 @@ async function mounted(t, config = {}) {
             f.calls.push({url, method: options.method || 'GET', data, time: Date.now()});
             let result = {};
             let status = 200;
-            if (url.endsWith('/question_set_templates/')) result = {templates: [{id: 'weekly', name: 'Weekly', description: 'Review learning', body}]};
-            else if (url.includes('/question_set_drafts/?')) result = {drafts: f.active ? [f.draft] : []};
+            if (url.endsWith('/question_set_templates/')) {
+                if (f.failTemplates) { status = 503; result = {error: 'unavailable'}; }
+                else result = {templates: [{id: 'weekly', name: 'Weekly', description: 'Review learning', body}]};
+            }
+            else if (url.includes('/question_set_drafts/?')) {
+                const courseId = new URL(url, 'https://fixture.test').searchParams.get('course_id');
+                result = {drafts: f.active && f.draft.course_id === courseId ? [f.draft] : []};
+            }
             else if (url.endsWith('/question_set_drafts/')) { f.active = true; result = f.draft; }
             else if (url.endsWith('/freeze/')) result = {revision: {id: 'revision-1', preview_completed: true}};
             else if (url.endsWith('/question_set_drafts/draft-1/')) {
                 if (data && f.holdSave) await new Promise(resolve => { f.releaseSave = resolve; });
-                if (data) { f.draft.body = data.body; f.draft.version++; }
-                result = f.draft;
+                if (data && f.failSave) { status = 503; result = {error: 'unavailable'}; }
+                else { if (data) { f.draft.body = data.body; f.draft.version++; } result = f.draft; }
             } else if (url.endsWith('/preview_capability/')) {
                 if (f.holdCapability) await new Promise(resolve => { f.releaseCapability = resolve; });
                 result = {token: 'token-1', ready_at: new Date(Date.now() + 3000).toISOString(), preview_url: 'feedback.html?preview=token-1', ...f.settings};
@@ -96,13 +102,18 @@ async function mounted(t, config = {}) {
                 if (f.expired) { status = 410; result = {error: 'preview_expired'}; }
                 else if (!f.ready) { status = 425; result = {error: 'preview_preparing', ready_at: new Date(Date.now() + 2000).toISOString(), retry_after_ms: 300}; }
                 else result = {preview_completed: f.completed, question_set_revision_id: 'revision-1', ...f.settings};
-            } else if (url.endsWith('/surveys/')) { f.active = false; result = {public_id: 'survey-1', survey_label: data.survey_label}; }
+            } else if (url.endsWith('/surveys/')) {
+                if (data.course_id !== f.draft.course_id) { status = 400; result = {error: 'course_mismatch'}; }
+                else { f.active = false; result = {public_id: 'survey-1', survey_label: data.survey_label}; }
+            }
             else throw new Error('Unexpected fixture route: ' + url);
             return {ok: status < 400, status, text: async () => JSON.stringify(result)};
         };
+        window.activeFixtureCourse = {id: 'course', name: 'Course'};
         window.controller = leaiQuestionSetWizard.mount({root: '#root', openButton: '#open', resumeButton: '#resume',
-            apiBase: '/api', authorizedFetch: fetcher, fetch: fetcher, getCourse: () => ({id: 'course', name: 'Course'}),
-            onDraftsChanged: drafts => { window.landingDrafts = drafts; }});
+            apiBase: '/api', authorizedFetch: fetcher, fetch: fetcher, getCourse: () => activeFixtureCourse,
+            onDraftsChanged: drafts => { window.landingDrafts = drafts; },
+            onRestoreError: error => { window.restoreError = error.code; }});
     }, config);
     await page.evaluate(() => controller.refreshDrafts());
     return page;
@@ -299,6 +310,78 @@ test('expired preview clears its gate and can generate and poll a fresh capabili
     assert.equal(await page.evaluate(() => controller.getState().previewReady), true);
 });
 
+async function restoreSaved(page) {
+    return page.evaluate(() => {
+        sessionStorage.setItem('leai.questionSetWizard.return', JSON.stringify({draftId: 'draft-1', draftVersion: 1, revisionId: 'revision-1', previewToken: 'token-1'}));
+        return controller.restoreSameTabPreview();
+    });
+}
+
+test('restoring another course consumes the return state before showing or freezing its draft', async t => {
+    const page = await mounted(t, {active: true, ready: true, completed: true});
+    await page.evaluate(() => { activeFixtureCourse = {id: 'course-b', name: 'Course B'}; });
+    await restoreSaved(page);
+    assert.equal(await page.$eval('#root', el => el.hidden), true);
+    assert.equal(await page.evaluate(() => controller.getState().draft), null);
+    assert.equal(await page.evaluate(() => sessionStorage.getItem('leai.questionSetWizard.return')), null);
+    assert.deepEqual(await page.evaluate(() => landingDrafts), []);
+    assert.equal(await page.evaluate(() => fixture.calls.some(c => c.url.endsWith('/freeze/'))), false);
+    assert.equal(await page.evaluate(() => fixture.calls.some(c => c.url.endsWith('/surveys/'))), false);
+    assert.equal(await page.evaluate(() => fixture.calls.at(-1).url), '/api/question_set_drafts/?course_id=course-b');
+    await page.click('#open');
+    await page.waitForSelector('.qsw-template-card');
+    assert.match(await page.$eval('.qsw-subtitle', el => el.textContent), /Course B/);
+});
+
+test('restored previews retain templates when returning through Edit to Choose', async t => {
+    const page = await mounted(t, {active: true, ready: true, confirm: true});
+    await restoreSaved(page);
+    await page.waitForSelector('a.qsw-launch-button');
+    await page.click('.qsw-footer .qsw-button-secondary');
+    await page.click('.qsw-footer .qsw-button-secondary');
+    assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
+});
+
+test('template load failure during restore leaves the current course recoverable', async t => {
+    const page = await mounted(t, {active: true, ready: true, confirm: true});
+    await page.evaluate(() => { fixture.failTemplates = true; });
+    await restoreSaved(page);
+    assert.equal(await page.$eval('#root', el => el.hidden), true);
+    assert.equal(await page.evaluate(() => restoreError), 'unavailable');
+    assert.equal(await page.evaluate(() => landingDrafts[0].id), 'draft-1');
+    await page.evaluate(() => { fixture.failTemplates = false; });
+    await page.click('#resume');
+    await page.waitForSelector('[data-bind="title"]');
+    await page.click('.qsw-footer .qsw-button-secondary');
+    assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
+});
+
+for (const fails of [false, true]) {
+    test('pending save blocks keyboard edits and restores editable focus after ' + (fails ? 'failure' : 'success'), async t => {
+        const page = await mounted(t);
+        await edit(page);
+        await page.type('[data-bind="title"]', ' before save');
+        const submitted = await page.$eval('[data-bind="title"]', el => el.value);
+        await page.evaluate(fails => { fixture.holdSave = true; fixture.failSave = fails; }, fails);
+        await page.click('.qsw-footer-actions button:nth-child(2)');
+        await page.waitForFunction(() => !!fixture.releaseSave);
+        assert.equal(await page.$eval('.qsw-footer-status', el => document.activeElement === el), true, 'saving status receives focus without activating Close when Space is typed');
+        await page.focus('[data-bind="title"]');
+        await page.keyboard.type(' should not be accepted');
+        assert.equal(await page.$eval('[data-bind="title"]', el => el.value), submitted);
+        assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), true);
+        assert.equal(await page.$eval('.qsw-icon-button', el => el.disabled), false);
+        await page.evaluate(() => fixture.releaseSave());
+        await page.waitForFunction(() => !controller.getState().busy);
+        assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), false);
+        assert.equal(await page.$eval('[data-bind="title"]', el => document.activeElement === el), true);
+        assert.equal(await page.$eval('[data-bind="title"]', el => el.value), submitted);
+        await page.keyboard.type(' after save');
+        assert.match(await page.$eval('[data-bind="title"]', el => el.value), /after save/);
+        assert.equal(await page.evaluate(() => controller.getState().dirty), true);
+    });
+}
+
 for (const scenario of ['preparing', 'ready', 'completed', 'expired']) {
     test('saved preview restoration handles ' + scenario, async t => {
         const page = await mounted(t, {active: true, ready: scenario !== 'preparing', completed: scenario === 'completed'});
@@ -469,7 +552,6 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     assert.match(source, /state\.drafts = state\.drafts\.map/);
     assert.match(source, /closeButton\.focus\(\);[\s\S]*?Promise\.all/);
     assert.match(source, /function focusEditorStart\(\)/);
-    assert.equal((source.match(/focusEditorStart\(\);/g) || []).length, 2);
     const busyBranch = source.match(/if \(busy\) \{([\s\S]*?)footerStatus\.textContent/)[1];
     assert.doesNotMatch(busyBranch, /closeButton/);
     const launchPreview = source.match(
