@@ -356,6 +356,30 @@ test('template load failure during restore leaves the current course recoverable
     assert.equal(await page.$$eval('.qsw-template-card', els => els.length), 1);
 });
 
+test('Tab and Shift+Tab stay inside the modal from pending-save status focus', async t => {
+    const page = await mounted(t);
+    await edit(page);
+    await page.type('[data-bind="title"]', ' before save');
+    await page.evaluate(() => { fixture.holdSave = true; });
+    await page.click('.qsw-footer-actions button:nth-child(2)');
+    await page.waitForFunction(() => !!fixture.releaseSave);
+    assert.equal(await page.$eval('.qsw-footer-status', el => document.activeElement === el), true);
+    for (const key of ['Tab', 'Shift+Tab']) {
+        await page.focus('.qsw-footer-status');
+        for (let count = 0; count < 3; count++) {
+            if (key === 'Shift+Tab') await page.keyboard.down('Shift');
+            await page.keyboard.press('Tab');
+            if (key === 'Shift+Tab') await page.keyboard.up('Shift');
+            assert.equal(await page.$eval('#root', el => el.contains(document.activeElement)), true, key + ' stays in the dialog');
+            assert.equal(await page.$eval('.qsw-icon-button', el => document.activeElement === el), true);
+        }
+    }
+    assert.equal(await page.$eval('[data-bind="title"]', el => el.disabled), true);
+    await page.evaluate(() => fixture.releaseSave());
+    await page.waitForFunction(() => !controller.getState().busy);
+    assert.equal(await page.$eval('[data-bind="title"]', el => document.activeElement === el && !el.disabled), true);
+});
+
 for (const fails of [false, true]) {
     test('pending save blocks keyboard edits and restores editable focus after ' + (fails ? 'failure' : 'success'), async t => {
         const page = await mounted(t);
