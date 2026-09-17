@@ -39,11 +39,13 @@ test('replacement, settings, preparation metadata and publication bind the exact
         error.status === 425 && error.ready_at === '2026-09-14T12:00:03Z' && error.retry_after_ms === 750);
 });
 
-test('Structured Feedback is first and initializes after course authentication', () => {
+test('the unified Feedback Builder initializes after course authentication', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', 'PromptDesigner.html'), 'utf8');
     const tabs = html.match(/<div class="mode-tabs"[\s\S]*?<\/div>/)[0];
+    assert.match(tabs, /hidden/);
     assert.deepEqual([...tabs.matchAll(/data-mode="([^"]+)"/g)].map(match => match[1]), ['form', 'group', 'general']);
     assert.match(html.match(/function enterApp\(\)[\s\S]*?\/\/ ===== MODE TABS/)[0], /applyMode\('form'\)/);
+    assert.match(html, /leaiFeedbackBuilderV12\.mount/);
     assert.doesNotMatch(html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/[^\n]*/g, ''), /structured reflection/i);
 });
 
@@ -62,6 +64,14 @@ test.after(async () => { if (browser) await browser.close(); });
 async function mounted(t, config = {}) {
     const page = await browser.newPage();
     t.after(() => page.close());
+    page.click = async selector => {
+        const point = await page.$eval(selector, node => {
+            node.scrollIntoView({block: 'center', inline: 'center'});
+            const box = node.getBoundingClientRect();
+            return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+        });
+        await page.mouse.click(point.x, point.y);
+    };
     await page.setViewport({width: 1000, height: 650});
     await page.setContent('<button id="open">Create a new structured feedback</button><button id="resume">Continue your previous session</button><div id="root"></div>');
     await page.addStyleTag({path: path.join(__dirname, '..', 'leai-question-set-wizard.css')});
@@ -193,7 +203,11 @@ test('Generate saves then freezes then issues; backend readiness gates a monoton
     assert.deepEqual(writes.slice(-3), ['/api/question_set_drafts/draft-1/', '/api/question_set_drafts/draft-1/freeze/', '/api/question_set_revisions/revision-1/preview_capability/']);
     assert.equal(await page.$('a.qsw-launch-button'), null);
     const before = await page.$eval('[role="progressbar"]', el => Number(el.getAttribute('aria-valuenow')));
-    await page.waitForFunction(() => fixture.calls.filter(c => c.url.endsWith('/question_set_preview/token-1/')).length >= 2);
+    await new Promise(resolve => setTimeout(resolve, 900));
+    assert.ok(
+        await page.evaluate(() => fixture.calls.filter(c => c.url.endsWith('/question_set_preview/token-1/')).length) >= 2,
+        'preview readiness is polled again after the server retry interval',
+    );
     const after = await page.$eval('[role="progressbar"]', el => Number(el.getAttribute('aria-valuenow')));
     assert.ok(after >= before && after < 100);
     assert.equal(await page.$eval('.qsw-preparation-fill', el => getComputedStyle(el).transitionDuration), '0s');
@@ -548,6 +562,7 @@ test('wizard save, freeze, preview, and survey creation preserve the revision ga
         week_number: 3,
         opens_at: '2026-09-11T12:00:00.000Z',
         expires_at: '2026-09-18T12:00:00.000Z',
+        team_configuration_id: null,
     });
 });
 
@@ -597,30 +612,30 @@ test('same-tab preview return state keeps only the identifiers needed to restore
     );
 });
 
-test('Prompt Designer exposes the real four-step wizard and keeps legacy schema setup secondary', () => {
+test('Prompt Designer exposes the unified five-step builder and hides legacy creation', () => {
     const html = fs.readFileSync(
         path.join(__dirname, '..', 'PromptDesigner.html'),
         'utf8',
     );
     assert.match(html, /leai-question-set-wizard\.css/);
     assert.match(html, /leai-question-set-wizard\.js/);
+    assert.match(html, /leai-feedback-builder-v12\.css/);
+    assert.match(html, /leai-feedback-builder-v12\.js/);
     assert.match(html, /id="question-set-wizard-open"/);
     assert.match(html, /id="question-set-wizard-root"/);
     assert.match(html, /Advanced: use an existing course schema/);
-    assert.match(html, /Create a new structured feedback/);
+    assert.match(html, /Create new feedback/);
     assert.match(html, /Continue your previous session/);
     assert.match(html, /shouldConfirmModeSwitch\(modeDirty\[currentMode\]\)/);
     assert.match(html, /questionSetWizardController\.close\(false\)/);
     assert.match(html, /if \(restored !== false\) return/);
-    assert.match(html, /leaiQuestionSetWizard\.mount/);
+    assert.match(html, /leaiFeedbackBuilderV12\.mount/);
     const formSurveyRenderer = html.match(
         /function buildFormSurveyItem\(s\) \{([\s\S]*?)\n    function loadFormSurveys/,
     )[1];
-    assert.match(
-        formSurveyRenderer,
-        /if \(!s\.question_set_revision_id\) \{[\s\S]*?appendChild\(dupBtn\)[\s\S]*?appendChild\(editBtn\)[\s\S]*?appendChild\(deleteBtn\)/,
-    );
-    assert.match(html, /s\.question_set_revision_id[\s\S]*?\? 'Structured feedback'/);
+    assert.doesNotMatch(formSurveyRenderer, /appendChild\(dupBtn\)/);
+    assert.match(html, /Team · Guided/);
+    assert.match(html, /Individual · Open/);
     assert.doesNotMatch(html, /close or duplicate it later/i);
 
     const source = fs.readFileSync(
@@ -662,6 +677,15 @@ test('Prompt Designer exposes the real four-step wizard and keeps legacy schema 
     assert.match(source, /onDraftsChanged/);
     assert.match(source, /restoreSameTabPreview/);
     assert.match(source, /api\.listDrafts\(activeCourse\.id\)[\s\S]*?notifyDraftsChanged\(\)/);
+
+    const v12Source = fs.readFileSync(
+        path.join(__dirname, '..', 'leai-feedback-builder-v12.js'),
+        'utf8',
+    );
+    assert.match(v12Source, /\['Audience', 'Format', 'Build', 'Preview', 'Publish'\]/);
+    assert.match(v12Source, /Students receive one shared link and select their own team/);
+    assert.match(v12Source, /Two-person teams are fully supported/);
+    assert.doesNotMatch(v12Source, /confirm\([^)]*(remove|delete)/i);
 });
 
 test('Prompt Designer columns resist long published-survey content', () => {

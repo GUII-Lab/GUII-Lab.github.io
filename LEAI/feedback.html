@@ -2098,6 +2098,10 @@
                     gptConfig = Object.assign({}, previewConfig, normalizedCourseDownloadSettings(previewConfig));
                     window.leaiBotName = 'LEAI';
                     $('h2').text(previewConfig.survey_label || previewConfig.name || 'Question set preview');
+                    if (previewConfig.mode !== 'form') {
+                        initGpt(gptConfig);
+                        return null;
+                    }
                     return activateFormMode(previewConfig).then(function (active) {
                         if (!active) throw new Error('preview_schema_unavailable');
                         initGpt(gptConfig);

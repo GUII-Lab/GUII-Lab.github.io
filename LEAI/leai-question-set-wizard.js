@@ -58,8 +58,13 @@
             };
         }
         return {
-            listTemplates: function () {
-                return auth('/question_set_templates/');
+            listTemplates: function (audience, collectionStyle) {
+                var query = '';
+                if (audience || collectionStyle) {
+                    query = '?audience=' + encodeURIComponent(audience || '') +
+                        '&collection_style=' + encodeURIComponent(collectionStyle || '');
+                }
+                return auth('/question_set_templates/' + query);
             },
             listDrafts: function (courseId) {
                 return auth('/question_set_drafts/?course_id=' + encodeURIComponent(courseId));
@@ -71,17 +76,53 @@
                     ...(confirmAbandonActive === true ? { confirm_abandon_active: true } : {}),
                 }));
             },
+            createFeedbackDraft: function (source) {
+                return auth('/question_set_drafts/', jsonOptions('POST', {
+                    course_id: source.courseId,
+                    audience: source.audience,
+                    collection_style: source.collectionStyle,
+                    source_kind: source.sourceKind,
+                    source_template_revision_id: source.sourceTemplateRevisionId || null,
+                    ...(source.confirmAbandonActive === true ? { confirm_abandon_active: true } : {}),
+                }));
+            },
             getDraft: function (draftId) {
                 return auth('/question_set_drafts/' + encodeURIComponent(draftId) + '/');
             },
-            saveDraft: function (draftId, expectedVersion, body) {
+            saveDraft: function (draftId, expectedVersion, body, saveOptions) {
+                saveOptions = saveOptions || {};
                 return auth(
                     '/question_set_drafts/' + encodeURIComponent(draftId) + '/',
                     jsonOptions('PATCH', {
                         expected_version: expectedVersion,
                         body: body,
+                        ...(saveOptions.idempotencyKey ? { idempotency_key: saveOptions.idempotencyKey } : {}),
+                        ...(saveOptions.checkpointReason ? { checkpoint_reason: saveOptions.checkpointReason } : {}),
                     }),
                 );
+            },
+            listVersions: function (draftId, versionId) {
+                var query = versionId ? '?version_id=' + encodeURIComponent(versionId) : '';
+                return auth('/question_set_drafts/' + encodeURIComponent(draftId) + '/versions/' + query);
+            },
+            restoreVersion: function (draftId, expectedVersion, versionId, idempotencyKey) {
+                return auth('/question_set_drafts/' + encodeURIComponent(draftId) + '/restore/',
+                    jsonOptions('POST', {
+                        expected_version: expectedVersion,
+                        version_id: versionId,
+                        idempotency_key: idempotencyKey,
+                    }));
+            },
+            getAuthoringConversation: function (draftId) {
+                return auth('/question_set_drafts/' + encodeURIComponent(draftId) + '/authoring_conversation/');
+            },
+            runAuthoring: function (draftId, expectedVersion, instruction, idempotencyKey) {
+                return auth('/question_set_drafts/' + encodeURIComponent(draftId) + '/authoring_runs/',
+                    jsonOptions('POST', {
+                        expected_version: expectedVersion,
+                        instruction: instruction,
+                        idempotency_key: idempotencyKey,
+                    }));
             },
             freezeDraft: function (draftId, expectedVersion) {
                 return auth(
@@ -117,8 +158,32 @@
                         opens_at: source.opensAt,
                         expires_at: source.expiresAt,
                         preview_token: source.previewToken,
+                        team_configuration_id: source.teamConfigurationId || null,
                     }),
                 );
+            },
+            listTeamConfigurations: function (courseId) {
+                return auth('/team_configurations/?course_id=' + encodeURIComponent(courseId));
+            },
+            createTeamConfiguration: function (source) {
+                return auth('/team_configurations/create/', jsonOptions('POST', {
+                    course_id: source.courseId,
+                    name: source.name,
+                    label_prefix: source.labelPrefix || 'Team',
+                    teams: source.teams,
+                }));
+            },
+            savePrivateTemplate: function (revisionId, name, description) {
+                return auth('/question_set_revisions/' + encodeURIComponent(revisionId) + '/templates/',
+                    jsonOptions('POST', {name: name, description: description || ''}));
+            },
+            publishTemplate: function (templateId, revisionId) {
+                return auth('/question_set_templates/' + encodeURIComponent(templateId) + '/community/',
+                    jsonOptions('POST', {revision_id: revisionId}));
+            },
+            withdrawTemplate: function (templateId) {
+                return auth('/question_set_templates/' + encodeURIComponent(templateId) + '/community/',
+                    {method: 'DELETE'});
             },
         };
     }
