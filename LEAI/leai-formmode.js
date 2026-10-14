@@ -1133,6 +1133,11 @@
 
     function renderSectionHtml(section, slot, fallbackAnswer, esc, transcript) {
         var html = '';
+        if (section.answer_source === 'orchestrator') {
+            return '<table><thead><tr><th>Question</th><th>Original student response</th></tr></thead><tbody>' + section.fields.map(function (field) {
+                return '<tr><td>' + esc(field.label) + '</td><td>' + esc((slot || {})[field.id] || '').replace(/\n/g, '<br>') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        }
         var attributed = attributedFieldResponses(section, transcript);
         if (attributed) {
             html += '<table><thead><tr><th>Question</th><th>Original student response</th></tr></thead><tbody>';
@@ -1207,6 +1212,9 @@
     }
 
     function renderSectionMarkdown(section, slot, fallbackAnswer, transcript) {
+        if (section.answer_source === 'orchestrator') {
+            return section.fields.map(function (field) { return '**' + field.label + '**\n\n' + ((slot || {})[field.id] || ''); }).join('\n\n');
+        }
         var attributed = attributedFieldResponses(section, transcript);
         if (attributed) {
             var exactLines = [];
@@ -1365,6 +1373,10 @@
             var fallback = extractSectionAnswer(s, transcript);
             var attributed = attributedFieldResponses(s, transcript);
 
+            if (s.answer_source === 'orchestrator') {
+                children.push(table(['Question', 'Original student response'], s.fields.map(function (field) { return [field.label, (slot || {})[field.id] || '']; })));
+                return;
+            }
             if (attributed) {
                 children.push(table(
                     ['Question', 'Original student response'],

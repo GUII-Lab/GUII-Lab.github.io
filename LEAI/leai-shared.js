@@ -287,6 +287,8 @@ var leaiAnalysis = {
                     return (field ? field[1] : content).trim();
                 }).filter(Boolean);
                 var responseText = studentMsgs.length ? studentMsgs : pdfAnswers;
+                const structured = s.structured_sessions && s.structured_sessions[sid];
+                if (structured) responseText = Array.from(new Set(Object.values(structured.answer_excerpts || {}).flat()));
                 if (responseText.length) {
                     const weekNumber = s.week_number || 0;
                     weekCounters[weekNumber] = (weekCounters[weekNumber] || 0) + 1;

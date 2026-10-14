@@ -952,7 +952,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     </div>
 </div>
 
-<script src="leai-shared.js?v=v0.3.0"></script>
+<script src="leai-shared.js?v=ulia-1"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
 <script>
@@ -2501,6 +2501,12 @@ When the conversation has organically reached a natural close — i.e. the stude
                 clearChildren(box);
                 var body = rec.body || {};
                 var sections = body.sections || [];
+                const instructions = document.getElementById('form-survey-instructions');
+                if (instructions) {
+                    instructions.readOnly = body.engine === 'orchestrator-v1';
+                    if (instructions.readOnly) instructions.value = 'Use the selected reflection questions and follow-up rules.';
+                    else if (instructions.value === 'Use the selected reflection questions and follow-up rules.') instructions.value = '';
+                }
                 var head = document.createElement('div');
                 head.style.cssText = 'font-weight:600;margin-bottom:6px';
                 head.textContent = (body.title || rec.title || rec.schema_id) +

@@ -920,13 +920,14 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js?v=v0.3.0"></script>
+    <script src="leai-shared.js?v=ulia-1"></script>
     <script src="leai-completion.js?v=v0.3.0"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
          in feedback.html below — see ensureDocxLoaded(). -->
-    <script src="leai-formmode.js?v=v0.3.0"></script>
+    <script src="leai-formmode.js?v=ulia-1"></script>
+    <script src="leai-orchestration.js?v=ulia-1"></script>
     <script src="leai-version.js"></script>
     <script>
 
@@ -1294,6 +1295,7 @@
                     || typeof leaiCompletion.buildProgressSnapshot !== 'function') {
                 return base;
             }
+            if (orchestratedClient) return {version:1, mode:'form', complete:currentMainStripComplete(), schema_id:formMode.schemaId};
             if (mode !== 'form' || !formMode.active || !formMode.state) {
                 return leaiCompletion.buildProgressSnapshot(base);
             }
@@ -1325,6 +1327,7 @@
             var payload = {
                 public_id: publicId,
                 session_id: sessionId,
+                ...(orchestratedClient ? {expected_version:orchestratedClient.getState().version} : {}),
                 progress_snapshot: buildCertificateProgressSnapshot({
                     mode: source.mode || 'general',
                     persistedStudentMessageCount: source.persistedStudentMessageCount || 0,
@@ -1410,6 +1413,7 @@
         // activate or change form mode — a survey is form-mode iff its
         // database record says so. This is what makes a missing/typo'd
         // param impossible to confuse with a non-form survey.
+        let orchestratedClient = null;
         var formMode = {
             active: false,
             schema: null,
@@ -1482,6 +1486,14 @@
             }
 
             return schemaP.then(function (schema) {
+                if (schema.engine === 'orchestrator-v1') {
+                    if (typeof leaiOrchestration === 'undefined') throw new Error('Reflection client unavailable');
+                    orchestratedClient = leaiOrchestration.createClient({api: API, publicId: gpt.public_id, sessionId: window.sessionData.sessionID});
+                    formMode.active = true;
+                    formMode.schemaId = schemaId;
+                    formMode.schema = schema;
+                    return true;
+                }
                 // FormSchema bodies are week-agnostic (one row reused across
                 // weeks 6/7/9/10), so the body's `week` is the seed week, not
                 // the survey's actual week. Prefer the FeedbackGPT row's
@@ -1520,7 +1532,7 @@
 
         function renderFormModeProgress() {
             if (!formMode.active || !formMode.state) return;
-            var label = leaiFormMode.progressLabel(formMode.state);
+            var label = orchestratedClient ? orchestratedClient.getState().progress.label : leaiFormMode.progressLabel(formMode.state);
             var el = document.getElementById('formmode-progress');
             if (!el) {
                 el = document.createElement('div');
@@ -1557,6 +1569,7 @@
         }
 
         function currentMainStripComplete() {
+            if (orchestratedClient) return !!(orchestratedClient.getState() && orchestratedClient.getState().review_ready);
             if (formMode.active && formMode.state &&
                     typeof leaiFormMode !== 'undefined' &&
                     typeof leaiFormMode.isComplete === 'function') {
@@ -1575,6 +1588,7 @@
                 firstStudentPersistState: _mainFirstStudentPersistState,
                 complete: currentMainStripComplete(),
             });
+            if (orchestratedClient && !currentMainStripComplete()) { state.certificateEnabled = false; state.documentEnabled = false; if (state.certificate) state.certificate.enabled = false; if (state.document) { state.document.enabled = false; state.document.label = 'Finish the reflection to download'; } if (state.certificate) state.certificate.label = 'Finish the reflection for a certificate'; }
             if (!state.showStrip) {
                 if (_mainStripUi && _mainStripUi.strip) _mainStripUi.strip.hidden = true;
                 return;
@@ -1602,6 +1616,7 @@
                             complete: currentMainStripComplete(),
                         }).then(function (result) {
                             _mainStripNoteText = 'Certificate downloaded: ' + result.filename;
+                            if (orchestratedClient) return orchestratedClient.resume().then(applyOrchestratedPayload);
                         }).catch(function (err) {
                             if (err && err.status === 409) {
                                 _mainStripNoteText = err.message;
@@ -1609,6 +1624,7 @@
                                 _mainStripNoteText = 'Could not download your certificate right now. Your chat and reflection download still work; please try again.';
                             }
                         }).finally(function () {
+                            if (orchestratedClient && chatLocked) setInputBusy(true);
                             _mainCertificateBusy = false;
                             updateMainDownloadStrip();
                         });
@@ -1621,13 +1637,14 @@
                 progressLabel: (formMode.active && formMode.state &&
                         typeof leaiFormMode !== 'undefined' &&
                         typeof leaiFormMode.progressLabel === 'function')
-                    ? (leaiFormMode.progressLabel(formMode.state) || '')
+                    ? (orchestratedClient ? orchestratedClient.getState().progress.label : (leaiFormMode.progressLabel(formMode.state) || ''))
                     : '',
                 silent: !!(opts && opts.silent),
                 readyCelebrateText: (!state.showDocument && state.showCertificate)
                     ? '✓ Conversation complete — your certificate is ready'
                     : null,
             });
+            if (orchestratedClient && chatLocked) _mainStripUi.helpEl.textContent = 'Your final reflection is saved. You can download it again.';
         }
 
         function renderFormModeDownloadStrip() {
@@ -1766,6 +1783,7 @@
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
             chatLocked = false;
+            if (orchestratedClient) { startOrchestratedChat(); return; }
             _mainFirstStudentPersistPromise = null;
             _mainFirstStudentPersistState = 'idle';
             _mainPersistedStudentMessageCount = 0;
@@ -1828,6 +1846,72 @@
         // the in-group rehydrateChat path: rebuilds chatHistory, renders each
         // turn with its original timestamp, and walks the form-mode engine so
         // section coverage / progress label match the live state pre-refresh.
+        function applyOrchestratedPayload(data) {
+            const section = data.schema.sections[data.progress.section_index - 1];
+            formMode.schema = data.schema;
+            formMode.state = {schema:data.schema, slots:data.slots, current_area_index:data.progress.section_index,
+                field_cursor:Math.max(0, section.fields.findIndex(function (f) { return f.id === data.progress.item_id; }))};
+            chatHistory = data.messages.map(function (m) { return attributedChatTurn(m.sent_by === 'user-message' ? 'user' : 'assistant', m.content, m); });
+            $('#transcription').empty();
+            data.messages.forEach(function (m) { appendMessage(m.sent_by, m.content, {skipPersist:true, timestamp:m.created_at, referred:!!m.referred}); });
+            _mainPersistedStudentMessageCount = data.messages.filter(function (m) { return m.sent_by === 'user-message'; }).length;
+            _mainFirstStudentPersistState = _mainPersistedStudentMessageCount ? 'saved' : 'idle';
+            chatLocked = data.status === 'finalized';
+            if (chatLocked) { const hint = document.querySelector('.leai-revise-hint span'); if (hint) hint.textContent = 'Your final reflection is saved. You can download it again.'; }
+            renderFormModeProgress();
+            updateMainDownloadStrip();
+        }
+
+        function orchestrationError(error) {
+            _mainStripNoteText = error.status === 409 ? 'The conversation changed. Your text is still here; review the current question before sending.' : 'Your response did not save. Press Send to retry the same response.';
+            if (error.status === 403) { showInactive('closed'); return; }
+            let note = document.getElementById('orchestration-error');
+            if (!note) { note = document.createElement('p'); note.id = 'orchestration-error'; note.setAttribute('role','alert'); document.querySelector('.chat-footer-inner').appendChild(note); }
+            note.textContent = error.message === 'engine_unavailable' ? 'This reflection is temporarily unavailable. Please try again later.'
+                : error.message === 'invalid_text' ? 'Please shorten your response and send it again. Your text is still here.' : _mainStripNoteText;
+        }
+
+        function startOrchestratedChat() {
+            setInputBusy(true);
+            renderResumeCopyChip();
+            orchestratedClient.start({terms_consent:true, research_consent:getResearchConsent()}).then(applyOrchestratedPayload).catch(orchestrationError).finally(function () { setInputBusy(!orchestratedClient.getState() || chatLocked); });
+        }
+
+        function sendOrchestratedMessage(providedText) {
+            if ($('#messageInput').prop('disabled')) return;
+            const text = providedText || $('#messageInput').val().trim();
+            if (!text) return;
+            const pending = orchestratedClient.getPending();
+            setInputBusy(true);
+            showTypingIndicator();
+            (pending ? orchestratedClient.retry() : orchestratedClient.send(text)).then(function (data) {
+                applyOrchestratedPayload(data);
+                // Do not discard new text edited while a failed request was pending.
+                if ($('#messageInput').val().trim() === (pending ? pending.text : text)) $('#messageInput').val('').css('height','auto');
+                if (window.leaiMainMicCtrl && window.leaiMainMicCtrl.resetSession) window.leaiMainMicCtrl.resetSession();
+                const note = document.getElementById('orchestration-error'); if (note) note.remove();
+            }).catch(function (error) {
+                if (error.status === 409) applyOrchestratedPayload(orchestratedClient.getState());
+                orchestrationError(error);
+            }).finally(function () { hideTypingIndicator(); setInputBusy(chatLocked); });
+        }
+
+        function downloadOrchestratedReflection(format) {
+            const clientState = orchestratedClient.getState();
+            if (!clientState || !clientState.review_ready) { _mainStripNoteText = 'Finish the reflection before downloading.'; updateMainDownloadStrip(); return; }
+            setInputBusy(true);
+            orchestratedClient.finalize().then(function (snapshot) {
+                formMode.state.schema = snapshot.schema;
+                formMode.state.slots = snapshot.slots;
+                chatLocked = true;
+                return (format === 'docx' ? ensureDocxLoaded() : Promise.resolve()).then(function () { return _buildFormModeBlob(format); });
+            }).then(function (file) {
+                const link = document.createElement('a'); link.href = URL.createObjectURL(file.blob); link.download = file.filename;
+                document.body.appendChild(link); link.click(); link.remove(); setTimeout(function () { URL.revokeObjectURL(link.href); },1000);
+                updateMainDownloadStrip();
+            }).catch(function (error) { if (error.status === 409) applyOrchestratedPayload(orchestratedClient.getState()); orchestrationError(error); }).finally(function () { setInputBusy(chatLocked); });
+        }
+
         function replayResumedConversation(messages) {
             if (!messages || !messages.length) return;
             _mainPersistedStudentMessageCount = countPersistedStudentMessages(messages);
@@ -1857,6 +1941,8 @@
                             // student can be nudged a second time.
                             leaiFormMode.afterTurn(formMode.state, m.content, {
                                 referred: !!m.referred,
+                                formResponsePhase: m.form_response_phase || null,
+                                formFieldId: m.form_field_id || null,
                             });
                         }
                     } catch (e) { /* replay is best-effort */ }
@@ -2026,7 +2112,7 @@
                 var startFlow = function () { initGpt(surveyConfig); };
                 if (surveyConfig.mode === 'form') {
                     startFlow = function () {
-                        activateFormMode(surveyConfig).then(function () { initGpt(surveyConfig); });
+                        activateFormMode(surveyConfig).then(function (active) { if (active) initGpt(surveyConfig); else showInactive('closed'); });
                     };
                 }
 
@@ -2702,7 +2788,7 @@
                     progressLabel: (formMode.active && formMode.state &&
                             typeof leaiFormMode !== 'undefined' &&
                             typeof leaiFormMode.progressLabel === 'function')
-                        ? (leaiFormMode.progressLabel(formMode.state) || '')
+                        ? (orchestratedClient ? orchestratedClient.getState().progress.label : (leaiFormMode.progressLabel(formMode.state) || ''))
                         : '',
                     silent: !!stripOpts.silent,
                     readyCelebrateText: (!state.showDocument && state.showCertificate)
@@ -2805,6 +2891,8 @@
                                 // flag is what re-latches the referral gate.
                                 leaiFormMode.afterTurn(formMode.state, m.content, {
                                     referred: !!m.referred,
+                                    formResponsePhase: m.form_response_phase || null,
+                                    formFieldId: m.form_field_id || null,
                                 });
                             }
                         } catch (e) { /* replay best-effort */ }
@@ -3010,6 +3098,12 @@
                                     // Carried through so rehydrateChat can
                                     // re-latch the referral gate.
                                     referred: !!m.referred,
+                                    form_schema_id: m.form_schema_id || null,
+                                    form_schema_version: m.form_schema_version == null ? null : m.form_schema_version,
+                                    form_section_id: m.form_section_id || null,
+                                    form_field_id: m.form_field_id || null,
+                                    form_field_label: m.form_field_label || null,
+                                    form_response_phase: m.form_response_phase || null,
                                 };
                             }),
                         });
@@ -3089,14 +3183,15 @@
         // - Contains no identifying info → anonymity preserved.
         function getOrCreateAnonSessionId(surveyId) {
             var key = 'leai_survey_session_' + (surveyId || 'default');
-            var existing = sessionStorage.getItem(key);
+            var existing = null;
+            try { existing = sessionStorage.getItem(key); } catch (error) {}
             if (existing) return existing;
             var uuid = (window.crypto && crypto.randomUUID)
                 ? crypto.randomUUID()
                 : 'id_' + Date.now().toString(36) + '_' +
                   Math.random().toString(36).slice(2, 10) +
                   Math.random().toString(36).slice(2, 10);
-            sessionStorage.setItem(key, uuid);
+            try { sessionStorage.setItem(key, uuid); } catch (error) {}
             return uuid;
         }
 
@@ -3377,7 +3472,8 @@
         }
 
         function setInputBusy(busy) {
-            if (chatLocked) return;
+            if (orchestratedClient && chatLocked) busy = true;
+            else if (chatLocked) return;
             $('#messageInput').prop('disabled', busy);
             $('#sendMessage').prop('disabled', busy);
             $('#micButton').prop('disabled', busy);
@@ -3410,6 +3506,7 @@
         }
 
         function handleSendMessage() {
+            if (orchestratedClient) { sendOrchestratedMessage(); return; }
             if ($('#messageInput').prop('disabled')) return;
             var message = $('#messageInput').val().trim();
             if (message) {
@@ -3501,6 +3598,7 @@
         });
 
         function getAIresponse(transcription) {
+            if (orchestratedClient) { sendOrchestratedMessage(transcription); return; }
             chatHistory.push(attributedChatTurn('user', transcription, currentFormResponseAttribution()));
 
             // ── form-mode pre-call hook ──────────────────────────────────
@@ -3891,6 +3989,7 @@
         }
 
         function downloadFormModeReflection(format) {
+            if (orchestratedClient) { downloadOrchestratedReflection(format); return; }
             if (!formMode.active || !formMode.state) return;
             var modal = ensureFormModeModal();
             var transcript = collectFormModeTranscript();
