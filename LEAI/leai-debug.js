@@ -18,10 +18,35 @@
             ...(body?{body:JSON.stringify(body)}:{})});
         const data=await response.json();
         if (!response.ok) {
-            const error=new Error(response.status===401?'Debug login expired. Sign in to the course again.':data.error==='debug_disabled'?'Debug is off for this course.':data.error || 'Debug state unavailable.');
+            const error=new Error(response.status===401?'Debug login expired. Sign in to the course again.':data.error==='debug_disabled'?'Debug is off for this course.':
+                data.error==='settings_conflict'?'Debug settings changed in another window. Review the saved setting and try again.':data.error || 'Debug state unavailable.');
             error.status=response.status; throw error;
         }
         return data;
+    }
+    function createSettingsClient(api,courseId) {
+        let saved;
+        return {
+            async load(){saved=await request(api,'settings',{course_id:courseId});return saved;},
+            async save(enabled){
+                if(!saved)throw new Error('Load debug settings before saving.');
+                saved=await request(api,'settings',{course_id:courseId},{course_id:courseId,enabled,expected_version:saved.version});
+                // Notify other researcher tabs. They re-read the authorized server state.
+                try { root.localStorage.setItem('leai_debug_settings_changed',JSON.stringify({courseId,version:saved.version})); } catch (_) {}
+                return saved;
+            }
+        };
+    }
+    function messageSnapshots(data,messages) {
+        const first=messages.find(m=>m.sent_by==='ai-message' && m.form_field_id);
+        const intro=messages.find(m=>m.sent_by==='ai-message');
+        return messages.filter(m=>m.sent_by==='ai-message').flatMap(message=>{
+            let event=data.events.find(e=>e.assistant_sequence===message.sequence);
+            if(!event && first===message)event=data.events.find(e=>e.event==='started' && e.after.item_id===message.form_field_id);
+            // The saved start transaction contains both the welcome and first question.
+            if(!event && message===intro && message.sequence===1)event=data.events.find(e=>e.event==='started');
+            return [{sequence:message.sequence,event:event || null}];
+        });
     }
     const RESULT_LABELS={answered:'Answered',partial:'Partial answer',declined:'Declined to answer',unknown:'No answer known',not_applicable:'Not applicable',active:'In progress'};
     const ACTION_LABELS={ask_main:'Asked the main question',follow_up:'Asked a follow-up',clarify:'Asked for clarification',review_ready:'Opened review'};
@@ -167,13 +192,33 @@
         });container.appendChild(exportButton);
         return ()=>{if(exportUrl)root.URL.revokeObjectURL(exportUrl);};
     }
-    function createPanel(api,publicId,sessionId,{live=false}={}) {
+    function createPanel(api,publicId,sessionId,{live=false,messageContainer}={}) {
         if(!getAuth())return null;
         const details=disclosure('Recorded schema state');addStyles(details);
         if(live){details.hidden=true;details.open=true;}
         const status=node('p');status.setAttribute('role','status');status.setAttribute('aria-live','polite');details.appendChild(status);
         const content=node('div');details.appendChild(content);
         let generation=0,version=null,available=false,waiting=false,lastFailure=null,disposeExport=()=>{};
+        function clearReplyStates(){messageContainer?.querySelectorAll('[data-debug-message]').forEach(element=>element.remove());}
+        function showReplyStates(data) {
+            if(!messageContainer)return;
+            clearReplyStates();
+            const articles=[...messageContainer.querySelectorAll('article.msg-ai[data-orchestration-sequence]')];
+            const messages=articles.map(article=>({sequence:Number(article.dataset.orchestrationSequence),sent_by:'ai-message',form_field_id:article.dataset.orchestrationItemId || null}));
+            for(const snapshot of messageSnapshots(data,messages)){
+                const article=articles.find(a=>Number(a.dataset.orchestrationSequence)===snapshot.sequence);
+                const state=snapshot.event?.after;
+                const panel=disclosure('Recorded schema state · '+(state?(state.item_id || 'Review')+' · '+phaseLabel(state):'Not recorded for this reply'));
+                panel.dataset.debugMessage=String(snapshot.sequence);
+                if(snapshot.event){
+                    const view=describeState(data,state),grid=node('dl');grid.className='debug-grid';
+                    field(grid,'Stage',view.phase);field(grid,'Decision',describeEvent(data,snapshot.event).action);
+                    field(grid,'Next step',view.next);field(grid,'Saved state','Version '+state.version);
+                    panel.appendChild(grid);showEvent(panel,data,snapshot.event,true);
+                } else panel.appendChild(node('p','No debug snapshot was saved for this reply.'));
+                article.appendChild(panel);
+            }
+        }
         async function refresh(expected) {
             const id=++generation;
             try{
@@ -181,12 +226,16 @@
                 if(id!==generation || waiting || (expected!==undefined&&data.version!==expected))return;
                 available=true;details.hidden=false;
                 details.querySelector('summary').textContent='Recorded schema state';
-                status.textContent=lastFailure?'The last request failed. Showing the last saved state.':'Up to date · saved on the server';disposeExport();disposeExport=render(content,data,live);
-            }catch(error){if(id!==generation)return;disposeExport();content.replaceChildren();
+                status.textContent=lastFailure?'The last request failed. Showing the last saved state.':'Up to date · saved on the server';disposeExport();disposeExport=render(content,data,live);showReplyStates(data);
+            }catch(error){if(id!==generation)return;disposeExport();content.replaceChildren();clearReplyStates();
                 if(error.status===404){details.hidden=true;available=false;}
                 else {status.textContent=error.message;details.querySelector('summary').textContent='Recorded schema state';}}
         }
         details.addEventListener('toggle',()=>{if(details.open&&!live)refresh();});
+        if(live && root.addEventListener)root.addEventListener('storage',event=>{
+            if(event.key===AUTH_KEY && !getAuth()){++generation;details.hidden=true;available=false;clearReplyStates();disposeExport();content.replaceChildren();}
+            else if(event.key==='leai_debug_settings_changed' && version!==null)refresh(version);
+        });
         return {element:details,
             async update(data){version=data.version;waiting=false;lastFailure=null;
                 status.textContent='Loading the saved state…';
@@ -217,6 +266,6 @@
         async function load(){try{const data=await request(api,'settings',{course_id:courseId});toggle.checked=data.enabled;version=data.version;toggle.disabled=false;status.textContent=data.enabled?'Debug ON · new turns are recorded':'Debug OFF';}catch(e){status.textContent=e.message;}}
         toggle.addEventListener('change',async()=>{toggle.disabled=true;try{const data=await request(api,'settings',{course_id:courseId},{course_id:courseId,enabled:toggle.checked,expected_version:version});version=data.version;toggle.checked=data.enabled;status.textContent=data.enabled?'Debug ON · new turns are recorded':'Debug OFF';}catch(e){status.textContent=e.message;await load();}finally{toggle.disabled=false;}});load();
     }
-    root.leaiDebug={getAuth,createPanel,mountReview,mountSettings};
-    if(typeof module!=='undefined' && module.exports)module.exports={describeState,describeEvent};
+    root.leaiDebug={getAuth,createPanel,mountReview,mountSettings,createSettingsClient};
+    if(typeof module!=='undefined' && module.exports)module.exports={describeState,describeEvent,messageSnapshots};
 })(typeof globalThis!=='undefined'?globalThis:this);

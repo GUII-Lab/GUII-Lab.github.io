@@ -921,7 +921,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
     <script src="leai-shared.js?v=ulia-debug-1"></script>
-<script src="leai-debug.js?v=ulia-debug-2"></script>
+<script src="leai-debug.js?v=ulia-debug-3"></script>
     <script src="leai-completion.js?v=v0.3.0"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
@@ -1490,7 +1490,8 @@
             return schemaP.then(function (schema) {
                 if (schema.engine === 'orchestrator-v1') {
                     if (typeof leaiOrchestration === 'undefined') throw new Error('Reflection client unavailable');
-                    orchestrationDebugPanel = window.leaiDebug && leaiDebug.createPanel(API, gpt.public_id, window.sessionData.sessionID, {live:true});
+                    orchestrationDebugPanel = window.leaiDebug && leaiDebug.createPanel(API, gpt.public_id, window.sessionData.sessionID,
+                        {live:true,messageContainer:document.getElementById('transcription')});
                     orchestratedClient = leaiOrchestration.createClient({api: API, publicId: gpt.public_id, sessionId: window.sessionData.sessionID,
                         onStatus:function (info) { if (orchestrationDebugPanel) orchestrationDebugPanel.status(info); }});
                     formMode.active = true;
@@ -1857,7 +1858,8 @@
                 field_cursor:Math.max(0, section.fields.findIndex(function (f) { return f.id === data.progress.item_id; }))};
             chatHistory = data.messages.map(function (m) { return attributedChatTurn(m.sent_by === 'user-message' ? 'user' : 'assistant', m.content, m); });
             $('#transcription').empty();
-            data.messages.forEach(function (m) { appendMessage(m.sent_by, m.content, {skipPersist:true, timestamp:m.created_at, referred:!!m.referred}); });
+            data.messages.forEach(function (m) { appendMessage(m.sent_by, m.content, {skipPersist:true, timestamp:m.created_at, referred:!!m.referred,
+                sequence:m.sequence,itemId:m.form_field_id}); });
             _mainPersistedStudentMessageCount = data.messages.filter(function (m) { return m.sent_by === 'user-message'; }).length;
             _mainFirstStudentPersistState = _mainPersistedStudentMessageCount ? 'saved' : 'idle';
             chatLocked = data.status === 'finalized';
@@ -1868,6 +1870,7 @@
         }
 
         function orchestrationError(error) {
+            if (error.status === 410 && error.message === 'session_archived') { chatLocked = true; showInactive('archived'); return; }
             _mainStripNoteText = error.status === 409 ? 'The conversation changed. Your text is still here; review the current question before sending.' : 'Your response did not save. Press Send to retry the same response.';
             if (error.status === 403) { showInactive('closed'); return; }
             let note = document.getElementById('orchestration-error');
@@ -2029,8 +2032,9 @@
 
         function showInactive(reason) {
             var icons = { closed: '🔒', expired: '⏰', not_yet_open: '📅' };
-            var titles = { closed: 'This survey is closed', expired: 'This survey has ended', not_yet_open: 'Not open yet' };
+            var titles = { closed: 'This survey is closed', expired: 'This survey has ended', not_yet_open: 'Not open yet', archived: 'This conversation has been archived' };
             var msgs = {
+                archived: 'This conversation is no longer available through this link. Its saved records have been retained.',
                 closed: 'This feedback session has been closed by your instructor.',
                 expired: 'The submission window for this survey has passed.',
                 not_yet_open: 'This survey is not open yet. Check back later.'
@@ -3498,6 +3502,10 @@
                 el = buildStudentMessage(message, timeStr);
             }
             transcriptionDiv.appendChild(el);
+            if (Number.isInteger(opts.sequence)) {
+                el.dataset.orchestrationSequence = String(opts.sequence);
+                if (opts.itemId) el.dataset.orchestrationItemId = opts.itemId;
+            }
             // opts.skipPersist suppresses storeData() so a server-side resume
             // doesn't write duplicate FeedbackMessage rows for messages that
             // already exist on the backend.

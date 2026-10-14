@@ -100,6 +100,7 @@
             width: 100%; max-width: 520px; background: var(--surface-card);
             border: 1px solid var(--surface-mid); border-radius: var(--radius-md);
             padding: 22px 24px; box-shadow: 0 18px 48px rgba(0,0,0,0.25);
+            max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box;
         }
         .exp-panel-header {
             display: flex; align-items: center; justify-content: space-between;
@@ -115,6 +116,8 @@
         }
         .exp-close:hover { color: var(--text); background: var(--surface-low); }
         .exp-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+        #login-screen, .app-main, .exp-panel { --muted: #52636e; }
+        .cb-debug-field > label { text-transform: none; letter-spacing: normal; }
     </style>
 </head>
 <body>
@@ -315,6 +318,14 @@
             </label>
             <p class="cb-hint">Controls the existing Word download in structured surveys. This setting is independent of completion certificates.</p>
         </div>
+        <div class="cb-field cb-debug-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-debug-enabled" disabled style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Researcher debug: show recorded state under each AI reply</span>
+            </label>
+            <p class="cb-hint">Records each turn's stage and decisions for this course. Visible in chat only after instructor sign-in; ordinary students do not see debug. Missing earlier records are not reconstructed.</p>
+            <p class="cb-hint" id="cb-debug-msg" role="status" aria-live="polite">Loading debug settings…</p>
+        </div>
         <div class="exp-actions">
             <button class="btn btn-primary" id="exp-save-btn">Save</button>
             <span id="exp-save-msg"></span>
@@ -322,11 +333,13 @@
     </div>
 </div>
 
-<script src="leai-shared.js?v=v0.3.0"></script>
+<script src="leai-shared.js?v=ulia-debug-1"></script>
+<script src="leai-debug.js?v=ulia-debug-3"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
     var session = null;
+    let debugSettings = null;
     var DEFAULT_BOT_NAME = 'LEAI';
     var DEFAULT_REFERRAL_TEXT = 'your instructor or TA during their office hours';
 
@@ -346,7 +359,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.valid) {
-                session = { courseId: courseId, courseName: data.course_name };
+                session = { courseId: courseId, courseName: data.course_name, debug_token:data.debug_token, debug_token_expires_at:data.debug_token_expires_at };
                 saveSession(session);
                 enterApp();
             } else {
@@ -380,6 +393,7 @@
             el('login-msg').textContent = '';
         });
         loadCustomization();
+        loadDebugSettings();
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -404,13 +418,39 @@
         if (e.key === 'Escape') setExpOpen(false);
     });
 
-    el('exp-save-btn').addEventListener('click', function () {
-        var btn = this;
+    function showDebugSetting(data) {
+        el('cb-debug-enabled').checked = data.enabled;
+        el('cb-debug-msg').textContent = data.enabled ? 'Debug ON · new turns are recorded.' : 'Debug OFF.';
+    }
+
+    async function loadDebugSettings() {
+        debugSettings = null;
+        el('cb-debug-enabled').checked = false;
+        el('cb-debug-enabled').disabled = true;
+        if (!window.leaiDebug || !leaiDebug.getAuth(session.courseId)) {
+            el('cb-debug-msg').textContent = 'Debug is unavailable with this course login. Sign in again if debug has been enabled for your course.';
+            return;
+        }
+        const client = leaiDebug.createSettingsClient(API, session.courseId);
+        try {
+            showDebugSetting(await client.load());
+            debugSettings = client;
+            el('cb-debug-enabled').disabled = false;
+        } catch (error) { el('cb-debug-msg').textContent = error.message; }
+    }
+
+    el('exp-save-btn').addEventListener('click', async function () {
+        const btn = this;
+        const saveDebug = debugSettings && !el('cb-debug-enabled').disabled;
+        const debugEnabled = el('cb-debug-enabled').checked;
         btn.disabled = true;
-        var msg = el('exp-save-msg');
+        el('cb-debug-enabled').disabled = true;
+        const msg = el('exp-save-msg');
         msg.className = '';
         msg.textContent = 'Saving…';
-        fetch(API + '/update_course_customization/', {
+        let otherSaved = false;
+        try {
+        const response = await fetch(API + '/update_course_customization/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -419,22 +459,21 @@
                 completion_certificate_enabled: el('cb-completion-certificate-enabled').checked,
                 parsed_document_download_enabled: el('cb-parsed-document-enabled').checked
             })
-        })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (res) {
-            if (res.ok) {
-                el('cb-identity-enabled').checked = !!res.j.identity_tracking_enabled;
-                el('cb-completion-certificate-enabled').checked = !!res.j.completion_certificate_enabled;
-                el('cb-parsed-document-enabled').checked = !!res.j.parsed_document_download_enabled;
-                msg.className = 'ok';
-                msg.textContent = 'Saved.';
-            } else {
-                msg.className = 'err';
-                msg.textContent = res.j.error || 'Save failed.';
-            }
-        })
-        .catch(function () { msg.className = 'err'; msg.textContent = 'Network error.'; })
-        .finally(function () { btn.disabled = false; });
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Save failed.');
+        el('cb-identity-enabled').checked = !!data.identity_tracking_enabled;
+        el('cb-completion-certificate-enabled').checked = !!data.completion_certificate_enabled;
+        el('cb-parsed-document-enabled').checked = !!data.parsed_document_download_enabled;
+        otherSaved = true;
+        if (saveDebug) showDebugSetting(await debugSettings.save(debugEnabled));
+        msg.className = 'ok'; msg.textContent = 'Saved.';
+        } catch (error) {
+            if (otherSaved && saveDebug) {
+                msg.className = 'err'; msg.textContent = 'Other experimental settings saved; debug was not saved. ' + error.message;
+                await loadDebugSettings();
+            } else { msg.className = 'err'; msg.textContent = error.message || 'Network error.'; }
+        } finally { btn.disabled = false; el('cb-debug-enabled').disabled = !debugSettings; }
     });
 
     // ===== FORM <-> PREVIEW =====

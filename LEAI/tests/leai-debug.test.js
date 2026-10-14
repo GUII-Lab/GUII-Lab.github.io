@@ -3,7 +3,35 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createClient}=require('../leai-orchestration.js');
 const fs=require('node:fs'),vm=require('node:vm');
-const {describeState,describeEvent}=require('../leai-debug.js');
+const {describeState,describeEvent,messageSnapshots}=require('../leai-debug.js');
+
+test('per-reply state uses the recorded assistant sequence and never fills a missing turn with current state',()=>{
+    const started={event:'started',after:{item_id:'P1',phase:'rating'}};
+    const turn={event:'turn',assistant_sequence:4,after:{item_id:'P2',phase:'answer'}};
+    const messages=[{sequence:1,sent_by:'ai-message',form_field_id:null},{sequence:2,sent_by:'ai-message',form_field_id:'P1'},
+        {sequence:3,sent_by:'user-message',form_field_id:'P1'},{sequence:4,sent_by:'ai-message',form_field_id:'P2'},
+        {sequence:6,sent_by:'ai-message',form_field_id:'P3'},{sequence:8,sent_by:'ai-message',form_field_id:null}];
+    const mapped=messageSnapshots({events:[started,turn],current:{phase:'complete',status:'finalized'}},messages);
+    assert.deepEqual(mapped.map(m=>m.sequence),[1,2,4,6,8]);
+    assert.equal(mapped[0].event,started);assert.equal(mapped[1].event,started);
+    assert.equal(mapped[2].event,turn);
+    assert.equal(mapped[3].event,null);
+});
+
+test('Experimental Save uses the course capability and latest settings version, and preserves conflicts',async()=>{
+    let calls=[],conflict=false,version=3;
+    const sandbox={URLSearchParams,localStorage:{getItem:()=>JSON.stringify({token:'signed-fixture',courseId:'course-a',expiresAt:'2099-01-01T00:00:00Z'})},
+        fetch:async(url,options)=>{calls.push({url,...options});
+            if(conflict && options.method==='PATCH')return {ok:false,status:409,json:async()=>({error:'settings_conflict'})};
+            return {ok:true,json:async()=>({enabled:options.method==='PATCH'?JSON.parse(options.body).enabled:true,version:options.method==='PATCH'?++version:version})};}};
+    vm.runInNewContext(fs.readFileSync('LEAI/leai-debug.js','utf8'),sandbox);
+    const client=sandbox.leaiDebug.createSettingsClient('/api','course-a');
+    await client.load();await client.save(false);
+    assert.equal(calls[1].headers.Authorization,'Bearer signed-fixture');
+    assert.deepEqual(JSON.parse(calls[1].body),{course_id:'course-a',enabled:false,expected_version:3});
+    conflict=true;await assert.rejects(client.save(true),/another window/);
+    assert.equal(JSON.parse(calls[2].body).expected_version,4);
+});
 
 test('readable state distinguishes review readiness, submission and unanswered results',()=>{
     const items=[{id:'P1',prompt:'Authored question',section_title:'Planning',response:{kind:'likert'},scale:[{value:4,label:'Agree'}]},

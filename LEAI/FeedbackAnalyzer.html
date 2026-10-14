@@ -907,7 +907,6 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
 <script src="leai-shared.js?v=ulia-debug-1"></script>
-<script src="leai-debug.js?v=ulia-debug-2"></script>
 <script src="leai-progress.js?v=20260809-3"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-pdf-ingest.js?v=v0.3.0"></script>
@@ -1127,7 +1126,6 @@
             document.getElementById('login-password').value = '';
             document.getElementById('login-msg').textContent = '';
         });
-        if (window.leaiDebug) leaiDebug.mountSettings(document.querySelector('#app .app-main .main'), API, session.courseId);
         loadData();
     }
 
@@ -3614,7 +3612,17 @@
                         if (field[1]) documentRows.push({source:'pdf', content:'Q: ' + ((entry.structured.item_labels || {})[field[0]] || field[0]) + '\n\nA: ' + field[1]});
                     });
                 });
-                if (documentRows.length) body.appendChild(renderPdfDocument(documentRows));
+                if (documentRows.length) {
+                    const answers = document.createElement('details');
+                    answers.className = 'response-answers';
+                    answers.style.cssText = 'margin:0 0 12px;overflow-wrap:anywhere;';
+                    const summary = document.createElement('summary');
+                    summary.textContent = 'Question answers · ' + documentRows.length;
+                    summary.style.cssText = 'cursor:pointer;font-weight:600;padding:8px 0;';
+                    answers.appendChild(summary);
+                    answers.appendChild(renderPdfDocument(documentRows));
+                    body.appendChild(answers);
+                }
             }
 
             // Per-response toolbar — currently just the resume-link copy
@@ -3624,8 +3632,6 @@
             if (entry.publicId && !sessionHasPdfMessage(msgs)) {
                 body.appendChild(buildResumeLinkToolbar(entry.publicId, entry.sessionId));
             }
-
-            if (entry.publicId && entry.structured && window.leaiDebug) leaiDebug.mountReview(body, API, entry.publicId, entry.sessionId);
 
             // Form-mode submissions (HCI 271 Week 6 reflection) get the
             // instructor insights panel — F5 (report) + F6 (TTS playback).
