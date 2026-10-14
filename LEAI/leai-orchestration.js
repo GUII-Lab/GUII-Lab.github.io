@@ -8,7 +8,13 @@
         let consent = null;
         let busy = false;
         const identity = { public_id: options.publicId, session_id: options.sessionId };
+        function status(phase, operation, code) {
+            // A display observer must never change whether an answer is persisted.
+            if (options.onStatus) try { options.onStatus({phase, operation, status:code, version:state && state.version}); } catch (_) {}
+        }
         async function request(operation, body) {
+            status('waiting', operation);
+            try {
             const response = await transport(options.api + '/form_orchestration/' + operation + '/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(Object.assign({}, identity, body)), cache: 'no-store',
@@ -19,7 +25,9 @@
                 error.status = response.status;
                 throw error;
             }
+            status('saved', operation, response.status);
             return data;
+            } catch (error) { status('failed', operation, error.status); throw error; }
         }
         async function resume() {
             state = await request('session', consent || {});

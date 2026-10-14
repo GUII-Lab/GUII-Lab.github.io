@@ -9,8 +9,18 @@ const SESSION_KEY = 'leai_session';
 function getSession() {
     try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch (e) { return null; }
 }
-function saveSession(data) { sessionStorage.setItem(SESSION_KEY, JSON.stringify(data)); }
-function clearSession() { sessionStorage.removeItem(SESSION_KEY); }
+function saveSession(data) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    if (data.debug_token && data.debug_token_expires_at) {
+        // Share the course-login capability with the student test tab; no password is stored.
+        try { localStorage.setItem('leai_debug_auth', JSON.stringify({courseId:data.courseId,
+            token:data.debug_token, expiresAt:data.debug_token_expires_at})); } catch (_) {}
+    }
+}
+function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY);
+    try { localStorage.removeItem('leai_debug_auth'); } catch (_) {}
+}
 
 // ===== UI HELPERS =====
 function setMsg(elId, text, type) {

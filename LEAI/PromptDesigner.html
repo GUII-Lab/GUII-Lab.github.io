@@ -952,7 +952,8 @@ When the conversation has organically reached a natural close — i.e. the stude
     </div>
 </div>
 
-<script src="leai-shared.js?v=ulia-1"></script>
+<script src="leai-shared.js?v=ulia-debug-1"></script>
+<script src="leai-debug.js?v=ulia-debug-2"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
 <script>
@@ -1064,9 +1065,9 @@ When the conversation has organically reached a natural close — i.e. the stude
         if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
     }
 
-    function lockCourse(courseId, courseName) {
+    function lockCourse(courseId, courseName, loginData) {
         activeCourse = { id: courseId, name: courseName };
-        saveSession({ courseId: courseId, courseName: courseName });
+        saveSession({ courseId: courseId, courseName: courseName, debug_token:loginData && loginData.debug_token, debug_token_expires_at:loginData && loginData.debug_token_expires_at });
         enterApp();
     }
 
@@ -2207,7 +2208,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            if (data.valid) { lockCourse(courseId, data.course_name); }
+            if (data.valid) { lockCourse(courseId, data.course_name, data); }
             else {
                 var errMsg = data.error || '';
                 var userMsg = (errMsg === 'Invalid password' || errMsg === 'Incorrect password.')

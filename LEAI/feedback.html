@@ -920,14 +920,15 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-    <script src="leai-shared.js?v=ulia-1"></script>
+    <script src="leai-shared.js?v=ulia-debug-1"></script>
+<script src="leai-debug.js?v=ulia-debug-2"></script>
     <script src="leai-completion.js?v=v0.3.0"></script>
     <!-- docx UMD bundle for client-side .docx generation in form-mapping mode.
          Lazy-loaded only when form-mode is active to avoid the ~200KB cost
          on non-form-mode survey pages. The actual <script> insertion happens
          in feedback.html below — see ensureDocxLoaded(). -->
     <script src="leai-formmode.js?v=ulia-1"></script>
-    <script src="leai-orchestration.js?v=ulia-1"></script>
+    <script src="leai-orchestration.js?v=ulia-debug-1"></script>
     <script src="leai-version.js"></script>
     <script>
 
@@ -1414,6 +1415,7 @@
         // database record says so. This is what makes a missing/typo'd
         // param impossible to confuse with a non-form survey.
         let orchestratedClient = null;
+        let orchestrationDebugPanel = null;
         var formMode = {
             active: false,
             schema: null,
@@ -1488,7 +1490,9 @@
             return schemaP.then(function (schema) {
                 if (schema.engine === 'orchestrator-v1') {
                     if (typeof leaiOrchestration === 'undefined') throw new Error('Reflection client unavailable');
-                    orchestratedClient = leaiOrchestration.createClient({api: API, publicId: gpt.public_id, sessionId: window.sessionData.sessionID});
+                    orchestrationDebugPanel = window.leaiDebug && leaiDebug.createPanel(API, gpt.public_id, window.sessionData.sessionID, {live:true});
+                    orchestratedClient = leaiOrchestration.createClient({api: API, publicId: gpt.public_id, sessionId: window.sessionData.sessionID,
+                        onStatus:function (info) { if (orchestrationDebugPanel) orchestrationDebugPanel.status(info); }});
                     formMode.active = true;
                     formMode.schemaId = schemaId;
                     formMode.schema = schema;
@@ -1859,6 +1863,7 @@
             chatLocked = data.status === 'finalized';
             if (chatLocked) { const hint = document.querySelector('.leai-revise-hint span'); if (hint) hint.textContent = 'Your final reflection is saved. You can download it again.'; }
             renderFormModeProgress();
+            if (orchestrationDebugPanel) { document.getElementById('transcription').appendChild(orchestrationDebugPanel.element); orchestrationDebugPanel.update(data); }
             updateMainDownloadStrip();
         }
 
