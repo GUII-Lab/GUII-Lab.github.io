@@ -1,0 +1,35 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "LEAI/Customizations.html"
+        ],
+        "createdAt": "2026-10-14T06:06:08.501Z",
+        "reason": "User confirmed preserving the original legacy LEAI interface; Inter is its existing shared font, not a new font choice."
+      },
+      {
+        "rule": "kicker-above-heading",
+        "value": "*",
+        "files": [
+          "LEAI/Customizations.html"
+        ],
+        "createdAt": "2026-10-14T06:06:18.304Z",
+        "reason": "User confirmed preserving legacy LEAI interface. The existing LEAI login-logo is product branding, not a newly generated decorative eyebrow."
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "LEAI/Customizations.html"
+        ],
+        "createdAt": "2026-10-14T06:06:18.405Z",
+        "reason": "Verified page uses existing --primary #006493. Purple is from unused linked shared [data-config-color=plum/indigo] selectors; Customizations has no config-colored elements."
+      }
+    ]
+  }
+}
