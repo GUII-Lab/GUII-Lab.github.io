@@ -52,7 +52,7 @@
     const ACTION_LABELS={ask_main:'Asked the main question',follow_up:'Asked a follow-up',clarify:'Asked for clarification',review_ready:'Opened review'};
     const CLOSURE_LABELS={no_knowledge:'No answer known',no_more_detail:'No more detail available',refused:'Student declined this part',not_applicable:'Not applicable'};
     const COMPONENT_LABELS={answer:'Answer',rating:'Rating',reflection:'Reflection'};
-    const DIAGNOSTIC_LABELS={missing_results:'Required assessment results are missing',stale_assessment:'Assessment belongs to a different turn',schema_validation:'Response did not match the required structure',invalid_evidence:'Answer evidence failed validation',invalid_scale:'Rating did not match the authored scale',invalid_transition:'Conversation action did not match the saved state',provider_output:'Provider response was incomplete or ambiguous',budget_exhausted:'Turn processing budget was exhausted',transport_error:'Provider request failed',proposal_validation:'Proposed update failed validation'};
+    const DIAGNOSTIC_LABELS={missing_results:'Required assessment results are missing',stale_assessment:'Assessment belongs to a different turn',stale_binding:'The request changed before saving',schema_validation:'Response did not match the required structure',invalid_evidence:'Answer evidence failed validation',invalid_scale:'Rating did not match the authored scale',invalid_transition:'Conversation action did not match the saved state',provider_output:'Provider response was incomplete or ambiguous',budget_exhausted:'Turn processing budget was exhausted',transport_error:'Provider request failed',proposal_validation:'Proposed update failed validation'};
     function phaseLabel(state) {
         if(state.status==='finalized')return 'Submitted';
         if(state.phase==='complete')return 'Ready for review';
@@ -103,6 +103,29 @@
                 same?'No answer saved; state unchanged':'Request did not save a new answer'};
     }
     function node(tag,text) { const n=root.document.createElement(tag); if(text!==undefined)n.textContent=text; return n; }
+    function describeDecision(event) {
+        const value=event.metrics?.decision_explanation;
+        if(!value?.action || !Array.isArray(value.items))return {available:false,items:[],label:'No decision justification recorded for this version.'};
+        return {available:true,label:value.submission==='committed'?'Saved decision':'Uncommitted proposal',
+            attempt:value.attempt,actionJustification:value.action.justification,
+            items:value.items.map(item=>({id:item.item_id,status:item.status,justification:item.justification,
+                evidence:(item.evidence || []).map(ref=>({sequence:ref.sequence,quote:ref.quote}))}))};
+    }
+    function showDecision(parent,event) {
+        if(event.event==='started' || event.event==='finalized')return;
+        const view=describeDecision(event),section=node('section');section.dataset.decisionExplanation='';
+        section.appendChild(node('h3','Why this decision'));
+        if(!view.available){section.appendChild(node('p',view.label));parent.appendChild(section);return;}
+        section.appendChild(node('p',view.label+(view.attempt?' · attempt '+view.attempt:'')));
+        section.appendChild(node('p',view.actionJustification));
+        for(const item of view.items){
+            section.appendChild(node('h4',item.id+' · '+(RESULT_LABELS[item.status] || item.status)));
+            section.appendChild(node('p',item.justification));
+            for(const ref of item.evidence){const quote=node('blockquote',ref.quote);
+                section.appendChild(node('p','Student message #'+ref.sequence));section.appendChild(quote);}
+        }
+        parent.appendChild(section);
+    }
     function disclosure(title) {
         const details=node('details');details.className='leai-debug';
         details.appendChild(node('summary',title));return details;
@@ -147,13 +170,14 @@
             field(transition,'After',(event.after.item_id || 'Review')+' · '+view.after.phase);details.appendChild(transition);}
         if(view.changes.length)showEvidence(details,view.changes);
         else details.appendChild(node('p',event.event==='started'?'No student answer recorded yet.':'No question result changed in this event.'));
+        showDecision(details,event);
         const metrics=event.metrics || {},calls=metrics.calls || [];
         if(calls.length || metrics.turn_processing_ms!==undefined){
             const timings=node('details');timings.appendChild(node('summary','Model and timing'));
             if(metrics.turn_processing_ms!==undefined)timings.appendChild(node('p','Turn processing: '+(metrics.turn_processing_ms/1000).toFixed(2)+' seconds'));
             for(const call of calls){const grid=node('dl');grid.className='debug-grid';
                 field(grid,'Model',call.model || 'Not recorded');
-                if(call.stage)field(grid,'Role',({assessment:'Answer assessment',dialogue:'Conversation',proposal:'Conversation proposal'})[call.stage] || 'Processing');
+                if(call.stage)field(grid,'Role',({assessment:'Answer assessment',dialogue:'Conversation',proposal:'Conversation proposal',unified:'Interpretation and conversation'})[call.stage] || 'Processing');
                 if(call.duration_ms!==undefined)field(grid,'Response time',(call.duration_ms/1000).toFixed(2)+' seconds');
                 if(call.input_tokens!==undefined)field(grid,'Input tokens',call.input_tokens);
                 if(call.output_tokens!==undefined)field(grid,'Output tokens',call.output_tokens);
@@ -280,5 +304,5 @@
         toggle.addEventListener('change',async()=>{toggle.disabled=true;try{const data=await request(api,'settings',{course_id:courseId},{course_id:courseId,enabled:toggle.checked,expected_version:version});version=data.version;toggle.checked=data.enabled;status.textContent=data.enabled?'Debug ON · new turns are recorded':'Debug OFF';}catch(e){status.textContent=e.message;await load();}finally{toggle.disabled=false;}});load();
     }
     root.leaiDebug={getAuth,createPanel,mountReview,mountSettings,createSettingsClient};
-    if(typeof module!=='undefined' && module.exports)module.exports={describeState,describeEvent,messageSnapshots};
+    if(typeof module!=='undefined' && module.exports)module.exports={describeState,describeEvent,messageSnapshots,describeDecision};
 })(typeof globalThis!=='undefined'?globalThis:this);
