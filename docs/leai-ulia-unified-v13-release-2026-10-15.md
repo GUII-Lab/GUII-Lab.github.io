@@ -79,3 +79,8 @@ This legacy acceptance does not complete canonical Advisor import/edit, arbitrar
 Deployment and installation are verified separately from model reliability: no new hosted conversation or answer was created during this release. Full dialogue acceptance above is the six local real-provider runs.
 
 Hosted Chrome entry readback: both actual production URLs loaded at390px, used`leai-debug.js?v=ulia-debug-5`, had zero page errors or overflow, and showed zero researcher panels to an anonymous browser. Each made only the real configuration GET; no conversation/answer POST was sent. No remote synthetic response was created or attributed to the local six.
+
+
+## Subsequent hosted six-run review
+
+The owner subsequently authorized soft archiving the old v86 six and rerunning six conversations on hosted v87. All six completed, and all 168 messages/86 events/172 snapshots were reviewed. Final committed records support scoped semantic acceptance, but there were two evidence-validation 503 failures recovered by same-input retries and two minor inaccuracies in researcher reasons. This is not an unconditional clean batch. See [the hosted review](leai-ulia-v13-hosted-six-review-2026-10-15.md) for exact failures, full counts and all six resume links. The earlier local result above remains specific to its local batch.
