@@ -323,18 +323,18 @@
             <div class="page-header">
                 <h1>
                     Prompt Designer
-                    <span class="mode-badge" id="mode-badge" data-mode="general">General Mode</span>
+                    <span class="mode-badge" id="mode-badge" data-mode="form">Form Mode</span>
                 </h1>
                 <p>Create and manage AI-powered feedback surveys for your course.</p>
             </div>
 
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
-                <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
+                <button class="mode-tab active" role="tab" data-mode="form" aria-selected="true">Individual Reflections</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
-                <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
+                <button class="mode-tab" role="tab" data-mode="general" aria-selected="false" hidden style="display:none">General Course Feedback</button>
             </div>
 
-            <div id="mode-panel-general" role="tabpanel">
+            <div id="mode-panel-general" role="tabpanel" style="display:none">
             <div class="layout">
                 <div>
                     <!-- New Survey -->
@@ -756,7 +756,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                  Schema bodies live in the FormSchema DB table — edit via
                  Django admin to revise without a redeploy.
                  ============================================================ -->
-            <div id="mode-panel-form" class="formmode-scope" role="tabpanel" style="display:none">
+            <div id="mode-panel-form" class="formmode-scope" role="tabpanel">
                 <div class="layout">
                     <div>
                         <div class="card" id="form-survey-card">
@@ -1062,7 +1062,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var isTestCourse = activeCourse && activeCourse.id.indexOf('test-') === 0;
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
-        if ((localStorage.getItem(MODE_KEY) || 'general') === 'form') initFormModePanel();
+        if ((localStorage.getItem(MODE_KEY) || 'form') === 'form') initFormModePanel();
     }
 
     function lockCourse(courseId, courseName, loginData) {
@@ -1085,6 +1085,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     const MODE_KEY = 'leai.promptDesigner.mode';
 
     function applyMode(mode) {
+        if (mode !== 'group' && mode !== 'form') mode = 'form';
         document.querySelectorAll('.mode-tab').forEach(function (t) {
             var isActive = t.dataset.mode === mode;
             t.classList.toggle('active', isActive);
@@ -1187,7 +1188,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     document.querySelectorAll('.mode-tab').forEach(function (tab) {
         tab.addEventListener('click', function () {
             var target = tab.dataset.mode;
-            if (target === (localStorage.getItem(MODE_KEY) || 'general')) return;
+            if (target === (localStorage.getItem(MODE_KEY) || 'form')) return;
             if (!confirm('Switch modes? Your unsaved fields will stay in this tab — you can come back to them.')) return;
             applyMode(target);
         });
@@ -2153,7 +2154,7 @@ When the conversation has organically reached a natural close — i.e. the stude
 
     // ===== AUTO-LOGIN FROM SESSION =====
     document.addEventListener('DOMContentLoaded', function () {
-        applyMode(localStorage.getItem(MODE_KEY) || 'general');
+        applyMode(localStorage.getItem(MODE_KEY) || 'form');
         var stored = getSession();
         if (stored && stored.courseId) {
             activeCourse = { id: stored.courseId, name: stored.courseName };

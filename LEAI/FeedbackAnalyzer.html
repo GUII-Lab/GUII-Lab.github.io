@@ -740,9 +740,9 @@
 
             <!-- Mode tabs -->
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
-                <button class="mode-tab active" role="tab" data-mode="general" aria-selected="true">General Course Feedback</button>
+                <button class="mode-tab active" role="tab" data-mode="form" aria-selected="true">Individual Reflections</button>
                 <button class="mode-tab" role="tab" data-mode="group" aria-selected="false">In-Group Feedback</button>
-                <button class="mode-tab" role="tab" data-mode="form" aria-selected="false">Structured Reflection</button>
+                <button class="mode-tab" role="tab" data-mode="general" aria-selected="false" hidden style="display:none">General Course Feedback</button>
                 <button class="mode-tab" role="tab" data-mode="students" aria-selected="false" id="students-tab-btn" style="display:none">Student Progress</button>
                 <button class="mode-tab" role="tab" data-mode="group-progress" aria-selected="false" id="group-progress-tab-btn" style="display:none">Group Progress</button>
             </div>
@@ -942,8 +942,8 @@
     // Mode tab — 'general' | 'group' | 'form'. Persisted so reload returns to the same tab.
     var MODE_KEY = 'leai.fa.mode';
     var currentMode = (function () {
-        try { const m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form' || m === 'students' || m === 'group-progress') ? m : 'general'; }
-        catch (e) { return 'general'; }
+        try { const m = localStorage.getItem(MODE_KEY); return (m === 'group' || m === 'form' || m === 'students' || m === 'group-progress') ? m : 'form'; }
+        catch (e) { return 'form'; }
     })();
 
     // sent_by role detection — backend stores 'user'/'assistant' for new
@@ -1214,7 +1214,7 @@
         bar.textContent = '';
 
         var courseChip = document.createElement('button');
-        courseChip.className = 'scope-chip active';
+        courseChip.className = 'scope-chip' + (currentScope.kind === 'course' ? ' active' : '');
         courseChip.textContent = 'Entire Course';
         courseChip.setAttribute('tabindex', '0');
         courseChip.addEventListener('click', function () {
@@ -1232,7 +1232,7 @@
             var emptyChip = document.createElement('span');
             emptyChip.style.cssText = 'font-size:0.78rem;color:var(--muted);margin-left:8px;align-self:center';
             emptyChip.textContent = currentMode === 'form'
-                ? 'No structured-reflection surveys yet.'
+                ? 'No individual-reflection surveys yet.'
                 : currentMode === 'group'
                 ? 'No in-group surveys yet.'
                 : 'No general-feedback surveys yet.';
@@ -1241,6 +1241,9 @@
         modeSurveys.forEach(function (s) {
             var chip = document.createElement('button');
             chip.className = 'scope-chip';
+            if (currentScope.kind === 'week' && currentScope.weekNumber === s.week_number && !bar.querySelector('.scope-chip.active')) {
+                chip.classList.add('active');
+            }
             chip.textContent = s.survey_label || ('Week ' + s.week_number);
             chip.setAttribute('tabindex', '0');
             // Lets goToWeekScope() drive the chip instead of duplicating the
@@ -3242,7 +3245,7 @@
                 return { rid: rid, pill_index: pillAssignment.ridToPill[rid] };
             });
 
-            var modeLabel = ({ general: 'General', group: 'In-Group', form: 'Structured Reflection' })[currentMode] || 'Course';
+            var modeLabel = ({ general: 'General', group: 'In-Group', form: 'Individual Reflections' })[currentMode] || 'Course';
             var weekLabel = currentScope.kind === 'week' && currentScope.weekNumber != null ? ' · Week ' + currentScope.weekNumber : '';
             leaiChat.createSession(session.courseId, {
                 title: 'Follow-up: ' + modeLabel + weekLabel,
@@ -5039,7 +5042,7 @@
         history.replaceState(null, '', window.location.pathname + window.location.search);
         document.querySelector('.mode-tabs').style.display = '';
         document.getElementById('mode-panel-response-detail').style.display = 'none';
-        applyMode(record ? record.mode : 'general');
+        applyMode(record ? record.mode : 'form');
         if (record) goToWeekScope(record.week);
     });
 
@@ -5051,8 +5054,8 @@
 
     // ===== MODE TAB SWITCHING =====
     function applyMode(mode) {
-        if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students' && mode !== 'group-progress') mode = 'general';
-        if (!modeIsAvailable(mode)) mode = 'general';
+        if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students' && mode !== 'group-progress') mode = 'form';
+        if (!modeIsAvailable(mode)) mode = 'form';
         currentMode = mode;
         try { localStorage.setItem(MODE_KEY, mode); } catch (e) {}
         // A student drill-down from one tab must not silently narrow another.
@@ -5108,9 +5111,11 @@
         if (trad) trad.style.display = '';
         if (qt)   qt.style.display   = '';
 
-        // Reset scope to course on tab entry so stale week selection from the
-        // other mode never leaks through, then re-render aggregate panel.
-        currentScope = { kind: 'course', weekNumber: null };
+        // Open the first survey in this mode; keep Entire Course available.
+        var modeSurveys = activeSurveys();
+        currentScope = modeSurveys.length
+            ? { kind: 'week', weekNumber: modeSurveys[0].week_number }
+            : { kind: 'course', weekNumber: null };
         renderScopeChips();
         onScopeChange();
 
