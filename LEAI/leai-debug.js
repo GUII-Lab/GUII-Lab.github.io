@@ -50,6 +50,9 @@
     }
     const RESULT_LABELS={answered:'Answered',partial:'Partial answer',declined:'Declined to answer',unknown:'No answer known',not_applicable:'Not applicable',active:'In progress'};
     const ACTION_LABELS={ask_main:'Asked the main question',follow_up:'Asked a follow-up',clarify:'Asked for clarification',review_ready:'Opened review'};
+    const CLOSURE_LABELS={no_knowledge:'No answer known',no_more_detail:'No more detail available',refused:'Student declined this part',not_applicable:'Not applicable'};
+    const COMPONENT_LABELS={answer:'Answer',rating:'Rating',reflection:'Reflection'};
+    const DIAGNOSTIC_LABELS={missing_results:'Required assessment results are missing',stale_assessment:'Assessment belongs to a different turn',schema_validation:'Response did not match the required structure',invalid_evidence:'Answer evidence failed validation',invalid_scale:'Rating did not match the authored scale',invalid_transition:'Conversation action did not match the saved state',provider_output:'Provider response was incomplete or ambiguous',budget_exhausted:'Turn processing budget was exhausted',transport_error:'Provider request failed',proposal_validation:'Proposed update failed validation'};
     function phaseLabel(state) {
         if(state.status==='finalized')return 'Submitted';
         if(state.phase==='complete')return 'Ready for review';
@@ -64,6 +67,9 @@
         return {...item,status:result ? (RESULT_LABELS[result.status] || 'Status not available') : 'Not recorded',
             rating:rating===null || rating===undefined?'Not given':String(rating)+(choice?' — '+choice.label:''),
             probes:result?.probes ?? 0,maxProbes:item.max_additional_probes,
+            closure:result?.closure?{label:CLOSURE_LABELS[result.closure.reason] || 'Recorded stopping reason',
+                components:(result.closure.components || []).map(c=>COMPONENT_LABELS[c] || c),
+                messages:[...new Set((result.closure.evidence || []).map(ref=>ref.sequence))].sort((a,b)=>a-b)}:null,
             messages:[...new Set(evidence.map(ref=>ref.sequence))].sort((a,b)=>a-b),
             targets:(item.coverage_targets || []).map(t=>({...t,status:({covered:'Covered',missing:'Missing',not_applicable:'Not applicable'})[result?.targets?.[t.id]] || 'Not recorded'}))};
     }
@@ -123,6 +129,8 @@
             part.appendChild(node('p',result.prompt));
             part.appendChild(node('p',(result.response?.kind==='likert'?'Rating: '+result.rating+' · ':'')+'Follow-ups: '+result.probes+(result.maxProbes!==undefined?' / '+result.maxProbes:'')));
             part.appendChild(node('p','Linked student messages: '+(result.messages.length?result.messages.map(n=>'#'+n).join(', '):'None recorded')));
+            if(result.closure)part.appendChild(node('p','Stopped: '+result.closure.label+' · '+result.closure.components.join(', ')+
+                ' · Student '+result.closure.messages.map(n=>'#'+n).join(', ')));
             for(const target of result.targets)part.appendChild(node('p',target.status+' — '+target.description));
             parent.appendChild(part);
         }
@@ -145,12 +153,16 @@
             if(metrics.turn_processing_ms!==undefined)timings.appendChild(node('p','Turn processing: '+(metrics.turn_processing_ms/1000).toFixed(2)+' seconds'));
             for(const call of calls){const grid=node('dl');grid.className='debug-grid';
                 field(grid,'Model',call.model || 'Not recorded');
+                if(call.stage)field(grid,'Role',({assessment:'Answer assessment',dialogue:'Conversation',proposal:'Conversation proposal'})[call.stage] || 'Processing');
                 if(call.duration_ms!==undefined)field(grid,'Response time',(call.duration_ms/1000).toFixed(2)+' seconds');
                 if(call.input_tokens!==undefined)field(grid,'Input tokens',call.input_tokens);
                 if(call.output_tokens!==undefined)field(grid,'Output tokens',call.output_tokens);
                 timings.appendChild(grid);}
             details.appendChild(timings);
         }
+        for(const issue of metrics.diagnostics || [])details.appendChild(node('p',
+            (issue.stage==='assessment'?'Answer assessment':issue.stage==='dialogue'?'Conversation':'Processing')+': '+
+            (DIAGNOSTIC_LABELS[issue.category] || 'Recorded validation failure')+' · attempt '+issue.attempt));
         parent.appendChild(details);
     }
     function render(container,data,live) {
@@ -174,6 +186,7 @@
         for(const result of view.results){const row=node('tr'),question=node('td'),answer=node('td');
             question.append(node('strong',result.id+(data.current.item_id===result.id?' · Current':'')),node('p',result.prompt));
             answer.appendChild(node('p',result.status));if(result.response?.kind==='likert')answer.appendChild(node('p','Rating: '+result.rating));
+            if(result.closure)answer.appendChild(node('p',result.closure.label+' · '+result.closure.components.join(', ')));
             if(result.messages.length || result.targets.length){const evidence=node('details');evidence.appendChild(node('summary','Answer links and coverage'));showEvidence(evidence,[result]);answer.appendChild(evidence);}
             row.append(question,answer,node('td',result.probes+(result.maxProbes!==undefined?' / '+result.maxProbes:'')));tbody.appendChild(row);}
         table.appendChild(tbody);questions.appendChild(table);
