@@ -16,6 +16,63 @@
             vertical-align: middle;
         }
 
+        /* Same dictation controls and states as the student composer. */
+        #micButton {
+            background: var(--surface-card);
+            color: var(--text);
+            border: 1px solid rgba(169,180,183,0.4);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-size: 1rem;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 44px; min-height: 44px;
+        }
+        #micButton:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+        #micButton:disabled { opacity: 0.45; cursor: not-allowed; }
+        #micButton.is-recording {
+            background: #c0392b; color: #fff; border-color: #c0392b;
+            animation: micPulse 1.2s ease-in-out infinite;
+        }
+        #micButton.is-busy { opacity: 0.7; cursor: progress; }
+        @keyframes micPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,0.55); }
+            50%      { box-shadow: 0 0 0 6px rgba(192,57,43,0); }
+        }
+        #micButton svg { width: 18px; height: 18px; }
+
+        /* Visual cue: live dictation streams interim words into the input.
+           A subtle tinted background tells the student the words they see
+           may still update before being finalised. */
+        textarea.leai-dictating, input.leai-dictating {
+            background: rgba(192, 57, 43, 0.06);
+            transition: background 0.15s;
+        }
+        .leai-live-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #c0392b; color: #fff;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.08em;
+            padding: 2px 6px; border-radius: 3px;
+            text-transform: uppercase;
+            position: absolute; top: -7px; right: -6px;
+            pointer-events: none;
+        }
+        .leai-live-badge::before {
+            content: ''; width: 5px; height: 5px; border-radius: 50%;
+            background: #fff;
+            animation: leaiLiveBlink 1s ease-in-out infinite;
+        }
+        @keyframes leaiLiveBlink {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.3; }
+        }
+        #micButton { position: relative; }
+
+
+        .chat-input-row textarea { min-width: 0; }
+
         /* Page header */
         .page-header {
             padding: 20px 28px 16px;
@@ -432,6 +489,14 @@
                 <div class="chat-input-area" id="chat-input-area" style="display:none">
                     <div class="chat-input-row">
                         <textarea id="chat-input" placeholder="Ask about your survey data..." rows="1"></textarea>
+                <button id="micButton" type="button" aria-label="Dictate" aria-pressed="false" title="Dictate (click to record, click again to stop)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
                         <button class="btn btn-sm" id="send-btn" style="height:52px;padding:0 18px">
                             <span class="material-symbols-outlined" style="font-size:18px">send</span>
                         </button>
@@ -502,7 +567,7 @@
 <!-- Markdown rendering for assistant messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.9"></script>
+<script src="leai-shared.js?v=v0.2.9&amp;chat-dictation=1"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -514,6 +579,7 @@
     var activeSessionId = null;
     var activeSessionData = null;
     var isSending = false;
+    let chatMicController = null;
     // Cached rid → response lookup for the logged-in course. Built once per
     // app entry by fetching the course feedback list, then used to synthesize
     // per-message sources for the drawer (the turn endpoint returns cited[]
@@ -634,7 +700,9 @@
     function enterApp() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
+        initChatDictation();
         initSidebar('nav-feedback-chat', function () {
+            disposeChatDictation();
             session = null;
             sessions = [];
             activeSessionId = null;
@@ -834,6 +902,8 @@
 
     // ===== SESSION SELECTION =====
     function selectSession(sessionId) {
+        disposeChatDictation();
+        initChatDictation();
         activeSessionId = sessionId;
         sessionStorage.setItem('leai_chat_active_' + session.courseId, sessionId);
 
@@ -877,6 +947,7 @@
     }
 
     function showNoSession() {
+        disposeChatDictation();
         activeSessionId = null;
         activeSessionData = null;
         document.getElementById('chat-header').style.display = 'none';
@@ -1274,6 +1345,8 @@
         if (!activeSessionId) return;
 
         isSending = true;
+        disposeChatDictation();
+        document.getElementById('micButton').disabled = true;
         input.value = '';
         document.getElementById('send-btn').disabled = true;
 
@@ -1336,6 +1409,7 @@
             })
             .finally(function () {
                 isSending = false;
+                initChatDictation();
                 document.getElementById('send-btn').disabled = false;
                 input.focus();
             });
@@ -1354,6 +1428,8 @@
 
     // ===== NEW CHAT =====
     function createNewChat() {
+        disposeChatDictation();
+        initChatDictation();
         leaiChat.createSession(session.courseId, {
             title: 'New chat',
             scope: defaultNewChatScope()
@@ -1678,6 +1754,76 @@
             closeScopePicker();
         }
     }
+
+    // Reuse the student's live/recorded speech engine; dictation only edits
+    // the draft. Only the existing Send/Enter handlers submit a chat turn.
+    function disposeChatDictation() {
+        if (chatMicController) chatMicController.destroy();
+        chatMicController = null;
+        const button = document.getElementById('micButton');
+        button.classList.remove('is-busy');
+        const badge = button.querySelector('.leai-live-badge');
+        if (badge) badge.remove();
+        button.title = 'Dictate (click to record, click again to stop)';
+    }
+
+    function initChatDictation() {
+        const button = document.getElementById('micButton');
+        if (typeof leaiSpeech === 'undefined' || !leaiSpeech.isSupported()) {
+            button.style.display = 'none';
+            return;
+        }
+        if (chatMicController) return;
+        button.disabled = isSending;
+        function setBadge(label) {
+            let badge = button.querySelector('.leai-live-badge');
+            if (!label) { if (badge) badge.remove(); return; }
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'leai-live-badge';
+                button.appendChild(badge);
+            }
+            badge.textContent = label;
+        }
+        function resetState() {
+            button.classList.remove('is-busy');
+            button.disabled = isSending;
+            setBadge(null);
+            button.title = 'Dictate (click to record, click again to stop)';
+        }
+        chatMicController = leaiSpeech.attachMicButton({
+            buttonEl: button,
+            targetEl: document.getElementById('chat-input'),
+            language: 'en-US',
+            mode: 'live',
+            prompt: 'Questions from a university instructor about classroom feedback.',
+            onStart: function () {
+                button.title = 'Listening — words appear as you speak';
+                setBadge(chatMicController.getMode() === 'live' ? 'LIVE' : 'REC');
+            },
+            onStop: function () {
+                setBadge(null);
+                if (chatMicController.getMode() === 'whisper') {
+                    button.classList.add('is-busy');
+                    button.disabled = true;
+                    button.title = 'Transcribing…';
+                } else {
+                    button.title = 'Dictate (click to record, click again to stop)';
+                }
+            },
+            onText: resetState,
+            onError: function (err) {
+                resetState();
+                console.warn('Dictation error:', err);
+                alert('Dictation failed: ' + (err && err.message ? err.message : err));
+            }
+        });
+    }
+
+    window.addEventListener('pagehide', disposeChatDictation);
+    window.addEventListener('pageshow', function () {
+        if (session && activeSessionId) initChatDictation();
+    });
 
     // ===== EVENT BINDINGS =====
     document.getElementById('new-chat-btn').addEventListener('click', createNewChat);

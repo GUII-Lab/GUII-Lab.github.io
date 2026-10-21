@@ -1365,6 +1365,7 @@ const leaiSpeech = (function () {
         // the textarea always reflects the recognizer's current view of the
         // full session transcript.
         rec.onresult = function (event) {
+            if (ctx.destroyed) return;
             ctx._gotAnyResultThisSession = true;
             var fullText = joinTranscripts(event.results);
             // Keep track of how much of the session has been finalised so we
@@ -1387,6 +1388,7 @@ const leaiSpeech = (function () {
         rec.onspeechend   = function () { log('speechend'); };
 
         rec.onerror = function (e) {
+            if (ctx.destroyed) return;
             log('error:', e && e.error, e && e.message);
             // 'aborted' & 'no-speech' are benign; onend decides what to do.
             if (e && (e.error === 'not-allowed' || e.error === 'service-not-allowed')) {
@@ -1409,6 +1411,7 @@ const leaiSpeech = (function () {
             log('end (userRecording=' + ctx.userRecording + ', got=' + ctx._gotAnyResultThisSession + ')');
             if (activeRecognizer === rec) activeRecognizer = null;
             ctx.recognizer = null;
+            if (ctx.destroyed) return;
 
             // User stop / hard error / 5-min ceiling → finalise + emit onStop.
             var stoppedIntentionally = !ctx.userRecording
@@ -1514,6 +1517,10 @@ const leaiSpeech = (function () {
     function startWhisper(opts, ctx) {
         return navigator.mediaDevices.getUserMedia({ audio: true })
             .then(function (s) {
+                if (ctx.destroyed) {
+                    s.getTracks().forEach(function (track) { track.stop(); });
+                    return;
+                }
                 ctx.stream = s;
                 var mime = pickMime();
                 var recorder;
@@ -1528,9 +1535,10 @@ const leaiSpeech = (function () {
                 ctx.chunks = [];
 
                 recorder.ondataavailable = function (ev) {
-                    if (ev.data && ev.data.size > 0) ctx.chunks.push(ev.data);
+                    if (!ctx.destroyed && ev.data && ev.data.size > 0) ctx.chunks.push(ev.data);
                 };
                 recorder.onstop = function () {
+                    if (ctx.destroyed) { ctx.cleanupStream(); return; }
                     var type = baseMime((ctx.recorder && ctx.recorder.mimeType) || pickMime());
                     var blob = new Blob(ctx.chunks, { type: type });
                     ctx.chunks = [];
@@ -1543,11 +1551,13 @@ const leaiSpeech = (function () {
                     }
                     if (opts.onStop) opts.onStop(blob);
                     transcribe(blob, opts).then(function (text) {
+                        if (ctx.destroyed) return;
                         // Whisper has no live region — drop the final
                         // transcript at the textarea caret directly.
                         ctx.inserter.insertAtCaret(text);
                         if (opts.onText) opts.onText(text);
                     }).catch(function (err) {
+                        if (ctx.destroyed) return;
                         if (opts.onError) opts.onError(err);
                         else console.error('STT error:', err);
                     });
@@ -1560,6 +1570,7 @@ const leaiSpeech = (function () {
                 if (opts.onStart) opts.onStart();
             })
             .catch(function (err) {
+                if (ctx.destroyed) return;
                 ctx.cleanupStream();
                 ctx.setRecording(false);
                 if (opts.onError) opts.onError(err);
@@ -1575,6 +1586,7 @@ const leaiSpeech = (function () {
         if (!btn) throw new Error('attachMicButton: buttonEl required');
 
         var ctx = {
+            destroyed: false,
             stream: null,
             recorder: null,
             recognizer: null,
@@ -1608,6 +1620,7 @@ const leaiSpeech = (function () {
         }
 
         function start() {
+            if (ctx.destroyed) return Promise.resolve();
             if (ctx.recording) return Promise.resolve();
             var live = shouldUseLive();
             // Consume the one-shot fallback flag so the click after this one
@@ -1659,6 +1672,9 @@ const leaiSpeech = (function () {
         btn.addEventListener('click', toggle);
 
         function destroy() {
+            // Ignore delayed recognition, permission and transcription results
+            // after the host has sent a draft or switched conversations.
+            ctx.destroyed = true;
             ctx.userRecording = false;   // suppress any auto-restart in onend
             stop();
             // Hard abort if Web Speech is still active in the background
