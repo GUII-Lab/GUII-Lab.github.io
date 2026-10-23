@@ -2826,22 +2826,8 @@
                 if (sentiment !== 'neutral') claim.className += ' sentiment-' + sentiment;
                 var cleanText = b.text.replace(/\s*\[R\d+\]/g, '').trim();
                 claim.appendChild(document.createTextNode(cleanText + ' '));
-                // Build a per-bullet rid → quote map so each pill's popover
-                // can show the specific verbatim span the model picked,
-                // rather than the full session transcript.
-                var quoteByRid = {};
-                (b.quotes || []).forEach(function (q) {
-                    if (q && q.rid && q.text && !quoteByRid[q.rid]) {
-                        quoteByRid[q.rid] = q.text;
-                    }
-                });
-                // The backend now cites EVERY supporting response, so the
-                // number of distinct cited rids is how many students are on
-                // this side. Show it as a compact "N students" chip and tuck
-                // the full pill list behind it (expand on click) — a popular
-                // claim shouldn't spray 20 pills across the panel. Reading two
-                // opposing tinted bullets and their counts replaces the old
-                // standalone Tensions section.
+                // Every theme starts collapsed. Its count reveals readable
+                // evidence below the claim, rather than numbered citation chips.
                 var seenRid = {};
                 var citeRids = (b.cited_ids || []).filter(function (rid) {
                     if (seenRid[rid] || pillAssignment.ridToPill[rid] == null) return false;
@@ -2866,42 +2852,34 @@
                     claim.appendChild(countChip);
 
                     citesWrap = document.createElement('div');
-                    citesWrap.className = 'qt-cites';
+                    citesWrap.className = 'qt-evidence';
                     citesWrap.style.display = 'none';
-                    citeRids.forEach(function (rid) {
-                        var localIdx = pillAssignment.ridToPill[rid];
-                        var pill = leaiAnalysis.renderCitationPill(localIdx);
-                        pill.title = rid;
-                        pill.style.cursor = 'pointer';
-                        citesWrap.appendChild(pill);
-                        citesWrap.appendChild(document.createTextNode(' '));
-                        pillBindings.push({
-                            pill: pill, rid: rid,
-                            quote: quoteByRid[rid] || '',
-                        });
-                    });
 
                     countChip.addEventListener('click', function () {
                         var open = citesWrap.style.display !== 'none';
-                        citesWrap.style.display = open ? 'none' : 'flex';
+                        citesWrap.style.display = open ? 'none' : 'block';
                         countChip.setAttribute('aria-expanded', open ? 'false' : 'true');
                         caret.textContent = open ? '▸' : '▾';
                     });
                 }
                 li.appendChild(claim);
                 if (citesWrap) li.appendChild(citesWrap);
-                // Quote-led evidence (Phase 3a). Each bullet now carries
-                // verbatim spans from the cited responses; render them
-                // directly under the claim. Dedupe identical-text quotes
-                // — when two near-duplicate sessions yield the same span,
-                // show one with a "+N more" affordance.
-                if (b.quotes && b.quotes.length) {
+                // Keep existing verbatim excerpts; older insights without
+                // excerpts show the original cited response text instead.
+                const evidenceQuotes = (b.quotes || []).filter(q => q && q.text);
+                if (!evidenceQuotes.length) {
+                    citeRids.forEach(rid => {
+                        const source = sourceByRid[rid];
+                        if (source && source.text) evidenceQuotes.push({ rid, text: source.text });
+                    });
+                }
+                if (evidenceQuotes.length) {
                     function normKey(s) {
                         return (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
                     }
                     var grouped = [];   // [{ text, rids:[rid,...] }]
                     var byKey = {};
-                    b.quotes.forEach(function (q) {
+                    evidenceQuotes.forEach(function (q) {
                         if (!q || !q.text) return;
                         var k = normKey(q.text);
                         if (!byKey[k]) {
@@ -2926,17 +2904,28 @@
                         // rids echoed the same span, surface that count.
                         var lead = g.rids[0];
                         var src = sourceByRid[lead];
-                        var srcParts = [lead];
+                        var srcParts = [(src && src.display_rid) || lead];
                         if (src && src.week_number != null) srcParts.push('Wk ' + src.week_number);
                         if (g.rids.length > 1) {
                             srcParts.push('+ ' + (g.rids.length - 1) + ' more echoed this');
                         }
                         srcEl.textContent = srcParts.join(' · ');
+                        if (lead) {
+                            srcEl.setAttribute('role', 'button');
+                            srcEl.setAttribute('tabindex', '0');
+                            srcEl.title = 'View full response';
+                            srcEl.style.cursor = 'pointer';
+                            pillBindings.push({ pill: srcEl, rid: lead, quote: g.text });
+                        }
                         body.appendChild(srcEl);
                         qEl.appendChild(body);
                         quotesEl.appendChild(qEl);
                     });
-                    li.appendChild(quotesEl);
+                    if (citesWrap) citesWrap.appendChild(quotesEl);
+                } else if (citesWrap) {
+                    const unavailable = document.createElement('p');
+                    unavailable.textContent = 'Source text is unavailable for these responses.';
+                    citesWrap.appendChild(unavailable);
                 }
                 return li;
             };
