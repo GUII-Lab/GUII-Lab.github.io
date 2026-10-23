@@ -37,6 +37,16 @@ test('expanded citation fallback keeps the whole scrollable popup inside the vie
     assert.deepEqual(style, { left: 12, top: 12, maxHeight: 821 });
 });
 
+test('resizing cannot move an open citation below the viewport when its source scrolls out of view', () => {
+    const style = citationPosition({ viewport: [429, 930], anchor: { left: 86, top: 3380, bottom: 3415 }, size: { width: 405, height: 346 } });
+    assert.deepEqual(style, { left: 12, top: 572, maxHeight: 906 });
+});
+
+test('an open citation stays visible when its source scrolls above the viewport', () => {
+    const style = citationPosition({ anchor: { left: 30, top: -500, bottom: -480 }, size: { width: 300, height: 200 } });
+    assert.deepEqual(style, { left: 30, top: 12, maxHeight: 821 });
+});
+
 function scopeDescription(scope, surveys) {
     const source = fs.readFileSync(path.join(root, 'FeedbackChat.html'), 'utf8');
     const names = ['modeOf', 'modeLabel', 'surveyLabel', 'describeScope'];

@@ -143,9 +143,10 @@ function positionCitationPopover(popover, anchor) {
     const height = popover.getBoundingClientRect().height;
     const left = Math.max(margin, Math.min(rect.left, viewportWidth - width - margin));
     const below = rect.bottom + 8;
-    const top = below + height <= viewportHeight - margin ? below
+    const preferredTop = below + height <= viewportHeight - margin ? below
         : rect.top - height - 8 >= margin ? rect.top - height - 8
         : Math.max(margin, viewportHeight - height - margin);
+    const top = Math.max(margin, Math.min(preferredTop, viewportHeight - height - margin));
     popover.style.left = left + 'px';
     popover.style.top = top + 'px';
 }
