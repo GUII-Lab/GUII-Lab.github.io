@@ -16,7 +16,7 @@
 
     --text:             #2a3437;
     --text-variant:     #566164;
-    --muted:            #727d80;
+    --muted:            #59676c;
     --outline:          #a9b4b7;
 
     /* Semantic */
@@ -43,8 +43,8 @@
     --ingroup-tint-strong:  rgba(46, 125, 87, 0.20);
 
     /* Structured-Reflection (form mode) accent — amber-orange */
-    --formmode-primary:      #D97706;
-    --formmode-primary-dim:  #B36105;
+    --formmode-primary:      #9b5706;
+    --formmode-primary-dim:  #814600;
     --formmode-tint:         rgba(217, 119, 6, 0.12);
     --formmode-tint-strong:  rgba(217, 119, 6, 0.20);
 }
@@ -255,6 +255,11 @@ input[type="checkbox"], input[type="radio"] {
 /* Collapsed state */
 .sidebar.collapsed .sidebar-label,
 .sidebar.collapsed .sidebar-brand { opacity: 0; width: 0; pointer-events: none; }
+@media (min-width: 768px) {
+    /* Hidden labels must not wrap into tall rows at larger text sizes. */
+    .sidebar.collapsed .sidebar-label,
+    .sidebar.collapsed .sidebar-brand { display: none; }
+}
 .sidebar.collapsed .sidebar-item {
     justify-content: center; gap: 0; padding: 10px 0;
     border-left: none; margin: 1px 4px; width: calc(100% - 8px);
@@ -1819,4 +1824,123 @@ html[data-leai-font-size]:not([data-leai-font-size="100"]) .sidebar-label {
     .leai-font-size-control { top: 8px; right: 8px; }
     .leai-font-size-trigger { min-height: 38px; padding: 6px 9px; }
     .leai-font-size-trigger-label { display: none; }
+}
+
+/* Instructor reading hierarchy: the same baseline across the three workspaces.
+   rem units also follow the Text size preference without cached pixel boxes. */
+body[data-leai-workspace] {
+    --workspace-reading: 1.125rem;
+    --workspace-emphasis: 1.25rem;
+    --workspace-label: 0.875rem;
+}
+body[data-leai-workspace] :is(.page-header h1, .page-heading h1) {
+    font-size: 2.125rem;
+}
+body[data-leai-workspace] :is(.mode-tab, .scope-chip) {
+    font-size: var(--workspace-label); line-height: 1.45;
+    white-space: normal; overflow-wrap: anywhere; min-width: 0;
+}
+body[data-leai-workspace] .mode-tabs { flex-wrap: wrap; }
+body[data-leai-workspace] .mode-tab { padding: 12px 18px; }
+body[data-leai-workspace] .scope-chip { padding: 7px 12px; }
+
+body[data-leai-workspace="designer"] .survey-item-title {
+    font-size: var(--workspace-emphasis); line-height: 1.4;
+}
+body[data-leai-workspace="designer"] .survey-item-meta {
+    font-size: var(--workspace-label); line-height: 1.55;
+}
+body[data-leai-workspace="designer"] :is(.card-title, label, .copy-btn) {
+    font-size: var(--workspace-label); line-height: 1.45;
+}
+body[data-leai-workspace="designer"] :is(.card-title, label) { text-transform: none; letter-spacing: normal; }
+body[data-leai-workspace="designer"] .builder-section-title { font-size: 0.875rem; }
+body[data-leai-workspace="designer"] .builder-note { font-size: 1rem; }
+body[data-leai-workspace] .mode-badge { font-size: 0.75rem; }
+body[data-leai-workspace="designer"] :is(.status-badge, .survey-type-badge) {
+    font-size: 0.75rem; line-height: 1.5;
+}
+body[data-leai-workspace="designer"] .link-text { font-size: var(--workspace-label); min-width: 0; }
+body[data-leai-workspace="designer"] .copy-btn { min-height: 34px; flex-shrink: 0; }
+body[data-leai-workspace="designer"] .survey-item > div:first-child { flex-wrap: wrap; }
+
+body[data-leai-workspace="analyzer"] .section-title {
+    font-size: 1rem; line-height: 1.4; letter-spacing: 0.04em;
+    text-transform: none;
+}
+body[data-leai-workspace="analyzer"] .ingroup-section-label { font-size: 0.875rem; }
+body[data-leai-workspace="analyzer"] :is(.quick-take-bullets, .qt-claim, .insights-panel-body) {
+    font-size: var(--workspace-reading); line-height: 1.65;
+}
+body[data-leai-workspace="analyzer"] .qt-quote {
+    font-size: var(--workspace-emphasis); line-height: 1.6; max-width: 65ch;
+}
+body[data-leai-workspace="analyzer"] .qt-claim { max-width: 75ch; }
+body[data-leai-workspace="analyzer"] .stat-hint { color: var(--muted); }
+body[data-leai-workspace="analyzer"] .toggle button { font-size: 0.875rem; }
+body[data-leai-workspace="analyzer"] :is(.qt-quote-src, .qt-freshness, .qt-fsec .quote-src, .student-card-meta, .student-card-date) {
+    font-size: var(--workspace-label); line-height: 1.5;
+}
+body[data-leai-workspace="analyzer"] :is(.qt-section-title, .qt-insights-subhead, .student-card-label, .qt-fsec .title) {
+    font-size: 1.0625rem; line-height: 1.45;
+}
+body[data-leai-workspace="analyzer"] :is(.qt-gap, .qt-fsec .summary) { font-size: 1rem; line-height: 1.6; }
+body[data-leai-workspace="analyzer"] :is(.qt-fsec .quote, .convo-msg-bubble, .pdf-a, .pdf-table) {
+    font-size: var(--workspace-reading); line-height: 1.65;
+}
+body[data-leai-workspace="analyzer"] :is(.convo-msg-label, .stat-label) { font-size: var(--workspace-label); }
+body[data-leai-workspace="analyzer"] .student-card-header { flex-wrap: wrap; }
+body[data-leai-workspace="analyzer"] .convo-msg-bubble { min-width: 0; overflow-wrap: anywhere; }
+body[data-leai-workspace="analyzer"] .qt-claim-count {
+    font-size: var(--workspace-label); height: auto; min-height: 1.8em; padding: 3px 9px;
+}
+
+body[data-leai-workspace="chat"] .page-header { padding-right: 160px; }
+body[data-leai-workspace="chat"] :is(.chat-msg-user, .chat-msg-assistant) {
+    font-size: var(--workspace-reading); line-height: 1.65;
+    max-width: min(100%, 72ch); overflow-wrap: anywhere; min-width: 0;
+}
+body[data-leai-workspace="chat"] .chat-title-editable { font-size: 1.375rem; }
+body[data-leai-workspace="chat"] .chat-title-row { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+body[data-leai-workspace="chat"] .chat-title-row > :first-child { min-width: 0; overflow-wrap: anywhere; }
+body[data-leai-workspace="chat"] .chat-title-row > :last-child { flex-wrap: wrap; }
+body[data-leai-workspace="chat"] .chat-session-title { font-size: 0.9375rem; }
+body[data-leai-workspace="chat"] .chat-session-meta { font-size: 0.75rem; line-height: 1.5; }
+body[data-leai-workspace="chat"] :is(.chat-msg-label, .scope-picker-row) { font-size: var(--workspace-label); }
+body[data-leai-workspace="chat"] .scope-chip-label { min-width: 0; text-transform: none; }
+body[data-leai-workspace="chat"] :is(.scope-chip-affix, .scope-chip-caret) { white-space: nowrap; flex-shrink: 0; }
+body[data-leai-workspace="chat"] .scope-picker-row .row-label { min-width: 0; overflow-wrap: anywhere; text-transform: none; }
+body[data-leai-workspace="chat"] :is(.sessions-list-header, .chat-sessions-footer, .advanced-toggle-btn) { font-size: 0.75rem; }
+body[data-leai-workspace="chat"] .chat-input-row textarea {
+    font-size: var(--workspace-reading); line-height: 1.5;
+    min-height: calc(1.5em + 26px); height: auto;
+}
+body[data-leai-workspace] .cite {
+    display: inline; font-size: 0.8125rem; height: auto;
+    padding: 3px 6px; vertical-align: baseline; line-height: 1.5; white-space: nowrap;
+}
+body[data-leai-workspace] :is(.source-card .source-text, .sources-list) { font-size: 1rem; }
+body[data-leai-workspace] :is(.sources-toggle, .source-card .source-meta) { font-size: 0.875rem; }
+.cite-popover {
+    position: fixed; z-index: 600; width: min(620px, calc(100vw - 24px));
+    min-width: 0; max-width: calc(100vw - 24px); overflow-y: auto;
+    overscroll-behavior: contain; overflow-wrap: anywhere;
+    background: var(--surface-card, #fff); color: var(--text, #1a1f22);
+    border: 1px solid var(--outline, #d0d5dd); border-radius: 8px;
+    padding: 18px 20px; font-size: 1.125rem; line-height: 1.6;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.14);
+}
+@media (max-width: 767px) {
+    body[data-leai-workspace] :is(.page-header h1, .page-heading h1) { font-size: 1.75rem; }
+    body[data-leai-workspace="chat"] .page-header { padding-right: 16px; }
+    body[data-leai-workspace="analyzer"] .convo-msg { flex-direction: column; gap: 4px; }
+    body[data-leai-workspace="analyzer"] .convo-msg-bubble { width: 100%; }
+    body[data-leai-workspace="analyzer"] .student-card-date { white-space: normal; }
+    body[data-leai-workspace="chat"] .scope-picker-row { flex-wrap: wrap; }
+    body[data-leai-workspace="chat"] .scope-picker-row .row-meta {
+        white-space: normal; flex-basis: 100%; flex-shrink: 1; min-width: 0;
+        overflow-wrap: anywhere; font-size: 0.75rem;
+    }
+    body[data-leai-workspace="chat"] .chat-input-row textarea { min-height: calc(3em + 26px); }
+    .cite-popover { padding: 14px 16px; }
 }

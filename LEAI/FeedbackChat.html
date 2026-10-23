@@ -8,8 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <script src="leai-tailwind-config.js?v=v0.2.9"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.2.9-font-size-3">
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-readability-3">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -344,7 +344,7 @@
         }
     </style>
 </head>
-<body>
+<body data-leai-workspace="chat">
 
 <!-- Login -->
 <div id="login-screen">
@@ -567,7 +567,7 @@
 <!-- Markdown rendering for assistant messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.2.9&amp;chat-dictation=1&amp;font-size=2"></script>
+<script src="leai-shared.js?v=v0.3.0&amp;chat-dictation=1&amp;font-size=3"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -638,6 +638,12 @@
         if (scope.kind === 'custom') {
             var ids = scope.survey_ids || [];
             if (!ids.length) return 'No surveys selected';
+            if (ids.length === 1) {
+                const selected = allSurveys.find(function (survey) {
+                    return String(survey.gpt_id) === String(ids[0]);
+                });
+                if (selected) return surveyLabel(selected);
+            }
             // If every survey in a single mode is selected and nothing outside it, summarise as "<Mode> · all".
             var byMode = { general: 0, group: 0, form: 0 };
             var totalByMode = { general: 0, group: 0, form: 0 };
@@ -1216,17 +1222,16 @@
 
         var pop = document.createElement('div');
         pop.className = 'cite-popover';
-        pop.style.cssText = 'position:absolute;z-index:50;background:#fff;border:1px solid var(--outline,#d0d5dd);border-radius:8px;padding:10px 12px;font-size:0.8rem;line-height:1.5;color:#1a1f22;box-shadow:0 6px 18px rgba(0,0,0,0.14);max-width:380px;min-width:240px';
 
         var header = document.createElement('div');
         header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
         var ridEl = document.createElement('span');
-        ridEl.style.cssText = 'font-weight:700;font-size:0.78rem;letter-spacing:0.02em';
+        ridEl.style.cssText = 'font-weight:700;font-size:1rem;letter-spacing:0.02em';
         ridEl.textContent = (source && source.display_rid) || rid || 'Citation';
         header.appendChild(ridEl);
         if (source && source.week_number) {
             var weekEl = document.createElement('span');
-            weekEl.style.cssText = 'font-size:0.7rem;color:#5c6b73;text-transform:uppercase;letter-spacing:0.06em';
+            weekEl.style.cssText = 'font-size:0.875rem;color:#5c6b73;text-transform:uppercase;letter-spacing:0.06em';
             weekEl.textContent = '· Week ' + source.week_number;
             header.appendChild(weekEl);
         }
@@ -1234,7 +1239,7 @@
 
         if (quote) {
             var quoteEl = document.createElement('div');
-            quoteEl.style.cssText = 'border-left:3px solid ' + accentColor + ';padding:4px 0 4px 10px;margin-bottom:6px;font-size:0.84rem;color:#1a1f22';
+            quoteEl.style.cssText = 'border-left:3px solid ' + accentColor + ';padding:4px 0 4px 10px;margin-bottom:6px;font-size:1.25rem;color:#1a1f22';
             quoteEl.textContent = '“' + quote + '”';
             pop.appendChild(quoteEl);
         }
@@ -1243,37 +1248,30 @@
         if (source && source.text) {
             if (quote) {
                 var disclosure = document.createElement('details');
-                disclosure.style.cssText = 'margin-top:4px;font-size:0.76rem';
+                disclosure.style.cssText = 'margin-top:4px;font-size:1rem';
                 var summary = document.createElement('summary');
                 summary.style.cssText = 'cursor:pointer;color:#5c6b73;font-weight:600';
                 summary.textContent = 'Full response';
                 disclosure.appendChild(summary);
                 var pre = document.createElement('div');
-                pre.style.cssText = 'color:#1a1f22;max-height:200px;overflow:auto;white-space:pre-wrap;padding:6px 0 0 0;font-size:0.76rem';
+                pre.style.cssText = 'color:#1a1f22;max-height:200px;overflow:auto;white-space:pre-wrap;padding:6px 0 0 0;font-size:1rem';
                 pre.textContent = source.text;
                 disclosure.appendChild(pre);
                 pop.appendChild(disclosure);
             } else {
-                body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + accentColor + ';padding:2px 0 2px 8px;font-size:0.78rem';
+                body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + accentColor + ';padding:2px 0 2px 8px;font-size:1.125rem';
                 body.textContent = source.text;
                 pop.appendChild(body);
             }
         } else if (!quote) {
-            body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:0.76rem';
+            body.style.cssText = 'color:#5c6b73;font-style:italic;font-size:1rem';
             body.textContent = 'Response text not available for this citation.';
             pop.appendChild(body);
         }
 
         document.body.appendChild(pop);
 
-        var r = anchor.getBoundingClientRect();
-        var left = window.scrollX + r.left;
-        var top = window.scrollY + r.bottom + 6;
-        var maxRight = window.scrollX + document.documentElement.clientWidth - 8;
-        var popWidth = pop.offsetWidth;
-        if (left + popWidth > maxRight) left = Math.max(window.scrollX + 8, maxRight - popWidth);
-        pop.style.left = left + 'px';
-        pop.style.top = top + 'px';
+        positionCitationPopover(pop, anchor);
         _openPopover = pop;
 
         var dismiss = function (ev) {

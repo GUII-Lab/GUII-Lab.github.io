@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-font-size-3">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-readability-3">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -175,7 +175,7 @@
             background: var(--surface-low); border-radius: var(--radius-sm); padding: 20px;
         }
         .guide-panel.open { display: block; }
-        .guide-panel h4 {
+        .guide-panel h2 {
             font-size: 0.72rem; font-weight: 700; margin-bottom: 10px; color: var(--primary);
             text-transform: uppercase; letter-spacing: 0.07em;
         }
@@ -204,7 +204,7 @@
         .confirm-actions button { font-family: inherit; }
     </style>
 </head>
-<body>
+<body data-leai-workspace="designer">
 
 <!-- Login screen -->
 <div id="login-screen">
@@ -357,7 +357,7 @@
                         <!-- Tips at top -->
                         <button class="guide-toggle" id="guide-toggle" style="margin-bottom:16px">Tips &amp; examples &#9660;</button>
                         <div class="guide-panel" id="guide-panel">
-                            <h4>Tips for Writing Effective Feedback Prompts</h4>
+                            <h2>Tips for Writing Effective Feedback Prompts</h2>
                             <ul>
                                 <li>Start with a clear persona and role for the bot</li>
                                 <li>List specific topics by name so the bot asks about them directly</li>
@@ -367,7 +367,7 @@
                                 <li>Include a stop mechanism so students can end the conversation</li>
                                 <li>End with a self-improvement question — ask students for feedback on the bot itself</li>
                             </ul>
-                            <h4>Example Prompt</h4>
+                            <h2>Example Prompt</h2>
                             <div class="guide-example">You are Freddie the feedback bot and your job is to collect feedback from students taking an advanced programming class. We are trying to get feedback that can improve the lectures to help the students better understand the topics in the last few weeks which include: Negamax, Strings, Chess, Zobrist Hashing, Hash Tables, Alpha-Beta Pruning, and Iterative Deepening.
 
 Ask questions such as "Were the concepts covered explained clearly? Can you share any specific examples where you felt stuck or uncertain about the material, if so ask them to expand on it?"
@@ -785,7 +785,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                     <span class="info-icon" tabindex="0" data-tooltip="Pick a checked-in schema. The schema defines the sections, prompts, probes, and field types the engine walks through. Schemas are managed in the database; instructors don't author them in-app yet."></span>
                                 </label>
                                 <select id="form-schema-select"><option value="">Select a schema…</option></select>
-                                <div id="form-schema-preview" style="margin-top:8px;padding:10px 12px;background:var(--surface-low,#f4f5f6);border:1px solid var(--surface-mid,#e2e6ea);border-radius:6px;font-size:0.78rem;color:var(--text-variant);display:none">
+                                <div id="form-schema-preview" style="margin-top:8px;padding:10px 12px;background:var(--surface-low,#f4f5f6);border:1px solid var(--surface-mid,#e2e6ea);border-radius:6px;font-size:1rem;color:var(--text-variant);display:none">
                                 </div>
                             </div>
 
@@ -953,7 +953,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     </div>
 </div>
 
-<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=2"></script>
+<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=3"></script>
 <script src="leai-debug.js?v=ulia-debug-5"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
@@ -2550,7 +2550,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                     '  (' + sections.length + ' sections, v' + (body.version || rec.version || '?') + ')';
                 box.appendChild(head);
                 var ol = document.createElement('ol');
-                ol.style.cssText = 'margin:0;padding-left:18px;font-size:0.76rem';
+                ol.style.cssText = 'margin:0;padding-left:18px;font-size:1rem;line-height:1.6';
                 sections.forEach(function (s) {
                     var li = document.createElement('li');
                     li.textContent = (s.id ? s.id + ' ' : '') + (s.title || '');
@@ -2559,7 +2559,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 box.appendChild(ol);
                 if (body.intro) {
                     var intro = document.createElement('div');
-                    intro.style.cssText = 'margin-top:8px;color:var(--muted);font-style:italic;font-size:0.74rem';
+                    intro.style.cssText = 'margin-top:8px;color:var(--muted);font-style:italic;font-size:0.875rem';
                     intro.textContent = '“' + body.intro + '”';
                     box.appendChild(intro);
                 }

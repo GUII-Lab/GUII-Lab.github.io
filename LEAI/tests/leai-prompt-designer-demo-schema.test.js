@@ -181,7 +181,8 @@ test('instructor font presets enlarge text, preserve spacing, and survive reload
     assert.ok(Math.abs(enlarged.heading - before.heading * 1.25) < 0.1);
     assert.equal(enlarged.card[0], before.card[0], 'Text scaling does not widen the card');
     assert.ok(enlarged.card[1] >= before.card[1], 'Card height can grow to fit reflowed text');
-    assert.deepEqual(enlarged.schemaSelect, before.schemaSelect, 'Select control keeps its original dimensions');
+    assert.equal(enlarged.schemaSelect[0], before.schemaSelect[0], 'Select stays within the available column width');
+    assert.ok(enlarged.schemaSelect[1] >= before.schemaSelect[1], 'Select can grow vertically to fit enlarged text');
     assert.equal(enlarged.padding, before.padding);
     assert.equal(enlarged.sidebar, before.sidebar);
     assert.equal(enlarged.zoom, '1');

@@ -130,22 +130,50 @@ function initSidebar(activeNavId, onSignOut) {
     });
 }
 
+// Shared citation positioning for Analyzer and Chat, including enlarged text.
+const citationPopoverAnchors = new WeakMap();
+function positionCitationPopover(popover, anchor) {
+    citationPopoverAnchors.set(popover, anchor);
+    const margin = 12;
+    const viewportWidth = document.documentElement.clientWidth;
+    const viewportHeight = window.innerHeight;
+    popover.style.maxHeight = Math.max(0, viewportHeight - margin * 2) + 'px';
+    const rect = anchor.getBoundingClientRect();
+    const width = popover.getBoundingClientRect().width;
+    const height = popover.getBoundingClientRect().height;
+    const left = Math.max(margin, Math.min(rect.left, viewportWidth - width - margin));
+    const below = rect.bottom + 8;
+    const top = below + height <= viewportHeight - margin ? below
+        : rect.top - height - 8 >= margin ? rect.top - height - 8
+        : Math.max(margin, viewportHeight - height - margin);
+    popover.style.left = left + 'px';
+    popover.style.top = top + 'px';
+}
+
+function refreshCitationPopovers() {
+    document.querySelectorAll('.cite-popover').forEach(function (popover) {
+        const anchor = citationPopoverAnchors.get(popover);
+        if (anchor && anchor.isConnected) positionCitationPopover(popover, anchor);
+    });
+}
+
 // ===== GLOBAL TEXT SIZE =====
-// Scales text nodes and form-control text without scaling page spacing or layout.
+// Native rem scaling keeps inherited text, controls, and responsive type in sync.
 function initFontSizeControl() {
     var key = 'leai_font_size_percent';
     var presets = [100, 112, 125, 140];
     var current = 100;
     try { current = Number(localStorage.getItem(key)) || 100; } catch (error) { /* Use the standard size when storage is unavailable. */ }
     if (presets.indexOf(current) < 0) current = 100;
-    var baseStyles = new WeakMap();
-    var hasAppliedInitialSize = false;
+    const root = document.documentElement;
+    const originalRootSize = root.style.fontSize;
+    const baseRootSize = parseFloat(window.getComputedStyle(root).fontSize) || 16;
     var control = document.createElement('div');
     control.className = 'leai-font-size-control';
     control.innerHTML = '<button type="button" class="leai-font-size-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Text size">'
         + '<span aria-hidden="true" class="leai-font-size-icon">A<span>A</span></span><span class="leai-font-size-trigger-label">Text size</span></button>'
         + '<div class="leai-font-size-panel" role="group" aria-label="Choose text size" hidden>'
-        + '<p class="leai-font-size-title">Text size</p><p class="leai-font-size-help">Enlarge text without zooming the whole page.</p>'
+        + '<p class="leai-font-size-title">Text size</p><p class="leai-font-size-help">Enlarge text. Content wraps to fit the available space.</p>'
         + '<div class="leai-font-size-options">'
         + presets.map(function (value, index) {
             return '<button type="button" class="leai-font-size-option" data-size="' + value + '" aria-pressed="false">'
@@ -154,116 +182,6 @@ function initFontSizeControl() {
         + '</div></div>';
     document.body.appendChild(control);
 
-    function textTargets(root) {
-        var elements = [];
-        if (root.nodeType === 1) elements.push(root);
-        if (root.querySelectorAll) elements = elements.concat(Array.prototype.slice.call(root.querySelectorAll('*')));
-        return elements.filter(function (element) {
-            if (element.closest('.leai-font-size-control')) return false;
-            return element.matches('input,textarea,select') || Array.prototype.some.call(element.childNodes, function (node) {
-                return node.nodeType === 3 && node.nodeValue.trim();
-            });
-        });
-    }
-
-    function updateTextSize(root) {
-        var targets = textTargets(root || document.body);
-        targets.forEach(function (element) {
-            var saved = baseStyles.get(element);
-            if (!saved) {
-                var inlineSize = element.style.fontSize;
-                var computedSize = parseFloat(window.getComputedStyle(element).fontSize) || 16;
-                if (hasAppliedInitialSize && current !== 100 && element.parentElement) {
-                    var parentStyle = baseStyles.get(element.parentElement);
-                    var parentSize = parseFloat(window.getComputedStyle(element.parentElement).fontSize) || 16;
-                    if (parentStyle && Math.abs(computedSize - parentSize) < 0.1) computedSize = parentStyle.size;
-                }
-                var isControl = element.matches('input,textarea,select,button') && !element.matches('.mode-tab');
-                var rect = element.getBoundingClientRect();
-                var computed = window.getComputedStyle(element);
-                saved = {
-                    size: computedSize,
-                    inlineSize: inlineSize,
-                    isControl: isControl,
-                    width: element.style.width,
-                    height: element.style.height,
-                    boxSizing: element.style.boxSizing,
-                    lineHeight: element.style.lineHeight,
-                    computedLineHeight: computed.lineHeight,
-                    layoutWidth: rect.width,
-                    layoutHeight: rect.height
-                };
-                baseStyles.set(element, saved);
-            } else {
-                var originalRect = element.getBoundingClientRect();
-                if (saved.isControl && (!saved.layoutWidth || !saved.layoutHeight) && originalRect.width && originalRect.height) {
-                    saved.layoutWidth = originalRect.width;
-                    saved.layoutHeight = originalRect.height;
-                }
-            }
-            if (saved.isControl) controlGeometryObserver.observe(element);
-        });
-        targets.forEach(function (element) {
-            var saved = baseStyles.get(element);
-            applyTextSize(element, saved);
-        });
-        hasAppliedInitialSize = true;
-    }
-
-    function applyTextSize(element, saved) {
-        if (current === 100) {
-            element.style.fontSize = saved.inlineSize;
-            element.style.width = saved.width;
-            element.style.height = saved.height;
-            element.style.boxSizing = saved.boxSizing;
-            element.style.lineHeight = saved.lineHeight;
-        } else {
-            element.style.fontSize = (saved.size * current / 100) + 'px';
-            if (saved.isControl && saved.layoutWidth > 0 && saved.layoutHeight > 0) {
-                element.style.width = saved.layoutWidth + 'px';
-                element.style.height = saved.layoutHeight + 'px';
-                element.style.boxSizing = 'border-box';
-                element.style.lineHeight = saved.computedLineHeight;
-            }
-        }
-    }
-
-    var controlGeometryObserver = new ResizeObserver(function (entries) {
-        entries.forEach(function (entry) {
-            var element = entry.target;
-            var saved = baseStyles.get(element);
-            if (!saved || !saved.isControl || saved.layoutWidth > 0 && saved.layoutHeight > 0 || !entry.contentRect.width || !entry.contentRect.height) return;
-            element.style.fontSize = saved.inlineSize;
-            element.style.width = saved.width;
-            element.style.height = saved.height;
-            element.style.boxSizing = saved.boxSizing;
-            element.style.lineHeight = saved.lineHeight;
-            var rect = element.getBoundingClientRect();
-            saved.layoutWidth = rect.width;
-            saved.layoutHeight = rect.height;
-            applyTextSize(element, saved);
-        });
-    });
-
-    window.addEventListener('resize', function () {
-        if (current === 100) return;
-        textTargets(document.body).forEach(function (element) {
-            var saved = baseStyles.get(element);
-            if (!saved || !saved.isControl) return;
-            element.style.fontSize = saved.inlineSize;
-            element.style.width = saved.width;
-            element.style.height = saved.height;
-            element.style.boxSizing = saved.boxSizing;
-            element.style.lineHeight = saved.lineHeight;
-            var rect = element.getBoundingClientRect();
-            if (rect.width && rect.height) {
-                saved.layoutWidth = rect.width;
-                saved.layoutHeight = rect.height;
-            }
-            applyTextSize(element, saved);
-        });
-    });
-
     function renderSelection() {
         document.documentElement.setAttribute('data-leai-font-size', String(current));
         control.querySelectorAll('[data-size]').forEach(function (button) {
@@ -271,7 +189,8 @@ function initFontSizeControl() {
             button.setAttribute('aria-pressed', String(selected));
             button.classList.toggle('selected', selected);
         });
-        updateTextSize();
+        root.style.fontSize = current === 100 ? originalRootSize : (baseRootSize * current / 100) + 'px';
+        refreshCitationPopovers();
         try { localStorage.setItem(key, String(current)); } catch (error) { /* Current page remains adjustable. */ }
     }
 
@@ -306,13 +225,9 @@ function initFontSizeControl() {
         var next = Number(event.newValue) || 100;
         if (presets.indexOf(next) >= 0) { current = next; renderSelection(); }
     });
-    new MutationObserver(function (records) {
-        records.forEach(function (record) {
-            record.addedNodes.forEach(function (node) {
-                if (node.nodeType === 1) updateTextSize(node);
-            });
-        });
-    }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener('resize', refreshCitationPopovers);
+    document.addEventListener('scroll', refreshCitationPopovers, true);
+    document.addEventListener('toggle', refreshCitationPopovers, true);
     renderSelection();
 }
 
