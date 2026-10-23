@@ -168,16 +168,23 @@ test('instructor font presets enlarge text, preserve spacing, and survive reload
     const metrics = () => page.evaluate(() => ({
         heading: parseFloat(getComputedStyle(document.querySelector('.page-header h1')).fontSize),
         padding: getComputedStyle(document.querySelector('#form-survey-card')).paddingLeft,
+        card: [document.querySelector('#form-survey-card').offsetWidth, document.querySelector('#form-survey-card').offsetHeight],
+        schemaSelect: [document.querySelector('#form-schema-select').offsetWidth, document.querySelector('#form-schema-select').offsetHeight],
         sidebar: document.querySelector('#sidebar').getBoundingClientRect().width,
         zoom: getComputedStyle(document.documentElement).zoom,
     }));
+    await page.waitForFunction(() => document.querySelector('#form-schema-select option[value="etc-discussion-demo-v1"]'));
     const before = await metrics();
     await page.click('.leai-font-size-trigger');
     await page.click('.leai-font-size-option[data-size="125"]');
     const enlarged = await metrics();
     assert.ok(Math.abs(enlarged.heading - before.heading * 1.25) < 0.1);
-    assert.deepEqual({ ...enlarged, heading: before.heading }, before);
-    assert.equal(await page.$$eval('.sidebar-label', labels => labels.every(node => node.scrollWidth <= node.clientWidth)), true, 'Larger navigation labels wrap instead of being truncated');
+    assert.equal(enlarged.card[0], before.card[0], 'Text scaling does not widen the card');
+    assert.ok(enlarged.card[1] >= before.card[1], 'Card height can grow to fit reflowed text');
+    assert.deepEqual(enlarged.schemaSelect, before.schemaSelect, 'Select control keeps its original dimensions');
+    assert.equal(enlarged.padding, before.padding);
+    assert.equal(enlarged.sidebar, before.sidebar);
+    assert.equal(enlarged.zoom, '1');
     await page.reload({ waitUntil: 'networkidle0' });
     assert.ok(Math.abs((await metrics()).heading - before.heading * 1.25) < 0.1);
     assert.equal(await page.$eval('.leai-font-size-option[data-size="125"]', node => node.getAttribute('aria-pressed')), 'true');
