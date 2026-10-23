@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-font-size-1">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -222,7 +222,7 @@
         <div id="signin-form" class="login-form active">
             <p style="font-size:0.8rem;color:var(--muted);margin-bottom:14px">Use the Course ID you chose when creating this course, or ask your teaching team. First time? Use the <button type="button" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:0.8rem;padding:0;font-family:inherit" onclick="document.querySelector('[data-form=newcourse-form]').click()">New Course</button> tab.</p>
             <label>Course ID</label>
-            <input type="text" id="existing-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
+            <input type="text" id="existing-course-id" placeholder="Enter course ID" oninput="this.value=this.value.toLowerCase()" />
             <label>Password</label>
             <input type="password" id="existing-password" placeholder="Your dashboard password" />
             <button class="btn btn-primary" id="unlock-course-btn">Sign In</button>
@@ -231,12 +231,12 @@
 
         <!-- New Course form -->
         <div id="newcourse-form" class="login-form">
-            <label>Course ID <span style="color:var(--muted);font-weight:400">(lowercase, e.g. cm150-sp26)</span></label>
-            <input type="text" id="new-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
+            <label>Course ID <span style="color:var(--muted);font-weight:400">(lowercase)</span></label>
+            <input type="text" id="new-course-id" placeholder="Choose a course ID" oninput="this.value=this.value.toLowerCase()" />
             <label>Course Name</label>
-            <input type="text" id="new-course-name" placeholder="Foundations of Computational Media" />
+            <input type="text" id="new-course-name" placeholder="Course name" />
             <label>Your Name</label>
-            <input type="text" id="new-instructor-name" placeholder="Prof. Jane Smith" />
+            <input type="text" id="new-instructor-name" placeholder="Instructor name" />
             <label>Dashboard Password</label>
             <input type="password" id="new-password" placeholder="Set a password" />
             <button class="btn btn-primary" id="create-course-btn">Create Course</button>
@@ -351,7 +351,7 @@
                         <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
                         <input type="number" id="survey-week" placeholder="e.g. 6" min="1" />
                         <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span><span class="field-hint" id="survey-label-hint"></span></label>
-                        <input type="text" id="survey-label" placeholder="Week 6 — Team Dynamics Check-in" />
+                        <input type="text" id="survey-label" placeholder="Survey title" />
 
                         <!-- Tips at top -->
                         <button class="guide-toggle" id="guide-toggle" style="margin-bottom:16px">Tips &amp; examples &#9660;</button>
@@ -389,7 +389,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <div class="builder-row">
                                     <div>
                                         <label>Bot Name<span class="field-hint" id="b-bot-name-hint"></span></label>
-                                        <input type="text" id="b-bot-name" placeholder="Freddie" />
+                                        <input type="text" id="b-bot-name" placeholder="Assistant name" />
                                         <p style="font-size:0.75rem;color:var(--muted);margin-top:-10px;margin-bottom:16px">Students see this name at the top of their chat.</p>
                                     </div>
                                     <div>
@@ -405,11 +405,11 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <div class="builder-row">
                                     <div>
                                         <label>Week / Time Range</label>
-                                        <input type="text" id="b-week-range" placeholder="Week 4-5" />
+                                        <input type="text" id="b-week-range" placeholder="Week or milestone range" />
                                     </div>
                                     <div>
                                         <label>Brief Course Description</label>
-                                        <input type="text" id="b-course-desc" placeholder="an advanced programming class" />
+                                        <input type="text" id="b-course-desc" placeholder="Describe the course" />
                                     </div>
                                 </div>
                             </div>
@@ -417,13 +417,13 @@ When the conversation has organically reached a natural close — i.e. the stude
                             <div class="builder-section">
                                 <div class="builder-section-title">Topics Covered</div>
                                 <label>Topics</label>
-                                <textarea id="b-topics" rows="2" placeholder="e.g. Recursion, Sorting algorithms, Binary trees"></textarea>
+                                <textarea id="b-topics" rows="2" placeholder="Topics covered in this activity"></textarea>
                             </div>
 
                             <div class="builder-section">
                                 <div class="builder-section-title">Projects &amp; Assignments</div>
                                 <label>Project Names</label>
-                                <textarea id="b-projects" rows="2" placeholder="e.g. &quot;Sorting Visualizer&quot;, &quot;Graph Explorer Lab&quot;"></textarea>
+                                <textarea id="b-projects" rows="2" placeholder="Relevant projects or assignments"></textarea>
                             </div>
 
                             <div class="builder-section">
@@ -616,7 +616,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                             <input type="number" id="ig-week" placeholder="e.g. 6" min="1" />
 
                             <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
-                            <input type="text" id="ig-label" placeholder="Week 6 — Team Dynamics Check-in" />
+                            <input type="text" id="ig-label" placeholder="Survey title" />
 
                             <div id="ig-config-picker-wrap" style="display:none">
                                 <label>Which team configuration does this survey use?
@@ -644,9 +644,9 @@ When the conversation has organically reached a natural close — i.e. the stude
                             <div class="builder-section">
                                 <div class="builder-section-title">Assignment / Activity Context</div>
                                 <label>What is the team working on right now?
-                                    <span class="info-icon" tabindex="0" data-tooltip="One line, e.g. 'Midterm Group Project — Game Prototype'. Grounds the bot's questions in the work."></span>
+                                    <span class="info-icon" tabindex="0" data-tooltip="Briefly describe the current team activity to ground the bot's questions in the work."></span>
                                 </label>
-                                <input type="text" id="ig-activity" placeholder="Midterm Group Project — Game Prototype" />
+                                <input type="text" id="ig-activity" placeholder="Current team activity" />
                             </div>
 
                             <div class="builder-section">
@@ -690,7 +690,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <div class="builder-row">
                                     <div>
                                         <label>Anonymity Mode
-                                            <span class="info-icon" tabindex="0" data-tooltip="Anonymous: instructors see team-level summaries only and the bot relabels teammates as A/B/C. Identified: graded reflections that need real names + roster + ratings (e.g. HCI 271 weekly reflection template). Pseudonymous: same as anonymous for now."></span>
+                                            <span class="info-icon" tabindex="0" data-tooltip="Anonymous: instructors see team-level summaries only and the bot relabels teammates as A/B/C. Identified: graded reflections that need real names, a roster, and ratings. Pseudonymous: same as anonymous for now."></span>
                                         </label>
                                         <select id="ig-anonymity">
                                             <option value="anonymous">Anonymous (default)</option>
@@ -711,7 +711,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 </div>
                                 <div style="margin-top:14px">
                                     <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
-                                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey. The engine walks every section in order and won't let the conversation close until each one is covered. Useful for graded team-process reflections (e.g. HCI 271 Wk 6 Parts 2 + 3)."></span>
+                                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey. The engine walks every section in order and won't let the conversation close until each one is covered. Useful for graded team-process reflections."></span>
                                     </label>
                                     <select id="ig-schema-select">
                                         <option value="">(none — free-form chat)</option>
@@ -769,11 +769,11 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <div class="builder-row">
                                     <div>
                                         <label>Week / Milestone <span style="color:var(--muted);font-weight:400">(number)</span></label>
-                                        <input type="number" id="form-survey-week" placeholder="6" min="1" />
+                                        <input type="number" id="form-survey-week" placeholder="Week number" min="1" />
                                     </div>
                                     <div>
                                         <label>Survey Label <span style="color:var(--muted);font-weight:400">(shown to students)</span></label>
-                                        <input type="text" id="form-survey-label" placeholder="Week 6 Personal Reflection (HCI 271)" />
+                                        <input type="text" id="form-survey-label" placeholder="Reflection survey title" />
                                     </div>
                                 </div>
                             </div>
@@ -783,7 +783,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <label>FormSchema
                                     <span class="info-icon" tabindex="0" data-tooltip="Pick a checked-in schema. The schema defines the sections, prompts, probes, and field types the engine walks through. Schemas are managed in the database; instructors don't author them in-app yet."></span>
                                 </label>
-                                <select id="form-schema-select"></select>
+                                <select id="form-schema-select"><option value="">Select a schema…</option></select>
                                 <div id="form-schema-preview" style="margin-top:8px;padding:10px 12px;background:var(--surface-low,#f4f5f6);border:1px solid var(--surface-mid,#e2e6ea);border-radius:6px;font-size:0.78rem;color:var(--text-variant);display:none">
                                 </div>
                             </div>
@@ -793,7 +793,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                                 <label>System Prompt
                                     <span class="info-icon" tabindex="0" data-tooltip="Tone, posture, and domain rules — NOT structural enforcement. The engine handles section ordering, transitions, probe-once, and the closing [END]. Keep this prompt about voice and what NOT to do (e.g. don't define methods, don't write the reflection)."></span>
                                 </label>
-                                <textarea id="form-survey-instructions" rows="10" placeholder="Paste the matching prompt from LEAI/docs/prompts/wk6-hci271-form.md"></textarea>
+                                <textarea id="form-survey-instructions" rows="10" placeholder="Describe the assistant's tone and guidance for this reflection."></textarea>
                             </div>
 
                             <div class="builder-section" style="margin-bottom:0">
@@ -902,7 +902,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                     </label>
                     <textarea id="ig-edit-instructions" rows="10" placeholder="Full system prompt for this in-group survey"></textarea>
                     <label>Anonymity Mode
-                        <span class="info-icon" tabindex="0" data-tooltip="Anonymous (default): bot relabels teammates A/B/C and never asks for names. Identified: graded reflections that need real names + roster + ratings (e.g. HCI 271 weekly reflection template). Pseudonymous: same as anonymous for now. Changing this takes effect on the student's next page load."></span>
+                        <span class="info-icon" tabindex="0" data-tooltip="Anonymous (default): bot relabels teammates A/B/C and never asks for names. Identified: graded reflections that need real names, a roster, and ratings. Pseudonymous: same as anonymous for now. Changing this takes effect on the student's next page load."></span>
                     </label>
                     <select id="ig-edit-anonymity" style="margin-bottom:12px">
                         <option value="anonymous">Anonymous</option>
@@ -952,7 +952,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     </div>
 </div>
 
-<script src="leai-shared.js?v=ulia-debug-1"></script>
+<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=1"></script>
 <script src="leai-debug.js?v=ulia-debug-5"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
@@ -1063,9 +1063,14 @@ When the conversation has organically reached a natural close — i.e. the stude
         document.getElementById('example-csv-btn').style.display = isTestCourse ? '' : 'none';
         if (typeof initIngroupUI === 'function') initIngroupUI();
         if ((localStorage.getItem(MODE_KEY) || 'form') === 'form') initFormModePanel();
+        if (localStorage.getItem(MODE_KEY) === 'group') populateInGroupSchemaSelect();
     }
 
     function lockCourse(courseId, courseName, loginData) {
+        _formPanelLoaded = false;
+        _igSchemaSelectLoaded = false;
+        const groupSchemaSelect = document.getElementById('ig-schema-select');
+        groupSchemaSelect.replaceChildren(new Option('(none — free-form chat)', ''));
         activeCourse = { id: courseId, name: courseName };
         saveSession({ courseId: courseId, courseName: courseName, debug_token:loginData && loginData.debug_token, debug_token_expires_at:loginData && loginData.debug_token_expires_at });
         enterApp();
@@ -1109,23 +1114,41 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (mode === 'group') populateInGroupSchemaSelect();
     }
 
+    // The ETC demonstration exposes only its dedicated synthetic schema.
+    // Keep registry identifiers and saved survey bindings unchanged.
+    function isEtcDemoCourse() {
+        return !!(activeCourse && /^ETC Demo(?:\s|[·—-]|$)/i.test(activeCourse.name || ''));
+    }
+
+    function visibleFormSchemas(rows) {
+        return isEtcDemoCourse()
+            ? rows.filter(schema => schema.schema_id === 'etc-discussion-demo-v1')
+            : rows;
+    }
+
+    function schemaOptionLabel(schema) {
+        if (isEtcDemoCourse()) return 'ETC Demo — Class discussion';
+        let label = schema.title || schema.schema_id;
+        if (schema.course_label || schema.week_number) {
+            label += '  (' + (schema.course_label || '') +
+                (schema.week_number ? ' Wk ' + schema.week_number : '') + ')';
+        }
+        return label;
+    }
+
     var _igSchemaSelectLoaded = false;
     function populateInGroupSchemaSelect() {
         var sel = document.getElementById('ig-schema-select');
-        if (!sel || _igSchemaSelectLoaded) return;
+        if (!activeCourse || !sel || _igSchemaSelectLoaded) return;
         _igSchemaSelectLoaded = true;
-        fetch(API + '/form_schemas/?active=1')
-            .then(function (r) { return r.json(); })
+        const course = activeCourse;
+        getActiveFormSchemas()
             .then(function (rows) {
-                (rows || []).forEach(function (s) {
+                if (activeCourse !== course) return;
+                visibleFormSchemas(rows).forEach(function (s) {
                     var opt = document.createElement('option');
                     opt.value = s.schema_id;
-                    var lbl = s.title || s.schema_id;
-                    if (s.course_label || s.week_number) {
-                        lbl += '  (' + (s.course_label || '') +
-                            (s.week_number ? ' Wk ' + s.week_number : '') + ')';
-                    }
-                    opt.textContent = lbl;
+                    opt.textContent = schemaOptionLabel(s);
                     sel.appendChild(opt);
                 });
             })
@@ -1150,7 +1173,9 @@ When the conversation has organically reached a natural close — i.e. the stude
     // for the survey being edited.
     function repopulateSchemaSelect(sel, includeNone, currentSchemaId) {
         if (!sel) return Promise.resolve();
+        const course = activeCourse;
         return getActiveFormSchemas().then(function (rows) {
+            if (activeCourse !== course) return;
             sel.textContent = '';
             if (includeNone) {
                 var none = document.createElement('option');
@@ -1159,15 +1184,10 @@ When the conversation has organically reached a natural close — i.e. the stude
                 sel.appendChild(none);
             }
             var matched = false;
-            rows.forEach(function (s) {
+            visibleFormSchemas(rows).forEach(function (s) {
                 var opt = document.createElement('option');
                 opt.value = s.schema_id;
-                var lbl = s.title || s.schema_id;
-                if (s.course_label || s.week_number) {
-                    lbl += '  (' + (s.course_label || '') +
-                        (s.week_number ? ' Wk ' + s.week_number : '') + ')';
-                }
-                opt.textContent = lbl;
+                opt.textContent = schemaOptionLabel(s);
                 sel.appendChild(opt);
                 if (currentSchemaId && s.schema_id === currentSchemaId) matched = true;
             });
@@ -1177,7 +1197,9 @@ When the conversation has organically reached a natural close — i.e. the stude
             if (currentSchemaId && !matched) {
                 var stale = document.createElement('option');
                 stale.value = currentSchemaId;
-                stale.textContent = currentSchemaId + ' (inactive or missing)';
+                stale.textContent = isEtcDemoCourse()
+                    ? 'Current survey schema (unavailable in demo list)'
+                    : currentSchemaId + ' (inactive or missing)';
                 sel.appendChild(stale);
             }
             sel.value = currentSchemaId || '';
@@ -2451,18 +2473,23 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (!sel) return;
         clearChildren(sel);
         var loadingOpt = document.createElement('option');
+        loadingOpt.value = '';
         loadingOpt.textContent = 'Loading schemas…';
         loadingOpt.disabled = true;
         sel.appendChild(loadingOpt);
 
-        fetch(API + '/form_schemas/?active=1')
-            .then(function (r) { return r.json(); })
+        const course = activeCourse;
+        renderFormSchemaPreview('');
+        getActiveFormSchemas()
             .then(function (rows) {
-                _formSchemas = rows || [];
+                if (activeCourse !== course) return;
+                _formSchemas = visibleFormSchemas(rows);
                 clearChildren(sel);
+                sel.appendChild(new Option('Select a schema…', ''));
                 if (!_formSchemas.length) {
                     var none = document.createElement('option');
                     none.textContent = 'No schemas available';
+                    none.value = '';
                     none.disabled = true;
                     sel.appendChild(none);
                     return;
@@ -2470,36 +2497,43 @@ When the conversation has organically reached a natural close — i.e. the stude
                 _formSchemas.forEach(function (s) {
                     var opt = document.createElement('option');
                     opt.value = s.schema_id;
-                    var lbl = s.title || s.schema_id;
-                    if (s.course_label || s.week_number) {
-                        lbl += '  (' + (s.course_label || '') +
-                            (s.week_number ? ' Wk ' + s.week_number : '') + ')';
-                    }
-                    opt.textContent = lbl;
+                    opt.textContent = schemaOptionLabel(s);
                     sel.appendChild(opt);
                 });
-                renderFormSchemaPreview(sel.value);
+                sel.value = '';
             })
             .catch(function () {
                 clearChildren(sel);
                 var err = document.createElement('option');
+                err.value = '';
                 err.textContent = 'Failed to load schemas';
                 err.disabled = true;
                 sel.appendChild(err);
             });
-        sel.addEventListener('change', function () { renderFormSchemaPreview(sel.value); });
+        sel.onchange = function () { renderFormSchemaPreview(sel.value); };
     }
 
     function renderFormSchemaPreview(schemaId) {
         var box = document.getElementById('form-schema-preview');
         if (!box) return;
-        if (!schemaId) { box.style.display = 'none'; return; }
+        if (!schemaId) {
+            box.style.display = 'none';
+            clearChildren(box);
+            const instructions = document.getElementById('form-survey-instructions');
+            if (instructions) {
+                instructions.readOnly = false;
+                if (instructions.value === 'Use the selected reflection questions and follow-up rules.') instructions.value = '';
+            }
+            return;
+        }
+        const course = activeCourse;
         box.style.display = 'block';
         clearChildren(box);
         box.textContent = 'Loading preview…';
         fetch(API + '/form_schemas/' + encodeURIComponent(schemaId) + '/')
             .then(function (r) { return r.json(); })
             .then(function (rec) {
+                if (activeCourse !== course || document.getElementById('form-schema-select').value !== schemaId) return;
                 clearChildren(box);
                 var body = rec.body || {};
                 var sections = body.sections || [];
@@ -2511,7 +2545,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 }
                 var head = document.createElement('div');
                 head.style.cssText = 'font-weight:600;margin-bottom:6px';
-                head.textContent = (body.title || rec.title || rec.schema_id) +
+                head.textContent = (isEtcDemoCourse() ? schemaOptionLabel(rec) : (body.title || rec.title || rec.schema_id)) +
                     '  (' + sections.length + ' sections, v' + (body.version || rec.version || '?') + ')';
                 box.appendChild(head);
                 var ol = document.createElement('ol');
@@ -2529,7 +2563,10 @@ When the conversation has organically reached a natural close — i.e. the stude
                     box.appendChild(intro);
                 }
             })
-            .catch(function () { clearChildren(box); box.textContent = 'Preview unavailable.'; });
+            .catch(function () {
+                if (activeCourse !== course || document.getElementById('form-schema-select').value !== schemaId) return;
+                clearChildren(box); box.textContent = 'Preview unavailable.';
+            });
     }
 
     document.getElementById('form-create-btn').addEventListener('click', function () {

@@ -130,6 +130,118 @@ function initSidebar(activeNavId, onSignOut) {
     });
 }
 
+// ===== GLOBAL TEXT SIZE =====
+// Scales text nodes and form-control text without scaling page spacing or layout.
+function initFontSizeControl() {
+    var key = 'leai_font_size_percent';
+    var presets = [100, 112, 125, 140];
+    var current = 100;
+    try { current = Number(localStorage.getItem(key)) || 100; } catch (error) { /* Use the standard size when storage is unavailable. */ }
+    if (presets.indexOf(current) < 0) current = 100;
+    var baseStyles = new WeakMap();
+    var hasAppliedInitialSize = false;
+    var control = document.createElement('div');
+    control.className = 'leai-font-size-control';
+    control.innerHTML = '<button type="button" class="leai-font-size-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Text size">'
+        + '<span aria-hidden="true" class="leai-font-size-icon">A<span>A</span></span><span class="leai-font-size-trigger-label">Text size</span></button>'
+        + '<div class="leai-font-size-panel" role="group" aria-label="Choose text size" hidden>'
+        + '<p class="leai-font-size-title">Text size</p><p class="leai-font-size-help">Enlarge text without zooming the whole page.</p>'
+        + '<div class="leai-font-size-options">'
+        + presets.map(function (value, index) {
+            return '<button type="button" class="leai-font-size-option" data-size="' + value + '" aria-pressed="false">'
+                + ['Standard', 'Large', 'Larger', 'Largest'][index] + ' · ' + value + '%</button>';
+        }).join('')
+        + '</div></div>';
+    document.body.appendChild(control);
+
+    function textTargets(root) {
+        var elements = [];
+        if (root.nodeType === 1) elements.push(root);
+        if (root.querySelectorAll) elements = elements.concat(Array.prototype.slice.call(root.querySelectorAll('*')));
+        return elements.filter(function (element) {
+            return element.matches('input,textarea,select') || Array.prototype.some.call(element.childNodes, function (node) {
+                return node.nodeType === 3 && node.nodeValue.trim();
+            });
+        });
+    }
+
+    function updateTextSize(root) {
+        var targets = textTargets(root || document.body);
+        targets.forEach(function (element) {
+            var saved = baseStyles.get(element);
+            if (!saved) {
+                var inlineSize = element.style.fontSize;
+                var computedSize = parseFloat(window.getComputedStyle(element).fontSize) || 16;
+                if (hasAppliedInitialSize && current !== 100 && element.parentElement) {
+                    var parentStyle = baseStyles.get(element.parentElement);
+                    var parentSize = parseFloat(window.getComputedStyle(element.parentElement).fontSize) || 16;
+                    if (parentStyle && Math.abs(computedSize - parentSize) < 0.1) computedSize = parentStyle.size;
+                }
+                saved = { size: computedSize, inlineSize: inlineSize };
+                baseStyles.set(element, saved);
+            }
+        });
+        targets.forEach(function (element) {
+            var saved = baseStyles.get(element);
+            element.style.fontSize = current === 100 ? saved.inlineSize : (saved.size * current / 100) + 'px';
+        });
+        hasAppliedInitialSize = true;
+    }
+
+    function renderSelection() {
+        document.documentElement.setAttribute('data-leai-font-size', String(current));
+        control.querySelectorAll('[data-size]').forEach(function (button) {
+            var selected = Number(button.getAttribute('data-size')) === current;
+            button.setAttribute('aria-pressed', String(selected));
+            button.classList.toggle('selected', selected);
+        });
+        updateTextSize();
+        try { localStorage.setItem(key, String(current)); } catch (error) { /* Current page remains adjustable. */ }
+    }
+
+    var trigger = control.querySelector('.leai-font-size-trigger');
+    var panel = control.querySelector('.leai-font-size-panel');
+    trigger.addEventListener('click', function () {
+        var open = panel.hidden;
+        panel.hidden = !open;
+        trigger.setAttribute('aria-expanded', String(open));
+    });
+    control.querySelectorAll('[data-size]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            current = Number(button.getAttribute('data-size'));
+            renderSelection();
+        });
+    });
+    document.addEventListener('click', function (event) {
+        if (!control.contains(event.target)) {
+            panel.hidden = true;
+            trigger.setAttribute('aria-expanded', 'false');
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !panel.hidden) {
+            panel.hidden = true;
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.focus();
+        }
+    });
+    window.addEventListener('storage', function (event) {
+        if (event.key !== key) return;
+        var next = Number(event.newValue) || 100;
+        if (presets.indexOf(next) >= 0) { current = next; renderSelection(); }
+    });
+    new MutationObserver(function (records) {
+        records.forEach(function (record) {
+            record.addedNodes.forEach(function (node) {
+                if (node.nodeType === 1) updateTextSize(node);
+            });
+        });
+    }).observe(document.body, { childList: true, subtree: true });
+    renderSelection();
+}
+
+if (typeof document !== 'undefined' && document.body && document.getElementById('sidebar')) initFontSizeControl();
+
 // ===== TAG CHIP INPUT =====
 // containerId  : ID of an empty <div> that will become the tag input.
 // placeholder  : placeholder text shown in the inner text input.

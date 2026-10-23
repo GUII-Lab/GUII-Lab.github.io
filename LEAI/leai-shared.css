@@ -1786,3 +1786,38 @@ input[type="checkbox"], input[type="radio"] {
     .leai-pdf-drawer__title { font-size: 15px; }
     .leai-pdf-explainer { font-size: 12px; padding: 10px 12px; }
 }
+
+/* Persistent text controls across instructor workspaces; only text metrics change. */
+.leai-font-size-control { position: fixed; top: 12px; right: 16px; z-index: 20000; font-family: 'Inter', sans-serif; }
+.leai-font-size-trigger {
+    display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
+    padding: 7px 12px; border: 1px solid var(--outline); border-radius: 6px;
+    background: var(--surface-card); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2;
+    box-shadow: 0 2px 8px rgba(22,28,31,.12); cursor: pointer;
+}
+.leai-font-size-trigger:hover, .leai-font-size-trigger:focus-visible { border-color: var(--primary); color: var(--primary); }
+.leai-font-size-icon { font-weight: 700; font-size: 16px; line-height: 1; }
+.leai-font-size-icon span { font-size: 12px; }
+.leai-font-size-panel {
+    position: absolute; top: calc(100% + 8px); right: 0; width: min(280px, calc(100vw - 24px));
+    padding: 14px; border: 1px solid var(--outline); border-radius: 8px;
+    background: var(--surface-card); color: var(--text); box-shadow: 0 8px 24px rgba(22,28,31,.18);
+}
+.leai-font-size-panel[hidden] { display: none; }
+.leai-font-size-title { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
+.leai-font-size-help { margin: 0 0 12px; color: var(--text-variant); font-size: 13px; line-height: 1.4; }
+.leai-font-size-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.leai-font-size-option {
+    min-height: 38px; padding: 6px 8px; border: 1px solid var(--outline); border-radius: 5px;
+    background: var(--surface-card); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; line-height: 1.25; cursor: pointer;
+}
+.leai-font-size-option:hover, .leai-font-size-option:focus-visible { border-color: var(--primary); }
+.leai-font-size-option.selected { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
+html[data-leai-font-size]:not([data-leai-font-size="100"]) .sidebar-label {
+    white-space: normal; overflow-wrap: anywhere; text-overflow: clip;
+}
+@media (max-width: 640px) {
+    .leai-font-size-control { top: 8px; right: 8px; }
+    .leai-font-size-trigger { min-height: 38px; padding: 6px 9px; }
+    .leai-font-size-trigger-label { display: none; }
+}

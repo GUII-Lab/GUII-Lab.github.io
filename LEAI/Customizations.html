@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-font-size-1">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -129,7 +129,7 @@
         <p>Enter your course ID and dashboard password to customize the AI assistant for your class.</p>
         <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide &rarr;</a></p>
         <label style="margin-top:14px">Course ID</label>
-        <input type="text" id="login-course-id" placeholder="cm150-sp26" oninput="this.value=this.value.toLowerCase()" />
+        <input type="text" id="login-course-id" placeholder="Enter course ID" oninput="this.value=this.value.toLowerCase()" />
         <label>Password</label>
         <input type="password" id="login-password" placeholder="Dashboard password" />
         <button class="btn btn-primary" id="login-btn">Sign In</button>
@@ -333,7 +333,7 @@
     </div>
 </div>
 
-<script src="leai-shared.js?v=ulia-debug-1"></script>
+<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=1"></script>
 <script src="leai-debug.js?v=ulia-debug-5"></script>
 <script src="leai-version.js"></script>
 <script>
