@@ -534,7 +534,7 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 0.8rem; line-height: 1.5; color: var(--text); }
 .qt-quote::before { content: '\201C'; font-size: 1.2rem; line-height: 0.8;
     color: var(--primary); flex-shrink: 0; }
-.qt-quote-body { flex: 1; }
+.qt-quote-body { flex: 1; font-size: 15px; }
 .qt-quote-src { display: block; color: var(--muted); font-size: 0.66rem;
     margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
 
