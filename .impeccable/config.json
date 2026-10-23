@@ -29,6 +29,24 @@
         ],
         "createdAt": "2026-10-14T06:06:18.405Z",
         "reason": "Verified page uses existing --primary #006493. Purple is from unused linked shared [data-config-color=plum/indigo] selectors; Customizations has no config-colored elements."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "LEAI/leai-shared.css"
+        ],
+        "createdAt": "2026-10-23T04:02:41.697Z",
+        "reason": "User confirmed preserving the legacy LEAI interface; Inter is its existing shared font."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "LEAI/leai-shared.css"
+        ],
+        "createdAt": "2026-10-23T04:02:41.717Z",
+        "reason": "Agent: the only matches are the interactive sidebar collapse and upload-progress bar, which intentionally animate those states."
       }
     ]
   }
