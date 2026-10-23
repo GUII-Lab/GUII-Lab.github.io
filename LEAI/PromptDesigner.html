@@ -1115,7 +1115,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (mode === 'group') populateInGroupSchemaSelect();
     }
 
-    // The ETC demonstration exposes only its dedicated synthetic schema.
+    // The ETC demonstration exposes only its dedicated demo schemas.
     // Keep registry identifiers and saved survey bindings unchanged.
     function isEtcDemoCourse() {
         return !!(activeCourse && /^ETC Demo(?:\s|[·—-]|$)/i.test(activeCourse.name || ''));
@@ -1123,12 +1123,13 @@ When the conversation has organically reached a natural close — i.e. the stude
 
     function visibleFormSchemas(rows) {
         return isEtcDemoCourse()
-            ? rows.filter(schema => schema.schema_id === 'etc-discussion-demo-v1')
+            ? rows.filter(schema => ['etc-discussion-demo-v1', 'etc-game-design-reflection-demo-v1'].includes(schema.schema_id))
             : rows;
     }
 
     function schemaOptionLabel(schema) {
-        if (isEtcDemoCourse()) return 'ETC Demo — Class discussion';
+        if (isEtcDemoCourse()) return schema.schema_id === 'etc-discussion-demo-v1'
+            ? 'ETC Demo — Class discussion' : (schema.title || schema.schema_id);
         let label = schema.title || schema.schema_id;
         if (schema.course_label || schema.week_number) {
             label += '  (' + (schema.course_label || '') +
