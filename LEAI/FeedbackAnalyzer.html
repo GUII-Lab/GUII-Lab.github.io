@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-quote-15px-1">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-analyzer-comments-20261023-usability-2">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -738,6 +738,8 @@
                 <p>Review survey results and student engagement across your course.</p>
             </div>
 
+            <div class="analyzer-display-tools" id="analyzer-text-size-host" aria-label="Display settings"></div>
+
             <!-- Mode tabs -->
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
                 <button class="mode-tab active" role="tab" data-mode="form" aria-selected="true">Individual Reflections</button>
@@ -1120,9 +1122,13 @@
     function enterApp() {
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
+        const textSizeControl = document.querySelector('.leai-font-size-control');
+        if (textSizeControl) document.getElementById('analyzer-text-size-host').appendChild(textSizeControl);
         initSidebar('nav-feedback-analyzer', function () {
             session = null;
             allSurveys = [];
+            // Preserve the existing text-size control on the sign-in screen.
+            if (textSizeControl) document.body.appendChild(textSizeControl);
             document.getElementById('login-password').value = '';
             document.getElementById('login-msg').textContent = '';
         });
@@ -1289,6 +1295,7 @@
 
     // ===== SCOPE CHANGE HANDLER =====
     function onScopeChange() {
+        if (_quickTakePopover) _quickTakePopover(false);
         ngramVisibleCount = 10;
         activePinnedTerm = null;
         document.getElementById('ngram-matches').style.display = 'none';
@@ -1986,14 +1993,6 @@
 
         var totalResponses = currentResponses.length;
 
-        // Participation: responses in scope / unique sessions across the active mode's surveys.
-        var allSessionIds = {};
-        activeSurveys().forEach(function (s) {
-            Object.keys(s.sessions).forEach(function (sid) { allSessionIds[sid] = true; });
-        });
-        var totalUnique = Object.keys(allSessionIds).length;
-        var participation = totalUnique > 0 ? Math.round((totalResponses / totalUnique) * 100) : 0;
-
         // Avg words
         var totalWords = 0;
         currentResponses.forEach(function (r) {
@@ -2006,10 +2005,6 @@
             {
                 value: totalResponses, label: 'Responses',
                 tooltip: 'Total number of student responses collected in ' + scopeLabel + '.\n\nEach chat message counts as one response. Each uploaded PDF reflection counts once, even though it can contain several saved fields.\n\nA single student may contribute multiple responses per survey.'
-            },
-            {
-                value: participation + '%', label: 'Participation',
-                tooltip: 'Responses in ' + scopeLabel + ' (' + totalResponses + ') ÷ total unique student sessions across the entire course (' + totalUnique + ').\n\nShows engagement relative to your full course roster, not just this week.'
             },
             {
                 value: avgWords, label: 'Avg Words',
@@ -2069,13 +2064,34 @@
         sparkSurveys.forEach(function (s) {
             if (s.session_count > maxCount) maxCount = s.session_count;
         });
+        const selectedWeek = currentScope.kind === 'week' ? currentScope.weekNumber : null;
         sparkSurveys.forEach(function (s) {
             var bar = document.createElement('div');
-            bar.className = 'sparkline-bar';
-            var h = maxCount > 0 ? Math.max(2, Math.round((s.session_count / maxCount) * 32)) : 2;
+            const selected = selectedWeek != null && s.week_number === selectedWeek;
+            bar.className = 'sparkline-bar' + (selected ? ' is-current' : '');
+            bar.setAttribute('tabindex', '0');
+            bar.setAttribute('role', 'img');
+            const h = maxCount > 0 ? Math.max(2, Math.round((s.session_count / maxCount) * 48)) : 2;
             bar.style.height = h + 'px';
-            bar.title = (s.survey_label || ('Week ' + s.week_number)) + ': ' + s.session_count + ' responses';
-            sparkContainer.appendChild(bar);
+            bar.title = (s.survey_label || ('Week ' + s.week_number)) + ': ' + s.session_count + ' responses' + (selected ? ' (selected week)' : '');
+            bar.setAttribute('aria-label', bar.title);
+            const week = document.createElement('div');
+            week.className = 'sparkline-week' + (selected ? ' is-current' : '');
+            const count = document.createElement('span');
+            count.className = 'sparkline-value';
+            count.textContent = s.session_count;
+            count.setAttribute('aria-hidden', 'true');
+            const track = document.createElement('div');
+            track.className = 'sparkline-track';
+            track.appendChild(bar);
+            const label = document.createElement('span');
+            label.className = 'sparkline-week-label';
+            label.textContent = s.week_number != null ? 'W' + s.week_number : '—';
+            label.setAttribute('aria-hidden', 'true');
+            week.appendChild(count);
+            week.appendChild(track);
+            week.appendChild(label);
+            sparkContainer.appendChild(week);
         });
         sparkCard.appendChild(sparkContainer);
         statsEl.appendChild(sparkCard);
@@ -2342,74 +2358,159 @@
             });
     }
 
+    // Resolve the exact survey/session pair; session IDs alone can repeat across weeks.
+    function quickTakeSourceMessages(source) {
+        if (!source || !source.session_id || source.survey_id == null) return [];
+        const survey = allSurveys.find(s => String(s.gpt_id) === String(source.survey_id));
+        return survey && survey.sessions ? (survey.sessions[source.session_id] || []) : [];
+    }
+
+    function appendCitedText(target, text, quote) {
+        const value = String(text || '');
+        // Whitespace in saved excerpts may differ from the original message.
+        const words = String(quote || '').trim().split(/\s+/).filter(Boolean);
+        const escaped = words.map(word => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const match = escaped.length ? new RegExp(escaped.join('\\s+'), 'i').exec(value) : null;
+        if (!match) { target.textContent = value; return false; }
+        target.appendChild(document.createTextNode(value.slice(0, match.index)));
+        const mark = document.createElement('mark');
+        mark.textContent = match[0];
+        target.appendChild(mark);
+        target.appendChild(document.createTextNode(value.slice(match.index + match[0].length)));
+        return true;
+    }
+
     var _quickTakePopover = null;
     function showQuickTakeCitePopover(anchor, rid, source, quote) {
-        if (_quickTakePopover) { _quickTakePopover.remove(); _quickTakePopover = null; }
-
-        var accentColor = '#5c6b73';
-
-        var pop = document.createElement('div');
-        pop.className = 'cite-popover';
-
-        var header = document.createElement('div');
-        header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px';
-        var ridEl = document.createElement('span');
-        ridEl.style.cssText = 'font-weight:700;font-size:1rem;letter-spacing:0.02em';
-        ridEl.textContent = (source && source.display_rid) || rid || 'Citation';
-        header.appendChild(ridEl);
-        if (source && source.week_number) {
-            var weekEl = document.createElement('span');
-            weekEl.style.cssText = 'font-size:0.875rem;color:#5c6b73;text-transform:uppercase;letter-spacing:0.06em';
-            weekEl.textContent = '\u00b7 Week ' + source.week_number;
-            header.appendChild(weekEl);
-        }
+        if (_quickTakePopover) _quickTakePopover();
+        const pop = document.createElement('div');
+        pop.className = 'cite-popover qt-conversation-popover';
+        pop.setAttribute('role', 'dialog');
+        pop.setAttribute('aria-label', 'Cited conversation');
+        pop.tabIndex = -1;
+        const header = document.createElement('div');
+        header.className = 'qt-conversation-header';
+        const title = document.createElement('strong');
+        title.textContent = ((source && source.display_rid) || rid || 'Citation') +
+            (source && source.week_number != null ? ' · Week ' + source.week_number : '');
+        header.appendChild(title);
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'qt-conversation-close';
+        close.textContent = '×';
+        close.setAttribute('aria-label', 'Close conversation');
+        header.appendChild(close);
         pop.appendChild(header);
-
-        if (quote) {
-            var quoteEl = document.createElement('div');
-            quoteEl.style.cssText = 'border-left:3px solid ' + accentColor + ';padding:4px 0 4px 10px;margin-bottom:6px;font-size:1.25rem;color:#1a1f22';
-            quoteEl.textContent = '\u201c' + quote + '\u201d';
-            pop.appendChild(quoteEl);
+        const transcript = document.createElement('div');
+        transcript.className = 'qt-conversation-transcript';
+        transcript.tabIndex = 0;
+        transcript.setAttribute('aria-label', 'Conversation messages');
+        let citedRow = null;
+        const messages = quickTakeSourceMessages(source);
+        if (messages.length) {
+            messages.forEach(m => {
+                const student = isStudentMsg(m);
+                const row = document.createElement('div');
+                row.className = 'qt-conversation-message ' + (m.source === 'pdf' ? 'reflection' : student ? 'student' : 'ai');
+                const label = document.createElement('div');
+                label.className = 'qt-conversation-role';
+                label.textContent = m.source === 'pdf' ? 'Reflection' : student ? 'Student' : 'AI';
+                row.appendChild(label);
+                const body = document.createElement('div');
+                body.className = 'qt-conversation-text';
+                const cited = appendCitedText(body, m.content, student || m.source === 'pdf' ? quote : null);
+                if (cited) {
+                    row.classList.add('is-cited');
+                    row.setAttribute('aria-label', label.textContent + ', cited message');
+                    if (!citedRow) citedRow = row;
+                }
+                row.appendChild(body);
+                transcript.appendChild(row);
+            });
+        } else {
+            const note = document.createElement('p');
+            note.textContent = 'Full conversation unavailable. Saved response:';
+            transcript.appendChild(note);
+            const fallback = document.createElement('div');
+            fallback.className = 'qt-conversation-text';
+            appendCitedText(fallback, (source && source.text) || quote || 'Source text unavailable.', quote);
+            transcript.appendChild(fallback);
         }
-
-        if (source && source.text) {
-            if (quote) {
-                var disclosure = document.createElement('details');
-                disclosure.style.cssText = 'margin-top:4px;font-size:1rem';
-                var summary = document.createElement('summary');
-                summary.style.cssText = 'cursor:pointer;color:#5c6b73;font-weight:600';
-                summary.textContent = 'Full response';
-                disclosure.appendChild(summary);
-                var pre = document.createElement('div');
-                pre.style.cssText = 'color:#1a1f22;max-height:200px;overflow:auto;white-space:pre-wrap;padding:6px 0 0 0;font-size:1rem';
-                pre.textContent = source.text;
-                disclosure.appendChild(pre);
-                pop.appendChild(disclosure);
-            } else {
-                var body = document.createElement('div');
-                body.style.cssText = 'color:#1a1f22;max-height:220px;overflow:auto;white-space:pre-wrap;border-left:3px solid ' + accentColor + ';padding:2px 0 2px 8px;font-size:1.125rem';
-                body.textContent = source.text;
-                pop.appendChild(body);
-            }
-        } else if (!quote) {
-            var body2 = document.createElement('div');
-            body2.style.cssText = 'color:#5c6b73;font-style:italic;font-size:1rem';
-            body2.textContent = 'Response text not available for this citation.';
-            pop.appendChild(body2);
+        if (messages.length && quote && !citedRow) {
+            const missingQuote = document.createElement('p');
+            missingQuote.className = 'qt-citation-note';
+            missingQuote.textContent = 'The saved excerpt could not be matched verbatim in this conversation.';
+            pop.appendChild(missingQuote);
         }
-
+        pop.appendChild(transcript);
         document.body.appendChild(pop);
-
         positionCitationPopover(pop, anchor);
-        _quickTakePopover = pop;
-
-        var dismiss = function (ev) {
-            if (pop.contains(ev.target) || ev.target === anchor) return;
+        const dismiss = function (restoreFocus) {
             pop.remove();
+            anchor.setAttribute('aria-expanded', 'false');
+            document.removeEventListener('click', outside, true);
+            document.removeEventListener('keydown', escape, true);
             _quickTakePopover = null;
-            document.removeEventListener('click', dismiss, true);
+            if (restoreFocus && anchor.isConnected) anchor.focus({ preventScroll: true });
         };
-        setTimeout(function () { document.addEventListener('click', dismiss, true); }, 0);
+        const outside = ev => { if (!pop.contains(ev.target) && !anchor.contains(ev.target)) dismiss(false); };
+        const escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); dismiss(true); } };
+        close.addEventListener('click', () => dismiss(true));
+        document.addEventListener('click', outside, true);
+        document.addEventListener('keydown', escape, true);
+        _quickTakePopover = dismiss;
+        anchor.setAttribute('aria-expanded', 'true');
+        pop.focus({ preventScroll: true });
+        if (citedRow) transcript.scrollTop = citedRow.offsetTop - transcript.offsetTop;
+    }
+
+    // Keep native disclosure keyboard behavior and independently closed defaults.
+    function collapseInsightSections(accent) {
+        const nodes = Array.from(accent.children);
+        let group = null;
+        nodes.forEach(node => {
+            if (node.classList.contains('qt-section')) {
+                const heading = node.querySelector('.qt-section-title');
+                if (!heading) return;
+                const details = document.createElement('details');
+                details.className = 'qt-insight-section';
+                const summary = document.createElement('summary');
+                summary.textContent = heading.textContent;
+                details.appendChild(summary);
+                heading.remove();
+                node.before(details);
+                details.appendChild(node);
+                group = null;
+            } else if (node.classList.contains('qt-insights-subhead')) {
+                group = document.createElement('details');
+                group.className = 'qt-insight-section';
+                const summary = document.createElement('summary');
+                summary.textContent = node.textContent;
+                group.appendChild(summary);
+                node.before(group);
+                node.remove();
+            } else if (group) group.appendChild(node);
+        });
+        Array.from(accent.children).filter(node => node.classList.contains('qt-insight-section')).forEach(section => {
+            const summary = section.querySelector('summary');
+            const label = document.createElement('span');
+            label.className = 'qt-insight-label';
+            label.textContent = summary.textContent;
+            summary.textContent = '';
+            const chevron = document.createElement('span');
+            chevron.className = 'qt-insight-chevron';
+            chevron.textContent = '›';
+            chevron.setAttribute('aria-hidden', 'true');
+            summary.appendChild(chevron);
+            summary.appendChild(label);
+            const items = section.querySelectorAll('.qt-gap, .quick-take-bullets > li, .qt-fsec, .qt-team-card');
+            if (items.length) {
+                const count = document.createElement('span');
+                count.className = 'qt-insight-count';
+                count.textContent = items.length + (items.length === 1 ? ' item' : ' items');
+                summary.appendChild(count);
+            }
+        });
     }
 
     function attachQuickTakePoll(container, sk) {
@@ -2667,6 +2768,11 @@
             if (local) {
                 s.week_rid = local.week_rid;
                 s.display_rid = local.display_rid;
+                // Only enrich a missing lookup from a matching response, avoiding stale R-id remaps.
+                if (!s.session_id && (!s.text || s.text === local.text)) {
+                    s.session_id = local.session_id;
+                    s.survey_id = local.survey_id;
+                }
             }
             sourceByRid[s.rid] = s;
         });
@@ -2679,10 +2785,6 @@
         // Header with actions
         var header = document.createElement('div');
         header.className = 'card-header';
-        var titleEl = document.createElement('span');
-        titleEl.style.cssText = 'font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-variant)';
-        titleEl.textContent = 'Instructor Insights';
-
         var actions = document.createElement('div');
         actions.className = 'card-actions';
 
@@ -2695,12 +2797,12 @@
         regenBtn.addEventListener('click', onRegenerate);
         actions.appendChild(regenBtn);
 
-        header.appendChild(titleEl);
+        header.classList.add('qt-report-header');
+        header.appendChild(buildFreshnessStrip(qt, currentCount));
         header.appendChild(actions);
         accent.appendChild(header);
 
-        // Freshness strip: when generated + how many responses since.
-        accent.appendChild(buildFreshnessStrip(qt, currentCount));
+        // Generation freshness shares the action row, below the single section heading.
 
         // Pill numbering is shared across actions + bullets (first-appearance
         // order), so a duplicate R-id gets the same local number everywhere it
@@ -2782,6 +2884,8 @@
                 positive: 'Positive',
                 negative: 'Negative',
                 mixed:    'Mixed',
+                neutral:  'Neutral',
+                all:      'All',
             };
             var sentimentCounts = { positive: 0, negative: 0, mixed: 0, neutral: 0 };
             (qt.bullets || []).forEach(function (b) {
@@ -2799,16 +2903,32 @@
                 legendLabel.className = 'qt-sent-legend-label';
                 legendLabel.textContent = 'Sentiment:';
                 legend.appendChild(legendLabel);
-                ['positive', 'negative', 'mixed'].forEach(function (k) {
-                    if (!sentimentCounts[k]) return;
-                    var item = document.createElement('span');
+                legend.setAttribute('role', 'group');
+                legend.setAttribute('aria-label', 'Filter insights by sentiment');
+                ['all', 'positive', 'negative', 'mixed', 'neutral'].forEach(function (k) {
+                    if (k !== 'all' && !sentimentCounts[k]) return;
+                    const item = document.createElement('button');
+                    item.type = 'button';
+                    item.dataset.sentiment = k;
+                    item.setAttribute('aria-pressed', k === 'all' ? 'true' : 'false');
                     item.className = 'qt-sent-legend-item sentiment-' + k;
                     var swatch = document.createElement('span');
                     swatch.className = 'qt-sent-legend-swatch';
                     item.appendChild(swatch);
                     item.appendChild(document.createTextNode(
-                        SENT_LABELS[k] + ' (' + sentimentCounts[k] + ')'
+                        SENT_LABELS[k] + ' (' + (k === 'all' ? qt.bullets.length : sentimentCounts[k]) + ')'
                     ));
+                    item.addEventListener('click', function () {
+                        legend.querySelectorAll('button').forEach(button => {
+                            button.setAttribute('aria-pressed', button === item ? 'true' : 'false');
+                        });
+                        accent.querySelectorAll('.quick-take-bullets > li').forEach(bullet => {
+                            bullet.hidden = k !== 'all' && bullet.dataset.sentiment !== k;
+                        });
+                        accent.querySelectorAll('.qt-filter-empty').forEach(note => {
+                            note.hidden = Array.from(note.previousElementSibling.children).some(bullet => !bullet.hidden);
+                        });
+                    });
                     legend.appendChild(item);
                 });
                 accent.appendChild(legend);
@@ -2817,6 +2937,7 @@
                 var li = document.createElement('li');
                 var sentiment = (b && typeof b.sentiment === 'string') ? b.sentiment : 'neutral';
                 if (!(sentiment in sentimentCounts)) sentiment = 'neutral';
+                li.dataset.sentiment = sentiment;
                 // Claim line: the synthesized takeaway + a "N students" count.
                 // Only this line carries the valence tint — a tight colored
                 // band, not a card — so the verbatim quotes hang below it
@@ -2864,15 +2985,8 @@
                 }
                 li.appendChild(claim);
                 if (citesWrap) li.appendChild(citesWrap);
-                // Keep existing verbatim excerpts; older insights without
-                // excerpts show the original cited response text instead.
-                const evidenceQuotes = (b.quotes || []).filter(q => q && q.text);
-                if (!evidenceQuotes.length) {
-                    citeRids.forEach(rid => {
-                        const source = sourceByRid[rid];
-                        if (source && source.text) evidenceQuotes.push({ rid, text: source.text });
-                    });
-                }
+                // Expanded evidence contains direct excerpts only, never a concatenated session summary.
+                const evidenceQuotes = (b.quotes || []).filter(q => q && q.text && citeRids.includes(q.rid));
                 if (evidenceQuotes.length) {
                     function normKey(s) {
                         return (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -2904,8 +3018,8 @@
                         // rids echoed the same span, surface that count.
                         var lead = g.rids[0];
                         var src = sourceByRid[lead];
-                        var srcParts = [(src && src.display_rid) || lead];
-                        if (src && src.week_number != null) srcParts.push('Wk ' + src.week_number);
+                        var srcParts = ['View conversation', (src && src.display_rid) || lead];
+                        if (src && src.week_number != null) srcParts.push('W' + src.week_number);
                         if (g.rids.length > 1) {
                             srcParts.push('+ ' + (g.rids.length - 1) + ' more echoed this');
                         }
@@ -2913,7 +3027,9 @@
                         if (lead) {
                             srcEl.setAttribute('role', 'button');
                             srcEl.setAttribute('tabindex', '0');
-                            srcEl.title = 'View full response';
+                            srcEl.title = 'View conversation and cited message';
+                            srcEl.setAttribute('aria-haspopup', 'dialog');
+                            srcEl.setAttribute('aria-expanded', 'false');
                             srcEl.style.cursor = 'pointer';
                             pillBindings.push({ pill: srcEl, rid: lead, quote: g.text });
                         }
@@ -2924,7 +3040,7 @@
                     if (citesWrap) citesWrap.appendChild(quotesEl);
                 } else if (citesWrap) {
                     const unavailable = document.createElement('p');
-                    unavailable.textContent = 'Source text is unavailable for these responses.';
+                    unavailable.textContent = 'No direct quotes saved for these responses.';
                     citesWrap.appendChild(unavailable);
                 }
                 return li;
@@ -3082,6 +3198,16 @@
             accent.appendChild(teamSec);
         }
 
+        // Each large content section is independently collapsed on first render.
+        collapseInsightSections(accent);
+        accent.querySelectorAll('.quick-take-bullets').forEach(list => {
+            const empty = document.createElement('p');
+            empty.className = 'qt-filter-empty';
+            empty.textContent = 'No items match this sentiment. Select All to show every item.';
+            empty.hidden = true;
+            list.after(empty);
+        });
+
         // Sources drawer
         var sourcesDrawer = null;
         var sourcesList = null;
@@ -3157,8 +3283,7 @@
         var promptReveal = document.createElement('div');
         promptReveal.className = 'prompt-reveal';
         var promptBtn = document.createElement('button');
-        promptBtn.className = 'btn btn-outline';
-        promptBtn.style.cssText = 'font-size:0.66rem;padding:4px 10px;margin-top:8px';
+        promptBtn.className = 'btn qt-prompt-toggle';
         promptBtn.textContent = 'Show prompt';
         promptBtn.setAttribute('tabindex', '0');
 
@@ -3194,8 +3319,8 @@
         if (!opts.hideFollowUp) {
         var followUp = document.createElement('a');
         followUp.href = 'FeedbackChat.html';
-        followUp.className = 'btn btn-outline';
-        followUp.style.cssText = 'font-size:0.66rem;padding:4px 10px;margin-top:8px;display:inline-flex;text-decoration:none';
+        followUp.className = 'btn btn-sm qt-follow-up';
+        followUp.setAttribute('aria-label', 'Ask a follow-up about these instructor insights');
         followUp.textContent = 'Ask a follow-up \u2192';
         followUp.setAttribute('tabindex', '0');
         followUp.addEventListener('click', function (ev) {
@@ -3243,7 +3368,11 @@
                     window.location.href = 'FeedbackChat.html';
                 });
         });
-        accent.appendChild(followUp);
+        const footer = document.createElement('div');
+        footer.className = 'qt-report-footer';
+        promptReveal.before(footer);
+        footer.appendChild(followUp);
+        footer.appendChild(promptReveal);
         }
 
         card.appendChild(accent);

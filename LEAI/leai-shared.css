@@ -1102,6 +1102,41 @@ input[type="checkbox"], input[type="radio"] {
     content: '▸ '; transition: transform 0.15s; display: inline-block;
 }
 .leai-pdf-roster-chip__peek[open] summary::before { content: '▾ '; }
+
+/* Persistent text controls. Their own pixel sizing stays stable as rem text grows. */
+.leai-font-size-control { position: fixed; top: 12px; right: 16px; z-index: 20000; font-family: 'Inter', sans-serif; }
+.leai-font-size-trigger {
+    display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
+    padding: 7px 12px; border: 1px solid var(--outline); border-radius: 6px;
+    background: var(--surface-card); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2;
+    box-shadow: 0 2px 8px rgba(22,28,31,.12); cursor: pointer;
+}
+.leai-font-size-trigger:hover, .leai-font-size-trigger:focus-visible { border-color: var(--primary); color: var(--primary); }
+.leai-font-size-icon { font-weight: 700; font-size: 16px; line-height: 1; }
+.leai-font-size-icon span { font-size: 12px; }
+.leai-font-size-panel {
+    position: absolute; top: calc(100% + 8px); right: 0; width: min(280px, calc(100vw - 24px));
+    padding: 14px; border: 1px solid var(--outline); border-radius: 8px;
+    background: var(--surface-card); color: var(--text); box-shadow: 0 8px 24px rgba(22,28,31,.18);
+}
+.leai-font-size-panel[hidden] { display: none; }
+.leai-font-size-title { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
+.leai-font-size-help { margin: 0 0 12px; color: var(--text-variant); font-size: 13px; line-height: 1.4; }
+.leai-font-size-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.leai-font-size-option {
+    min-height: 38px; padding: 6px 8px; border: 1px solid var(--outline); border-radius: 5px;
+    background: var(--surface-card); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; line-height: 1.25; cursor: pointer;
+}
+.leai-font-size-option:hover, .leai-font-size-option:focus-visible { border-color: var(--primary); }
+.leai-font-size-option.selected { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
+html[data-leai-font-size]:not([data-leai-font-size="100"]) .sidebar-label {
+    white-space: normal; overflow-wrap: anywhere; text-overflow: clip;
+}
+@media (max-width: 640px) {
+    .leai-font-size-control { top: 8px; right: 8px; }
+    .leai-font-size-trigger { min-height: 38px; padding: 6px 9px; }
+    .leai-font-size-trigger-label { display: none; }
+}
 .leai-pdf-roster-chip__list {
     margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;
     max-height: 80px; overflow: auto;
@@ -1188,12 +1223,18 @@ input[type="checkbox"], input[type="radio"] {
 
 /* File list */
 .leai-pdf-file-list { display: flex; flex-direction: column; gap: 8px; }
+.leai-pdf-attribution-summary {
+    padding: 10px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600;
+    color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0;
+}
+.leai-pdf-attribution-summary--issues { color: #78350f; background: #fffbeb; border-color: #fcd34d; }
 .leai-pdf-file-row {
     display: grid; grid-template-columns: 1fr 1fr 32px; gap: 12px;
     align-items: center; padding: 10px 12px;
     border: 1px solid var(--border, #e5e7eb); border-radius: 8px;
     background: var(--surface, #fff);
 }
+.leai-pdf-file-row--issue { border-color: #f59e0b; background: #fffbeb; }
 .leai-pdf-file-row__meta { min-width: 0; }
 .leai-pdf-file-row__name {
     font-size: 13px; font-weight: 500; color: var(--text, #111827);
@@ -1208,6 +1249,7 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-file-row__input--empty { border-color: #f59e0b; background: #fffbeb; }
 .leai-pdf-file-row__input:focus { outline: 2px solid var(--primary, #2563eb); outline-offset: -1px; border-color: var(--primary, #2563eb); }
 .leai-pdf-file-row__hint { font-size: 11px; color: var(--text-muted, #9ca3af); }
+.leai-pdf-file-row__issue { font-size: 11px; color: #92400e; line-height: 1.35; }
 .leai-pdf-file-row__remove {
     width: 28px; height: 28px; border-radius: 6px; border: 0;
     background: transparent; color: var(--text-muted, #9ca3af);
@@ -1233,6 +1275,10 @@ input[type="checkbox"], input[type="radio"] {
     background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px;
     padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
 }
+.leai-pdf-bulkfill-disclosure > summary {
+    cursor: pointer; font-size: 12.5px; color: var(--text-muted, #6b7280);
+}
+.leai-pdf-bulkfill-disclosure[open] > summary { margin-bottom: 8px; }
 .leai-pdf-bulkfill__title { font-size: 13px; font-weight: 700; color: #78350f; }
 .leai-pdf-bulkfill__hint { font-size: 12px; color: #92400e; line-height: 1.5; }
 .leai-pdf-bulkfill__row {
@@ -1291,6 +1337,10 @@ input[type="checkbox"], input[type="radio"] {
     border-radius: 50%; background: #d1fae5; color: #047857;
     font-size: 11px; font-weight: 700; line-height: 1;
     vertical-align: middle;
+}
+.leai-pdf-cleanup-summary {
+    padding: 8px 12px; border-radius: 8px; font-size: 12px;
+    color: #475569; background: #f8fafc; border: 1px solid #e2e8f0;
 }
 .leai-pdf-review-card--reviewed { border-left: 1px solid #10b981; padding-left: 15px; }
 .leai-pdf-review-card--reviewed.leai-pdf-review-card--low { background: #f0fdf4; }
@@ -1384,8 +1434,9 @@ input[type="checkbox"], input[type="radio"] {
 .leai-pdf-review-cell--low .leai-pdf-review-cell__label { color: #92400e; }
 .leai-pdf-review-cell__warn {
     font-size: 11px; font-weight: 500; color: #92400e; background: #fef3c7;
-    padding: 2px 8px; border-radius: 999px;
+    padding: 3px 8px; border-radius: 6px; line-height: 1.35;
 }
+.leai-pdf-attention-action { align-self: flex-start; }
 /* AI-assisted badge — pop colour to draw the eye for verification */
 .leai-pdf-review-cell__aibadge {
     font-size: 10.5px; font-weight: 600; color: #6d28d9; background: #ede9fe;
@@ -1465,6 +1516,9 @@ input[type="checkbox"], input[type="radio"] {
     background: var(--surface-low, #f3f4f6); border-radius: 6px; white-space: pre-wrap; max-height: 140px; overflow: auto;
     color: var(--text-muted, #4b5563);
 }
+.leai-pdf-review-card__cleanup { margin-top: 12px; font-size: 12px; color: var(--text-muted, #6b7280); }
+.leai-pdf-review-card__cleanup summary { cursor: pointer; }
+.leai-pdf-review-card__cleanup ul { margin: 6px 0 0 18px; padding: 0; }
 /* Extracted-text expander — same look as preamble but taller cap so an
    instructor can scan a full PDF's worth of text inline. */
 .leai-pdf-review-card__extracted { margin-top: 12px; font-size: 12px; }
@@ -1791,41 +1845,6 @@ input[type="checkbox"], input[type="radio"] {
     .leai-pdf-explainer { font-size: 12px; padding: 10px 12px; }
 }
 
-/* Persistent text controls across instructor workspaces; only text metrics change. */
-.leai-font-size-control { position: fixed; top: 12px; right: 16px; z-index: 20000; font-family: 'Inter', sans-serif; }
-.leai-font-size-trigger {
-    display: inline-flex; align-items: center; gap: 7px; min-height: 40px;
-    padding: 7px 12px; border: 1px solid var(--outline); border-radius: 6px;
-    background: var(--surface-card); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; line-height: 1.2;
-    box-shadow: 0 2px 8px rgba(22,28,31,.12); cursor: pointer;
-}
-.leai-font-size-trigger:hover, .leai-font-size-trigger:focus-visible { border-color: var(--primary); color: var(--primary); }
-.leai-font-size-icon { font-weight: 700; font-size: 16px; line-height: 1; }
-.leai-font-size-icon span { font-size: 12px; }
-.leai-font-size-panel {
-    position: absolute; top: calc(100% + 8px); right: 0; width: min(280px, calc(100vw - 24px));
-    padding: 14px; border: 1px solid var(--outline); border-radius: 8px;
-    background: var(--surface-card); color: var(--text); box-shadow: 0 8px 24px rgba(22,28,31,.18);
-}
-.leai-font-size-panel[hidden] { display: none; }
-.leai-font-size-title { margin: 0 0 3px; font-size: 16px; font-weight: 700; }
-.leai-font-size-help { margin: 0 0 12px; color: var(--text-variant); font-size: 13px; line-height: 1.4; }
-.leai-font-size-options { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.leai-font-size-option {
-    min-height: 38px; padding: 6px 8px; border: 1px solid var(--outline); border-radius: 5px;
-    background: var(--surface-card); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; line-height: 1.25; cursor: pointer;
-}
-.leai-font-size-option:hover, .leai-font-size-option:focus-visible { border-color: var(--primary); }
-.leai-font-size-option.selected { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
-html[data-leai-font-size]:not([data-leai-font-size="100"]) .sidebar-label {
-    white-space: normal; overflow-wrap: anywhere; text-overflow: clip;
-}
-@media (max-width: 640px) {
-    .leai-font-size-control { top: 8px; right: 8px; }
-    .leai-font-size-trigger { min-height: 38px; padding: 6px 9px; }
-    .leai-font-size-trigger-label { display: none; }
-}
-
 /* Instructor reading hierarchy: the same baseline across the three workspaces.
    rem units also follow the Text size preference without cached pixel boxes. */
 body[data-leai-workspace] {
@@ -1944,3 +1963,80 @@ body[data-leai-workspace] :is(.sources-toggle, .source-card .source-meta) { font
     body[data-leai-workspace="chat"] .chat-input-row textarea { min-height: calc(3em + 26px); }
     .cite-popover { padding: 14px 16px; }
 }
+
+/* Analyzer review: section disclosures, sentiment controls, and citation conversations. */
+body[data-leai-workspace="analyzer"] .sparkline-bar.is-current {
+    background: #a65300;
+    outline: 2px solid #a65300;
+    outline-offset: 1px;
+}
+.qt-insight-section { border-top: 1px solid var(--surface-high); margin-top: 14px; padding-top: 8px; }
+.qt-insight-section > summary {
+    cursor: pointer; color: var(--text-variant); font-size: 1.125rem;
+    font-weight: 700; padding: 10px 0; line-height: 1.5;
+}
+.qt-insight-section > .qt-section { border: 0; margin: 0; padding-top: 6px; }
+.qt-sent-legend button.qt-sent-legend-item {
+    border: 1px solid var(--surface-high); border-radius: 6px;
+    padding: 7px 10px; background: var(--surface-card); cursor: pointer;
+    font: inherit; letter-spacing: normal; min-height: 36px;
+}
+.qt-sent-legend button[aria-pressed="true"] {
+    background: var(--surface-low); border-color: currentColor;
+    box-shadow: inset 0 -2px 0 currentColor; font-weight: 700;
+}
+.qt-sent-legend button[data-sentiment="all"] .qt-sent-legend-swatch { display: none; }
+.qt-filter-empty { color: var(--muted); padding: 12px 0; }
+body[data-leai-workspace="analyzer"] .quick-take-bullets > li[hidden], .qt-filter-empty[hidden] { display: none; }
+.qt-quote-src[role="button"] { width: fit-content; text-decoration: underline; text-underline-offset: 3px; padding: 4px 0; }
+.qt-conversation-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.qt-conversation-close { min-width: 36px; min-height: 36px; font-size: 1.5rem; cursor: pointer; border: 0; background: none; }
+.qt-conversation-transcript { max-height: min(440px, 55vh); overflow-y: auto; overscroll-behavior: contain; position: relative; }
+.qt-conversation-message { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); align-items: baseline; gap: 8px; padding: 8px 10px; margin: 0; border: 0; border-radius: 0; }
+.qt-conversation-message.student { background: #eef6fb; }
+.qt-conversation-message.ai { background: var(--surface-card, #fff); }
+.qt-conversation-message.reflection { background: #eef6fb; }
+.qt-conversation-role { font-size: 0.75rem; font-weight: 500; color: var(--muted); margin: 0; white-space: nowrap; }
+.qt-conversation-text { font-size: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.qt-conversation-message.is-cited { box-shadow: none; }
+.qt-conversation-text mark { background: #ffe29a; color: #332000; border-radius: 2px; }
+.qt-insight-section > summary:focus-visible, .qt-sent-legend button:focus-visible,
+.qt-quote-src:focus-visible, .sparkline-bar:focus-visible, .qt-conversation-close:focus-visible {
+    outline: 2px solid var(--primary); outline-offset: 3px;
+}
+.qt-conversation-popover { z-index: 20001; border: 0; }
+.qt-conversation-popover:focus { outline: none; }
+
+/* Analyzer-only display tools occupy layout space instead of covering report content. */
+.analyzer-display-tools { display: flex; justify-content: flex-end; margin-bottom: 16px; }
+.analyzer-display-tools .leai-font-size-control { position: relative; top: auto; right: auto; z-index: auto; max-width: 100%; }
+.analyzer-display-tools .leai-font-size-trigger { box-shadow: none; }
+.analyzer-display-tools .leai-font-size-trigger-label { display: inline; }
+.analyzer-display-tools .leai-font-size-panel { position: static; width: min(280px, 100%); margin-top: 8px; box-shadow: none; }
+body[data-leai-workspace="analyzer"] .sparkline {
+    height: auto; gap: 10px; align-items: stretch; overflow-x: auto; max-width: 100%; padding: 3px 2px;
+}
+.sparkline-week { flex: 0 0 2rem; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.sparkline-track { height: 48px; display: flex; align-items: flex-end; justify-content: center; width: 100%; }
+body[data-leai-workspace="analyzer"] .sparkline-bar { flex: none; width: 16px; max-width: none; }
+.sparkline-value, .sparkline-week-label { font-size: 0.75rem; line-height: 1.3; color: var(--muted); }
+.sparkline-week.is-current :is(.sparkline-value, .sparkline-week-label) { color: #914700; font-weight: 700; }
+.qt-insight-section > summary {
+    display: flex; align-items: center; gap: 10px; list-style: none;
+    min-height: 52px; padding: 10px 8px; border-radius: 4px;
+}
+.qt-insight-section > summary::-webkit-details-marker { display: none; }
+.qt-insight-section > summary:hover { background: var(--surface-low); }
+.qt-insight-chevron { flex: 0 0 16px; color: var(--primary); font-size: 1.5rem; line-height: 1; text-align: center; }
+.qt-insight-section[open] > summary .qt-insight-chevron { transform: rotate(90deg); }
+.qt-insight-label { flex: 1; min-width: 0; }
+.qt-insight-count { flex-shrink: 0; font-size: 0.75rem; font-weight: 500; color: var(--muted); white-space: nowrap; }
+body[data-leai-workspace="analyzer"] .qt-quote-src { text-transform: none; letter-spacing: normal; }
+.quick-take .qt-report-header { gap: 12px; align-items: center; flex-wrap: wrap; }
+.qt-report-header .qt-freshness { flex: 1; margin: 0; }
+.qt-report-header .card-actions { margin-left: auto; }
+.qt-report-footer { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; margin-top: 16px; }
+.qt-report-footer > .prompt-reveal { display: contents; }
+.qt-report-footer .qt-follow-up { font-size: 0.875rem; min-height: 40px; display: inline-flex; align-items: center; text-decoration: none; text-transform: none; letter-spacing: normal; }
+.qt-report-footer .qt-prompt-toggle { font-size: 0.875rem; min-height: 40px; padding: 6px 0; background: none; color: var(--muted); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.qt-report-footer .prompt-reveal > pre { flex-basis: 100%; max-width: 100%; overflow-x: auto; margin: 0; }
