@@ -878,7 +878,7 @@
         <div class="consent-modal-header">
             <h3 id="consent-modal-title">Before you begin</h3>
             <p class="consent-modal-intro">
-                LEAI is an <strong>anonymous</strong> mid-course feedback tool. Your responses help your
+                LEAI is a mid-course feedback tool. <span id="consent-identity-intro">Your responses are anonymous.</span> Your responses help your
                 instructor improve your experience <em>while the course is still running</em> &mdash; not
                 at the end of the quarter.
             </p>
@@ -891,7 +891,7 @@
                     <a href="legal/terms.html" target="_blank" rel="noopener noreferrer">Terms of Use</a>
                     and
                     <a href="legal/privacy.html" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
-                    I understand my feedback is <strong>anonymous</strong> and will be used by my
+                    <span id="consent-identity-agreement">I understand my feedback is anonymous</span> and will be used by my
                     instructor to improve the course while it is running. If completion certificates
                     are enabled, the certificate verifies that a code was issued for this survey but
                     does not reveal my responses.
@@ -900,7 +900,7 @@
             <label class="consent-checkbox">
                 <input type="checkbox" id="consent-research">
                 <span>
-                    <em>(Optional)</em> I also consent to my anonymous responses being analyzed by the
+                    <em>(Optional)</em> I also consent to my <span id="consent-research-identity">anonymous responses</span> being analyzed by the
                     GUII Lab for research to improve this tool in the future.
                     <span class="consent-checkbox-note">You can change your choice each time you start a new feedback session.</span>
                 </span>
@@ -937,8 +937,14 @@
         // The modal just shows the anonymity intro + two checkboxes, with
         // inline links to those pages opening in a new tab.
         let consentPendingCb = null;
-        function showConsentModal(onAccept) {
+        let consentPendingMode = 'anonymous';
+        function showConsentModal(onAccept, anonymityMode = 'anonymous') {
             consentPendingCb = onAccept || null;
+            consentPendingMode = anonymityMode === 'identified' ? 'identified' : 'anonymous';
+            const identified = consentPendingMode === 'identified';
+            document.getElementById('consent-identity-intro').textContent = identified ? 'Your instructor can see your name and responses.' : 'Your responses are anonymous.';
+            document.getElementById('consent-identity-agreement').textContent = identified ? 'I understand my instructor can see my name and feedback' : 'I understand my feedback is anonymous';
+            document.getElementById('consent-research-identity').textContent = identified ? 'responses' : 'anonymous responses';
             const modal = document.getElementById('consent-modal');
             document.getElementById('consent-required').checked = false;
             document.getElementById('consent-research').checked = false;
@@ -951,14 +957,18 @@
             consentPendingCb = null;
         }
 
-        function hasSessionConsent() {
-            try { return !!sessionStorage.getItem('leai_consent_v1'); } catch (e) { return false; }
+        function hasSessionConsent(anonymityMode = 'anonymous') {
+            try {
+                const consent = JSON.parse(sessionStorage.getItem('leai_consent_v1') || 'null');
+                return !!consent && (consent.anonymityMode || 'anonymous') === anonymityMode;
+            } catch (e) { return false; }
         }
 
         function storeSessionConsent(research) {
             try {
                 sessionStorage.setItem('leai_consent_v1', JSON.stringify({
                     research: !!research,
+                    anonymityMode: consentPendingMode,
                     timestamp: new Date().toISOString()
                 }));
             } catch (e) {}
@@ -1416,6 +1426,7 @@
         // param impossible to confuse with a non-form survey.
         let orchestratedClient = null;
         let orchestrationDebugPanel = null;
+        let orchestratedGroupApp = null;
         var formMode = {
             active: false,
             schema: null,
@@ -2100,7 +2111,17 @@
                     // present, the engine enforces section coverage on top of
                     // the team-aware prompt.
                     if (surveyConfig.form_schema_id) {
-                        activateFormMode(surveyConfig).then(startGroup);
+                        activateFormMode(surveyConfig).then(function (active) {
+                            if (!active) { showInactive('closed'); return; }
+                            // The shared chat nodes retain their input/mic listeners while
+                            // the team pre-chat screens are mounted.
+                            if (orchestratedClient) {
+                                orchestratedGroupApp = document.getElementById('chat-app');
+                                const consentMode = surveyConfig.anonymity_mode || 'anonymous';
+                                if (!hasSessionConsent(consentMode)) { showConsentModal(startGroup, consentMode); return; }
+                            }
+                            startGroup();
+                        }).catch(function () { showInactive('closed'); });
                     } else {
                         startGroup();
                     }
@@ -2228,6 +2249,10 @@
             btn.type = 'button';
             btn.textContent = 'I understand, continue \u2192';
             btn.addEventListener('click', function () {
+                if (orchestratedClient && window.sessionData.resumeCid) {
+                    startOrchestratedTeam(survey, snap, null, btn);
+                    return;
+                }
                 renderInGroupTeamPicker(survey, snap);
             });
             screen.appendChild(btn);
@@ -2288,6 +2313,10 @@
                 if (!teamId) return;
                 var team = snap.teams.find(function (t) { return t.id === teamId; });
                 if (!team) return;
+                if (orchestratedClient) {
+                    startOrchestratedTeam(survey, snap, team, btn);
+                    return;
+                }
                 if (window.sessionData && window.sessionData.sessionID) {
                     leaiTeamsApi.assignSessionToTeam(window.sessionData.sessionID, team.id);
                 }
@@ -2306,6 +2335,50 @@
             screen.appendChild(secondary);
 
             document.body.appendChild(screen);
+        }
+
+        function startOrchestratedTeam(survey, snap, team, button) {
+            button.disabled = true;
+            const existingError = document.getElementById('team-start-error');
+            if (existingError) existingError.remove();
+            const consent = {terms_consent:true, research_consent:getResearchConsent()};
+            if (team) consent.survey_team_id = team.id;
+            // Assignment and session creation are one server transaction. No
+            // fire-and-forget legacy assignment or duplicate message writes.
+            orchestratedClient.start(consent).then(function (data) {
+                if (!data.team_context) throw new Error('team_context_missing');
+                document.body.replaceChildren(orchestratedGroupApp);
+                document.body.setAttribute('data-config-color', snap.color || 'forest');
+                _inGroupFlowActive = false;
+                window.sessionData.selectedGPT = survey.label;
+                window.sessionData.selectedGPTId = survey.id;
+                formMode.teamId = data.team_context.survey_team_id;
+                formMode.teamName = data.team_context.name;
+                document.getElementById('chat-title').textContent = survey.label + ' — ' + data.team_context.name;
+                document.querySelector('.chat-header-subtitle').textContent =
+                    data.team_context.anonymity_mode === 'identified' ? 'Team reflection · Identified' : 'Team reflection · Your responses are anonymous';
+                const badge = document.querySelector('.anon-badge');
+                if (badge) badge.style.display = data.team_context.anonymity_mode === 'identified' ? 'none' : '';
+                renderCourseBanner(gptConfig.course_banner);
+                renderResumeCopyChip();
+                applyOrchestratedPayload(data);
+                setInputBusy(chatLocked);
+            }).catch(function (error) {
+                if (!team && error.message === 'team_required') {
+                    renderInGroupTeamPicker(survey, snap);
+                    return;
+                }
+                const note = document.createElement('p');
+                note.id = 'team-start-error';
+                note.setAttribute('role', 'alert');
+                note.textContent = error.message === 'team_assignment_changed'
+                    ? 'This saved conversation belongs to another team. Reopen its saved link to continue.'
+                    : error.message === 'session_archived' ? 'This conversation has been archived.'
+                    : error.message === 'survey_closed' ? 'This reflection is closed.'
+                    : 'The team reflection could not start. Your selection is kept; please try again.';
+                button.parentNode.appendChild(note);
+                button.disabled = false;
+            });
         }
 
         function startInGroupChat(survey, snap, team) {
