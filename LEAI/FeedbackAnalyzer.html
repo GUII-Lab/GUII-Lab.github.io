@@ -2473,18 +2473,20 @@
         if (citedRow) transcript.scrollTop = citedRow.offsetTop - transcript.offsetTop;
     }
 
-    // Keep native disclosure keyboard behavior and independently closed defaults.
+    // Each team keeps all evidence in one native disclosure. Bulk controls
+    // operate on these disclosures without hiding team summaries or counts.
     function buildTeamEvidence(team, corpus) {
-        const panel = document.createElement('div');
+        const panel = document.createElement('details');
         panel.className = 'qt-team-evidence';
+        panel.open = true;
         const sources = corpus.filter(source => source.team_name === team.team_name);
         const byRid = Object.fromEntries(sources.map(source => [source.rid, source]));
         const claims = (team.evidence_claims || []).filter(claim => claim && claim.text);
         const cited = new Set(claims.flatMap(claim => claim.source_ids || []));
-        const evidence = document.createElement('details');
         const heading = document.createElement('summary');
-        heading.textContent = 'View evidence · ' + [...cited].filter(rid => byRid[rid]).length + ' source responses';
-        evidence.appendChild(heading);
+        const sourceCount = [...cited].filter(rid => byRid[rid]).length;
+        heading.textContent = 'Evidence · ' + claims.length + (claims.length === 1 ? ' point' : ' points') + ' · ' + sourceCount + (sourceCount === 1 ? ' source response' : ' source responses');
+        panel.appendChild(heading);
         function sourceButton(rid, quote) {
             const source = byRid[rid];
             const button = document.createElement('button');
@@ -2498,35 +2500,57 @@
             button.addEventListener('click', () => showQuickTakeCitePopover(button, rid, source, quote || ''));
             return button;
         }
+        if (team.quote && team.quote.text && byRid[team.quote.rid]) {
+            const example = document.createElement('blockquote');
+            example.className = 'qt-team-evidence-quote';
+            const text = document.createElement('p');
+            text.textContent = '“' + team.quote.text + '”';
+            example.appendChild(text);
+            example.appendChild(sourceButton(team.quote.rid, team.quote.text));
+            panel.appendChild(example);
+        }
         if (claims.length) {
-            claims.forEach(claim => {
-                const item = document.createElement('div');
+            claims.forEach((claim, index) => {
+                const item = document.createElement('section');
                 item.className = 'qt-team-evidence-claim';
+                item.setAttribute('aria-label', 'Evidence point ' + (index + 1));
                 const text = document.createElement('p');
                 text.textContent = claim.text;
                 item.appendChild(text);
+                const links = document.createElement('div');
+                links.className = 'qt-team-source-list';
                 [...new Set(claim.source_ids || [])].forEach(rid => {
-                    item.appendChild(sourceButton(rid, team.quote && team.quote.rid === rid ? team.quote.text : ''));
+                    links.appendChild(sourceButton(rid, team.quote && team.quote.rid === rid ? team.quote.text : ''));
                 });
-                evidence.appendChild(item);
+                item.appendChild(links);
+                panel.appendChild(item);
             });
         } else if (team.quote && team.quote.rid) {
-            heading.textContent = 'View quoted response';
-            evidence.appendChild(sourceButton(team.quote.rid, team.quote.text));
+            heading.textContent = 'Evidence · Quoted response';
+            if (!byRid[team.quote.rid]) panel.appendChild(sourceButton(team.quote.rid, ''));
         } else {
             heading.textContent = 'Evidence unavailable';
             const note = document.createElement('p');
             note.textContent = 'No source links were saved for this summary.';
-            evidence.appendChild(note);
+            panel.appendChild(note);
         }
-        panel.appendChild(evidence);
-        const all = document.createElement('details');
-        const allHeading = document.createElement('summary');
-        allHeading.textContent = 'View all team responses · ' + sources.length;
+        const all = document.createElement('div');
+        all.className = 'qt-team-all-responses';
+        const allHeading = document.createElement('p');
+        allHeading.className = 'qt-team-all-heading';
+        allHeading.textContent = 'All team responses · ' + sources.length;
         all.appendChild(allHeading);
-        sources.forEach(source => all.appendChild(sourceButton(source.rid, '')));
+        const allLinks = document.createElement('div');
+        allLinks.className = 'qt-team-source-list';
+        sources.forEach(source => allLinks.appendChild(sourceButton(source.rid, '')));
+        all.appendChild(allLinks);
         panel.appendChild(all);
         return panel;
+    }
+
+    function setTeamEvidenceExpanded(section, expanded) {
+        if (!expanded && _quickTakePopover) _quickTakePopover(false);
+        section.querySelectorAll('.qt-team-evidence').forEach(details => { details.open = expanded; });
     }
 
     function collapseInsightSections(accent) {
@@ -3215,6 +3239,19 @@
             legend.className = 'qt-team-order';
             legend.textContent = 'Attention order: At risk → Watch → Healthy → No response. Within a category, more missing reflections appear first. These are review categories, not scores.';
             teamSec.appendChild(legend);
+            const controls = document.createElement('div');
+            controls.className = 'qt-team-evidence-controls';
+            controls.setAttribute('role', 'group');
+            controls.setAttribute('aria-label', 'Team evidence controls');
+            [[true, 'Expand all evidence'], [false, 'Collapse all evidence']].forEach(([expanded, label]) => {
+                const control = document.createElement('button');
+                control.type = 'button';
+                control.className = 'qt-team-evidence-control';
+                control.textContent = label;
+                control.addEventListener('click', () => setTeamEvidenceExpanded(teamSec, expanded));
+                controls.appendChild(control);
+            });
+            teamSec.appendChild(controls);
             var grid = document.createElement('div');
             grid.className = 'qt-team-grid';
             // Sort: at_risk → watch → healthy → no_response (attention order),
@@ -3228,15 +3265,18 @@
                 return (b.missing || 0) - (a.missing || 0);
             }).forEach(function (t) {
                 var c = document.createElement('div');
-                c.className = 'qt-team-card ' + (t.status || 'healthy');
+                c.className = 'qt-team-card qt-team-callout ' + (t.status || 'healthy');
+                const header = document.createElement('div');
+                header.className = 'qt-team-callout-header';
                 var name = document.createElement('div');
                 name.className = 'name';
                 name.textContent = t.team_name || '';
-                c.appendChild(name);
+                header.appendChild(name);
                 const statusLabel = document.createElement('div');
                 statusLabel.className = 'qt-team-status';
                 statusLabel.textContent = ({at_risk: 'At risk', watch: 'Watch', healthy: 'Healthy', no_response: 'No response'})[t.status] || 'Unclassified';
-                c.appendChild(statusLabel);
+                header.appendChild(statusLabel);
+                c.appendChild(header);
                 // Deterministic response completeness the backend attaches per
                 // team: how many of the roster submitted, and how many are
                 // still missing. Shown on every team with a known size; the
@@ -3265,21 +3305,6 @@
                     sm.className = 'summary';
                     sm.textContent = t.summary;
                     c.appendChild(sm);
-                }
-                if (t.quote && t.quote.text && t.status !== 'no_response') {
-                    var q = document.createElement('div');
-                    q.className = 'quote';
-                    q.textContent = '“' + t.quote.text + '”';
-                    if (t.quote.rid) {
-                        var src = document.createElement('span');
-                        src.className = 'quote-src';
-                        var srcRow = sourceByRid[t.quote.rid];
-                        const parts = [(srcRow && srcRow.display_rid) || t.quote.rid];
-                        if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
-                        src.textContent = parts.join(' · ');
-                        q.appendChild(src);
-                    }
-                    c.appendChild(q);
                 }
                 c.appendChild(buildTeamEvidence(t, displayCorpus));
                 grid.appendChild(c);

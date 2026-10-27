@@ -552,27 +552,27 @@ input[type="checkbox"], input[type="radio"] {
 .qt-gap .topic { font-weight: 600; }
 .qt-gap .note { color: var(--muted); margin-left: 6px; }
 
-/* Phase 7: team-health rollup. Renders as a grid of small cards. */
+/* Team health uses full-width callouts so evidence stays readable. */
 .qt-team-grid { display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 8px; margin-bottom: 10px; }
-.qt-team-card { padding: 10px 12px; border-radius: 8px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px; margin-bottom: 10px; }
+.qt-team-card { min-width: 0; padding: 18px 20px; border-radius: 8px;
     border: 1px solid var(--surface-mid);
     background: var(--surface-card); }
-.qt-team-card.healthy { border-left: 1px solid #1e7d36; }
-.qt-team-card.watch   { border-left: 1px solid #8a6d00; background: #fffdf6; }
-.qt-team-card.at_risk { border-left: 1px solid #b22222; background: #fdf6f6; }
+.qt-team-card.healthy { border-left: 3px solid #1e7d36; }
+.qt-team-card.watch   { border-left: 3px solid #8a6d00; background: #fffdf6; }
+.qt-team-card.at_risk { border-left: 3px solid #b22222; background: #fdf6f6; }
 .qt-team-card.no_response { opacity: 0.6; }
-.qt-team-card .name { font-weight: 700; font-size: 0.86rem;
+.qt-team-card .name { font-weight: 700; font-size: 1rem;
     margin-bottom: 2px; }
 /* Deterministic response completeness: "M of N submitted · K missing". The
    missing count is emphasised red so under-responding and fully-silent teams
    read at a glance regardless of the card's qualitative health color. */
-.qt-team-completeness { font-size: 0.68rem; color: var(--text-variant);
+.qt-team-completeness { font-size: 0.82rem; color: var(--text-variant);
     margin: 2px 0 4px; letter-spacing: 0.02em; }
 .qt-team-completeness .qt-team-missing { font-weight: 700; color: #b22222; }
-.qt-team-card .summary { font-size: 0.76rem; color: var(--text-variant);
-    line-height: 1.4; margin-bottom: 6px; }
+.qt-team-card .summary { font-size: .94rem; color: var(--text-variant);
+    line-height: 1.6; margin-bottom: 6px; }
 .qt-team-card .quote { font-size: 0.74rem; color: var(--text);
     border-left: 2px solid var(--surface-high); padding-left: 6px; }
 .qt-team-card .quote-src { display: block; font-size: 0.64rem;
@@ -907,15 +907,26 @@ input[type="checkbox"], input[type="radio"] {
 }
 
 .qt-team-order { color: var(--text-variant); font-size: .8rem; line-height: 1.5; margin: 0 0 12px; }
-.qt-team-status { font-size: .72rem; font-weight: 700; margin: 4px 0; }
+.qt-team-callout-header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 14px; }
+.qt-team-status { font-size: .82rem; font-weight: 700; margin: 4px 0; }
+.qt-team-evidence-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.qt-team-evidence-control { border: 1px solid var(--surface-high); border-radius: 6px; background: var(--surface-card); padding: 8px 12px; color: var(--primary); font: inherit; font-size: .82rem; cursor: pointer; }
 .qt-team-evidence { margin-top: 12px; border-top: 1px solid var(--surface-mid); padding-top: 8px; }
-.qt-team-evidence details { margin-top: 8px; }
-.qt-team-evidence summary { cursor: pointer; font-size: .78rem; font-weight: 600; }
-.qt-team-evidence-claim { margin: 10px 0; }
-.qt-team-evidence-claim p { margin: 0 0 6px; font-size: .8rem; }
-.qt-team-source { display: block; max-width: 100%; background: transparent; border: 0; padding: 5px 0; text-align: left; color: var(--primary); font: inherit; font-size: .75rem; text-decoration: underline; cursor: pointer; }
+.qt-team-evidence summary { cursor: pointer; font-size: .86rem; font-weight: 600; padding: 5px 0; }
+.qt-team-evidence-claim { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--surface-mid); border-left: 3px solid var(--primary); border-radius: 6px; background: var(--surface-card); }
+.qt-team-evidence-claim p { margin: 0 0 8px; font-size: .92rem; line-height: 1.6; }
+.qt-team-evidence-quote { margin: 12px 0; border-left: 3px solid var(--surface-high); padding: 4px 0 4px 14px; }
+.qt-team-evidence-quote p { margin: 0 0 6px; font-size: .92rem; line-height: 1.6; }
+.qt-team-source-list { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.qt-team-source { display: block; max-width: 100%; overflow-wrap: anywhere; background: transparent; border: 0; padding: 6px 0; text-align: left; color: var(--primary); font: inherit; font-size: .82rem; text-decoration: underline; cursor: pointer; }
+.qt-team-all-responses { border-top: 1px solid var(--surface-mid); padding-top: 10px; margin-top: 14px; }
+.qt-team-all-heading { font-size: .84rem; font-weight: 600; margin: 0 0 4px; }
 .qt-team-source:disabled { color: var(--muted); cursor: default; }
-.qt-team-source:focus-visible, .qt-team-evidence summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.qt-team-source:focus-visible, .qt-team-evidence summary:focus-visible, .qt-team-evidence-control:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 600px) {
+    .qt-team-card { padding: 14px; }
+    .qt-team-evidence-claim { padding: 10px 12px; }
+}
 .team-config-tab {
     background: none; border: none; cursor: pointer;
     font-family: inherit; font-size: 0.80rem; font-weight: 600;

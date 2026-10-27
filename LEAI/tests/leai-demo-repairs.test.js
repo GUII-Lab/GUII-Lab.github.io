@@ -23,7 +23,8 @@ function teamEvidence(){
     const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
     const fn=html.slice(html.indexOf('function buildTeamEvidence('),html.indexOf('function collapseInsightSections('));
     const calls=[];const ctx={document:{createElement:tag=>new El(tag)},showQuickTakeCitePopover:(...args)=>calls.push(args)};
-    vm.createContext(ctx);vm.runInContext(fn,ctx);return {render:ctx.buildTeamEvidence,calls};
+    ctx._quickTakePopover=null;
+    vm.createContext(ctx);vm.runInContext(fn,ctx);return {render:ctx.buildTeamEvidence,expand:ctx.setTeamEvidenceExpanded,calls};
 }
 test('all claim sources remain clickable and distinct from all team respondents',()=>{
     const {render,calls}=teamEvidence();
@@ -31,9 +32,12 @@ test('all claim sources remain clickable and distinct from all team respondents'
     rows.push({rid:'R2',team_name:'Team 8',survey_id:356,session_id:'other'});
     const card=render({team_name:'Team 6',evidence_claims:[{text:'Still uneven',source_ids:['R5','R6']},{text:'Communication differs',source_ids:['R18']}],quote:{rid:'R5',text:'exact excerpt'}},rows);
     const summaries=walk(card,x=>x.tag==='summary').map(x=>x.textContent);
-    assert.deepEqual(summaries,['View evidence · 3 source responses','View all team responses · 4']);
-    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons.length,7);
-    buttons[2].listeners.click();assert.equal(calls[0][1],'R18');assert.equal(calls[0][2].survey_id,356);
+    assert.deepEqual(summaries,['Evidence · 2 points · 3 source responses']);
+    assert.equal(card.tag,'details');assert.equal(card.open,true);
+    assert.equal(walk(card,x=>x.className==='qt-team-evidence-claim').length,2);
+    assert.equal(walk(card,x=>x.className==='qt-team-all-heading')[0].textContent,'All team responses · 4');
+    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons.length,8);
+    buttons.find(x=>x.textContent.includes('· R18 ·')).listeners.click();assert.equal(calls[0][1],'R18');assert.equal(calls[0][2].survey_id,356);
     assert.ok(buttons.every(x=>!/· R2(?: ·|$)/.test(x.textContent)));
 });
 test('cross-team or missing source references cannot open a misleading transcript',()=>{
@@ -45,8 +49,16 @@ test('cross-team or missing source references cannot open a misleading transcrip
 test('older quote-only summaries expose the real quote source without inventing claim links',()=>{
     const {render,calls}=teamEvidence();const row={rid:'R1',team_name:'Team 4',session_id:'s',survey_id:354};
     const card=render({team_name:'Team 4',quote:{rid:'R1',text:'verbatim'}},[row]);
-    assert.equal(card.children[0].children[0].textContent,'View quoted response');
+    assert.equal(card.children[0].textContent,'Evidence · Quoted response');
     walk(card,x=>x.tag==='button')[0].listeners.click();assert.equal(calls[0][3],'verbatim');
+});
+
+test('bulk collapse hides all team evidence together and expand restores every team',()=>{
+    const {render,expand}=teamEvidence();
+    const cards=[render({team_name:'Team 1',evidence_claims:[]},[]),render({team_name:'Team 6',evidence_claims:[]},[])];
+    const section={querySelectorAll:selector=>{assert.equal(selector,'.qt-team-evidence');return cards;}};
+    expand(section,false);assert.ok(cards.every(card=>card.open===false));
+    expand(section,true);assert.ok(cards.every(card=>card.open===true));
 });
 
 test('an unnumbered activity scope excludes historical weeks from stats and insight requests',()=>{
