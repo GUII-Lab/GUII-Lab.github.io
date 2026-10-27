@@ -587,6 +587,10 @@ input[type="checkbox"], input[type="radio"] {
     color: #0b62a4; margin-bottom: 4px; }
 .qt-fsec .summary { font-size: 0.82rem; color: var(--text);
     line-height: 1.5; margin-bottom: 6px; }
+.qt-fquestion { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--surface-mid); }
+.qt-fquestion p { margin: 4px 0; line-height: 1.6; }
+.qt-fquestion-title { font-weight: 600; }
+.qt-fquestion-count { color: var(--muted); font-size: .85em; }
 .qt-fsec .quote { font-size: 0.78rem; color: var(--text);
     border-left: 2px solid var(--surface-high); padding-left: 8px; }
 .qt-fsec .quote-src { display: block; font-size: 0.66rem;

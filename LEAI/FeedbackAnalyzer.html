@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-team-evidence-quotes-20261026">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-section-questions-20261027">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -3243,7 +3243,7 @@
                 card.className = 'qt-fsec';
                 var ttl = document.createElement('div');
                 ttl.className = 'title';
-                ttl.textContent = f.section_title || '';
+                ttl.textContent = (f.section_number ? 'Section ' + f.section_number + ' · ' : '') + (f.section_title || '');
                 card.appendChild(ttl);
                 if (f.summary) {
                     var sm = document.createElement('div');
@@ -3251,21 +3251,24 @@
                     sm.textContent = f.summary;
                     card.appendChild(sm);
                 }
-                if (f.quote && f.quote.text) {
-                    var q = document.createElement('div');
-                    q.className = 'quote';
-                    q.textContent = '“' + f.quote.text + '”';
-                    if (f.quote.rid) {
-                        var src = document.createElement('span');
-                        src.className = 'quote-src';
-                        var srcRow = sourceByRid[f.quote.rid];
-                        const parts = [(srcRow && srcRow.display_rid) || f.quote.rid];
-                        if (srcRow && srcRow.week_number != null) parts.push('Wk ' + srcRow.week_number);
-                        src.textContent = parts.join(' · ');
-                        q.appendChild(src);
+                (f.questions || []).forEach(function (question) {
+                    const item = document.createElement('div');
+                    item.className = 'qt-fquestion';
+                    const heading = document.createElement('p');
+                    heading.className = 'qt-fquestion-title';
+                    heading.textContent = (question.question_number ? 'Question ' + question.question_number + ' · ' : '') + (question.question_label || '');
+                    item.appendChild(heading);
+                    if (Number.isInteger(question.response_count)) {
+                        const count = document.createElement('p');
+                        count.className = 'qt-fquestion-count';
+                        count.textContent = question.response_count + (question.response_count === 1 ? ' response summarized' : ' responses summarized');
+                        item.appendChild(count);
                     }
-                    card.appendChild(q);
-                }
+                    const summary = document.createElement('p');
+                    summary.textContent = question.summary || '';
+                    item.appendChild(summary);
+                    card.appendChild(item);
+                });
                 fsSec.appendChild(card);
             });
             accent.appendChild(fsSec);
