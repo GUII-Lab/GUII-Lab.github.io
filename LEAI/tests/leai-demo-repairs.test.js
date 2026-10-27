@@ -48,3 +48,17 @@ test('older quote-only summaries expose the real quote source without inventing 
     assert.equal(card.children[0].children[0].textContent,'View quoted response');
     walk(card,x=>x.tag==='button')[0].listeners.click();assert.equal(calls[0][3],'verbatim');
 });
+
+test('an unnumbered activity scope excludes historical weeks from stats and insight requests',()=>{
+    const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
+    const start=html.indexOf('function scopedSurveys()');
+    const end=html.indexOf('// ===== SCOPE CHIPS =====',start);
+    const surveys=[{gpt_id:354,week_number:2},{gpt_id:355,week_number:3},{gpt_id:358,week_number:null}];
+    const ctx={activeSurveys:()=>surveys,currentScope:{kind:'week',weekNumber:null}};
+    vm.createContext(ctx);vm.runInContext(html.slice(start,end),ctx);
+    assert.deepEqual(Array.from(ctx.activeSurveyIds()),[358]);
+    assert.equal(ctx.scopedSurveys().length,1);
+    ctx.currentScope={kind:'week',weekNumber:2};assert.deepEqual(Array.from(ctx.activeSurveyIds()),[354]);
+    ctx.currentScope={kind:'course',weekNumber:null};assert.deepEqual(Array.from(ctx.activeSurveyIds()),[354,355,358]);
+    assert.match(html,/currentResponses = leaiAnalysis.buildResponseIndex\(\s*scopedSurveys\(\)/);
+});

@@ -1206,12 +1206,17 @@
     // Survey IDs in the active mode, optionally further restricted to the
     // currently selected week. Used to scope AI Quick Take to only the
     // mode's surveys (backend kind='custom' + survey_ids).
+    function scopedSurveys() {
+        const surveys = activeSurveys();
+        // A selected activity may have no week number (for example Live demo).
+        // Null identifies that activity scope; it does not mean entire course.
+        return currentScope.kind === 'week'
+            ? surveys.filter(function (s) { return s.week_number === currentScope.weekNumber; })
+            : surveys;
+    }
+
     function activeSurveyIds() {
-        var surveys = activeSurveys();
-        if (currentScope.kind === 'week' && currentScope.weekNumber != null) {
-            surveys = surveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
-        }
-        return surveys.map(function (s) { return s.gpt_id; });
+        return scopedSurveys().map(function (s) { return s.gpt_id; });
     }
 
     // ===== SCOPE CHIPS =====
@@ -1301,7 +1306,7 @@
         document.getElementById('ngram-matches').style.display = 'none';
 
         currentResponses = leaiAnalysis.buildResponseIndex(
-            activeSurveys(),
+            scopedSurveys(),
             currentScope.kind === 'course' ? 'course' : 'week',
             currentScope.weekNumber
         );
@@ -2817,7 +2822,7 @@
             var corpus = (opts.sourceCorpus && opts.sourceCorpus.length)
                 ? opts.sourceCorpus
                 : leaiAnalysis.buildResponseIndex(
-                    activeSurveys(), currentScope.kind, currentScope.weekNumber
+                    scopedSurveys(), currentScope.kind, currentScope.weekNumber
                 );
             qt.sources = corpus.filter(function (r) { return citedSet[r.rid]; });
         }
@@ -2826,7 +2831,7 @@
         const displayCorpus = (opts.sourceCorpus && opts.sourceCorpus.length)
             ? opts.sourceCorpus
             : leaiAnalysis.buildResponseIndex(
-                activeSurveys(), currentScope.kind, currentScope.weekNumber
+                scopedSurveys(), currentScope.kind, currentScope.weekNumber
             );
         const displayByRid = {};
         displayCorpus.forEach(function (s) {
