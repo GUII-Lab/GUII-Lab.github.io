@@ -1992,6 +1992,10 @@
     }
 
     // ===== STATS ROW =====
+    function surveyResponseCount(survey) {
+        return leaiAnalysis.buildResponseIndex([survey], 'course', null).length;
+    }
+
     function renderStats() {
         var statsEl = document.getElementById('stats-row');
         statsEl.textContent = '';
@@ -2009,7 +2013,7 @@
         var cards = [
             {
                 value: totalResponses, label: 'Responses',
-                tooltip: 'Total number of student responses collected in ' + scopeLabel + '.\n\nEach chat message counts as one response. Each uploaded PDF reflection counts once, even though it can contain several saved fields.\n\nA single student may contribute multiple responses per survey.'
+                tooltip: 'Total number of student responses collected in ' + scopeLabel + '.\n\nEach anonymous conversation with saved student answers counts once. Each uploaded PDF reflection counts once. Empty or assistant-only conversations are excluded.\n\nThis counts response records, not verified unique students.'
             },
             {
                 value: avgWords, label: 'Avg Words',
@@ -2058,33 +2062,32 @@
         sparkInfo.type = 'button';
         sparkInfo.className = 'info-icon info-icon--right';
         sparkInfo.setAttribute('aria-label', 'About Responses / Week');
-        sparkInfo.setAttribute('data-tooltip', 'One bar per survey week across the entire course.\n\nBar height is proportional to the number of unique student sessions in that week (not individual messages).\n\nHover a bar for the exact count.');
+        sparkInfo.setAttribute('data-tooltip', 'One bar per survey week across the entire course.\n\nBar height is proportional to conversations with saved student answers in that activity. Empty or assistant-only conversations are excluded.\n\nHover a bar for the exact count.');
         sl.appendChild(sparkInfo);
         sparkCard.appendChild(sl);
 
         var sparkContainer = document.createElement('div');
         sparkContainer.className = 'sparkline';
         var sparkSurveys = activeSurveys();
-        var maxCount = 0;
-        sparkSurveys.forEach(function (s) {
-            if (s.session_count > maxCount) maxCount = s.session_count;
-        });
+        const counts = sparkSurveys.map(surveyResponseCount);
+        const maxCount = Math.max(0, ...counts);
         const selectedWeek = currentScope.kind === 'week' ? currentScope.weekNumber : null;
-        sparkSurveys.forEach(function (s) {
+        sparkSurveys.forEach(function (s, index) {
+            const responseCount = counts[index];
             var bar = document.createElement('div');
-            const selected = selectedWeek != null && s.week_number === selectedWeek;
+            const selected = currentScope.kind === 'week' && s.week_number === selectedWeek;
             bar.className = 'sparkline-bar' + (selected ? ' is-current' : '');
             bar.setAttribute('tabindex', '0');
             bar.setAttribute('role', 'img');
-            const h = maxCount > 0 ? Math.max(2, Math.round((s.session_count / maxCount) * 48)) : 2;
+            const h = maxCount > 0 ? Math.max(2, Math.round((responseCount / maxCount) * 48)) : 2;
             bar.style.height = h + 'px';
-            bar.title = (s.survey_label || ('Week ' + s.week_number)) + ': ' + s.session_count + ' responses' + (selected ? ' (selected week)' : '');
+            bar.title = (s.survey_label || ('Week ' + s.week_number)) + ': ' + responseCount + ' responses' + (selected ? ' (selected week)' : '');
             bar.setAttribute('aria-label', bar.title);
             const week = document.createElement('div');
             week.className = 'sparkline-week' + (selected ? ' is-current' : '');
             const count = document.createElement('span');
             count.className = 'sparkline-value';
-            count.textContent = s.session_count;
+            count.textContent = responseCount;
             count.setAttribute('aria-hidden', 'true');
             const track = document.createElement('div');
             track.className = 'sparkline-track';

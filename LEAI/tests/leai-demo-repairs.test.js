@@ -62,3 +62,15 @@ test('an unnumbered activity scope excludes historical weeks from stats and insi
     ctx.currentScope={kind:'course',weekNumber:null};assert.deepEqual(Array.from(ctx.activeSurveyIds()),[354,355,358]);
     assert.match(html,/currentResponses = leaiAnalysis.buildResponseIndex\(\s*scopedSurveys\(\)/);
 });
+
+test('activity chart counts saved answers consistently and excludes empty ready conversations',()=>{
+    const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
+    const shared=fs.readFileSync(require.resolve('../leai-shared.js'),'utf8');
+    const start=shared.indexOf('buildResponseIndex: function(');
+    const end=shared.indexOf('renderCitationPill:',start);
+    const analysis=vm.runInNewContext('({' + shared.slice(start,end) + '})');
+    const fn=html.match(/function surveyResponseCount\(survey\) \{[\s\S]*?\n    \}/)[0];
+    const ctx={leaiAnalysis:analysis};vm.createContext(ctx);vm.runInContext(fn,ctx);
+    const survey={gpt_id:357,week_number:null,session_count:3,sessions:{empty:[{sent_by:'assistant',content:'Question?'}],complete:[{sent_by:'assistant',content:'Question?'},{sent_by:'user',content:'My answer.'}],partial:[{sent_by:'user-message',content:'Still unclear.'}]}};
+    assert.equal(ctx.surveyResponseCount(survey),2);
+});
