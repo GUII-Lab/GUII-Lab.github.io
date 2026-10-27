@@ -1907,7 +1907,7 @@ body[data-leai-workspace="analyzer"] .section-title {
     text-transform: none;
 }
 body[data-leai-workspace="analyzer"] .ingroup-section-label { font-size: 0.875rem; }
-body[data-leai-workspace="analyzer"] :is(.quick-take-bullets, .qt-claim, .insights-panel-body) {
+body[data-leai-workspace="analyzer"] :is(.quick-take-bullets, .qt-team-claims, .qt-claim, .insights-panel-body) {
     font-size: var(--workspace-reading); line-height: 1.65;
 }
 body[data-leai-workspace="analyzer"] .qt-quote {
