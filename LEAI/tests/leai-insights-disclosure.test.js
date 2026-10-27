@@ -39,7 +39,8 @@ function setup() {
         sourceByRid: { R1: { text: 'Original response', week_number: 1, display_rid: 'R1' } },
         pillBindings: bindings,
     };
-    vm.runInNewContext(html.slice(start, end), context);
+    const quoteHelper = html.slice(html.indexOf('function buildEvidenceQuote('), html.indexOf('// Each team keeps all evidence'));
+    vm.runInNewContext(quoteHelper + html.slice(start, end), context);
     return { render: context.buildBulletLi, bindings };
 }
 

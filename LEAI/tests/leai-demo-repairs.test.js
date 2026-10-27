@@ -13,16 +13,17 @@ test('editing a sparse roster preserves numbers and adds above its largest numbe
     ctx.originalTeamNumbers=[];assert.deepEqual(Array.from(ctx.igTeamNumbers(3)),[1,2,3]);
 });
 class El{
-    constructor(tag){this.tag=tag;this.children=[];this.listeners={};this.attributes={};}
+    constructor(tag){this.tag=tag;this.children=[];this.listeners={};this.attributes={};this.style={};}
     appendChild(child){this.children.push(child);return child;}
     setAttribute(key,value){this.attributes[key]=value;}
     addEventListener(key,fn){this.listeners[key]=fn;}
+    click(){this.listeners.click();}
 }
 function walk(el,predicate){return [...(predicate(el)?[el]:[]),...el.children.flatMap(child=>walk(child,predicate))];}
 function teamEvidence(){
     const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
-    const fn=html.slice(html.indexOf('function buildTeamEvidence('),html.indexOf('function collapseInsightSections('));
-    const calls=[];const ctx={document:{createElement:tag=>new El(tag)},showQuickTakeCitePopover:(...args)=>calls.push(args)};
+    const fn=html.slice(html.indexOf('function buildEvidenceQuote('),html.indexOf('function collapseInsightSections('));
+    const calls=[];const ctx={document:{createElement:tag=>new El(tag),createTextNode:text=>Object.assign(new El('#text'),{textContent:text})},showQuickTakeCitePopover:(...args)=>calls.push(args)};
     ctx._quickTakePopover=null;
     vm.createContext(ctx);vm.runInContext(fn,ctx);return {render:ctx.buildTeamEvidence,expand:ctx.setTeamEvidenceExpanded,calls};
 }
@@ -36,7 +37,7 @@ test('all claim sources remain clickable and distinct from all team respondents'
     assert.equal(card.tag,'details');assert.equal(card.open,true);
     assert.equal(walk(card,x=>x.className==='qt-team-evidence-claim').length,2);
     assert.equal(walk(card,x=>x.className==='qt-team-all-heading')[0].textContent,'All team responses · 4');
-    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons.length,8);
+    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons.length,7);
     buttons.find(x=>x.textContent.includes('· R18 ·')).listeners.click();assert.equal(calls[0][1],'R18');assert.equal(calls[0][2].survey_id,356);
     assert.ok(buttons.every(x=>!/· R2(?: ·|$)/.test(x.textContent)));
 });
@@ -47,10 +48,37 @@ test('cross-team or missing source references cannot open a misleading transcrip
     assert.equal(buttons[0].textContent,'Source unavailable · R2');
 });
 test('older quote-only summaries expose the real quote source without inventing claim links',()=>{
-    const {render,calls}=teamEvidence();const row={rid:'R1',team_name:'Team 4',session_id:'s',survey_id:354};
+    const {render,calls}=teamEvidence();const row={rid:'R1',team_name:'Team 4',session_id:'s',survey_id:354,text:'verbatim'};
     const card=render({team_name:'Team 4',quote:{rid:'R1',text:'verbatim'}},[row]);
     assert.equal(card.children[0].textContent,'Evidence · Quoted response');
-    walk(card,x=>x.tag==='button')[0].listeners.click();assert.equal(calls[0][3],'verbatim');
+    walk(card,x=>x.className==='qt-quote-src')[0].listeners.click();assert.equal(calls[0][3],'verbatim');
+});
+
+test('team evidence reuses original quote markup with literal text and keyboard source navigation',()=>{
+    const {render,calls}=teamEvidence();
+    const row={rid:'R5',display_rid:'R5',team_name:'Team 6',session_id:'s',survey_id:356,week_number:4,text:'I am tired. I made most of it.'};
+    const card=render({team_name:'Team 6',evidence_claims:[{text:'Uneven work',source_ids:['R5'],quotes:[{rid:'R5',text:'I am tired.'},{rid:'R5',text:'I made most of it.'}]}]},[row]);
+    const quotes=walk(card,x=>x.className==='qt-quote');assert.equal(quotes.length,2);
+    assert.equal(quotes[0].children[0].className,'qt-quote-body');
+    assert.equal(quotes[0].children[0].children[0].textContent,'I am tired.');
+    const link=walk(card,x=>x.className==='qt-quote-src')[0];
+    assert.equal(link.textContent,'View conversation · R5 · W4');
+    assert.equal(link.attributes['aria-expanded'],'false');
+    let prevented=false;link.listeners.keydown({key:'Enter',preventDefault(){prevented=true;}});
+    assert.ok(prevented);assert.equal(calls[0][3],'I am tired.');
+    assert.equal(walk(card,x=>x.className==='qt-team-evidence-quote').length,0);
+    const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
+    assert.match(html,/buildEvidenceQuote\(g\.text, srcParts\.join/);
+    const css=fs.readFileSync(require.resolve('../leai-shared.css'),'utf8');
+    assert.ok(!css.includes('.qt-team-evidence-quote'));
+});
+
+test('summaries, invented excerpts and cross-team quotes never receive quotation marks',()=>{
+    const {render}=teamEvidence();
+    const card=render({team_name:'Team 6',evidence_claims:[{text:'AI summary',source_ids:['R5'],quotes:[{rid:'R5',text:'invented'},{rid:'R8',text:'actual'}]}]},[{rid:'R5',text:'actual',team_name:'Team 6',session_id:'s',survey_id:356},{rid:'R8',text:'actual',team_name:'Team 8',session_id:'other',survey_id:356}]);
+    assert.equal(walk(card,x=>x.className==='qt-quote').length,0);
+    assert.equal(walk(card,x=>x.className==='qt-claim')[0].textContent,'AI summary');
+    assert.ok(walk(card,x=>x.tag==='button').some(x=>x.textContent==='View conversation · R5'));
 });
 
 test('bulk collapse hides all team evidence together and expand restores every team',()=>{

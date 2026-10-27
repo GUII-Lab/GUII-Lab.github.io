@@ -913,10 +913,8 @@ input[type="checkbox"], input[type="radio"] {
 .qt-team-evidence-control { border: 1px solid var(--surface-high); border-radius: 6px; background: var(--surface-card); padding: 8px 12px; color: var(--primary); font: inherit; font-size: .82rem; cursor: pointer; }
 .qt-team-evidence { margin-top: 12px; border-top: 1px solid var(--surface-mid); padding-top: 8px; }
 .qt-team-evidence summary { cursor: pointer; font-size: .86rem; font-weight: 600; padding: 5px 0; }
-.qt-team-evidence-claim { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--surface-mid); border-left: 3px solid var(--primary); border-radius: 6px; background: var(--surface-card); }
-.qt-team-evidence-claim p { margin: 0 0 8px; font-size: .92rem; line-height: 1.6; }
-.qt-team-evidence-quote { margin: 12px 0; border-left: 3px solid var(--surface-high); padding: 4px 0 4px 14px; }
-.qt-team-evidence-quote p { margin: 0 0 6px; font-size: .92rem; line-height: 1.6; }
+.qt-team-claims { list-style: none; padding: 0; margin: 0; }
+.qt-team-evidence-claim { margin: 12px 0; }
 .qt-team-source-list { display: flex; flex-wrap: wrap; gap: 6px 12px; }
 .qt-team-source { display: block; max-width: 100%; overflow-wrap: anywhere; background: transparent; border: 0; padding: 6px 0; text-align: left; color: var(--primary); font: inherit; font-size: .82rem; text-decoration: underline; cursor: pointer; }
 .qt-team-all-responses { border-top: 1px solid var(--surface-mid); padding-top: 10px; margin-top: 14px; }
@@ -925,7 +923,6 @@ input[type="checkbox"], input[type="radio"] {
 .qt-team-source:focus-visible, .qt-team-evidence summary:focus-visible, .qt-team-evidence-control:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 @media (max-width: 600px) {
     .qt-team-card { padding: 14px; }
-    .qt-team-evidence-claim { padding: 10px 12px; }
 }
 .team-config-tab {
     background: none; border: none; cursor: pointer;

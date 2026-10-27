@@ -2473,6 +2473,22 @@
         if (citedRow) transcript.scrollTop = citedRow.offsetTop - transcript.offsetTop;
     }
 
+    // Individual and team evidence share the original quote markup and CSS.
+    // The opening quotation mark comes from .qt-quote::before, never the text.
+    function buildEvidenceQuote(text, sourceLabel) {
+        const element = document.createElement('div');
+        element.className = 'qt-quote';
+        const body = document.createElement('div');
+        body.className = 'qt-quote-body';
+        body.appendChild(document.createTextNode(text));
+        const sourceLink = document.createElement('span');
+        sourceLink.className = 'qt-quote-src';
+        sourceLink.textContent = sourceLabel;
+        body.appendChild(sourceLink);
+        element.appendChild(body);
+        return { element, sourceLink };
+    }
+
     // Each team keeps all evidence in one native disclosure. Bulk controls
     // operate on these disclosures without hiding team summaries or counts.
     function buildTeamEvidence(team, corpus) {
@@ -2493,41 +2509,78 @@
             button.type = 'button';
             button.className = 'qt-team-source';
             button.textContent = source
-                ? 'View conversation · ' + (source.display_rid || rid) + (source.week_number != null ? ' · Wk ' + source.week_number : '')
+                ? 'View conversation · ' + (source.display_rid || rid) + (source.week_number != null ? ' · W' + source.week_number : '')
                 : 'Source unavailable · ' + rid;
             button.disabled = !source || !source.session_id || source.survey_id == null;
             button.setAttribute('aria-haspopup', 'dialog');
             button.addEventListener('click', () => showQuickTakeCitePopover(button, rid, source, quote || ''));
             return button;
         }
-        if (team.quote && team.quote.text && byRid[team.quote.rid]) {
-            const example = document.createElement('blockquote');
-            example.className = 'qt-team-evidence-quote';
-            const text = document.createElement('p');
-            text.textContent = '“' + team.quote.text + '”';
-            example.appendChild(text);
-            example.appendChild(sourceButton(team.quote.rid, team.quote.text));
-            panel.appendChild(example);
+        function verifiedQuote(quote) {
+            const source = quote && byRid[quote.rid];
+            // A summary is not a quotation. Only literal student excerpts
+            // present in this team's source response receive quote styling.
+            return source && typeof quote.text === 'string' && quote.text.trim()
+                && typeof source.text === 'string' && source.text.includes(quote.text);
+        }
+        function appendQuote(container, quote) {
+            const source = byRid[quote.rid];
+            const label = ['View conversation', source.display_rid || quote.rid];
+            if (source.week_number != null) label.push('W' + source.week_number);
+            const rendered = buildEvidenceQuote(quote.text, label.join(' · '));
+            const link = rendered.sourceLink;
+            if (source.session_id && source.survey_id != null) {
+                link.setAttribute('role', 'button');
+                link.setAttribute('tabindex', '0');
+                link.setAttribute('aria-haspopup', 'dialog');
+                link.setAttribute('aria-expanded', 'false');
+                link.title = 'View conversation and cited message';
+                link.style.cursor = 'pointer';
+                link.addEventListener('click', () => showQuickTakeCitePopover(link, quote.rid, source, quote.text));
+                link.addEventListener('keydown', event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        link.click();
+                    }
+                });
+            }
+            container.appendChild(rendered.element);
         }
         if (claims.length) {
+            const list = document.createElement('ul');
+            list.className = 'qt-team-claims';
             claims.forEach((claim, index) => {
-                const item = document.createElement('section');
+                const item = document.createElement('li');
                 item.className = 'qt-team-evidence-claim';
                 item.setAttribute('aria-label', 'Evidence point ' + (index + 1));
-                const text = document.createElement('p');
+                const text = document.createElement('div');
+                text.className = 'qt-claim';
                 text.textContent = claim.text;
                 item.appendChild(text);
+                const quotes = (claim.quotes || []).filter(quote => (claim.source_ids || []).includes(quote.rid) && verifiedQuote(quote));
+                // Older saved summaries may have only a representative quote.
+                if (!quotes.length && team.quote && (claim.source_ids || []).includes(team.quote.rid) && verifiedQuote(team.quote)) quotes.push(team.quote);
+                const excerpts = document.createElement('div');
+                excerpts.className = 'qt-quotes';
+                quotes.forEach(quote => appendQuote(excerpts, quote));
+                if (quotes.length) item.appendChild(excerpts);
                 const links = document.createElement('div');
                 links.className = 'qt-team-source-list';
-                [...new Set(claim.source_ids || [])].forEach(rid => {
-                    links.appendChild(sourceButton(rid, team.quote && team.quote.rid === rid ? team.quote.text : ''));
+                [...new Set(claim.source_ids || [])].filter(rid => !quotes.some(quote => quote.rid === rid)).forEach(rid => {
+                    links.appendChild(sourceButton(rid, ''));
                 });
-                item.appendChild(links);
-                panel.appendChild(item);
+                if (links.children.length) item.appendChild(links);
+                list.appendChild(item);
             });
+            panel.appendChild(list);
         } else if (team.quote && team.quote.rid) {
             heading.textContent = 'Evidence · Quoted response';
-            if (!byRid[team.quote.rid]) panel.appendChild(sourceButton(team.quote.rid, ''));
+            if (verifiedQuote(team.quote)) {
+                const excerpts = document.createElement('div');
+                excerpts.className = 'qt-quotes';
+                appendQuote(excerpts, team.quote);
+                panel.appendChild(excerpts);
+            } else panel.appendChild(sourceButton(team.quote.rid, ''));
         } else {
             heading.textContent = 'Evidence unavailable';
             const note = document.createElement('p');
@@ -3112,13 +3165,6 @@
                     var quotesEl = document.createElement('div');
                     quotesEl.className = 'qt-quotes';
                     grouped.forEach(function (g) {
-                        var qEl = document.createElement('div');
-                        qEl.className = 'qt-quote';
-                        var body = document.createElement('div');
-                        body.className = 'qt-quote-body';
-                        body.appendChild(document.createTextNode(g.text));
-                        var srcEl = document.createElement('span');
-                        srcEl.className = 'qt-quote-src';
                         // Prefer the first rid's week label; if multiple
                         // rids echoed the same span, surface that count.
                         var lead = g.rids[0];
@@ -3128,7 +3174,8 @@
                         if (g.rids.length > 1) {
                             srcParts.push('+ ' + (g.rids.length - 1) + ' more echoed this');
                         }
-                        srcEl.textContent = srcParts.join(' · ');
+                        const rendered = buildEvidenceQuote(g.text, srcParts.join(' · '));
+                        const srcEl = rendered.sourceLink;
                         if (lead) {
                             srcEl.setAttribute('role', 'button');
                             srcEl.setAttribute('tabindex', '0');
@@ -3138,9 +3185,7 @@
                             srcEl.style.cursor = 'pointer';
                             pillBindings.push({ pill: srcEl, rid: lead, quote: g.text });
                         }
-                        body.appendChild(srcEl);
-                        qEl.appendChild(body);
-                        quotesEl.appendChild(qEl);
+                        quotesEl.appendChild(rendered.element);
                     });
                     if (citesWrap) citesWrap.appendChild(quotesEl);
                 } else if (citesWrap) {
