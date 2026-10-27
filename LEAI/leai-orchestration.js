@@ -23,6 +23,7 @@
             if (!response.ok) {
                 const error = new Error(data.error || 'Request failed');
                 error.status = response.status;
+                error.retryable = data.retryable === true;
                 throw error;
             }
             status('saved', operation, response.status);
@@ -37,7 +38,34 @@
             if (busy) throw new Error('A request is already pending');
             busy = true;
             try {
-                state = await request('turn', pending);
+                try {
+                    state = await request('turn', pending);
+                } catch (error) {
+                    // Check persistence before retrying an uncertain result. Keep the
+                    // same request ID so a disconnected success cannot save twice.
+                    if (!error.status || error.status >= 500) {
+                        const previous = state;
+                        let restored;
+                        try { restored = await resume(); } catch (_) { throw error; }
+                        const appended = (restored.messages || []).slice((previous.messages || []).length);
+                        if (restored.version === pending.expected_version + 1 && appended.some(message =>
+                            message.sent_by === 'user-message' && message.content === pending.text)) {
+                            state = restored;
+                            status('recovered', 'turn');
+                        } else if (restored.version !== pending.expected_version) {
+                            pending = null;
+                            const conflict = new Error('stale_turn'); conflict.status = 409;
+                            throw conflict;
+                        } else if (error.status === 503 && error.retryable) {
+                            status('retrying', 'turn', error.status);
+                            state = await request('turn', pending);
+                        } else {
+                            throw error;
+                        }
+                    } else {
+                        throw error;
+                    }
+                }
                 pending = null;
                 return state;
             } catch (error) {

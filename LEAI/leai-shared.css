@@ -905,6 +905,17 @@ input[type="checkbox"], input[type="radio"] {
     border-bottom: 1px solid var(--surface-mid);
     flex-wrap: wrap;
 }
+
+.qt-team-order { color: var(--text-variant); font-size: .8rem; line-height: 1.5; margin: 0 0 12px; }
+.qt-team-status { font-size: .72rem; font-weight: 700; margin: 4px 0; }
+.qt-team-evidence { margin-top: 12px; border-top: 1px solid var(--surface-mid); padding-top: 8px; }
+.qt-team-evidence details { margin-top: 8px; }
+.qt-team-evidence summary { cursor: pointer; font-size: .78rem; font-weight: 600; }
+.qt-team-evidence-claim { margin: 10px 0; }
+.qt-team-evidence-claim p { margin: 0 0 6px; font-size: .8rem; }
+.qt-team-source { display: block; max-width: 100%; background: transparent; border: 0; padding: 5px 0; text-align: left; color: var(--primary); font: inherit; font-size: .75rem; text-decoration: underline; cursor: pointer; }
+.qt-team-source:disabled { color: var(--muted); cursor: default; }
+.qt-team-source:focus-visible, .qt-team-evidence summary:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .team-config-tab {
     background: none; border: none; cursor: pointer;
     font-family: inherit; font-size: 0.80rem; font-weight: 600;

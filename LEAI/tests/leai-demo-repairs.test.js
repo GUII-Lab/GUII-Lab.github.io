@@ -1,0 +1,50 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const designer=fs.readFileSync(require.resolve('../PromptDesigner.html'),'utf8');
+test('editing a sparse roster preserves numbers and adds above its largest number',()=>{
+    const fn=designer.match(/function igTeamNumbers\(count\) \{[\s\S]*?\n    \}/)[0];
+    const ctx={originalTeamNumbers:[1,4,6,8,9,11,14]};vm.createContext(ctx);vm.runInContext(fn,ctx);
+    assert.deepEqual(Array.from(ctx.igTeamNumbers(7)),[1,4,6,8,9,11,14]);
+    assert.deepEqual(Array.from(ctx.igTeamNumbers(8)),[1,4,6,8,9,11,14,15]);
+    assert.deepEqual(Array.from(ctx.igTeamNumbers(5)),[1,4,6,8,9]);
+    ctx.originalTeamNumbers=[];assert.deepEqual(Array.from(ctx.igTeamNumbers(3)),[1,2,3]);
+});
+class El{
+    constructor(tag){this.tag=tag;this.children=[];this.listeners={};this.attributes={};}
+    appendChild(child){this.children.push(child);return child;}
+    setAttribute(key,value){this.attributes[key]=value;}
+    addEventListener(key,fn){this.listeners[key]=fn;}
+}
+function walk(el,predicate){return [...(predicate(el)?[el]:[]),...el.children.flatMap(child=>walk(child,predicate))];}
+function teamEvidence(){
+    const html=fs.readFileSync(require.resolve('../FeedbackAnalyzer.html'),'utf8');
+    const fn=html.slice(html.indexOf('function buildTeamEvidence('),html.indexOf('function collapseInsightSections('));
+    const calls=[];const ctx={document:{createElement:tag=>new El(tag)},showQuickTakeCitePopover:(...args)=>calls.push(args)};
+    vm.createContext(ctx);vm.runInContext(fn,ctx);return {render:ctx.buildTeamEvidence,calls};
+}
+test('all claim sources remain clickable and distinct from all team respondents',()=>{
+    const {render,calls}=teamEvidence();
+    const rows=[5,6,18,20].map(n=>({rid:'R'+n,display_rid:'R'+n,week_number:4,survey_id:356,session_id:'s'+n,team_name:'Team 6'}));
+    rows.push({rid:'R2',team_name:'Team 8',survey_id:356,session_id:'other'});
+    const card=render({team_name:'Team 6',evidence_claims:[{text:'Still uneven',source_ids:['R5','R6']},{text:'Communication differs',source_ids:['R18']}],quote:{rid:'R5',text:'exact excerpt'}},rows);
+    const summaries=walk(card,x=>x.tag==='summary').map(x=>x.textContent);
+    assert.deepEqual(summaries,['View evidence · 3 source responses','View all team responses · 4']);
+    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons.length,7);
+    buttons[2].listeners.click();assert.equal(calls[0][1],'R18');assert.equal(calls[0][2].survey_id,356);
+    assert.ok(buttons.every(x=>!/· R2(?: ·|$)/.test(x.textContent)));
+});
+test('cross-team or missing source references cannot open a misleading transcript',()=>{
+    const {render}=teamEvidence();
+    const card=render({team_name:'Team 6',evidence_claims:[{text:'claim',source_ids:['R2']}]},[{rid:'R2',team_name:'Team 8',session_id:'wrong',survey_id:356}]);
+    const buttons=walk(card,x=>x.tag==='button');assert.equal(buttons[0].disabled,true);
+    assert.equal(buttons[0].textContent,'Source unavailable · R2');
+});
+test('older quote-only summaries expose the real quote source without inventing claim links',()=>{
+    const {render,calls}=teamEvidence();const row={rid:'R1',team_name:'Team 4',session_id:'s',survey_id:354};
+    const card=render({team_name:'Team 4',quote:{rid:'R1',text:'verbatim'}},[row]);
+    assert.equal(card.children[0].children[0].textContent,'View quoted response');
+    walk(card,x=>x.tag==='button')[0].listeners.click();assert.equal(calls[0][3],'verbatim');
+});

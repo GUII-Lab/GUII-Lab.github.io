@@ -17,8 +17,52 @@ test('failed turn retries the exact frozen request and consumes only success', a
     assert.equal(client.getPending().text,'four because I checked');
     await assert.rejects(client.send('different'),/pending/);
     await client.retry();
-    assert.deepEqual(bodies[1],bodies[2]);
+    const turns=bodies.filter(body=>body.request_id);
+    assert.deepEqual(turns[0],turns[1]);
     assert.equal(client.getPending(),null);
+});
+
+test('retryable 503 checks saved state and retries the same request only once',async()=>{
+    const turns=[];let attempts=0;
+    const client=createClient({api:'/api',publicId:'survey',sessionId:'session',fetch:async(url,opts)=>{
+        if(url.endsWith('/session/'))return {ok:true,json:async()=>({version:1,messages:[]})};
+        turns.push(JSON.parse(opts.body));attempts++;
+        if(attempts===1)return {ok:false,status:503,json:async()=>({error:'assessment_unavailable',retryable:true})};
+        return {ok:true,json:async()=>({version:2,messages:[]})};
+    }});
+    await client.start({terms_consent:true});
+    assert.equal((await client.send('specific account')).version,2);
+    assert.deepEqual(turns[0],turns[1]);assert.equal(client.getPending(),null);
+});
+
+test('second 503 stops with the original request available for deliberate retry',async()=>{
+    let attempts=0;
+    const client=createClient({api:'/api',publicId:'s',sessionId:'c',fetch:async(url)=>{
+        if(url.endsWith('/session/'))return {ok:true,json:async()=>({version:1,messages:[]})};
+        attempts++;return {ok:false,status:503,json:async()=>({error:'assessment_unavailable',retryable:true})};
+    }});
+    await client.start({terms_consent:true});await assert.rejects(client.send('draft'));
+    assert.equal(attempts,2);assert.equal(client.getPending().text,'draft');
+});
+
+test('lost success is recovered from saved messages without a second turn',async()=>{
+    let committed=false;let attempts=0;
+    const client=createClient({api:'/api',publicId:'s',sessionId:'c',fetch:async(url)=>{
+        if(url.endsWith('/session/'))return {ok:true,json:async()=>({version:committed?2:1,messages:committed?[{sent_by:'user-message',content:'draft'},{sent_by:'ai-message',content:'reply'}]:[]})};
+        attempts++;committed=true;throw new Error('disconnected');
+    }});
+    await client.start({terms_consent:true});assert.equal((await client.send('draft')).version,2);
+    assert.equal(attempts,1);assert.equal(client.getPending(),null);
+});
+
+test('uncertain failure never replays against another answer or new question',async()=>{
+    let sent=false;let attempts=0;
+    const client=createClient({api:'/api',publicId:'s',sessionId:'c',fetch:async(url)=>{
+        if(url.endsWith('/session/'))return {ok:true,json:async()=>({version:sent?2:1,messages:sent?[{sent_by:'user-message',content:'different'}]:[]})};
+        attempts++;sent=true;throw new Error('disconnected');
+    }});
+    await client.start({terms_consent:true});await assert.rejects(client.send('draft'),error=>error.status===409);
+    assert.equal(attempts,1);assert.equal(client.getPending(),null);
 });
 
 test('409 refreshes authoritative state without replaying text automatically', async()=>{

@@ -1548,7 +1548,9 @@
 
         function renderFormModeProgress() {
             if (!formMode.active || !formMode.state) return;
-            var label = orchestratedClient ? orchestratedClient.getState().progress.label : leaiFormMode.progressLabel(formMode.state);
+            const progress = orchestratedClient && orchestratedClient.getState().progress;
+            const questionCount = orchestratedClient && orchestratedClient.getState().schema.sections.reduce((count, section) => count + section.fields.length, 0);
+            var label = progress ? (progress.complete ? 'Reflection complete · All ' + questionCount + ' questions captured · You can review earlier messages' : progress.label) : leaiFormMode.progressLabel(formMode.state);
             var el = document.getElementById('formmode-progress');
             if (!el) {
                 el = document.createElement('div');
@@ -1882,7 +1884,9 @@
 
         function orchestrationError(error) {
             if (error.status === 410 && error.message === 'session_archived') { chatLocked = true; showInactive('archived'); return; }
-            _mainStripNoteText = error.status === 409 ? 'The conversation changed. Your text is still here; review the current question before sending.' : 'Your response did not save. Press Send to retry the same response.';
+            _mainStripNoteText = error.status === 409 ? 'The conversation changed. Your text is still here; review the current question before sending.'
+                : error.status === 503 ? 'LEAI could not finish its reply. Your text is kept. Press Send to retry.'
+                : 'We could not confirm that your response saved. Your text is kept. Press Send to retry the same response.';
             if (error.status === 403) { showInactive('closed'); return; }
             let note = document.getElementById('orchestration-error');
             if (!note) { note = document.createElement('p'); note.id = 'orchestration-error'; note.setAttribute('role','alert'); document.querySelector('.chat-footer-inner').appendChild(note); }
@@ -2235,7 +2239,7 @@
                 screen.appendChild(makeParagraph([
                     'This feedback is ',
                     { bold: 'anonymous' },
-                    '. Your instructor sees team-level summaries only — not who submitted what, and not any teammate\u2019s real name.',
+                    '. Your instructor can review anonymous responses and team summaries. Your name is not attached to your responses. Avoid including names or identifying details in your answers.',
                 ]));
                 screen.appendChild(makeParagraph([
                     'If you want to flag a specific teammate, you\u2019ll refer to them as ',

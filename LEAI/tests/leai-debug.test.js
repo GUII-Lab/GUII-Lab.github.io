@@ -83,8 +83,8 @@ test('transport reports waiting, saved and failed without placing debug auth in 
         return {ok:!fail,status:fail?503:200,json:async()=>fail?{error:'assessment_unavailable'}:{version:url.endsWith('/session/')?1:2}};
     }});
     await c.start({terms_consent:true});await c.send('answer');fail=true;await assert.rejects(c.send('second'));
-    assert.deepEqual(stages.map(s=>s.phase),['waiting','saved','waiting','saved','waiting','failed']);
-    assert.equal(stages.at(-1).operation,'turn');assert.equal(stages.at(-1).status,503);
+    assert.deepEqual(stages.map(s=>s.phase),['waiting','saved','waiting','saved','waiting','failed','waiting','failed']);
+    assert.equal(stages.at(-1).operation,'session');assert.equal(stages.at(-1).status,503);
     assert.ok(bodies.every(b=>!('debug_token' in b)));
 });
 

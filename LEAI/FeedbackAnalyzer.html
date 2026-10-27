@@ -2318,6 +2318,7 @@
     // ===== AI QUICK TAKE =====
     function renderQuickTake() {
         var container = document.getElementById('quick-take-container');
+        container._teamEvidenceToken = null;
         container.textContent = '';
 
         // Entire-course scope merges every week into one corpus, and the themes
@@ -2414,7 +2415,7 @@
                 row.className = 'qt-conversation-message ' + (m.source === 'pdf' ? 'reflection' : student ? 'student' : 'ai');
                 const label = document.createElement('div');
                 label.className = 'qt-conversation-role';
-                label.textContent = m.source === 'pdf' ? 'Reflection' : student ? 'Student' : 'AI';
+                label.textContent = m.source === 'pdf' ? 'Reflection' : student ? 'Student' : 'LEAI';
                 row.appendChild(label);
                 const body = document.createElement('div');
                 body.className = 'qt-conversation-text';
@@ -2465,6 +2466,61 @@
     }
 
     // Keep native disclosure keyboard behavior and independently closed defaults.
+    function buildTeamEvidence(team, corpus) {
+        const panel = document.createElement('div');
+        panel.className = 'qt-team-evidence';
+        const sources = corpus.filter(source => source.team_name === team.team_name);
+        const byRid = Object.fromEntries(sources.map(source => [source.rid, source]));
+        const claims = (team.evidence_claims || []).filter(claim => claim && claim.text);
+        const cited = new Set(claims.flatMap(claim => claim.source_ids || []));
+        const evidence = document.createElement('details');
+        const heading = document.createElement('summary');
+        heading.textContent = 'View evidence · ' + [...cited].filter(rid => byRid[rid]).length + ' source responses';
+        evidence.appendChild(heading);
+        function sourceButton(rid, quote) {
+            const source = byRid[rid];
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'qt-team-source';
+            button.textContent = source
+                ? 'View conversation · ' + (source.display_rid || rid) + (source.week_number != null ? ' · Wk ' + source.week_number : '')
+                : 'Source unavailable · ' + rid;
+            button.disabled = !source || !source.session_id || source.survey_id == null;
+            button.setAttribute('aria-haspopup', 'dialog');
+            button.addEventListener('click', () => showQuickTakeCitePopover(button, rid, source, quote || ''));
+            return button;
+        }
+        if (claims.length) {
+            claims.forEach(claim => {
+                const item = document.createElement('div');
+                item.className = 'qt-team-evidence-claim';
+                const text = document.createElement('p');
+                text.textContent = claim.text;
+                item.appendChild(text);
+                [...new Set(claim.source_ids || [])].forEach(rid => {
+                    item.appendChild(sourceButton(rid, team.quote && team.quote.rid === rid ? team.quote.text : ''));
+                });
+                evidence.appendChild(item);
+            });
+        } else if (team.quote && team.quote.rid) {
+            heading.textContent = 'View quoted response';
+            evidence.appendChild(sourceButton(team.quote.rid, team.quote.text));
+        } else {
+            heading.textContent = 'Evidence unavailable';
+            const note = document.createElement('p');
+            note.textContent = 'No source links were saved for this summary.';
+            evidence.appendChild(note);
+        }
+        panel.appendChild(evidence);
+        const all = document.createElement('details');
+        const allHeading = document.createElement('summary');
+        allHeading.textContent = 'View all team responses · ' + sources.length;
+        all.appendChild(allHeading);
+        sources.forEach(source => all.appendChild(sourceButton(source.rid, '')));
+        panel.appendChild(all);
+        return panel;
+    }
+
     function collapseInsightSections(accent) {
         const nodes = Array.from(accent.children);
         let group = null;
@@ -2691,6 +2747,19 @@
     function renderQuickTakeLoaded(container, qt, opts) {
         container.textContent = '';
         opts = opts || {};
+        if (qt.team_health && qt.team_health.length && !opts.teamEvidenceReady) {
+            const sourceRows = opts.sourceCorpus || currentResponses;
+            const surveyIds = new Set(sourceRows.map(source => String(source.survey_id)));
+            const surveys = allSurveys.filter(survey => surveyIds.has(String(survey.gpt_id)));
+            const token = {};
+            container._teamEvidenceToken = token;
+            container.textContent = 'Loading team evidence…';
+            Promise.all(surveys.map(survey => ensureSurveyTeamData(survey).then(data => data.pending || data))).then(() => {
+                if (container._teamEvidenceToken !== token || !container.isConnected) return;
+                renderQuickTakeLoaded(container, qt, Object.assign({}, opts, {teamEvidenceReady: true}));
+            });
+            return;
+        }
         var currentCount = (opts.currentCount != null)
             ? opts.currentCount : currentResponses.length;
         var onRegenerate = opts.onRegenerate || function () {
@@ -2760,7 +2829,11 @@
                 activeSurveys(), currentScope.kind, currentScope.weekNumber
             );
         const displayByRid = {};
-        displayCorpus.forEach(function (s) { if (s.rid) displayByRid[s.rid] = s; });
+        displayCorpus.forEach(function (s) {
+            const cached = surveyTeamCache[s.survey_id];
+            if (cached && cached.teamBySessionId) s.team_name = cached.teamBySessionId[s.session_id] || '';
+            if (s.rid) displayByRid[s.rid] = s;
+        });
         var sourceByRid = {};
         (qt.sources || []).forEach(function (s) {
             if (!s.rid) return;
@@ -3130,6 +3203,10 @@
             teamTitle.className = 'qt-section-title';
             teamTitle.textContent = 'Team health';
             teamSec.appendChild(teamTitle);
+            const legend = document.createElement('p');
+            legend.className = 'qt-team-order';
+            legend.textContent = 'Attention order: At risk → Watch → Healthy → No response. Within a category, more missing reflections appear first. These are review categories, not scores.';
+            teamSec.appendChild(legend);
             var grid = document.createElement('div');
             grid.className = 'qt-team-grid';
             // Sort: at_risk → watch → healthy → no_response (attention order),
@@ -3148,6 +3225,10 @@
                 name.className = 'name';
                 name.textContent = t.team_name || '';
                 c.appendChild(name);
+                const statusLabel = document.createElement('div');
+                statusLabel.className = 'qt-team-status';
+                statusLabel.textContent = ({at_risk: 'At risk', watch: 'Watch', healthy: 'Healthy', no_response: 'No response'})[t.status] || 'Unclassified';
+                c.appendChild(statusLabel);
                 // Deterministic response completeness the backend attaches per
                 // team: how many of the roster submitted, and how many are
                 // still missing. Shown on every team with a known size; the
@@ -3192,6 +3273,7 @@
                     }
                     c.appendChild(q);
                 }
+                c.appendChild(buildTeamEvidence(t, displayCorpus));
                 grid.appendChild(c);
             });
             teamSec.appendChild(grid);
@@ -4753,7 +4835,7 @@
                 var line = document.createElement('div');
                 line.className = 'convo-line ' + (m.role === 'bot' ? 'bot' : 'user');
                 var prefix = document.createElement('strong');
-                prefix.textContent = (m.role === 'bot' ? 'Bot: ' : 'Student: ');
+                prefix.textContent = (m.role === 'bot' ? 'LEAI: ' : 'Student: ');
                 line.appendChild(prefix);
                 // Render bot markdown (**bold**, lists) the same way feedback.html does:
                 // marked + DOMPurify → DOM fragment, never assigning innerHTML directly.

@@ -58,6 +58,11 @@
             gap: 28px; align-items: start;
         }
         #mode-panel-form .layout > *, #mode-panel-form .builder-row > * { min-width: 0; }
+        #mode-panel-group .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        #mode-panel-group .layout > * { min-width: 0; }
+        #mode-panel-group input, #mode-panel-group select, #mode-panel-group textarea { max-width: 100%; }
+        #mode-panel-group .team-size-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
+        @media (max-width: 1100px) { #mode-panel-group .layout { grid-template-columns: minmax(0, 1fr); } }
 
         /* White card on surface-low background — tonal contrast, no border needed */
         .card {
@@ -1221,6 +1226,14 @@ When the conversation has organically reached a natural close — i.e. the stude
     // ===== IN-GROUP: TEAM STRUCTURE =====
     var currentConfigId = null;       // id of the config being viewed/edited; null = new
     var sizeOverrides = {};           // team_number -> size (only when != default)
+    let originalTeamNumbers = [];
+
+    function igTeamNumbers(count) {
+        const numbers = originalTeamNumbers.slice(0, count);
+        let next = Math.max(0, ...originalTeamNumbers) + 1;
+        while (numbers.length < count) numbers.push(next++);
+        return numbers;
+    }
     var nameOverrides = {};           // team_number -> custom display_name (sponsor team name, etc.)
     var lastLoadedConfigs = [];
     // 'view' (summary only) | 'edit' (editing current config — summary hidden) |
@@ -1240,7 +1253,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         if (!count || !defSize || count < 1) { wrap.style.display = 'none'; return; }
         wrap.style.display = '';
         grid.textContent = '';
-        for (var i = 1; i <= count; i++) {
+        for (const i of igTeamNumbers(count)) {
             var size = (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize;
             var isException = (sizeOverrides[i] != null) && (sizeOverrides[i] !== defSize);
             var item = document.createElement('div');
@@ -1301,7 +1314,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var count = parseInt(document.getElementById('t-team-count').value, 10);
         var defSize = parseInt(document.getElementById('t-default-size').value, 10);
         var anySmall = defSize > 0 && defSize <= 2;
-        for (var i = 1; i <= count; i++) {
+        for (const i of igTeamNumbers(count)) {
             var s = (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize;
             if (s > 0 && s <= 2) anySmall = true;
         }
@@ -1390,6 +1403,7 @@ When the conversation has organically reached a natural close — i.e. the stude
     }
 
     function igPopulateForm(config) {
+        originalTeamNumbers = config.teams.map(t => t.number);
         document.getElementById('t-config-name').value = config.name;
         document.getElementById('t-team-count').value = config.teams.length;
         var sizes = config.teams.map(function (t) { return t.size; });
@@ -1413,6 +1427,7 @@ When the conversation has organically reached a natural close — i.e. the stude
 
     function igResetForm(opts) {
         opts = opts || {};
+        originalTeamNumbers = [];
         currentConfigId = null;
         sizeOverrides = {};
         nameOverrides = {};
@@ -1521,7 +1536,10 @@ When the conversation has organically reached a natural close — i.e. the stude
             return;
         }
         var teams = [];
-        for (var i = 1; i <= count; i++) {
+        const numbers = igTeamNumbers(count);
+        const removed = originalTeamNumbers.filter(number => !numbers.includes(number));
+        if (removed.length && !window.confirm('Remove ' + removed.map(number => prefix + ' ' + number).join(', ') + ' from this configuration? Existing survey snapshots keep their original teams.')) return;
+        for (const i of numbers) {
             teams.push({
                 number: i,
                 size: (sizeOverrides[i] != null) ? sizeOverrides[i] : defSize,
