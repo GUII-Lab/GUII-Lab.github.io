@@ -135,20 +135,73 @@ test('certificate hint matches the required completion gate before and after an 
     assert.match(legacy.statusEl.children.map(e=>e.textContent).join(''),/respond once/);
 });
 
-test('confirmed retry clears both error surfaces before rendering but failed retry preserves text',async()=>{
+function pendingSendHarness({draft='My response',pending=null}={}){
     const html=fs.readFileSync(require.resolve('../feedback.html'),'utf8');
     const fn=html.slice(html.indexOf('function sendOrchestratedMessage('),html.indexOf('function downloadOrchestratedReflection('));
-    for(const fails of [false,true]){
-        let value='My saved response',removed=false,renderedNote=null;
-        const input={prop:()=>false,val(next){if(next!==undefined){value=next;return input;}return value;},css:()=>input};
-        const ctx={_mainStripNoteText:'Old failed reply',chatLocked:false,$:()=>input,
-            orchestratedClient:{getPending:()=>({text:value}),retry:()=>fails?Promise.reject({status:503}):Promise.resolve({version:6})},
-            setInputBusy(){},showTypingIndicator(){},hideTypingIndicator(){},window:{},
-            document:{getElementById:()=>({remove(){removed=true;}})},
-            applyOrchestratedPayload(){renderedNote=ctx._mainStripNoteText;},orchestrationError(){}};
-        vm.createContext(ctx);vm.runInContext(fn,ctx);ctx.sendOrchestratedMessage();
-        await new Promise(resolve=>setImmediate(resolve));
-        if(fails){assert.equal(value,'My saved response');assert.equal(removed,false);assert.equal(ctx._mainStripNoteText,'Old failed reply');}
-        else{assert.equal(renderedNote,'');assert.equal(ctx._mainStripNoteText,'');assert.equal(value,'');assert.equal(removed,true);}
+    let resolve,reject,busy=false,value=draft,typing=false,removed=false;
+    const request=new Promise((yes,no)=>{resolve=yes;reject=no;});
+    const events=[],messages=[],calls=[];
+    const input={prop:()=>busy,val(next){if(next!==undefined){value=next;return input;}return value;},css:()=>input};
+    const ctx={_mainStripNoteText:'Old failed reply',chatLocked:false,$:()=>input,
+        orchestratedClient:{getPending:()=>pending,getState:()=>({version:7}),send:text=>{calls.push(['send',text]);return request;},retry:()=>{calls.push(['retry',pending.text]);return request;}},
+        setInputBusy(b){busy=b;},showTypingIndicator(){events.push('typing');typing=true;},hideTypingIndicator(){typing=false;},window:{},
+        appendMessage(role,text,opts){events.push('preview');assert.equal(opts.skipPersist,true);assert.equal(opts.pending,true);const node={role,text,pending:true,remove(){messages.splice(messages.indexOf(node),1);}};messages.push(node);return node;},
+        document:{getElementById:()=>({remove(){removed=true;}})},
+        applyOrchestratedPayload(data){events.push('render:'+ctx._mainStripNoteText);messages.splice(0,messages.length,...(data.messages||[]));},
+        orchestrationError(error){events.push('error:'+error.status);}};
+    vm.createContext(ctx);vm.runInContext(fn,ctx);
+    return {ctx,events,messages,calls,resolve,reject,input,get value(){return value;},get busy(){return busy;},get typing(){return typing;},get removed(){return removed;}};
+}
+
+test('send immediately moves text into one local bubble before AI dots and reconciles saved reply',async()=>{
+    const h=pendingSendHarness();const done=h.ctx.sendOrchestratedMessage();
+    assert.equal(h.value,'');assert.equal(h.busy,true);assert.equal(h.typing,true);
+    assert.deepEqual(h.events,['preview','typing']);assert.deepEqual(h.calls,[['send','My response']]);
+    assert.equal(h.messages.length,1);assert.equal(h.messages[0].text,'My response');
+    h.ctx.sendOrchestratedMessage();assert.equal(h.calls.length,1,'busy input cannot submit twice');
+    h.resolve({messages:[{role:'user-message',text:'My response'},{role:'ai-message',text:'Reply'}]});await done;
+    assert.equal(h.messages.length,2);assert.equal(h.messages.filter(m=>m.text==='My response').length,1);
+    assert.ok(h.messages.every(m=>!m.pending));assert.equal(h.typing,false);assert.equal(h.busy,false);
+    assert.equal(h.ctx._mainStripNoteText,'');assert.equal(h.removed,true);assert.ok(h.events.includes('render:'));
+});
+
+test('failed send removes the unconfirmed preview and restores text for retry or correction',async()=>{
+    for(const status of [400,409,503]){
+        const h=pendingSendHarness();const done=h.ctx.sendOrchestratedMessage();
+        h.reject({status});await done;
+        assert.equal(h.value,'My response');assert.equal(h.messages.length,0);
+        assert.equal(h.typing,false);assert.equal(h.busy,false);assert.equal(h.removed,false);
+        assert.equal(h.ctx._mainStripNoteText,'Old failed reply');
+        assert.equal(h.events.includes('render:Old failed reply'),status===409);
     }
+});
+
+test('retry renders the frozen failed response even with an empty composer and preserves newer drafts',async()=>{
+    for(const draft of ['', 'A newer draft']){
+        const h=pendingSendHarness({draft,pending:{text:'Original response'}});
+        const done=h.ctx.sendOrchestratedMessage();
+        assert.deepEqual(h.calls,[['retry','Original response']]);assert.equal(h.messages[0].text,'Original response');
+        h.resolve({messages:[{text:'Original response'}]});await done;
+        assert.equal(h.value,draft);assert.equal(h.messages.length,1);assert.equal(h.typing,false);
+    }
+});
+
+test('microphone submissions and failed retries never overwrite a different draft',async()=>{
+    for(const pending of [null,{text:'Frozen response'}]){
+        const h=pendingSendHarness({draft:'A newer draft',pending});const done=h.ctx.sendOrchestratedMessage('Dictated response');
+        assert.equal(h.messages[0].text,pending?'Frozen response':'Dictated response');
+        h.reject({status:503});await done;assert.equal(h.value,'A newer draft');assert.equal(h.messages.length,0);
+    }
+});
+
+test('pending bubble reuses the student renderer and cannot create a legacy database write',()=>{
+    const html=fs.readFileSync(require.resolve('../feedback.html'),'utf8');
+    const fn=html.slice(html.indexOf('function appendMessage('),html.indexOf('function handleSendMessage('));
+    const meta=new El('div');const node=new El('article');node.dataset={};node.querySelector=selector=>{assert.equal(selector,'.msg-student-meta');return meta;};
+    let persisted=0;const transcript=new El('div');transcript.scrollTo=()=>{};
+    const ctx={Date,Number,document:{createElement:tag=>new El(tag)},buildStudentMessage:()=>node,transcriptionDiv:transcript,storeData(){persisted++;}};
+    vm.createContext(ctx);vm.runInContext(fn,ctx);
+    assert.equal(ctx.appendMessage('user-message','My response',{skipPersist:true,pending:true}),node);
+    assert.equal(node.dataset.orchestrationPending,'true');assert.equal(meta.children[0].textContent,'Sending…');
+    assert.equal(persisted,0);assert.equal(transcript.children.length,1);
 });

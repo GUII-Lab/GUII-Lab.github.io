@@ -1905,19 +1905,26 @@
 
         function sendOrchestratedMessage(providedText) {
             if ($('#messageInput').prop('disabled')) return;
-            const text = providedText || $('#messageInput').val().trim();
-            if (!text) return;
             const pending = orchestratedClient.getPending();
+            const text = pending ? pending.text : (providedText || $('#messageInput').val().trim());
+            if (!text) return;
             setInputBusy(true);
+            // Render locally while the server generates and atomically saves the
+            // turn. Never persist this preview through the legacy message API.
+            const preview = appendMessage('user-message', text, {skipPersist:true, pending:true});
+            if ($('#messageInput').val().trim() === text) $('#messageInput').val('').css('height','auto');
+            if (window.leaiMainMicCtrl && window.leaiMainMicCtrl.resetSession) window.leaiMainMicCtrl.resetSession();
             showTypingIndicator();
-            (pending ? orchestratedClient.retry() : orchestratedClient.send(text)).then(function (data) {
+            return (pending ? orchestratedClient.retry() : orchestratedClient.send(text)).then(function (data) {
                 _mainStripNoteText = '';
+                // The authoritative transcript replaces the preview, not appends
+                // a second copy of the student's message.
                 applyOrchestratedPayload(data);
-                // Do not discard new text edited while a failed request was pending.
-                if ($('#messageInput').val().trim() === (pending ? pending.text : text)) $('#messageInput').val('').css('height','auto');
-                if (window.leaiMainMicCtrl && window.leaiMainMicCtrl.resetSession) window.leaiMainMicCtrl.resetSession();
                 const note = document.getElementById('orchestration-error'); if (note) note.remove();
             }).catch(function (error) {
+                preview.remove();
+                // Restore the submitted text without overwriting a newer draft.
+                if (!$('#messageInput').val().trim()) $('#messageInput').val(text).css('height','auto');
                 if (error.status === 409) applyOrchestratedPayload(orchestratedClient.getState());
                 orchestrationError(error);
             }).finally(function () { hideTypingIndicator(); setInputBusy(chatLocked); });
@@ -3583,6 +3590,13 @@
                 el = buildStudentMessage(message, timeStr);
             }
             transcriptionDiv.appendChild(el);
+            if (opts.pending) {
+                el.dataset.orchestrationPending = 'true';
+                const status = document.createElement('span');
+                status.className = 'msg-time';
+                status.textContent = 'Sending…';
+                el.querySelector('.msg-student-meta').appendChild(status);
+            }
             if (Number.isInteger(opts.sequence)) {
                 el.dataset.orchestrationSequence = String(opts.sequence);
                 if (opts.itemId) el.dataset.orchestrationItemId = opts.itemId;
@@ -3597,6 +3611,7 @@
                 top: transcriptionDiv.scrollHeight,
                 behavior: 'smooth'
             });
+            return el;
         }
 
         function handleSendMessage() {
