@@ -134,3 +134,21 @@ test('certificate hint matches the required completion gate before and after an 
     ctx.updateDownloadStripUi(legacy,{showStrip:true,showDocument:false,showCertificate:true,presentation:'normal',document:{visible:false,enabled:false},certificate:{visible:true,enabled:false}},{certificateRequiresCompletion:false});
     assert.match(legacy.statusEl.children.map(e=>e.textContent).join(''),/respond once/);
 });
+
+test('confirmed retry clears both error surfaces before rendering but failed retry preserves text',async()=>{
+    const html=fs.readFileSync(require.resolve('../feedback.html'),'utf8');
+    const fn=html.slice(html.indexOf('function sendOrchestratedMessage('),html.indexOf('function downloadOrchestratedReflection('));
+    for(const fails of [false,true]){
+        let value='My saved response',removed=false,renderedNote=null;
+        const input={prop:()=>false,val(next){if(next!==undefined){value=next;return input;}return value;},css:()=>input};
+        const ctx={_mainStripNoteText:'Old failed reply',chatLocked:false,$:()=>input,
+            orchestratedClient:{getPending:()=>({text:value}),retry:()=>fails?Promise.reject({status:503}):Promise.resolve({version:6})},
+            setInputBusy(){},showTypingIndicator(){},hideTypingIndicator(){},window:{},
+            document:{getElementById:()=>({remove(){removed=true;}})},
+            applyOrchestratedPayload(){renderedNote=ctx._mainStripNoteText;},orchestrationError(){}};
+        vm.createContext(ctx);vm.runInContext(fn,ctx);ctx.sendOrchestratedMessage();
+        await new Promise(resolve=>setImmediate(resolve));
+        if(fails){assert.equal(value,'My saved response');assert.equal(removed,false);assert.equal(ctx._mainStripNoteText,'Old failed reply');}
+        else{assert.equal(renderedNote,'');assert.equal(ctx._mainStripNoteText,'');assert.equal(value,'');assert.equal(removed,true);}
+    }
+});

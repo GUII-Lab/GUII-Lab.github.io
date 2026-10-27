@@ -1911,6 +1911,7 @@
             setInputBusy(true);
             showTypingIndicator();
             (pending ? orchestratedClient.retry() : orchestratedClient.send(text)).then(function (data) {
+                _mainStripNoteText = '';
                 applyOrchestratedPayload(data);
                 // Do not discard new text edited while a failed request was pending.
                 if ($('#messageInput').val().trim() === (pending ? pending.text : text)) $('#messageInput').val('').css('height','auto');
