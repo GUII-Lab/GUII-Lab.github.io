@@ -114,3 +114,23 @@ test('activity chart counts saved answers consistently and excludes empty ready 
     const survey={gpt_id:357,week_number:null,session_count:3,sessions:{empty:[{sent_by:'assistant',content:'Question?'}],complete:[{sent_by:'assistant',content:'Question?'},{sent_by:'user',content:'My answer.'}],partial:[{sent_by:'user-message',content:'Still unclear.'}]}};
     assert.equal(ctx.surveyResponseCount(survey),2);
 });
+
+test('certificate hint matches the required completion gate before and after an answer',()=>{
+    const html=fs.readFileSync(require.resolve('../feedback.html'),'utf8');
+    const fn=html.slice(html.indexOf('function updateDownloadStripUi('),html.indexOf('function buildCertificateProgressSnapshot('));
+    const node=()=>{const e=new El('div');e.classList={add(){},remove(){}};return e;};
+    const ctx={document:{createElement:node,createTextNode:text=>({textContent:text})},setDownloadStripNote(){}};
+    vm.createContext(ctx);vm.runInContext(fn,ctx);
+    for(const persisted of [0,1]){
+        const ui={strip:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
+        const state={showStrip:true,showDocument:false,showCertificate:true,persistedStudentMessageCount:persisted,presentation:'normal',document:{visible:false,enabled:false},certificate:{visible:true,enabled:false,label:'Finish the reflection for a certificate'}};
+        ctx.updateDownloadStripUi(ui,state,{certificateRequiresCompletion:true});
+        const label=ui.statusEl.children.map(e=>e.textContent).join('');
+        assert.match(label,/finish the reflection/);assert.doesNotMatch(label,/respond once/);
+        assert.equal(ui.certificateBtn.disabled,true);
+    }
+    // Ordinary chat retains its existing first-response contract.
+    const legacy={strip:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
+    ctx.updateDownloadStripUi(legacy,{showStrip:true,showDocument:false,showCertificate:true,presentation:'normal',document:{visible:false,enabled:false},certificate:{visible:true,enabled:false}},{certificateRequiresCompletion:false});
+    assert.match(legacy.statusEl.children.map(e=>e.textContent).join(''),/respond once/);
+});

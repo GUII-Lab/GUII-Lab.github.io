@@ -1206,7 +1206,9 @@
                 statusLead = 'Completion certificate';
                 statusTail = state.certificate.enabled
                     ? ' · ready to download any time'
-                    : ' · respond once to unlock it';
+                    : (config.certificateRequiresCompletion
+                        ? ' · finish the reflection to unlock it'
+                        : ' · respond once to unlock it');
             } else if (config.progressLabel) {
                 statusTail = ' · ' + config.progressLabel;
             }
@@ -1652,6 +1654,7 @@
             _mainStripUi.certificateBusy = _mainCertificateBusy;
             _mainStripUi.noteText = _mainStripNoteText;
             updateDownloadStripUi(_mainStripUi, state, {
+                certificateRequiresCompletion: !!orchestratedClient,
                 progressLabel: (formMode.active && formMode.state &&
                         typeof leaiFormMode !== 'undefined' &&
                         typeof leaiFormMode.progressLabel === 'function')
