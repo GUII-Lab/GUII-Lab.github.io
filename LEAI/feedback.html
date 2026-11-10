@@ -2178,6 +2178,11 @@
         // Two pre-chat screens (transparency, team picker) then the regular chat with
         // team context injected into the system prompt.
         function startInGroupFlow(survey) {
+            const consentMode = survey.anonymity_mode || 'anonymous';
+            if (!hasSessionConsent(consentMode)) {
+                showConsentModal(function () { startInGroupFlow(survey); }, consentMode);
+                return;
+            }
             // Prefer the snapshot the backend inlined on the public_id response
             // (saves a round trip); fall back to fetching if needed.
             var snapP = survey.team_snapshot
@@ -2797,12 +2802,9 @@
                 leaiTeamsApi.assignSessionToTeam(sessionId, team.id);
             }
 
-            // Flag controlling whether bot/student turns get persisted as FeedbackMessage
-            // rows on the backend. Defaults to the student's consent choice from the
-            // general-mode consent modal; for in-group surveys we haven't shown that
-            // modal, so default to false (no research analysis) unless the student
-            // already opted in for this session.
-            var researchConsent = typeof hasSessionConsent === 'function' ? !!hasSessionConsent() : false;
+            // Course feedback is saved independently of the optional research choice.
+            // Terms acceptance must never be treated as research opt-in.
+            const researchConsent = getResearchConsent();
 
             // Persistent download strip — always-on, always-functional, regardless
             // of whether the LLM cooperates with [END]. Two visual states on the

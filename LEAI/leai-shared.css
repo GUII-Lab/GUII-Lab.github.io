@@ -59,6 +59,38 @@ body {
     line-height: 1.6;
 }
 
+.response-export-dialog {
+    margin: auto; width: min(680px, calc(100% - 32px)); max-height: calc(100dvh - 32px);
+    padding: 24px; border: 0; border-radius: var(--radius-md); background: var(--surface-card);
+    color: var(--text); box-shadow: var(--shadow-float); font-family: inherit;
+}
+.response-export-dialog::backdrop { background: rgba(15,23,26,.55); }
+.response-export-dialog h2 { font-size: 1.2rem; margin-bottom: 8px; }
+.response-export-scope { overflow-wrap: anywhere; }
+.response-export-help, .response-export-meta { font-size: .82rem; color: var(--muted); }
+.response-export-consent--recorded { color: var(--success-text); }
+.response-export-consent--not_recorded { color: var(--error); }
+.response-export-all { display: flex; gap: 8px; align-items: center; min-height: 44px; margin: 16px 0 8px; }
+.response-export-all span { margin-left: auto; font-size: .82rem; color: var(--muted); }
+.response-export-list { max-height: 46dvh; overflow-y: auto; }
+.response-export-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 8px; min-height: 44px; cursor: pointer; }
+.response-export-row:hover { background: var(--surface-low); }
+.response-export-row, .response-export-all { font-size: .9rem; font-weight: 400; text-transform: none; letter-spacing: normal; margin-bottom: 0; }
+.response-export-row > span { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.response-export-row input, .response-export-all input { accent-color: var(--primary); width: 18px; height: 18px; margin-top: 4px; flex-shrink: 0; }
+.response-export-dialog :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.response-export-status { min-height: 24px; font-size: .85rem; margin: 12px 0; }
+.response-export-dialog .modal-actions { flex-wrap: wrap; }
+.response-export-dialog .btn { min-height: 44px; }
+.response-export-dialog .btn-primary { width: auto; }
+.response-export-dialog [hidden], #student-responses-section button[hidden] { display: none !important; }
+@media (max-width: 480px) {
+    .response-export-dialog { padding: 16px; }
+    .response-export-dialog .modal-actions { flex-direction: column-reverse; }
+    .response-export-dialog .btn { width: 100%; }
+    #student-responses-section .section-header { gap: 8px; flex-wrap: wrap; }
+}
+
 /* ===== LOGIN SCREEN ===== */
 #login-screen {
     display: flex; align-items: center; justify-content: center;

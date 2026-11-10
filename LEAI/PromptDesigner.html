@@ -1078,7 +1078,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         const groupSchemaSelect = document.getElementById('ig-schema-select');
         groupSchemaSelect.replaceChildren(new Option('(none — free-form chat)', ''));
         activeCourse = { id: courseId, name: courseName };
-        saveSession({ courseId: courseId, courseName: courseName, debug_token:loginData && loginData.debug_token, debug_token_expires_at:loginData && loginData.debug_token_expires_at });
+        saveSession({ courseId: courseId, courseName: courseName, debug_token:loginData && loginData.debug_token, debug_token_expires_at:loginData && loginData.debug_token_expires_at, response_export_token:loginData && loginData.response_export_token, response_export_token_expires_at:loginData && loginData.response_export_token_expires_at });
         enterApp();
     }
 

@@ -677,7 +677,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.valid) {
-                session = { courseId: courseId, courseName: data.course_name };
+                session = { courseId: courseId, courseName: data.course_name, response_export_token:data.response_export_token, response_export_token_expires_at:data.response_export_token_expires_at };
                 saveSession(session);
                 enterApp();
             } else {
