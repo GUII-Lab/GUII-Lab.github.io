@@ -117,7 +117,6 @@
         .exp-close:hover { color: var(--text); background: var(--surface-low); }
         .exp-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
         #login-screen, .app-main, .exp-panel { --muted: #52636e; }
-        .cb-debug-field > label { text-transform: none; letter-spacing: normal; }
     </style>
 </head>
 <body>
@@ -318,15 +317,15 @@
             </label>
             <p class="cb-hint">Controls the existing Word download in structured surveys. This setting is independent of completion certificates.</p>
         </div>
-        <div class="cb-field cb-debug-field">
+        <div class="cb-field">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
-                <input type="checkbox" id="cb-response-export-enabled" disabled />
+                <input type="checkbox" id="cb-response-export-enabled" disabled style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
                 <span>Allow student response export</span>
             </label>
             <p class="cb-hint">Allow instructors to download selected conversations as CSV files in a ZIP.</p>
             <p class="cb-hint" id="cb-response-export-status" role="status"></p>
         </div>
-        <div class="cb-field cb-debug-field">
+        <div class="cb-field">
             <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
                 <input type="checkbox" id="cb-debug-enabled" disabled style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
                 <span>Researcher debug: show recorded state under each AI reply</span>
