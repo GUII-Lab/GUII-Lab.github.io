@@ -1,0 +1,16 @@
+{
+  "name": "Student D — STOP early (Team 1)",
+  "notes": "TEAM survey, tests STOP intercept + warn-then-honor. Student answers the first two sections (2.1 Planning, 2.2 Roles) in moderate detail, then types STOP after section 2.3 starts. Engine should warn once, student insists with STOP again, engine should honor and emit [END]. This stress-tests the early-exit branch and confirms the bot does NOT keep dragging through remaining sections.",
+  "team_number": 1,
+  "team_id": 6,
+  "turns": [
+    "Hey, Team 1, I'm in.",
+    "We had a partial shared understanding. Monday standup we left feeling aligned but Tuesday afternoon two of us were doing duplicative coding while the others were clustering. Caught it Wednesday morning.",
+    "Adapted by adding a 15-min midweek sync plus single-owner rule on a shared board. Right call — saved hours.",
+    "Roster: me, Marco, Devi, Yusuf — Team 1, four people.",
+    "Marco transcribed notes and challenged with 'so what?'. Devi led the affinity wall. Yusuf did the readings. I drove synthesis on 60 of 180 stickies.",
+    "Equitable mostly but Yusuf did less hands-on; I'd have him drive a cluster end-to-end next time.",
+    "STOP",
+    "STOP — sorry, I have to leave for a meeting. Please end the survey here. I can come back later if needed."
+  ]
+}

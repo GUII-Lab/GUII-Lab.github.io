@@ -1,0 +1,2698 @@
+// LEAI Form-Mapping Mode — engine module.
+//
+// Pure state-transition module. Browser and the Python sim consume the same
+// schema JSON and follow the same rules so both flows are testable end-to-end.
+//
+// Spec: LEAI/docs/instructor-clarifications/wk6-form-mode-SPEC.md §4
+//
+// Activation in browser: feedback.html reads ?form=<schema_id> from the URL.
+// If present, this module wraps the chat flow. If absent, behavior is unchanged.
+
+(function (global) {
+    'use strict';
+
+    // Cap on student turns within a single area before the engine
+    // force-advances. Tuned for Area 6 (Roles & Contributions) which
+    // walks teammate-by-teammate (~12 turns in the engaged sim). This cap
+    // also bounds the max roster size the 2.2 walk can complete, so keep it
+    // at 14 — the redundant-follow-up complaint (P0-1) is handled
+    // structurally by the NO REDUNDANT RE-ASK gate and the "anything else
+    // fires once then advances" block below, not by tightening this net.
+    var MAX_TURNS_PER_AREA = 14;
+
+    // Tone gates appended to EVERY per-turn directive. The acknowledgement
+    // allowlist + no-define refusal, when they live only in the static system
+    // prompt, are ignored by strong models (~90% miss rate even on Opus 4.8);
+    // they bind only when restated in the fresh per-turn directive. Mirrors
+    // _TURN_GATES in LEAI/scripts/leai_formmode.py — keep the two in sync.
+    var TURN_GATES = '\n\n' + [
+        '[HARD RULES FOR THIS TURN — these override your default helpful/warm style]',
+        '- ACK ALLOWLIST: If this turn responds to something the student just said, your reply MUST begin with EXACTLY one of these five, and NOTHING else before it: "Got it." / "Okay." / "Mm." / "Noted." / "Fair." FORBIDDEN openers (delete and rewrite if you catch one): "That\'s a/the ...", "Nice", "Good", "Great", "Sharp", "Strong", "Solid", "Smart", "Useful", "Genuinely", "Beautifully", "Love ...", "Perfect", "Exactly", "Right -", "Thanks for ...", "That makes sense", "That nails it", or ANY phrase that praises, rates, or describes the quality of their answer. Do not put an adjective on their answer, ever. After the allowed opener, go straight to your one question.',
+        '- NO ECHO: Do NOT quote, restate, paraphrase, or summarize back what the student just said. Never put the student\'s own words in quotation marks — not as your opener, not anywhere in the reply. Their words are already on screen; repeating them wastes the turn and reads as parroting. If your question would be genuinely ambiguous because they named several things, refer to the one you mean in YOUR OWN plain words and in as few as possible ("What told you which rules to cut?", "What part of the card game worked?") — never by quoting them. When the question is already clear without it, refer to nothing and just ask.',
+        '- NO DEFINING: Never define, explain, summarize, or describe what ANY term, concept, method, or technique means - including AI terms (hallucination, tokenization, algorithmic bias, RLHF, Goodhart\'s Law, cognitive offloading, automation bias, etc.). If the student asks "what is X" / "remind me how X works" / "I missed that lecture" / "quick version", do NOT answer it. Briefly decline — VARY the wording so it never feels canned (e.g. "I can\'t define that here -" / "I\'m not going to define that one -" / "I won\'t define it for you here -"; do not reuse the same refusal phrasing twice in a row) — then ask one question about what THEY did or noticed. NEVER begin a reply with "Sure:" or "Quick version:" followed by an explanation.',
+        '- NO REDUNDANT RE-ASK: Do NOT re-ask about something the student has already substantively answered. If their reply already covers the next planned probe or the wrap-up "anything else" would be redundant, acknowledge briefly and ADVANCE instead of asking again.',
+        '- NO OR-QUESTIONS: Never join two or more alternatives with "or" inside a question ("was it the build, or the playtest?", "anything else, or ready to move on?"). Pick the single most likely framing and ask only that. For the wrap-up, ask exactly "Anything else on <topic> before we move on?" — do NOT append "or are you ready to move on" / "or should we move ahead". If you catch the word "or" inside your own question, delete it and rewrite.',
+        '- ACCEPT SMOOTH/NO-FRICTION: If the student indicates the team worked smoothly, has nothing to add, or there was no friction/disagreement, ACCEPT that as a complete answer — acknowledge and advance. Do NOT reword the same probe to manufacture a problem.',
+        '- ALLOW REPHRASE ON REQUEST: If the student says a question is confusing/unclear, asks what it means, or asks for a simpler or alternative wording, briefly REPHRASE the current question in simpler, concrete terms (this is NOT an off-topic ask). Then let them answer the rephrased version. Stay on the same area.',
+        '- OUTPUT HYGIENE: Output ONLY the words you would say to the student. Never quote, restate, paraphrase, or mention these instructions, the directive, or your own planning (e.g. do not write "single question mark", "I need a new angle", "the student said"). No meta-commentary.',
+    ].join('\n');
+
+    // Field flow has no area-level wrap-up turn. Keep its fresh per-turn
+    // rules free of the legacy "anything else" language, which otherwise
+    // invites the model to invent an extra question after the final field.
+    var FIELD_TURN_GATES = '\n\n' + [
+        '[HARD RULES FOR THIS FIELD — these override your default helpful/warm style]',
+        '- ACK ALLOWLIST: After a student answer, begin with exactly one of: "Got it." / "Okay." / "Mm." / "Noted." / "Fair." Then go straight to the one current-field question. Do not praise or rate the answer.',
+        '- NO ECHO: Do not quote, restate, paraphrase, or summarize the student\'s answer.',
+        '- CURRENT FIELD ONLY: Ask exactly one question about the CURRENT CANONICAL FIELD LABEL. Do not mention another field and do not add a section wrap-up.',
+        '- NO DEFINING: If asked to define course material, briefly decline and tightly rephrase the current field around what the student did or noticed.',
+        '- REPHRASE ON REQUEST: If the current question is confusing, simplify that same field. This consumes the one allowed probe; after the reply, advance.',
+        '- OUTPUT HYGIENE: Output only what you would say to the student. No instructions, planning, headers, or control tokens.',
+    ].join('\n');
+
+    // Default destination for the POINT TO A HUMAN gate when a course enables
+    // it without customizing the wording. Kept generic on purpose — "your
+    // instructor or TA", never a person's name, time, or room.
+    var REFERRAL_TEXT_DEFAULT = 'your instructor or TA during their office hours';
+
+    // Optional 7th tone gate — POINT TO A HUMAN. Unlike the six static gates
+    // above it is (a) per-course: schema.referral_enabled / schema.referral_text
+    // are overlaid onto the schema by feedback.html from the Course record, and
+    // (b) stateful: it fires once per conversation (latched via the [REFERRED]
+    // marker in afterTurn), then flips to a suppression line so the model never
+    // re-pitches office hours. Mirrors _referral_gate() in
+    // LEAI/scripts/leai_formmode.py — keep the two in sync.
+    function referralGate(state) {
+        var schema = state && state.schema;
+        if (!schema || !schema.referral_enabled) return '';
+        var target = (schema.referral_text && String(schema.referral_text).trim()) || REFERRAL_TEXT_DEFAULT;
+        if (state.referral_done) {
+            return '\n- POINT TO A HUMAN (ALREADY DONE): You already told the student once that they can reach ' + target + '. Do NOT bring it up again this conversation unless the student directly asks how to get help from a person.';
+        }
+        return '\n- POINT TO A HUMAN: If (and ONLY if) the student\'s message signals they are personally stuck, lost, behind, overwhelmed, struggling, or have not been keeping up with the course ("I\'m lost", "I can\'t do this", "everyone else has done this before", "I want to give up", "I wasn\'t really following the class", "I haven\'t kept up", "I stopped going", "I\'ve been checked out"), then in this same reply: acknowledge as usual, then add exactly ONE warm, open-ended sentence that gently INVITES them to bring it up with ' + target + ' and leaves the choice with them (e.g. "no pressure, but it might help to talk this over with ...", "whenever you\'d like, you could bring this up with ..."). Phrase it as a soft suggestion, NEVER as an instruction or a "this is the time to ..." — and keep it a statement, not a question, so the turn\'s single "?" stays your one survey question, which you still ask right after. Do NOT troubleshoot, diagnose, or promise any outcome ("they\'ll give you an extension"). Do not add any person\'s name, time, or place beyond that wording. When you add that sentence, ALSO append the marker [REFERRED] at the very end of your reply — this marker is required, is the single exception to the no-control-token rule, and is stripped before the student sees it. A setback in the work itself ("the playtest went badly", "our standup was messy") is NOT distress — do not fire on that. Simply not remembering something is normal and is NOT a trigger on its own ("I don\'t remember which reading it was", "I forget what that was called") — do not fire on a plain memory lapse. But an admission that they have NOT been following, attending, or keeping up with the class IS a trigger, even when said casually and even when it arrives bundled with not remembering ("I wasn\'t following the class closely, I don\'t remember") — in that case fire on the not-following part. If there is no such signal this turn, skip this rule entirely.';
+    }
+
+    // Hard total-turn cap is scaled per-schema (see totalTurnBudget()).
+    // Floor for any schema, regardless of size:
+    var MIN_TOTAL_TURN_BUDGET = 24;
+    // Per-section turn budget used when computing the cap.
+    var TURNS_PER_SECTION_BUDGET = 5;
+
+    // P0-4: neutral closing-question fallback used ONLY when a schema is
+    // missing closing.feedback_prompt (shouldn't happen in production —
+    // schemas always define this — but keeps the engine functional). The
+    // OLD wording planted "honest"/"PDF" and biased the comparison it was
+    // trying to measure; this NEW wording asks the same comparison neutrally.
+    var CLOSING_FEEDBACK_FALLBACK = 'Last thing — how did reflecting through this conversation compare to writing your reflection on your own, and what would make it better next time?';
+
+    var SUPPORTED_FIELD_KINDS = {
+        shortform: true,
+        longform: true,
+        rating_with_justification: true,
+        table: true,
+    };
+
+    function validateSchemaFields(schema) {
+        if (!schema || !Array.isArray(schema.sections) || !schema.sections.length) {
+            throw new Error('Form schema must contain at least one section.');
+        }
+        var seenIds = {};
+        schema.sections.forEach(function (area, sectionIndex) {
+            var fields = Array.isArray(area && area.fields) ? area.fields : [];
+            fields.forEach(function (field, fieldIndex) {
+                var location = 'section ' + ((area && area.id) || (sectionIndex + 1)) + ', field ' + (fieldIndex + 1);
+                if (!field || typeof field !== 'object') {
+                    throw new Error('Form field must be an object at ' + location + '.');
+                }
+                var id = String(field.id || '').trim();
+                if (!id) throw new Error('Form field id is required at ' + location + '.');
+                if (seenIds[id]) throw new Error('Duplicate field id "' + id + '" in form schema.');
+                seenIds[id] = true;
+
+                var kind = String(field.kind || '').trim();
+                if (!kind) throw new Error('Form field kind is required for "' + id + '".');
+                if (!SUPPORTED_FIELD_KINDS[kind]) {
+                    throw new Error('Unsupported field kind "' + kind + '" for "' + id + '".');
+                }
+                if (kind === 'shortform' && !String(field.label || '').trim()) {
+                    throw new Error('Shortform field "' + id + '" requires a label.');
+                }
+                if (kind === 'longform' && !String(field.label || '').trim() && !String((area && area.opening_prompt) || '').trim()) {
+                    throw new Error('Longform field "' + id + '" requires a label or section opening_prompt.');
+                }
+                if (kind === 'rating_with_justification' && !String(field.label || field.dimension || '').trim()) {
+                    throw new Error('Rating field "' + id + '" requires a label or dimension.');
+                }
+                if (kind === 'table' && !String(field.label || '').trim() && !(Array.isArray(field.columns) && field.columns.some(Boolean))) {
+                    throw new Error('Table field "' + id + '" requires a label or columns.');
+                }
+            });
+        });
+    }
+
+    function normalizedFields(area) {
+        var fields = (area && Array.isArray(area.fields)) ? area.fields.filter(function (field) {
+            return field && (field.label || field.id || field.kind);
+        }) : [];
+        if (fields.length) {
+            return fields.map(function (field, index) {
+                var copy = Object.assign({}, field);
+                copy.id = copy.id || ((area && area.id) ? area.id + '.field-' + (index + 1) : 'field-' + (index + 1));
+                copy.kind = copy.kind || 'longform';
+                copy.label = copy.label || field.dimension || ((field.columns || []).join(' / ')) || (area && area.opening_prompt) || copy.id;
+                return copy;
+            });
+        }
+        // Legacy schemas sometimes represented a whole section as one
+        // unlabeled long-form prompt. Keep that shape usable without letting
+        // a compound opening_prompt override real labeled fields.
+        return [{
+            id: ((area && area.id) || 'section') + '.response',
+            kind: 'longform',
+            label: (area && (area.opening_prompt || area.title)) || 'Tell me about this section.',
+            _legacy_opening_fallback: true,
+        }];
+    }
+
+    function schemaUsesFieldFlow(schema) {
+        return !!(schema && Array.isArray(schema.sections) && schema.sections.length);
+    }
+
+    function canonicalStudentQuestion(label) {
+        var text = String(label || '').trim();
+        if (!text) return 'What would you like to record for this item?';
+        if (/[?？]$/.test(text)) return text;
+        text = text.replace(/[.]+$/, '');
+        text = text
+            .replace(/^How well I\b/i, 'How well do you')
+            .replace(/^How I\b/i, 'How do you')
+            .replace(/^What I\b/i, 'What do you')
+            .replace(/^Why I\b/i, 'Why do you')
+            .replace(/^When I\b/i, 'When do you')
+            .replace(/^Where I\b/i, 'Where do you')
+            .replace(/^What information the AI needs\b/i, 'What information does the AI need');
+        text = text
+            .replace(/\bI[’']m\b/g, 'you’re')
+            .replace(/\bI[’']ve\b/g, 'you’ve')
+            .replace(/\bmyself\b/gi, 'yourself')
+            .replace(/\bmy\b/gi, 'your')
+            .replace(/\bme\b/gi, 'you')
+            .replace(/\bI\b/g, 'you');
+        return text + '?';
+    }
+
+    function studentQuestionForField(field) {
+        var kind = (field && field.kind) || 'longform';
+        if (kind === 'rating_with_justification') {
+            var dimension = String((field && (field.dimension || field.label)) || '').trim().replace(/[?？]+$/, '');
+            return 'What 1–5 rating would you give “' + dimension + '”, and why?';
+        }
+        if (kind === 'table') {
+            var columns = (field && Array.isArray(field.columns)) ? field.columns.filter(Boolean) : [];
+            var columnText = columns.length
+                ? columns.map(function (column) { return '“' + column + '”'; }).join(' and ')
+                : 'this table';
+            return 'What rows should be recorded for ' + columnText + '?';
+        }
+        return canonicalStudentQuestion(field && field.label);
+    }
+
+    function enforceCanonicalFieldQuestion(displayed, directive) {
+        if (!directive || (directive.kind !== 'field_opening' && directive.kind !== 'field_question')) {
+            return displayed;
+        }
+        var question = directive.student_question || canonicalStudentQuestion(directive.field_label);
+        var text = String(displayed || '').trim();
+        var questionMark = text.search(/[?？]/);
+        var prefix = text;
+        if (questionMark !== -1) {
+            var sentenceStart = Math.max(
+                text.lastIndexOf('. ', questionMark),
+                text.lastIndexOf('! ', questionMark),
+                text.lastIndexOf('\n', questionMark)
+            );
+            prefix = sentenceStart === -1 ? '' : text.slice(0, sentenceStart + 2).trim();
+        }
+        prefix = prefix.replace(/[?？]+/g, '.').trim();
+        if (!prefix && directive.kind === 'field_question') prefix = 'Okay.';
+        return (prefix ? prefix + ' ' : '') + question;
+    }
+
+    function fieldKey(field) {
+        return field && field.id ? String(field.id) : '';
+    }
+
+    function fieldAt(state, areaIndex, fieldIndex) {
+        var area = state.schema.sections[areaIndex - 1];
+        var fields = normalizedFields(area);
+        return fields[fieldIndex] || null;
+    }
+
+    function currentField(state) {
+        return fieldAt(state, state.current_area_index, state.field_cursor || 0);
+    }
+
+    function attributionForDirective(state, directive) {
+        if (!directive || (directive.kind !== 'field_opening' && directive.kind !== 'field_question' && directive.kind !== 'field_probe')) {
+            return null;
+        }
+        return {
+            form_schema_id: state.schema.schema_id || state.schema.id || null,
+            form_schema_version: state.schema.version == null ? null : state.schema.version,
+            form_section_id: directive.section_id,
+            form_field_id: directive.field_id,
+            form_field_label: directive.field_label,
+            form_response_phase: directive.kind === 'field_probe' ? 'probe' : 'primary',
+        };
+    }
+
+    function pendingResponseAttribution(state) {
+        return attributionForDirective(state, state && state.last_directive);
+    }
+
+    function fieldAnswerIsThin(state, msg) {
+        if (!msg || isNoAdditionResponse(msg)) return true;
+        if (/\b(?:do not|don't|cannot|can't) understand\b|\bconfus(?:ed|ing)\b|\bunclear\b|\bwhat (?:does|do) (?:this|that|you) mean\b|\b(?:can|could|would) you rephrase\b|\bnot sure what (?:this|that|the) question means\b/i.test(msg)) {
+            return true;
+        }
+        // `shallow_word_threshold` belonged to the old section-level probe
+        // system (the Winter '27 schema currently sets it to 25). Reusing it here would
+        // turn almost every concise field answer into a follow-up. Field flow
+        // has its own deliberately small, opt-in threshold instead.
+        var threshold = state.schema.field_probe_word_threshold || 6;
+        var words = msg.split(/\s+/).filter(Boolean);
+        return words.length < threshold;
+    }
+
+    function markCurrentFieldAnswered(state, msg) {
+        var area = state.schema.sections[state.current_area_index - 1];
+        var field = currentField(state);
+        if (!field) return;
+        var cov = state.field_coverage[fieldKey(field)];
+        if (!cov) return;
+        cov.response_received = true;
+        cov.answer_turns = (cov.answer_turns || 0) + 1;
+        cov.last_response = msg;
+        state.coverage[area.id].response_received = normalizedFields(area).every(function (candidate) {
+            var candidateCov = state.field_coverage[fieldKey(candidate)];
+            return !!(candidateCov && candidateCov.response_received && candidateCov.complete);
+        });
+    }
+
+    function completeAndAdvanceField(state) {
+        var area = state.schema.sections[state.current_area_index - 1];
+        var fields = normalizedFields(area);
+        var field = fields[state.field_cursor || 0];
+        if (field && state.field_coverage[fieldKey(field)]) {
+            state.field_coverage[fieldKey(field)].complete = true;
+        }
+        if ((state.field_cursor || 0) + 1 < fields.length) {
+            state.field_cursor += 1;
+            return;
+        }
+        state.coverage[area.id].response_received = true;
+        if (state.current_area_index < state.schema.sections.length) {
+            state.current_area_index += 1;
+            state.field_cursor = 0;
+            state.turns_in_current_area = 0;
+        }
+    }
+
+    function beforeFieldTurn(state, studentMessage) {
+        state.turn += 1;
+        var msg = (studentMessage || '').trim();
+        var responseAttribution = msg ? pendingResponseAttribution(state) : null;
+
+        if (state.closing_feedback_asked) {
+            var finalDirective = dirFinalAck(state);
+            state.last_directive = finalDirective;
+            return mkBefore({ directive: finalDirective, responseAttribution: responseAttribution });
+        }
+
+        if (msg && responseAttribution) {
+            var answeredField = currentField(state);
+            var answeredCoverage = answeredField && state.field_coverage[fieldKey(answeredField)];
+            markCurrentFieldAnswered(state, msg);
+            state.turns_in_current_area = (state.turns_in_current_area || 0) + 1;
+            if (state.last_directive.kind === 'field_probe') {
+                completeAndAdvanceField(state);
+            } else if (fieldAnswerIsThin(state, msg) && answeredCoverage && !answeredCoverage.probe_used) {
+                answeredCoverage.probe_used = true;
+                var probeDirective = dirFieldQuestion(state, state.schema.sections[state.current_area_index - 1], answeredField, true, false);
+                state.last_directive = appendTurnGates(state, probeDirective);
+                return mkBefore({ directive: state.last_directive, responseAttribution: responseAttribution });
+            } else {
+                completeAndAdvanceField(state);
+            }
+        }
+
+        if (allCovered(state)) {
+            var closeDirective = dirClose(state);
+            state.last_directive = closeDirective;
+            return mkBefore({ directive: closeDirective, responseAttribution: responseAttribution });
+        }
+
+        var area = state.schema.sections[state.current_area_index - 1];
+        var field = currentField(state);
+        state.coverage[area.id].opened = true;
+        var fieldCoverage = state.field_coverage[fieldKey(field)];
+        if (fieldCoverage) fieldCoverage.asked = true;
+        var isOpening = state.turn === 1;
+        var directive = dirFieldQuestion(state, area, field, false, isOpening);
+        state.last_directive = appendTurnGates(state, directive);
+        return mkBefore({ directive: state.last_directive, responseAttribution: responseAttribution });
+    }
+
+    function appendTurnGates(state, directive) {
+        if (!directive || typeof directive.text !== 'string') return directive;
+        return Object.assign({}, directive, {
+            text: directive.text + FIELD_TURN_GATES + referralGate(state),
+        });
+    }
+
+    function totalTurnBudget(state) {
+        var n = (state && state.schema && state.schema.sections) ? state.schema.sections.length : 6;
+        var v = n * TURNS_PER_SECTION_BUDGET;
+        return v > MIN_TOTAL_TURN_BUDGET ? v : MIN_TOTAL_TURN_BUDGET;
+    }
+
+    // ─── public surface ────────────────────────────────────────────────────
+
+    var leaiFormMode = {
+        // Resolve a schema id to its JSON definition by fetching from the
+        // backend FormSchema registry. Pages should fetch once and cache.
+        loadSchema: function (schemaId) {
+            // Schemas are owned by the FormSchema registry on the Django
+            // backend; the legacy ship-time JSON fallback was retired in
+            // favor of a single source of truth (see migration 0024 / 0025).
+            var apiBase = (typeof API !== 'undefined') ? API : null;
+            if (!apiBase) {
+                return Promise.reject(new Error('cannot load form schema: API base URL is not configured'));
+            }
+            return fetch(apiBase + '/form_schemas/' + encodeURIComponent(schemaId) + '/').then(function (r) {
+                if (!r.ok) throw new Error('form_schemas registry ' + r.status + ' for ' + schemaId);
+                return r.json();
+            }).then(function (rec) {
+                if (!rec || !rec.body) throw new Error('form_schemas registry returned no body for ' + schemaId);
+                return rec.body;
+            });
+        },
+
+        // Build a fresh engine state for a new conversation.
+        init: function (schema, ctx) {
+            validateSchemaFields(schema);
+            var coverage = {};
+            var fieldCoverage = {};
+            schema.sections.forEach(function (s) {
+                coverage[s.id] = {
+                    opened: false,
+                    response_received: false,
+                    probe_used: false,
+                    sub_signals: {},  // free-form bag for E9 thresholds
+                };
+                normalizedFields(s).forEach(function (field) {
+                    fieldCoverage[fieldKey(field)] = {
+                        asked: false,
+                        response_received: false,
+                        probe_used: false,
+                        complete: false,
+                        answer_turns: 0,
+                    };
+                });
+            });
+            return {
+                schema: schema,
+                current_area_index: 1,
+                field_cursor: 0,
+                coverage: coverage,
+                field_coverage: fieldCoverage,
+                ended: false,
+                team_id: (ctx && ctx.team_id) || null,
+                team_member_slot: (ctx && ctx.team_member_slot) || null,
+                last_directive: null,  // what we asked the LLM to do last turn
+                awaiting_anything_else: false,  // true after we asked the wrap-up Q
+                closing_feedback_asked: false, // bot has emitted the closing question
+                turn: 0,
+                // Safety net counter — see MAX_TURNS_PER_AREA.
+                turns_in_current_area: 0,
+                // Canonical roster, frozen once captured in Area 2.2. Bot
+                // turns afterward must reference these exact names — prevents
+                // Lewis→Louise drift seen in production transcripts.
+                roster: null,
+                // POINT TO A HUMAN gate: true once the bot has pointed the
+                // student to their instructor/TA this conversation (latched
+                // when afterTurn sees the [REFERRED] marker).
+                referral_done: false,
+            };
+        },
+
+        // Return a thin form-mode prompt tail that adapts the survey's existing
+        // instructions. The full structural enforcement happens via per-turn
+        // directives, not the system prompt — keep this minimal.
+        systemPromptTail: function (schema) {
+            var n = schema.sections.length;
+            var titles = schema.sections.map(function (s, i) {
+                return '  Area ' + (i + 1) + ' of ' + n + ' — ' + s.title;
+            }).join('\n');
+            return [
+                '',
+                '',
+                '==== FORM-MAPPING MODE (engine-controlled) ====',
+                'You are now operating under an external field-by-field state machine. It tracks the exact section and canonical field label currently shown to the student. Each turn you will receive a [DIRECTIVE] block telling you exactly what to do this turn. Follow the directive exactly.',
+                'Areas (canonical titles — do NOT rename, paraphrase, invent):',
+                titles,
+                'Constraints:',
+                '- Stay on the directive\'s canonical field label. Do not skip ahead, preview, or combine fields.',
+                '- Ask AT MOST one question per turn.',
+                '- Keep messages under 350 characters unless the directive says otherwise.',
+                '- Do NOT write the reflection for the student. Redirect off-topic asks back to their reflection.',
+                '- Do NOT emit any control token, sentinel, or end marker. The engine decides when the conversation is complete; you just keep responding.',
+                '- NEVER emit a section header like "Area X of N — Title" anywhere in your reply. The engine prepends section headers automatically when (and only when) advancing. Emitting your own header — including out-of-order ones — corrupts the structured reflection download.',
+                '- Section progression is strictly monotonic: 1 → 2 → 3 → ... → N. Do NOT regress to an earlier area, even if the student asks to "go back" or seems to revisit one. Acknowledge the revision in place, but stay on the current area.',
+                '- ROSTER NAMES ARE FROZEN. Once the student names their teammates (Area 2.2), refer to those exact names verbatim everywhere afterward — same spelling, same form. Do NOT substitute a similar-sounding name (e.g. "Lewis" → "Louise"), invent pronouns the student didn\'t state, or merge / split names. If a directive includes a [ROSTER] line, those names are the only acceptable references.',
+                '- 2.4 RATING ALREADY GIVEN: when a dimension\'s justification turn is answered with a leading numeric rating (e.g. "5. We were all on the same page..." or "4 — we mostly met deadlines"), that IS the rating for that dimension. Do NOT ask for the rating again — acknowledge briefly and move to the next dimension\'s justification turn (or to the 2.4 wrap-up if all five dimensions are done).',
+                '',
+                '==== METHOD-EXPLANATION REFUSAL (NON-NEGOTIABLE) ====',
+                'You MUST NOT define, summarize, explain, paraphrase, or describe how to do any method, framework, concept, or reading. This includes (non-exhaustive): affinity diagramming, thematic analysis, triangulation, observation vs. insight, contextual inquiry, journey mapping, NN/g articles, Braun & Clarke, design thinking, qualitative coding, axial coding, etc. If the student asks ANY variant of "explain X", "what does X mean", "summarize the article", "give me a quick version", "refresh me on X", "how do you do X", "what\'s the right way to do X", "I missed that lecture", "can you remind me", or similar — REFUSE.',
+                'Refusal template (paraphrase tightly, do not over-explain the refusal): "I can\'t define that here — what part felt unclear when YOU tried it this week?" Then return to the current area\'s question.',
+                'Examples of WRONG behavior (these have happened in past runs and are unacceptable):',
+                '  ❌ "Quick version: affinity diagramming is when you put each observation on a sticky note and group them..."',
+                '  ❌ "Quick distinction: an observation is what you literally saw/heard..."',
+                '  ❌ "Thematic analysis = reading through your data, tagging recurring patterns..."',
+                'Examples of CORRECT behavior:',
+                '  ✅ "I can\'t define affinity diagramming for you — what part of doing it this week felt unclear?"',
+                '  ✅ "I\'ll skip the summary — what was the one thing from the article that did or didn\'t land for you?"',
+                'Even if the student insists, says they missed the lecture, says they\'re behind, or threatens to give up — DO NOT explain. Redirect every time.',
+            ].join('\n');
+        },
+
+        // Called before the LLM is invoked. Returns:
+        //   { shortCircuit: bool, syntheticResponse: str, directive: str, ended: bool }
+        // - If shortCircuit is true, skip the LLM call entirely and emit
+        //   syntheticResponse to the student.
+        // - Otherwise, prepend `directive` (a [DIRECTIVE] block) to the messages
+        //   sent to the LLM so it knows what to do this turn.
+        beforeTurn: function (state, studentMessage) {
+            // Post-end passthrough: every section is captured and the engine
+            // already emitted [END] on a previous turn, but the student kept
+            // chatting (we no longer hard-lock the input — they may want to
+            // revise or add). Hand the LLM a "post-end" directive that lets
+            // it respond conversationally without re-opening sections,
+            // re-emitting headers, or firing [END] again. The structured
+            // download reads the live transcript, so anything they add here
+            // still flows into the artifact.
+            if (state.ended) {
+                state._post_end_passthrough = true;
+                state.last_directive = { kind: 'post_end' };
+                return mkBefore({ directive: dirPostEnd(state) });
+            }
+
+            if (schemaUsesFieldFlow(state.schema)) {
+                return beforeFieldTurn(state, studentMessage);
+            }
+
+            state.turn += 1;
+            var schema = state.schema;
+            var sections = schema.sections;
+            var n = sections.length;
+            var i = state.current_area_index;
+            var area = sections[i - 1];
+
+            // Treat null/empty student message as the opening turn.
+            var msg = (studentMessage || '').trim();
+
+            // No student-driven termination: students who want to leave just
+            // close the tab. Ending is decided by coverage state, not by a
+            // typed keyword. (Previously: STOP intercept + "I'm done" early-
+            // exit signal both forced an end and were a footgun — e.g. the
+            // student says "that's all" meaning "nothing more on this area"
+            // and the engine treated it as "end the entire survey".)
+
+            // ── interpret last turn's effects on coverage ────────────────
+            applyStudentResponseToCoverage(state, msg);
+
+            // Count student turns within the current area for safety-net cap.
+            if (msg) state.turns_in_current_area = (state.turns_in_current_area || 0) + 1;
+
+            // ── advance if appropriate ──────────────────────────────────
+            var advanced = false;
+            if (msg && isNoAdditionResponse(msg)) {
+                // Advance whenever the student emits a no-addition signal
+                // AND the current area is genuinely satisfied. The earlier
+                // version required `awaiting_anything_else` to be true, which
+                // missed cases like: probe (kind=probe → awaiting unset) →
+                // "Move on." in the next turn. That used to silently push
+                // the substantive 3.1/3.2 answers into the wrong section
+                // because the area didn't transition until two turns later.
+                var thisCov = state.coverage[area.id];
+                var canAdvance = state.awaiting_anything_else
+                    || (thisCov.opened && thisCov.response_received && areaResponseSatisfied(state, area));
+                if (canAdvance) {
+                    thisCov.response_received = true;
+                    state.awaiting_anything_else = false;
+                    state.current_area_index = Math.min(i + 1, n);
+                    i = state.current_area_index;
+                    area = sections[i - 1];
+                    state.turns_in_current_area = 0;
+                    advanced = true;
+                } else if (state.awaiting_anything_else) {
+                    // No-add but threshold not yet met (e.g. 2.4 with < 5
+                    // ratings, or area without any substantive answer yet).
+                    // Drop the wait flag so the directive selector falls
+                    // through to the "continue gathering" branch.
+                    state.awaiting_anything_else = false;
+                }
+            } else if (state.awaiting_anything_else && msg) {
+                // Substantive response while waiting — student added more.
+                state.awaiting_anything_else = false;
+            }
+
+            // Safety net: cap time spent in any one area so a disengaged or
+            // confused student can't hold the interview hostage.
+            if (!advanced
+                    && (state.turns_in_current_area || 0) >= MAX_TURNS_PER_AREA
+                    && state.coverage[area.id].response_received
+                    && i < n) {
+                state.awaiting_anything_else = false;
+                state.current_area_index = Math.min(i + 1, n);
+                i = state.current_area_index;
+                area = sections[i - 1];
+                state.turns_in_current_area = 0;
+                advanced = true;
+            }
+
+            // Magy spec M2: "One-line answers OK; bot probes deeper once;
+            // moves on if student doesn't take it." Once we've already
+            // probed AND the student's reply to the wrap-up "anything else?"
+            // is itself a short non-advance answer (e.g. "it'll help",
+            // "communicate more"), treat that as "doesn't take it" and
+            // advance. Without this, the shallow persona stalls at area 1
+            // because its replies never include an explicit "no".
+            if (!advanced
+                    && state.coverage[area.id].probe_used
+                    && state.coverage[area.id].response_received
+                    && areaResponseSatisfied(state, area)
+                    && msg
+                    && msg.split(/\s+/).filter(Boolean).length <= 6
+                    && i < n) {
+                state.awaiting_anything_else = false;
+                state.current_area_index = Math.min(i + 1, n);
+                i = state.current_area_index;
+                area = sections[i - 1];
+                state.turns_in_current_area = 0;
+                advanced = true;
+            }
+
+            // P0-1b: dirAnythingElse fires at most ONCE per area. If we've
+            // already asked "anything else?" for this area and the student
+            // didn't produce a recognized no-addition signal (e.g. "are we
+            // done?" isn't caught by isNoAdditionResponse above), don't ask
+            // it again — advance instead. Whatever the student just said was
+            // already folded into coverage/sub_signals above; a second
+            // "anything else" on the same content was the #1 redundant-
+            // follow-up complaint (779616e3 got asked twice; a847c8b3
+            // flagged repeat questions as redundant).
+            if (!advanced
+                    && state.coverage[area.id].sub_signals.anything_else_asked
+                    && state.coverage[area.id].response_received
+                    && areaResponseSatisfied(state, area)
+                    && i < n) {
+                state.awaiting_anything_else = false;
+                state.current_area_index = Math.min(i + 1, n);
+                i = state.current_area_index;
+                area = sections[i - 1];
+                state.turns_in_current_area = 0;
+                advanced = true;
+            }
+
+            // Hard total-turn safety net: if the student has spent too many
+            // turns and we still haven't reached coverage, force-cover-all so
+            // the next branch fires dirClose. Budget scales with schema size
+            // (5 turns per section, floor 24) — so a 10-section schema gets
+            // 50 turns, while a 6-section schema gets the original 24.
+            if (state.turn >= totalTurnBudget(state)
+                    && !allCovered(state)
+                    && !state.closing_feedback_asked) {
+                forceCoverAll(state);
+                i = state.current_area_index;
+                area = sections[i - 1];
+            }
+
+            // ── determine this turn's directive ─────────────────────────
+            var directive;
+            if (state.turn === 1) {
+                // opening turn
+                state.coverage[area.id].opened = true;
+                directive = dirOpening(state, area);
+            } else if (state.closing_feedback_asked) {
+                // The closing-feedback question already ran last bot turn and
+                // the student just replied to it. Engine takes over: emit a
+                // one-sentence ack and mark the chat complete (download bar
+                // surfaces in the footer; input stays open for revisions).
+                // NO new question, NO section header, NO sentinel.
+                directive = dirFinalAck(state);
+            } else if (allCovered(state)) {
+                directive = dirClose(state);
+            } else if (!state.coverage[area.id].opened) {
+                state.coverage[area.id].opened = true;
+                directive = dirOpenArea(state, area, i, n);
+            } else if (
+                area.id === '2.2'
+                && state.coverage[area.id].sub_signals.has_roster
+                && state.roster && state.roster.length
+            ) {
+                // 2.2 has a non-standard flow: roster → walk each teammate
+                // (one per turn) → equity question → wrap-up. Without this
+                // branch the engine fires shouldProbe with the depth_probe
+                // (which IS the equity question) right after the roster turn,
+                // and the per-member contributions never get asked, so the
+                // exported table renders every row as "(not captured)".
+                var cov22 = state.coverage[area.id];
+                cov22.sub_signals.members_walked = cov22.sub_signals.members_walked || [];
+                var rosterPretty = state.roster.filter(function (n) { return n !== 'self'; });
+                var walked = cov22.sub_signals.members_walked;
+                if (walked.length < rosterPretty.length) {
+                    // Find first un-walked member. `walked` is updated by
+                    // applyStudentResponseToCoverage based on what the
+                    // student actually named — not a blind ++counter — so
+                    // it can be sparse if the LLM ignored a previous walk
+                    // directive. Pick the first roster slot whose name
+                    // isn't in `walked` yet.
+                    var nextMember = null;
+                    for (var rpi = 0; rpi < rosterPretty.length; rpi++) {
+                        if (walked.indexOf(rosterPretty[rpi].toLowerCase()) === -1) {
+                            nextMember = rosterPretty[rpi];
+                            break;
+                        }
+                    }
+                    if (nextMember) {
+                        directive = dirRosterWalk(state, area, nextMember, rosterPretty.length - walked.length - 1);
+                    } else if (!cov22.sub_signals.equity_asked) {
+                        cov22.sub_signals.equity_asked = true;
+                        directive = dirAskEquity(state, area);
+                    } else {
+                        directive = dirContinueArea(state, area, i, n);
+                    }
+                } else if (!cov22.sub_signals.equity_asked) {
+                    cov22.sub_signals.equity_asked = true;
+                    directive = dirAskEquity(state, area);
+                } else if (areaResponseSatisfied(state, area)) {
+                    state.awaiting_anything_else = true;
+                    cov22.sub_signals.anything_else_asked = true;
+                    directive = dirAnythingElse(state, area);
+                } else {
+                    directive = dirContinueArea(state, area, i, n);
+                }
+            } else if (area.id === '2.4') {
+                // 2.4 has a fixed dimension-by-dimension walk. Without this
+                // branch the engine fell through to dirContinueArea, the LLM
+                // owned per-dim state, and would split each dim into two
+                // turns (justification turn → rating turn). When the student
+                // gave "5. <justification>" in one turn — the natural
+                // shape — the LLM would still re-ask the rating, the student
+                // would drift one dim ahead, and ratings/justifications could
+                // end up paired to the wrong dimension (see transcript bug
+                // 13f9adad turns 47–62). One turn per dim asks both at once.
+                var cov24 = state.coverage[area.id];
+                if (typeof cov24.sub_signals.dim_cursor !== 'number') {
+                    cov24.sub_signals.dim_cursor = 0;
+                }
+                var dims24br = (area.fields || []).filter(function (f) {
+                    return f.kind === 'rating_with_justification';
+                });
+                if (cov24.sub_signals.dim_cursor < dims24br.length) {
+                    var curDim = dims24br[cov24.sub_signals.dim_cursor];
+                    directive = dirRateAndJustify(state, area, curDim, cov24.sub_signals.dim_cursor, dims24br.length);
+                } else if (areaResponseSatisfied(state, area)) {
+                    state.awaiting_anything_else = true;
+                    cov24.sub_signals.anything_else_asked = true;
+                    directive = dirAnythingElse(state, area);
+                } else {
+                    directive = dirContinueArea(state, area, i, n);
+                }
+            } else if (shouldProbe(state, area, msg)) {
+                state.coverage[area.id].probe_used = true;
+                directive = dirProbe(state, area);
+            } else if (areaResponseSatisfied(state, area)) {
+                state.awaiting_anything_else = true;
+                state.coverage[area.id].sub_signals.anything_else_asked = true;
+                directive = dirAnythingElse(state, area);
+            } else {
+                directive = dirContinueArea(state, area, i, n);
+            }
+
+            // Inject the per-turn tone gates (allowlist + no-define) so they
+            // ride at high salience every turn, not just in the static prompt.
+            // The referral gate (POINT TO A HUMAN) rides along only when the
+            // course enables it, and flips to its suppression form once fired.
+            if (directive && typeof directive.text === 'string') {
+                directive = Object.assign({}, directive, { text: directive.text + TURN_GATES + referralGate(state) });
+            }
+            state.last_directive = directive;
+            return mkBefore({ directive: directive });
+        },
+
+        // Called after the LLM responds. Returns:
+        //   { displayedMessage: str, ended: bool, lockChat: bool, referred: bool }
+        // opts.referred re-latches the referral gate when replaying a stored
+        // transcript (see below).
+        afterTurn: function (state, llmResponse, opts) {
+            var raw = (llmResponse || '').trim();
+            var hadEnd = /\[END\]/i.test(raw);
+            var stripped = raw.replace(/\[END\]/gi, '').trim();
+
+            // POINT TO A HUMAN gate: the model tags its reply with [REFERRED]
+            // when it added the office-hours sentence. Strip the marker before
+            // anything is displayed and latch referral_done so referralGate()
+            // emits its suppression form from now on.
+            //
+            // firedThisTurn is what callers persist (per-message), and is
+            // deliberately distinct from state.referral_done, which is the
+            // sticky per-conversation latch — using the latch would flag every
+            // reply after the nudge. opts.referred carries the stored flag back
+            // in on replay, where the marker was already stripped before the
+            // row was written; without it a student who refreshes mid-survey
+            // re-arms the gate and can be nudged a second time.
+            var firedThisTurn = /\[REFERRED\]/i.test(stripped)
+                || !!(opts && opts.referred);
+            if (firedThisTurn) {
+                state.referral_done = true;
+                stripped = stripped.replace(/\[REFERRED\]/gi, '').trim();
+            }
+
+            // Post-end passthrough: the chat is in "completed but still open"
+            // mode. Skip header injection, area advance, and [END] handling.
+            // The download bar already exists; the student's reply is just
+            // letting them revise/add. Do NOT lock the chat again.
+            if (state._post_end_passthrough) {
+                state._post_end_passthrough = false;
+                return {
+                    displayedMessage: stripped,
+                    ended: false,
+                    lockChat: false,
+                    referred: firedThisTurn,
+                };
+            }
+
+            var schema = state.schema;
+            var n = schema.sections.length;
+            var i = state.current_area_index;
+            var area = schema.sections[i - 1];
+
+            var ended = false;
+            var displayed = stripped;
+
+            // Engine-injected "Area N of N — Title." prefix on transitions.
+            // Apply when:
+            //   - opening turn (turn 1), or
+            //   - we just advanced (last directive was opening a fresh area)
+            var directiveKind = state.last_directive ? state.last_directive.kind : null;
+
+            // The LLM is the prime mover for section progression — it walks
+            // through the 6 sections naturally. The engine's auto-advance
+            // logic only fires on explicit "move on" / no-addition signals
+            // from the student, which cooperative students rarely emit.
+            //
+            // First sync: if the bot just asked the closing feedback question
+            // (the schema's closing.feedback_prompt or a close paraphrase),
+            // mark ALL sections as covered AND flag that we've asked the
+            // closing-feedback question. The next student message is the
+            // student's reply to that, after which the engine must emit
+            // [END] without asking another question.
+            //
+            // P0-1d: `directiveKind === 'close'` is an AUTHORITATIVE signal on
+            // its own — the engine, not a text guess, decided this turn was
+            // the closing question, so mark it regardless of whether the
+            // LLM's paraphrase happens to match a fingerprint below. Relying
+            // on looksLikeClosingFeedback alone was the bug: the GROUP
+            // schema's wording never matched the (INDIVIDUAL-only) candidate
+            // list, closing_feedback_asked never got set, and allCovered()
+            // fired dirClose a second time next turn (779616e3 got two "Last
+            // thing —" turns back to back). looksLikeClosingFeedback stays as
+            // a fallback for any other path that only has the raw text.
+            var closingPrompt = (state.schema.closing && state.schema.closing.feedback_prompt) || '';
+            if (directiveKind === 'close' || (closingPrompt && looksLikeClosingFeedback(displayed, closingPrompt))) {
+                forceCoverAll(state);
+                state.closing_feedback_asked = true;
+                i = state.current_area_index;
+                area = state.schema.sections[i - 1];
+            }
+
+            // Second sync: when the LLM legitimately advances by emitting a
+            // valid forward section header, sync the engine state to match.
+            // Hard rule: advance by AT MOST one step at a time, and only if
+            // the previous area genuinely satisfied the engine. Without this,
+            // an LLM that hallucinates "Area 6 of 6" while still mid-Area-4
+            // skips over sections that never received a student answer, and
+            // the artifact comes out empty for those sections. We also do NOT
+            // whitewash the previous area's response_received flag — if the
+            // student never answered it, leave it false so the review-pending
+            // pass (beforeTurn) can re-ask before close.
+            var advancedToIdx = detectForwardAdvance(state, displayed);
+            if (advancedToIdx > i) {
+                var allowAdvance = (advancedToIdx === i + 1)
+                    && areaResponseSatisfied(state, area);
+                if (allowAdvance) {
+                    state.coverage[area.id].response_received = true;
+                    state.current_area_index = advancedToIdx;
+                    state.coverage[state.schema.sections[advancedToIdx - 1].id].opened = true;
+                    state.turns_in_current_area = 0;
+                    state.awaiting_anything_else = false;
+                    i = advancedToIdx;
+                    area = state.schema.sections[i - 1];
+                } else {
+                    // LLM tried to skip ahead — strip the bogus header so the
+                    // student doesn't see a section title that hasn't been
+                    // earned. The prefix logic below will re-emit the correct
+                    // current-area header.
+                    displayed = displayed.replace(
+                        /Area\s+\d+\s+of\s+\d+\s+[—\-]\s+[^.\n]+?\s*\.\s*/gi, '').trim();
+                }
+            }
+
+            // Defensively strip any LLM-emitted section headers that don't
+            // match the engine's current area index. After detectForwardAdvance
+            // syncs the engine forward, anything else is a hallucinated regression
+            // and gets removed.
+            displayed = stripWrongSectionHeaders(displayed, i, n, area.title);
+            displayed = enforceCanonicalFieldQuestion(displayed, state.last_directive);
+
+            // Salvage missing forward question. Production transcripts
+            // showed the bot ack-only on non-final_ack turns ("Thanks, I've
+            // captured all five ratings.") and stalling — the student then
+            // had to type "what next?" to unstick it. If the directive
+            // requires a question and the bot's reply has none, append a
+            // deterministic follow-up pulled from the schema so the chat
+            // keeps moving on its own.
+            displayed = ensureForwardQuestion(state, displayed, directiveKind, area, n, i);
+
+            // Emit a section marker whenever the engine's current area
+            // changed since the last emitted one — even if it changed
+            // silently via forceCoverAll, MAX_TURNS_PER_AREA cap, or
+            // awaiting-anything-else advance. This guarantees the
+            // structured-extraction logic always finds a marker for each
+            // visited section.
+            var prevEmitted = state._last_emitted_area || 0;
+            var shouldEmitHeader = (
+                directiveKind === 'opening' ||
+                directiveKind === 'open_area' ||
+                directiveKind === 'field_opening' ||
+                i !== prevEmitted
+            );
+            if (shouldEmitHeader) {
+                var prefix = 'Area ' + i + ' of ' + n + ' — ' + area.title + '.';
+                // Don't double-emit if the displayed text already starts
+                // with the same area's correct header.
+                var alreadyAtStart = startsWithPrefix(displayed, prefix);
+                var anyHeaderAtStart = /^Area\s+\d+\s+of\s+\d+\s+[—\-]\s+/i.test(displayed);
+                if (!alreadyAtStart && !anyHeaderAtStart) {
+                    displayed = prefix + ' ' + displayed;
+                } else if (anyHeaderAtStart && !alreadyAtStart) {
+                    // model emitted a (possibly wrong) header — replace it
+                    // with the engine-canonical one.
+                    displayed = displayed.replace(/^Area\s+\d+\s+of\s+\d+\s+[—\-]\s+[^.\n]+\.\s*/i, prefix + ' ');
+                }
+                state._last_emitted_area = i;
+            }
+
+            // Handle a stray LLM-emitted [END]:
+            // The literal "[END]" is already stripped from `displayed` above
+            // (`raw.replace(/\[END\]/gi, '').trim()`). Here we decide whether
+            // to honor it as an end signal. Rule: a stray [END] is NEVER
+            // sufficient on its own to end the chat — only the canonical
+            // final_ack branch below does that. Without this, an LLM that
+            // tags the closing-question turn with [END] (a frequent
+            // hallucination) would lock the chat before the student could
+            // answer the closing question. If the LLM emitted [END] before
+            // everything is covered, leave a small inline hint so it knows
+            // to keep going.
+            if (hadEnd && !allCovered(state)) {
+                var remaining = countRemaining(state);
+                displayed += '\n\n(continuing — ' + remaining + ' of ' + n + ' areas left.)';
+            }
+            if (directiveKind === 'final_ack' && allCovered(state)) {
+                // Post-feedback ack ran and all areas covered — engine owns
+                // closing. We do NOT append any literal sentinel ("[END]")
+                // to the displayed text — completion is signaled internally
+                // via `ended: true`, which the chat layer uses to surface
+                // the download bar. Showing "[END]" to the student leaks an
+                // engine implementation detail and looks like a bug.
+                //
+                // dirClose intentionally does NOT end here — it asks the
+                // closing-feedback question and needs the student's reply
+                // before final_ack runs.
+                state.ended = true;
+                ended = true;
+            }
+
+            // If we just emitted the synthetic closing in beforeTurn (STOP-honored),
+            // mark ended.
+            if (state.ended) ended = true;
+
+            return {
+                displayedMessage: displayed,
+                ended: ended,
+                lockChat: ended,
+                referred: firedThisTurn,
+            };
+        },
+
+        isComplete: function (state) { return allCovered(state); },
+        isEnded: function (state) { return !!state.ended; },
+        progressLabel: function (state) {
+            var n = state.schema.sections.length;
+            var i = state.current_area_index;
+            var area = state.schema.sections[i - 1];
+            var fields = normalizedFields(area);
+            return 'Area ' + i + ' of ' + n + ' — ' + area.title + ' · Question ' + ((state.field_cursor || 0) + 1) + ' of ' + fields.length;
+        },
+        currentArea: function (state) {
+            return state.schema.sections[state.current_area_index - 1];
+        },
+        currentField: function (state) {
+            return currentField(state);
+        },
+        canonicalStudentQuestion: function (label) {
+            return canonicalStudentQuestion(label);
+        },
+        studentQuestionForField: function (field) {
+            return studentQuestionForField(field);
+        },
+        pendingResponseAttribution: function (state) {
+            return pendingResponseAttribution(state);
+        },
+
+        // Render the structured form-mapped output for download (F4).
+        // Returns plain Markdown; PDF rendering is the caller's job.
+        // opts.slots, when present, populates structured fields from the
+        // extractor's output instead of the legacy raw-transcript dump.
+        renderStructuredMarkdown: function (state, transcript, opts) {
+            opts = opts || {};
+            var slots = opts.slots || (state && state.slots) || null;
+            var schema = state.schema;
+            var lines = [];
+            lines.push('# ' + schema.title);
+            lines.push('');
+            lines.push('- **Course:** ' + schema.course);
+            lines.push('- **Instructor:** ' + schema.instructor);
+            lines.push('- **Week:** ' + schema.week);
+            if (state.team_id) lines.push('- **Team:** ' + state.team_id);
+            if (state.team_member_slot) lines.push('- **Member slot:** ' + state.team_member_slot);
+            if (state.roster && state.roster.length) {
+                lines.push('- **Team roster:** ' + state.roster
+                    .filter(function (n) { return n !== 'self'; })
+                    .join(', ') + (state.roster.indexOf('self') !== -1 ? ', + self' : ''));
+            }
+            lines.push('- **Date submitted:** ' + new Date().toISOString().slice(0, 10));
+            if (opts.publicId && opts.sessionId) {
+                var convoUrlMd = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+                lines.push('- **Conversation:** [' + convoUrlMd + '](' + convoUrlMd + ')');
+            }
+            lines.push('');
+            lines.push('---');
+            lines.push('');
+            schema.sections.forEach(function (s) {
+                lines.push('## ' + s.id + '. ' + s.title);
+                lines.push('');
+                var slot = slots ? slots[s.id] : null;
+                var rendered = renderSectionMarkdown(s, slot, extractSectionAnswer(s, transcript), transcript);
+                lines.push(rendered);
+                lines.push('');
+            });
+            lines.push('---');
+            lines.push('');
+            lines.push('## Raw Conversation Transcript');
+            lines.push('');
+            transcript.forEach(function (t) {
+                var role = t.role === 'user' ? 'Student' : 'Remi';
+                lines.push('**' + role + ':** ' + t.text);
+                lines.push('');
+            });
+            return lines.join('\n');
+        },
+
+        // Render the same artifact as a self-contained HTML document
+        // (the file the student uploads to Canvas). Browser print-to-PDF
+        // produces a clean PDF on demand.
+        // opts.slots — typed slot store from extractSlots(). When present,
+        // 2.2 / 2.4 tables are populated from slots instead of left blank,
+        // and section narratives use the cleaned summary instead of raw
+        // student turns.
+        renderStructuredHtml: function (state, transcript, opts) {
+            opts = opts || {};
+            var slots = opts.slots || (state && state.slots) || null;
+            var schema = state.schema;
+            var esc = function (s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            };
+            var date = new Date().toISOString().slice(0, 10);
+            var html = '';
+            html += '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">';
+            html += '<title>' + esc(schema.title) + '</title>';
+            html += '<style>'
+                  + 'body{font-family:Inter,system-ui,sans-serif;max-width:780px;margin:0 auto;padding:40px 28px;color:#1f2a2e;background:#fff;line-height:1.55;}'
+                  + 'h1{font-size:1.6rem;margin:0 0 4px;letter-spacing:-0.01em;}'
+                  + 'h2{font-size:1.05rem;margin:28px 0 8px;color:#0a2333;border-bottom:1px solid #e2e8eb;padding-bottom:4px;}'
+                  + '.meta{font-size:0.85rem;color:#5a6669;margin:0 0 18px;}'
+                  + '.meta div{margin:2px 0;}'
+                  + 'table{width:100%;border-collapse:collapse;margin:8px 0 12px;font-size:0.92rem;}'
+                  + 'th,td{border:1px solid #d8e0e3;padding:8px 10px;text-align:left;vertical-align:top;}'
+                  + 'th{background:#f3f7f8;font-weight:700;}'
+                  + 'p{margin:6px 0;}'
+                  + '.section-body{font-size:0.95rem;}'
+                  + '.transcript{margin-top:32px;padding-top:18px;border-top:2px solid #c8d2d6;}'
+                  + '.turn{margin:0 0 12px;font-size:0.9rem;}'
+                  + '.turn .who{font-weight:700;color:#0a2333;}'
+                  + '.turn.bot .who{color:#006493;}'
+                  + '.turn.user{padding:6px 12px;background:#f0f4f6;border-radius:8px;}'
+                  + '@media print{body{padding:24px;}.section-body{page-break-inside:avoid;}}'
+                  + '</style></head><body>';
+            html += '<h1>' + esc(schema.title) + '</h1>';
+            html += '<div class="meta">';
+            html += '<div><strong>Course:</strong> ' + esc(schema.course) + '</div>';
+            html += '<div><strong>Instructor:</strong> ' + esc(schema.instructor) + '</div>';
+            html += '<div><strong>Week:</strong> ' + esc(schema.week) + '</div>';
+            if (opts.studentName) html += '<div><strong>Name:</strong> ' + esc(opts.studentName) + '</div>';
+            if (state.team_id) html += '<div><strong>Team:</strong> ' + esc(state.team_id) + '</div>';
+            if (state.team_member_slot) html += '<div><strong>Member slot:</strong> ' + esc(state.team_member_slot) + '</div>';
+            if (state.roster && state.roster.length) {
+                var rosterPretty = state.roster
+                    .filter(function (n) { return n !== 'self'; })
+                    .join(', ') + (state.roster.indexOf('self') !== -1 ? ', + self' : '');
+                html += '<div><strong>Team roster:</strong> ' + esc(rosterPretty) + '</div>';
+            }
+            html += '<div><strong>Date submitted:</strong> ' + date + '</div>';
+            if (opts.publicId && opts.sessionId) {
+                var convoUrlHtml = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                    encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+                html += '<div><strong>Conversation:</strong> <a href="' + esc(convoUrlHtml) + '">' + esc(convoUrlHtml) + '</a></div>';
+            }
+            html += '</div>';
+
+            schema.sections.forEach(function (s) {
+                html += '<h2>' + esc(s.id) + '. ' + esc(s.title) + '</h2>';
+                var slot = slots ? slots[s.id] : null;
+                html += renderSectionHtml(s, slot, extractSectionAnswer(s, transcript), esc, transcript);
+            });
+
+            html += '<div class="transcript">';
+            html += '<h2>Raw Conversation Transcript</h2>';
+            transcript.forEach(function (t) {
+                var who = t.role === 'user' ? 'Student' : 'Remi';
+                var cls = t.role === 'user' ? 'user' : 'bot';
+                html += '<div class="turn ' + cls + '">';
+                html += '<span class="who">' + esc(who) + ':</span> ' + esc(t.text);
+                html += '</div>';
+            });
+            html += '</div>';
+            html += '</body></html>';
+            return html;
+        },
+    };
+
+    function paragraphsToHtml(text, esc) {
+        var parts = String(text).split(/\n\s*\n/);
+        return parts.map(function (p) {
+            return '<p>' + esc(p).replace(/\n/g, '<br>') + '</p>';
+        }).join('');
+    }
+
+    function attributedFieldResponses(section, transcript) {
+        var fields = normalizedFields(section);
+        var byField = {};
+        var any = false;
+        fields.forEach(function (formField) { byField[formField.id] = []; });
+        (transcript || []).forEach(function (turn) {
+            var role = turn.role || turn.sent_by;
+            if (role !== 'user' && role !== 'user-message') return;
+            if (turn.form_section_id && turn.form_section_id !== section.id) return;
+            var fieldId = turn.form_field_id;
+            if (!fieldId || !Object.prototype.hasOwnProperty.call(byField, fieldId)) return;
+            any = true;
+            byField[fieldId].push({
+                phase: turn.form_response_phase || 'primary',
+                text: String(turn.text != null ? turn.text : (turn.content || '')),
+            });
+        });
+        return any ? { fields: fields, byField: byField } : null;
+    }
+
+    function attributedResponseText(responses) {
+        if (!responses || !responses.length) return '(no response captured)';
+        if (responses.length === 1 && responses[0].phase === 'primary') return responses[0].text;
+        return responses.map(function (response) {
+            var label = response.phase === 'probe'
+                ? 'Follow-up'
+                : (response.phase === 'revision' ? 'Revision' : 'Primary');
+            return label + ': ' + response.text;
+        }).join('\n');
+    }
+
+    function renderSectionHtml(section, slot, fallbackAnswer, esc, transcript) {
+        var html = '';
+        if (section.answer_source === 'orchestrator') {
+            return '<table><thead><tr><th>Question</th><th>Original student response</th></tr></thead><tbody>' + section.fields.map(function (field) {
+                return '<tr><td>' + esc(field.label) + '</td><td>' + esc((slot || {})[field.id] || '').replace(/\n/g, '<br>') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        }
+        var attributed = attributedFieldResponses(section, transcript);
+        if (attributed) {
+            html += '<table><thead><tr><th>Question</th><th>Original student response</th></tr></thead><tbody>';
+            attributed.fields.forEach(function (formField) {
+                var responseText = attributedResponseText(attributed.byField[formField.id]);
+                html += '<tr><td>' + esc(formField.label) + '</td><td>' + esc(responseText).replace(/\n/g, '<br>') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+        if (section.id === '2.2') {
+            html += '<table><thead><tr><th>Team Member</th><th>Primary Role / Contribution This Week</th></tr></thead><tbody>';
+            var rows = (slot && slot.roster) ? slot.roster : [];
+            if (rows.length) {
+                rows.forEach(function (r) {
+                    html += '<tr><td>' + esc(r.name || '') + '</td><td>' + esc(r.contribution || '') + '</td></tr>';
+                });
+            } else {
+                html += '<tr><td colspan="2"><em>(no roster captured)</em></td></tr>';
+            }
+            html += '</tbody></table>';
+            if (slot && slot.equity) {
+                html += '<p><strong>Equity of distribution:</strong> ' + esc(slot.equity) + '</p>';
+            } else if (!slot && fallbackAnswer) {
+                html += '<div class="section-body">' + paragraphsToHtml(fallbackAnswer, esc) + '</div>';
+            }
+            return html;
+        }
+        if (section.id === '2.4') {
+            html += '<table><thead><tr><th>Dimension</th><th>Rating (1–5)</th><th>Brief Justification</th></tr></thead><tbody>';
+            var ratings = (slot && slot.ratings) || {};
+            section.fields.forEach(function (f) {
+                if (!f.dimension) return;
+                var key = f.id.split('.').pop();
+                var r = ratings[key] || {};
+                var rating = (r.rating != null && r.rating !== '') ? String(r.rating) : '';
+                var just = r.justification || '';
+                html += '<tr><td>' + esc(f.dimension) + '</td><td>' + esc(rating) + '</td><td>' + esc(just) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+        if (section.id === '1.3' && slot) {
+            html += '<table><thead><tr><th>Prompt</th><th>Student response</th></tr></thead><tbody>';
+            var subs = [
+                { key: 'thought_i_knew',  label: 'What I thought I knew' },
+                { key: 'surprised_by',    label: 'What I was surprised by' },
+                { key: 'still_uncertain', label: 'What I am still uncertain about' }
+            ];
+            subs.forEach(function (sub) {
+                html += '<tr><td>' + esc(sub.label) + '</td><td>' + esc(slot[sub.key] || '') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+        if (section.id === '2.3' && slot) {
+            html += '<table><thead><tr><th>Prompt</th><th>Student response</th></tr></thead><tbody>';
+            var subs23 = [
+                { key: 'worked',      label: 'What worked well (concrete)' },
+                { key: 'challenge',   label: 'What was challenging (specific)' },
+                { key: 'improvement', label: 'One actionable improvement for next week (measurable)' }
+            ];
+            subs23.forEach(function (sub) {
+                html += '<tr><td>' + esc(sub.label) + '</td><td>' + esc(slot[sub.key] || '') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+        var body = (slot && slot.summary) ? slot.summary : fallbackAnswer;
+        if (!body) return '<p><em>(no response captured)</em></p>';
+        return '<div class="section-body">' + paragraphsToHtml(body, esc) + '</div>';
+    }
+
+    function renderSectionMarkdown(section, slot, fallbackAnswer, transcript) {
+        if (section.answer_source === 'orchestrator') {
+            return section.fields.map(function (field) { return '**' + field.label + '**\n\n' + ((slot || {})[field.id] || ''); }).join('\n\n');
+        }
+        var attributed = attributedFieldResponses(section, transcript);
+        if (attributed) {
+            var exactLines = [];
+            attributed.fields.forEach(function (formField) {
+                exactLines.push('**' + formField.label + '**');
+                exactLines.push('');
+                exactLines.push(attributedResponseText(attributed.byField[formField.id]));
+                exactLines.push('');
+            });
+            return exactLines.join('\n').trim();
+        }
+        if (section.id === '2.2') {
+            var lines = ['| Team Member | Primary Role / Contribution This Week |', '|---|---|'];
+            var rows = (slot && slot.roster) ? slot.roster : [];
+            if (rows.length) {
+                rows.forEach(function (r) { lines.push('| ' + (r.name || '') + ' | ' + (r.contribution || '') + ' |'); });
+            } else {
+                lines.push('| _(no roster captured)_ |  |');
+            }
+            if (slot && slot.equity) { lines.push(''); lines.push('**Equity of distribution:** ' + slot.equity); }
+            else if (!slot && fallbackAnswer) { lines.push(''); lines.push(fallbackAnswer); }
+            return lines.join('\n');
+        }
+        if (section.id === '2.4') {
+            var rl = ['| Dimension | Rating (1–5) | Brief Justification |', '|---|---|---|'];
+            var ratings = (slot && slot.ratings) || {};
+            section.fields.forEach(function (f) {
+                if (!f.dimension) return;
+                var key = f.id.split('.').pop();
+                var r = ratings[key] || {};
+                rl.push('| ' + f.dimension + ' | ' + (r.rating != null && r.rating !== '' ? r.rating : '') + ' | ' + (r.justification || '') + ' |');
+            });
+            return rl.join('\n');
+        }
+        if (section.id === '1.3' && slot) {
+            return [
+                '**What I thought I knew:** ' + (slot.thought_i_knew || ''),
+                '',
+                '**What I was surprised by:** ' + (slot.surprised_by || ''),
+                '',
+                '**What I am still uncertain about:** ' + (slot.still_uncertain || '')
+            ].join('\n');
+        }
+        if (section.id === '2.3' && slot) {
+            return [
+                '**What worked:** ' + (slot.worked || ''),
+                '',
+                '**What was challenging:** ' + (slot.challenge || ''),
+                '',
+                '**Improvement next week:** ' + (slot.improvement || '')
+            ].join('\n');
+        }
+        var body = (slot && slot.summary) ? slot.summary : fallbackAnswer;
+        return body || '_(no response captured)_';
+    }
+
+    // ─── DOCX rendering (real OOXML, editable in Word / Google Docs) ─────
+    //
+    // Requires the `docx` UMD library to be loaded on `globalThis.docx`
+    // (added via <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js">
+    // in feedback.html). Returns a Promise<Blob> ready for download.
+    leaiFormMode.renderStructuredDocx = function (state, transcript, opts) {
+        opts = opts || {};
+        var d = (typeof globalThis !== 'undefined' ? globalThis.docx : null) ||
+                (typeof window !== 'undefined' ? window.docx : null);
+        if (!d) return Promise.reject(new Error('docx library not loaded'));
+
+        var slots = opts.slots || (state && state.slots) || null;
+        var schema = state.schema;
+        var sections = schema.sections;
+
+        function P(text, opts2) {
+            opts2 = opts2 || {};
+            return new d.Paragraph({
+                children: [new d.TextRun({ text: String(text == null ? '' : text), bold: !!opts2.bold, italics: !!opts2.italics })],
+                heading: opts2.heading || undefined,
+                spacing: { after: 120 },
+            });
+        }
+
+        function metaP(label, value) {
+            return new d.Paragraph({
+                children: [
+                    new d.TextRun({ text: label + ' ', bold: true }),
+                    new d.TextRun({ text: String(value == null ? '' : value) }),
+                ],
+                spacing: { after: 60 },
+            });
+        }
+
+        function cell(text, opts2) {
+            opts2 = opts2 || {};
+            return new d.TableCell({
+                children: [new d.Paragraph({
+                    children: [new d.TextRun({ text: String(text == null ? '' : text), bold: !!opts2.bold })],
+                })],
+                shading: opts2.bold ? { fill: 'F3F7F8' } : undefined,
+                margins: { top: 80, bottom: 80, left: 100, right: 100 },
+            });
+        }
+
+        function table(headers, rows) {
+            var headerRow = new d.TableRow({
+                children: headers.map(function (h) { return cell(h, { bold: true }); }),
+                tableHeader: true,
+            });
+            var bodyRows = rows.map(function (r) {
+                return new d.TableRow({ children: r.map(function (c) { return cell(c); }) });
+            });
+            return new d.Table({
+                rows: [headerRow].concat(bodyRows),
+                width: { size: 100, type: d.WidthType ? d.WidthType.PERCENTAGE : 'pct' },
+            });
+        }
+
+        var children = [];
+        children.push(new d.Paragraph({
+            children: [new d.TextRun({ text: schema.title, bold: true, size: 32 })],
+            spacing: { after: 200 },
+        }));
+        children.push(metaP('Course:', schema.course));
+        children.push(metaP('Instructor:', schema.instructor));
+        children.push(metaP('Week:', schema.week));
+        if (opts.studentName) children.push(metaP('Name:', opts.studentName));
+        if (state.team_id) children.push(metaP('Team:', state.team_id));
+        if (state.team_member_slot) children.push(metaP('Member slot:', state.team_member_slot));
+        if (state.roster && state.roster.length) {
+            var rosterPretty = state.roster
+                .filter(function (n) { return n !== 'self'; })
+                .join(', ') + (state.roster.indexOf('self') !== -1 ? ', + self' : '');
+            children.push(metaP('Team roster:', rosterPretty));
+        }
+        children.push(metaP('Date submitted:', new Date().toISOString().slice(0, 10)));
+        if (opts.publicId && opts.sessionId) {
+            var convoUrl = 'https://guii-lab.github.io/LEAI/feedback.html?id=' +
+                encodeURIComponent(opts.publicId) + '#cid=' + encodeURIComponent(opts.sessionId);
+            var linkRun = d.ExternalHyperlink
+                ? new d.ExternalHyperlink({
+                    link: convoUrl,
+                    children: [new d.TextRun({ text: convoUrl, style: 'Hyperlink', color: '006493', underline: {} })],
+                  })
+                : new d.TextRun({ text: convoUrl });
+            children.push(new d.Paragraph({
+                children: [new d.TextRun({ text: 'Conversation: ', bold: true }), linkRun],
+                spacing: { after: 60 },
+            }));
+        }
+        children.push(new d.Paragraph({ children: [new d.TextRun({ text: '' })], spacing: { after: 120 } }));
+
+        sections.forEach(function (s) {
+            children.push(new d.Paragraph({
+                children: [new d.TextRun({ text: s.id + '. ' + s.title, bold: true, size: 24 })],
+                spacing: { before: 200, after: 100 },
+            }));
+            var slot = slots ? slots[s.id] : null;
+            var fallback = extractSectionAnswer(s, transcript);
+            var attributed = attributedFieldResponses(s, transcript);
+
+            if (s.answer_source === 'orchestrator') {
+                children.push(table(['Question', 'Original student response'], s.fields.map(function (field) { return [field.label, (slot || {})[field.id] || '']; })));
+                return;
+            }
+            if (attributed) {
+                children.push(table(
+                    ['Question', 'Original student response'],
+                    attributed.fields.map(function (formField) {
+                        return [formField.label, attributedResponseText(attributed.byField[formField.id])];
+                    })
+                ));
+                return;
+            }
+
+            if (s.id === '2.2') {
+                var rows = (slot && slot.roster) ? slot.roster : [];
+                if (rows.length) {
+                    children.push(table(['Team Member', 'Primary Role / Contribution This Week'],
+                        rows.map(function (r) { return [r.name || '', r.contribution || '']; })));
+                } else {
+                    children.push(P('(no roster captured)', { italics: true }));
+                }
+                if (slot && slot.equity) {
+                    children.push(new d.Paragraph({
+                        children: [
+                            new d.TextRun({ text: 'Equity of distribution: ', bold: true }),
+                            new d.TextRun({ text: slot.equity }),
+                        ],
+                        spacing: { before: 100, after: 100 },
+                    }));
+                }
+                return;
+            }
+            if (s.id === '2.4') {
+                var ratings = (slot && slot.ratings) || {};
+                var rRows = (s.fields || []).filter(function (f) { return f.dimension; }).map(function (f) {
+                    var key = f.id.split('.').pop();
+                    var r = ratings[key] || {};
+                    return [f.dimension, r.rating != null ? String(r.rating) : '', r.justification || ''];
+                });
+                children.push(table(['Dimension', 'Rating (1–5)', 'Brief Justification'], rRows));
+                return;
+            }
+            if (s.id === '1.3' && slot) {
+                children.push(table(['Prompt', 'Student response'], [
+                    ['What I thought I knew', slot.thought_i_knew || ''],
+                    ['What I was surprised by', slot.surprised_by || ''],
+                    ['What I am still uncertain about', slot.still_uncertain || ''],
+                ]));
+                return;
+            }
+            if (s.id === '2.3' && slot) {
+                children.push(table(['Prompt', 'Student response'], [
+                    ['What worked well (concrete)', slot.worked || ''],
+                    ['What was challenging (specific)', slot.challenge || ''],
+                    ['One actionable improvement for next week (measurable)', slot.improvement || ''],
+                ]));
+                return;
+            }
+            var body = (slot && slot.summary) ? slot.summary : fallback;
+            if (body) {
+                String(body).split(/\n\s*\n/).forEach(function (para) { children.push(P(para)); });
+            } else {
+                children.push(P('(no response captured)', { italics: true }));
+            }
+        });
+
+        children.push(new d.Paragraph({
+            children: [new d.TextRun({ text: 'Raw Conversation Transcript', bold: true, size: 24 })],
+            spacing: { before: 320, after: 120 },
+        }));
+        transcript.forEach(function (t) {
+            var who = t.role === 'user' ? 'Student' : 'Remi';
+            children.push(new d.Paragraph({
+                children: [
+                    new d.TextRun({ text: who + ': ', bold: true }),
+                    new d.TextRun({ text: t.text }),
+                ],
+                spacing: { after: 80 },
+            }));
+        });
+
+        var doc = new d.Document({ sections: [{ properties: {}, children: children }] });
+        // Browsers: Packer.toBlob works (Blob support detected by jszip).
+        // Node test harness: fall back to toBuffer (returns a Buffer) so
+        // verify_docx_artifact.js can run without a browser.
+        if (typeof Blob !== 'undefined') return d.Packer.toBlob(doc);
+        return d.Packer.toBuffer(doc);
+    };
+
+    // Strip artifacts seen in real LLM output: trailing dot-padding runs
+    // (". . . . ." style filler used by some models when their output drifts
+    // shorter than they "expect"), trailing repeated whitespace, and a
+    // few common voice-to-text echo dupes. Conservative — does not touch
+    // intentional sentence-final ellipses ("..." kept; "….." trimmed only
+    // if it follows two or more space-separated dots).
+    function sanitizeSlotString(value) {
+        if (typeof value !== 'string') return value;
+        var v = value;
+        // Collapse runs like ". . . . . ." (3+ space-separated single dots)
+        // at the END of the string only.
+        v = v.replace(/(?:\s*\.\s*){3,}\s*$/, '');
+        // Collapse a "<text> + long whitespace run + trailing punctuation"
+        // artifact: some models pad short answers with ~hundreds of spaces
+        // and then a final "." to hit an imagined length target.
+        v = v.replace(/\s{20,}[.,;:!?]?\s*$/, '');
+        // Strip a structural JSON-tail leak: some models occasionally emit a
+        // Python-repr-style dict as the slot value, with the next key from
+        // the schema (e.g. _evidence.<slot>) inlined into the string. The
+        // anchor is the literal token `_evidence` preceded by a quote-comma-
+        // quote sequence — that combination cannot occur in natural prose,
+        // so this strip is safe against false positives.
+        v = v.replace(/['"]\s*,\s*['"]_evidence\b[\s\S]*$/, '');
+        // Collapse trailing whitespace.
+        v = v.replace(/\s+$/, '');
+        return v;
+    }
+    function sanitizeSlotTree(node) {
+        if (node == null) return node;
+        if (typeof node === 'string') return sanitizeSlotString(node);
+        if (Array.isArray(node)) return node.map(sanitizeSlotTree);
+        if (typeof node === 'object') {
+            var out = {};
+            Object.keys(node).forEach(function (k) { out[k] = sanitizeSlotTree(node[k]); });
+            return out;
+        }
+        return node;
+    }
+
+    function slotValueIsNotCaptured(v) {
+        if (typeof v !== 'string') return false;
+        var s = v.trim();
+        if (!s) return true;
+        // Match the family of placeholder strings the LLM or the docx writer
+        // emits when a slot is empty. The OOXML writer uses "(no response
+        // captured)"; the LLM uses "(not captured)" / "not captured". Keep
+        // them in sync — the retry must fire for both, otherwise longform
+        // sections that came back blank render as "(no response captured)"
+        // and the retry never sees them.
+        return /^\(?\s*(no\s+response\s+captured|not\s+captured|none\s+captured|no\s+answer|empty|n\/a)\s*\)?\.?\s*$/i.test(s);
+    }
+
+    function findMissedStringFields(section, data) {
+        if (!data || typeof data !== 'object') return [];
+        var missed = [];
+        var hasStructuredField = false;
+        (section.fields || []).forEach(function (f) {
+            if (f.kind === 'shortform') {
+                hasStructuredField = true;
+                var key = sectionStringFieldKey(section.id, f.id);
+                if (slotValueIsNotCaptured(data[key])) {
+                    missed.push({ key: key, label: f.label || key, fieldId: f.id });
+                }
+            } else if (f.kind === 'table' || f.kind === 'rating_with_justification') {
+                hasStructuredField = true;
+            }
+            // longform fields with a defined `f.id` fall through — the
+            // schema builder rolls them into the same `summary` slot as the
+            // no-fields fallback, so they're picked up by the `summary`
+            // check below.
+        });
+        // Longform-only sections (2.1, 3.1, 3.2 on the team form) have no
+        // structured fields; buildSectionJsonSchema emits a single required
+        // `summary` slot for them. If that came back blank, retry too.
+        if (!hasStructuredField && slotValueIsNotCaptured(data.summary)) {
+            missed.push({ key: 'summary', label: section.title || section.id, fieldId: section.id });
+        }
+        return missed;
+    }
+
+    leaiFormMode.extractSlots = function (state, transcript, callStructured) {
+        var schema = state.schema;
+        var sections = schema.sections;
+        var slots = {};
+        var promise = Promise.resolve();
+        // One-shot diagnostic so it's obvious in the console whether the
+        // engine is using markered slicing or the no-markers full-transcript
+        // fallback for THIS extraction run.
+        if (typeof console !== 'undefined') {
+            if (!transcriptHasAnyMarkers(transcript)) {
+                console.info('[formmode] no section markers in transcript — extracting each section from the full conversation by topic');
+            }
+        }
+        sections.forEach(function (s) {
+            promise = promise.then(function () {
+                var jsonSchema = buildSectionJsonSchema(s);
+                var excerpt = extractSectionExcerpt(s, transcript);
+                var prompt = buildSectionExtractionPrompt(s, excerpt, state);
+                return callStructured(prompt, jsonSchema, { schemaName: 'section_' + s.id.replace(/\W/g, '_') })
+                    .then(function (result) {
+                        // /openai-structured/ returns { status, response: <jsonStr>, parsed: <obj> }.
+                        var data = null;
+                        if (result && result.parsed && typeof result.parsed === 'object') {
+                            data = result.parsed;
+                        } else if (result && typeof result.response === 'string') {
+                            try { data = JSON.parse(result.response); } catch (_e) { data = null; }
+                        } else if (result && typeof result === 'object' && !result.status) {
+                            data = result;
+                        }
+                        if (data && typeof data === 'object') {
+                            slots[s.id] = sanitizeSlotTree(data);
+                            data = slots[s.id];
+                            // If this section captured a roster (kind=table on 2.2)
+                            // and the running state doesn't have one yet — e.g. the
+                            // conversation was conducted before this form schema was
+                            // bound, so afterTurn never built state.roster live —
+                            // promote the freshly extracted roster onto state now.
+                            // Subsequent section prompts then get the canonical
+                            // names line and produce consistent spellings.
+                            if (!state.roster && Array.isArray(data.roster) && data.roster.length) {
+                                var names = data.roster
+                                    .map(function (r) { return (r && r.name) || ''; })
+                                    .filter(function (n) { return n && n.trim(); });
+                                if (names.length) state.roster = names;
+                            }
+                            // Per-row retry: if any required string field came
+                            // back "(not captured)" / "(no response captured)",
+                            // fire one focused re-extraction naming the missed
+                            // fields. The structured-output LLM occasionally
+                            // misses a row semantically (e.g. "What I was
+                            // surprised by" answered by a turn starting "what
+                            // shifted my thinking"), and occasionally drops an
+                            // entire longform summary slot. One sharper retry
+                            // recovers them. GUARDRAIL: only retry when the
+                            // section's slice contains at least one student
+                            // turn — if the conversation never reached this
+                            // section (e.g. transcript starts mid-Area-2),
+                            // retrying with the full transcript would invite
+                            // the LLM to fabricate content from out-of-section
+                            // turns. See wk6-bug-150 fixture: 1.1 and 1.2
+                            // must stay "(not captured)" because the
+                            // transcript has no Area-1/Area-2 turns.
+                            var missed = findMissedStringFields(s, slots[s.id]);
+                            var sectionHasStudentTurn = /(^|\n)STUDENT:\s*\S/.test(excerpt || '');
+                            if (missed.length && sectionHasStudentTurn) {
+                                var retryPrompt = buildSectionExtractionRetryPrompt(s, transcriptToText(transcript), state, missed);
+                                return callStructured(retryPrompt, jsonSchema, { schemaName: 'section_' + s.id.replace(/\W/g, '_') + '_retry' })
+                                    .then(function (retryResult) {
+                                        var retryData = null;
+                                        if (retryResult && retryResult.parsed && typeof retryResult.parsed === 'object') {
+                                            retryData = retryResult.parsed;
+                                        } else if (retryResult && typeof retryResult.response === 'string') {
+                                            try { retryData = JSON.parse(retryResult.response); } catch (_e) { retryData = null; }
+                                        } else if (retryResult && typeof retryResult === 'object' && !retryResult.status) {
+                                            retryData = retryResult;
+                                        }
+                                        if (!retryData || typeof retryData !== 'object') return;
+                                        retryData = sanitizeSlotTree(retryData);
+                                        var recovered = 0;
+                                        missed.forEach(function (m) {
+                                            var rv = retryData[m.key];
+                                            if (typeof rv === 'string' && rv.trim() && !slotValueIsNotCaptured(rv)) {
+                                                slots[s.id][m.key] = rv;
+                                                if (retryData._evidence && typeof retryData._evidence[m.key] === 'string' &&
+                                                    slots[s.id]._evidence && typeof slots[s.id]._evidence === 'object') {
+                                                    slots[s.id]._evidence[m.key] = retryData._evidence[m.key];
+                                                }
+                                                recovered++;
+                                            }
+                                        });
+                                        if (typeof console !== 'undefined') {
+                                            console.info('[formmode] retry pass for ' + s.id + ': ' + recovered + '/' + missed.length + ' field(s) recovered');
+                                        }
+                                    })
+                                    .catch(function (err) {
+                                        if (typeof console !== 'undefined') {
+                                            console.warn('extractSlots retry failed for ' + s.id + ':', err && err.message ? err.message : err);
+                                        }
+                                    });
+                            }
+                        }
+                    })
+                    .catch(function (err) {
+                        if (typeof console !== 'undefined') {
+                            console.warn('extractSlots failed for ' + s.id + ':', err && err.message ? err.message : err);
+                        }
+                    });
+            });
+        });
+        return promise.then(function () {
+            state.slots = slots;
+            return slots;
+        });
+    };
+
+    // Mirror of the per-section field→JSON-key derivation. Kept as a separate
+    // helper so the critic pass (verifyMissingSlots) can map back from a JSON
+    // key to its human-readable label when re-prompting.
+    function sectionStringFieldKey(sectionId, fieldId) {
+        if (sectionId === '1.3') {
+            if (fieldId === '1.3a') return 'thought_i_knew';
+            if (fieldId === '1.3b') return 'surprised_by';
+            if (fieldId === '1.3c') return 'still_uncertain';
+        } else if (sectionId === '2.3') {
+            if (fieldId === '2.3.worked') return 'worked';
+            if (fieldId === '2.3.challenge') return 'challenge';
+            if (fieldId === '2.3.improvement') return 'improvement';
+        } else if (sectionId === '2.2' && fieldId === '2.2.equity') {
+            return 'equity';
+        }
+        return String(fieldId || '').split('.').pop().replace(/[^a-zA-Z0-9_]/g, '_');
+    }
+
+    function buildSectionJsonSchema(section) {
+        var props = {};
+        var required = [];
+        var hasStructured = false;
+        var stringKeys = [];  // string-typed slots that need an evidence trail
+        (section.fields || []).forEach(function (f) {
+            if (f.kind === 'shortform') {
+                hasStructured = true;
+                var key = sectionStringFieldKey(section.id, f.id);
+                props[key] = { type: 'string', description: f.label || ('Student answer: ' + key) };
+                required.push(key);
+                stringKeys.push(key);
+            } else if (f.kind === 'table') {
+                hasStructured = true;
+                props.roster = {
+                    type: 'array',
+                    description: 'One row per teammate (including the student themselves). Use the EXACT names the student listed.',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            name: { type: 'string', description: 'Teammate name as the student stated it.' },
+                            contribution: { type: 'string', description: 'Primary role or contribution this week, one or two sentences.' }
+                        },
+                        required: ['name', 'contribution'],
+                        additionalProperties: false
+                    }
+                };
+                required.push('roster');
+            } else if (f.kind === 'rating_with_justification') {
+                hasStructured = true;
+                if (!props.ratings) {
+                    props.ratings = { type: 'object', properties: {}, required: [], additionalProperties: false };
+                    required.push('ratings');
+                }
+                var rk = f.id.split('.').pop();
+                props.ratings.properties[rk] = {
+                    type: 'object',
+                    description: f.dimension,
+                    properties: {
+                        rating: { type: 'integer', minimum: 1, maximum: 5, description: 'The 1-5 rating the student stated for: ' + f.dimension },
+                        justification: { type: 'string', description: 'The student’s justification for this rating, in their own words.' }
+                    },
+                    required: ['rating', 'justification'],
+                    additionalProperties: false
+                };
+                props.ratings.required.push(rk);
+            }
+        });
+        if (!hasStructured) {
+            props.summary = {
+                type: 'string',
+                description: 'A clean 2-4 sentence narrative of what the student said about this section. Use their words and meaning; smooth voice-to-text disfluencies. Do NOT invent content.'
+            };
+            required.push('summary');
+            stringKeys.push('summary');
+        }
+        // Sibling evidence object: for every required string slot, force the
+        // model to produce a short verbatim quote from the supporting student
+        // turn (or "" when the slot is genuinely "(not captured)"). Catches
+        // the silent-drop failure mode where weaker models reach for the
+        // "(not captured)" fallback rather than do the semantic match across
+        // multiple sub-fields in one call. See the wk6-bug-150 regression
+        // fixture for the original repro.
+        if (stringKeys.length) {
+            var evProps = {};
+            stringKeys.forEach(function (k) {
+                evProps[k] = {
+                    type: 'string',
+                    description: 'Verbatim ≤30-word snippet from the STUDENT turn that supports `' + k +
+                        '`. Empty string ONLY when `' + k + '` is "(not captured)" AND no student turn semantically addresses the field.'
+                };
+            });
+            props._evidence = {
+                type: 'object',
+                description: 'Per-field evidence trail. For every required string slot above, quote the student turn that supports your extraction (or "" if the slot is genuinely "(not captured)").',
+                properties: evProps,
+                required: stringKeys.slice(),
+                additionalProperties: false
+            };
+            required.push('_evidence');
+        }
+        return {
+            type: 'object',
+            properties: props,
+            required: required,
+            additionalProperties: false
+        };
+    }
+
+    function buildSectionExtractionPrompt(section, excerpt, state) {
+        var rosterLine = '';
+        if (state && state.roster && state.roster.length) {
+            rosterLine = '\nCanonical roster (use these spellings exactly when extracting names): ' +
+                state.roster.filter(function (n) { return n !== 'self'; }).join(', ') + '\n';
+        }
+        return [
+            'You are extracting structured answers for ONE section of a student team-reflection form.',
+            '',
+            'Section: ' + section.id + '. ' + section.title,
+            'Topic: ' + (section.topic || section.title),
+            'Opening question: ' + (section.opening_prompt || ''),
+            rosterLine,
+            'Below is conversation content the engine pulled for this section. It is usually pre-sliced to just this section, but when the conversation lacks section markers (e.g. it predates this form schema being bound to the survey) the engine falls back to passing the FULL conversation here. In that case: ignore parts that clearly belong to other sections, and extract only content that addresses THIS section\'s topic and opening question. Match by meaning, not just by keyword — the student may answer this section\'s question without echoing the section\'s wording.',
+            '',
+            'Rules:',
+            '- Use the student’s own words and meaning. Smooth voice-to-text disfluencies but do NOT invent content.',
+            '- For ratings: "four" or "4" both mean 4. If the student gave the rating in a separate turn from the justification, pair them by which dimension the bot most recently asked about.',
+            '- If a required field cannot be determined from this conversation, use a brief placeholder like "(not captured)" for strings. Do NOT mark a field "(not captured)" if any student turn semantically answers it — even when the student\'s wording differs from the field label (e.g. a turn beginning "what shifted my thinking" answers a field labeled "What I was surprised by"; a turn beginning "I am still uncertain about" answers a field labeled "What I am still uncertain about"). For required integer ratings where the student never stated a number, still pair the nearest dimension/justification — only fall back to a placeholder rating if the student truly never gave any 1-5 number for that dimension.',
+            '- Names: use the exact spellings the student used.',
+            '- Be inclusive when extracting: if the student says ANYTHING that addresses this section, capture it. For sections with a SINGLE required string field, the first substantive student turn after the section header is usually the answer. For sections with MULTIPLE required string sub-fields, DIFFERENT student turns typically answer DIFFERENT sub-fields — map each sub-field by semantic content, not by the order of turns or by exact label keywords.',
+            '- The ONLY turns to skip are turns that explicitly give feedback about the chat itself (e.g. "this conversation surfaced more honest reflection than the PDF would have") — those belong to the closing-feedback step, not this section.',
+            '- If the student answers with a structured "(a) ... (b) ..." or "if X then Y" form, preserve that structure verbatim in the summary.',
+            '- For roster/table extractions: normalize EVERY row to third-person describing the named member, even when the student answered their own row in first person ("I contributed..." → "<name> contributed..."). The roster row must read consistently regardless of who is speaking.',
+            '- For longform `summary` fields that synthesize multi-turn answers: preserve every distinct point the student made — including any concrete, observable signal, example, deadline, person, file, or behavior they offered alongside their headline answer. If the student gave both a commitment AND a concrete signal/example (e.g. "we will be diligent" + "we will add calendar checkpoints"), the summary MUST include BOTH. Length budget is flexible (2–5 sentences) — never drop a concrete signal to stay terse.',
+            '- Self-check before returning a longform `summary`: re-scan every student turn that contributed to this section. If any student turn names a calendar, file, schedule, checkpoint, deadline, named meeting, percentage, number of hours, screenshot, or other concrete artifact AND that artifact is absent from your summary, revise the summary to include it. A summary that captures the abstract commitment but omits the concrete observable signal is INCOMPLETE.',
+            '- When a section contains a follow-up question that explicitly asks for an observable signal — i.e. how the student would know a commitment actually happened, or something concrete they could point to on a calendar / in their files / in a schedule — the student\'s answer to that follow-up is MANDATORY content in the `summary`. Paraphrasing it away or replacing it with a generic restatement of the commitment is a contract violation.',
+            '- Free-text fields must end with normal sentence punctuation. Never pad short answers with ellipses, dot strings (". . . ."), or filler — short and substantive is correct.',
+            '- For each required string slot, you MUST also populate `_evidence.<slot>` with a verbatim ≤30-word snippet from the supporting STUDENT turn. The snippet may be empty ONLY when the slot value is "(not captured)" AND no student turn semantically addresses the field. A non-empty value paired with an empty snippet — or a "(not captured)" value paired with a non-empty matching snippet — are both invalid.',
+            '',
+            'CONVERSATION:',
+            excerpt || '(no turns for this section)'
+        ].join('\n');
+    }
+
+    function buildSectionExtractionRetryPrompt(section, fullTranscriptText, state, missedFields) {
+        var rosterLine = '';
+        if (state && state.roster && state.roster.length) {
+            rosterLine = '\nCanonical roster (use these spellings exactly when extracting names): ' +
+                state.roster.filter(function (n) { return n !== 'self'; }).join(', ') + '\n';
+        }
+        var missedList = missedFields.map(function (m) {
+            return '  • `' + m.key + '` — ' + m.label;
+        }).join('\n');
+        return [
+            'You are RE-EXTRACTING structured answers for ONE section of a student team-reflection form. A prior pass returned a "(not captured)" / "(no response captured)" placeholder for one or more required fields below, but those fields almost certainly DO have answers in the transcript. Find them.',
+            '',
+            'Section: ' + section.id + '. ' + section.title,
+            'Topic: ' + (section.topic || section.title),
+            'Opening question: ' + (section.opening_prompt || ''),
+            rosterLine,
+            'Fields the prior pass missed — populate these from the transcript below:',
+            missedList,
+            '',
+            'Search rules for this retry:',
+            '- Match by SEMANTIC content, not by label wording. The student rarely echoes the field label. For example: a turn beginning "what shifted my thinking", "what actually surprised me", or "what changed for me" answers a field labeled "What I was surprised by". A turn beginning "I am still uncertain about" or "I still do not have a clear principle for" answers "What I am still uncertain about". A turn beginning "I thought", "I assumed", "going into this week I expected", or "before this week I believed" answers "What I thought I knew".',
+            '- Look across the FULL transcript below, not just the section header area — the student may have answered out of order or in a follow-up turn.',
+            '- Only mark a field "(not captured)" if you have scanned every student turn and none of them — by meaning, not just wording — addresses that field.',
+            '- Populate EVERY required field in the schema, not just the missed ones; for fields not in the missed list, you may reproduce the prior content faithfully.',
+            '- All other rules from the original prompt still apply: third-person roster rows; preserve concrete observable signals in longform summaries; no dot-padding / ellipsis filler; populate `_evidence.<slot>` with a verbatim ≤30-word student snippet.',
+            '',
+            'FULL CONVERSATION:',
+            fullTranscriptText
+        ].join('\n');
+    }
+
+    function transcriptHasAnyMarkers(transcript) {
+        var probe = /Area\s+\d+\s+of\s+\d+\s+[—\-]\s+/i;
+        for (var i = 0; i < transcript.length; i++) {
+            var t = transcript[i];
+            if (t.role === 'assistant' && probe.test(t.text)) return true;
+        }
+        return false;
+    }
+
+    function transcriptToText(transcript) {
+        var lines = [];
+        for (var p = 0; p < transcript.length; p++) {
+            var who = transcript[p].role === 'user' ? 'STUDENT' : 'REMI';
+            lines.push(who + ': ' + transcript[p].text);
+        }
+        return lines.join('\n\n');
+    }
+
+    function extractSectionExcerpt(section, transcript) {
+        var markerRe = /Area\s+(\d+)\s+of\s+(\d+)\s+[—\-]\s+([^.\n]+?)\s*\./gi;
+        var titleKey = section.title.toLowerCase().slice(0, 12);
+        var startTurn = -1;
+        var endTurn = transcript.length;
+        for (var i = 0; i < transcript.length; i++) {
+            var t = transcript[i];
+            if (t.role !== 'assistant') continue;
+            markerRe.lastIndex = 0;
+            var m;
+            while ((m = markerRe.exec(t.text)) !== null) {
+                var emittedTitle = (m[3] || '').trim().toLowerCase().slice(0, 12);
+                if (emittedTitle === titleKey && startTurn === -1) {
+                    startTurn = i;
+                } else if (startTurn !== -1 && emittedTitle !== titleKey) {
+                    endTurn = i;
+                    break;
+                }
+            }
+            if (startTurn !== -1 && endTurn !== transcript.length) break;
+        }
+        if (startTurn !== -1) {
+            var lines = [];
+            for (var p = startTurn; p < endTurn; p++) {
+                var who = transcript[p].role === 'user' ? 'STUDENT' : 'REMI';
+                lines.push(who + ': ' + transcript[p].text);
+            }
+            return lines.join('\n\n');
+        }
+        // No marker for this section. If the WHOLE transcript carries zero
+        // "Area N of N — Title." markers (the conversation ran before the
+        // survey was bound to a form schema, or was started on a non-form
+        // survey that the instructor later upgraded to form mode), hand the
+        // LLM the full transcript so it can find this section's content by
+        // topic — the per-section JSON schema + topic line in the prompt
+        // are enough for it to pick the right turns. If markers exist for
+        // OTHER sections but not this one, the section truly wasn't reached
+        // in the conversation; return empty as before.
+        if (!transcriptHasAnyMarkers(transcript)) {
+            return transcriptToText(transcript);
+        }
+        return '';
+    }
+
+    // ─── helpers ──────────────────────────────────────────────────────────
+
+    // "Strong" advance signals — when these start a SHORT (≤8 words) message,
+    // treat the whole message as a no-addition signal.
+    var STRONG_NO_ADD = /^(no|nope|nah|move on|moving on|let'?s? move on|let'?s go|go next|next( one| please)?|skip|skip( ahead| this)?|i'?m done|i think we'?re done|that'?s it|that'?s all|nothing more|nothing else|nothing( more)? to add|nothing( more)? on this( one)?|i think we are done|we'?re done)\b/i;
+    // "Weak" signals — natural at the start of substantive responses. Treat
+    // as no-addition only when they are essentially the WHOLE message.
+    var WEAK_NO_ADD_WHOLE = /^(done|good|fine|ready|ok|okay|sure|yep|yeah|cool|got it|got it\.?)$/i;
+
+    // P0-2: a clear "no friction / smooth / nothing to add" answer is a
+    // COMPLETE answer, even when short — the group script kept demanding a
+    // breakdown / "one concrete change" / "one central question" that
+    // didn't exist for smoothly-functioning teams (b3ec7d7d "we worked
+    // together very smoothly" kept getting pushed; bbb18af6; eef6b105).
+    var SMOOTH_NO_FRICTION = /\bsmooth(ly)?\b|\bno (real )?(friction|disagreement|conflicts?|issues?|problems?|complaints?)\b|\bnothing (to add|to change|really to change)\b|\ball (good|fine)\b/i;
+
+    function isNoAdditionResponse(s) {
+        if (!s) return false;
+        var t = s.replace(/^[\s,.\-—!?]+|[\s,.\-—!?]+$/g, '').trim();
+        if (!t) return false;
+        var words = t.split(/\s+/).filter(Boolean);
+        if (!words.length) return false;
+        // STRONG signal at start, but only when the whole message is short
+        // (≤ 10 words). Substantive responses can legitimately START with
+        // a STRONG-matching phrase — e.g. "Next week's commitment: …" for
+        // section 3.2 begins with "Next" and was previously misclassified
+        // as advance-now, dropping the entire 3.2 answer on the floor.
+        if (words.length <= 10 && STRONG_NO_ADD.test(t)) return true;
+        // WEAK signals are advance-worthy only as the whole short message.
+        if (words.length <= 3 && WEAK_NO_ADD_WHOLE.test(t)) return true;
+        return false;
+    }
+
+    function applyStudentResponseToCoverage(state, msg) {
+        if (!msg) return;
+        var i = state.current_area_index;
+        var area = state.schema.sections[i - 1];
+        var cov = state.coverage[area.id];
+        if (!cov.opened) return;  // we haven't asked yet
+
+        // Heuristic substantive-response detector: any non-trivial,
+        // non-"move-on" message counts as a response.
+        if (!isNoAdditionResponse(msg) && msg.length >= 2) {
+            cov.response_received = true;
+            // Track substantive-turn count for sub-field-aware sections
+            // (e.g. 2.3 needs at least 3 substantive answers to fill
+            // worked/challenge/improvement).
+            cov.sub_signals.substantive_turns =
+                (cov.sub_signals.substantive_turns || 0) + 1;
+        }
+
+        // Section-specific sub-signal capture for E9 thresholds.
+        if (area.id === '2.2') {
+            // Bind `has_roster` strictly to a successful extraction. The
+            // previous version flipped this from any comma/and/&/colon
+            // match — which caused state.roster to lock onto an Area-1
+            // revision message that happened to mention three capitalized
+            // tokens (Monday, Anvitha, Google Calendar) in narrative prose.
+            // Now has_roster only flips when we actually have ≥2 plausible
+            // names AND the message looks like a roster list rather than
+            // a sentence of prose / a revision request.
+            var rosterCapturedThisTurn = false;
+            if (!state.roster) {
+                var names = extractRosterNames(msg);
+                if (names && names.length >= 2) {
+                    state.roster = names;
+                    cov.sub_signals.has_roster = true;
+                    rosterCapturedThisTurn = true;
+                }
+            }
+            // Per-member walk: mark any roster name the student explicitly
+            // mentioned in this reply. Replaces the blind counter in the
+            // beforeTurn 2.2 branch — that one ticked walked++ every turn
+            // regardless of whether the LLM asked the target member or the
+            // student actually answered about them. The transcript bug:
+            // engine emitted walk(Alison), LLM ignored and re-asked Anvitha,
+            // engine still incremented walked → Alison/Diane/Jasmine never
+            // got asked and their rows came out "(not captured)".
+            //
+            // Skip on the roster-capture turn itself — the student just
+            // listed names with no contributions; auto-marking everyone
+            // walked from that one message would skip per-member coverage
+            // entirely and jump straight to the equity question.
+            if (state.roster && !rosterCapturedThisTurn) {
+                var rosterPretty2 = state.roster.filter(function (n) { return n !== 'self'; });
+                cov.sub_signals.members_walked = cov.sub_signals.members_walked || [];
+                var walkedArr = cov.sub_signals.members_walked;
+                rosterPretty2.forEach(function (member) {
+                    var memberKey = member.toLowerCase();
+                    if (walkedArr.indexOf(memberKey) !== -1) return;
+                    var firstName = member.split(/\s+/)[0];
+                    var nameRe = new RegExp('\\b' + escapeRegex(firstName) + '\\b', 'i');
+                    if (nameRe.test(msg)) walkedArr.push(memberKey);
+                });
+                // Fallback: if the LLM's last directive targeted a specific
+                // member and the student gave a substantive reply, accept
+                // that as coverage even if they didn't say the name out loud
+                // ("she ran the sketches", "yeah she did the report").
+                var lastDir = state.last_directive;
+                if (lastDir && lastDir.kind === 'roster_walk' && lastDir.target_member
+                        && !isNoAdditionResponse(msg) && msg.length >= 3) {
+                    var targetKey = lastDir.target_member.toLowerCase();
+                    if (walkedArr.indexOf(targetKey) === -1) walkedArr.push(targetKey);
+                }
+            }
+        }
+        if (area.id === '2.4') {
+            // Format-agnostic rating extraction. Students may answer ANY way
+            // — "5", "5. because...", "I'd give a 4 because...", "five —
+            // we...", "because of X, I'd say 3". Pull the first 1-5 number
+            // anywhere in the message as the rating for the current dim;
+            // strip the leading rating token (if any) to recover the
+            // justification. Auto-advance dim_cursor regardless of whether
+            // the LLM split rating-vs-justification into two turns or asked
+            // for both together (the new dirRateAndJustify directive).
+            var dims24 = (area.fields || []).filter(function (f) {
+                return f.kind === 'rating_with_justification';
+            });
+            cov.sub_signals.dim_ratings = cov.sub_signals.dim_ratings || {};
+            if (typeof cov.sub_signals.dim_cursor !== 'number') {
+                cov.sub_signals.dim_cursor = 0;
+            }
+            var ratingMatch = msg.match(/\b([1-5])\b/);
+            var dimCursor = cov.sub_signals.dim_cursor;
+            if (ratingMatch && dimCursor < dims24.length && !isNoAdditionResponse(msg)) {
+                var rating = parseInt(ratingMatch[1], 10);
+                // Strip a leading "5", "5.", "5 -", "5 —", "5:" — anything
+                // that's only a number-token before the justification.
+                var justification = msg.replace(/^\s*[1-5]\s*[.,\-—–:]?\s*/, '').trim() || msg.trim();
+                cov.sub_signals.dim_ratings[dims24[dimCursor].id] = {
+                    rating: rating,
+                    justification: justification,
+                };
+                cov.sub_signals.dim_cursor = dimCursor + 1;
+            }
+            // Legacy counter kept in sync — _force_cover_all and any other
+            // caller still reads ratings_count >= 5 as "done".
+            var nums = (msg.match(/\b[1-5]\b/g) || []).length;
+            cov.sub_signals.ratings_count = (cov.sub_signals.ratings_count || 0) + nums;
+        }
+    }
+
+    // Extract a roster from a free-form student message. Heuristic only:
+    // looks for capitalized name tokens with optional "(me)" annotation.
+    // Returns canonical name strings, or null if no plausible roster
+    // shape is detected.
+    //
+    // Splitting strategy:
+    //   - When the message contains a comma/semicolon/ampersand/" and "
+    //     delimiter, treat each delimited segment as ONE name — it may be
+    //     multi-word ("Anvitha Goli"). This is the common case once
+    //     students learn first+last is expected.
+    //   - When no such delimiter is present (e.g. "Emily Amy Sarah"),
+    //     fall back to whitespace splitting so a bare list of first names
+    //     still resolves correctly.
+    function extractRosterNames(msg) {
+        if (!msg || msg.length > 500) return null;
+        var stripped = msg.replace(/^[\s\-—–:•]+/, '').trim();
+        // Reject revision/correction messages. Students replying "oh for area
+        // 1, revise to..." or "actually I meant..." were causing the extractor
+        // to pull stray capitalized tokens (Monday, Anvitha, Google Calendar)
+        // from narrative prose and lock those onto state.roster.
+        if (/^(?:oh\s+)?(?:for\s+area|wait|hold\s+on|actually|i\s+meant|revise|rewrite)\b/i.test(stripped)) return null;
+        if (/\b(?:revise|rewrite|edit|update)\s+(?:to|that|it|my|the)\b/i.test(stripped)) return null;
+        // Multi-sentence prose (period / ! / ? followed by a capital letter)
+        // is narrative, not a roster list. A bare roster is a single sentence.
+        if (/[.!?]\s+[A-Z]/.test(stripped)) return null;
+        // Strip leading conversational noise.
+        stripped = stripped.replace(/^(?:it'?s|i'?m|we'?re|i\s+have|we\s+have|so\s+|on\s+my\s+team\s+(?:is|are|it'?s)?\s*)+/i, '').trim();
+        // Flag "(me)" or "me"/"myself" anywhere in the message.
+        var hasSelf = /\b(?:me|myself)\b/i.test(stripped) || /\(\s*me\s*\)/i.test(stripped);
+        stripped = stripped.replace(/\(\s*me\s*\)/ig, ' ');
+        var STOPLIST = /^(I|We|And|Or|The|A|An|My|Our|Team|Member|Members|Roster|Teammates|Plus|Including|Hi|Hello|Yes|No|Ok|Okay|Sure|Yeah|It|Is|Are|Be|Was|So|Total|All|Of|Us|Me|Myself|Just|Only)$/i;
+        // Did the student use comma-style delimiters? If so, each segment
+        // is one name (possibly multi-word). Otherwise, fall back to the
+        // whitespace-split heuristic so "Emily Amy Sarah" still resolves.
+        var hasDelimiters = /[,;&]|\sand\s/i.test(stripped);
+        var segments = hasDelimiters
+            ? stripped.split(/\s*[,;&]\s*|\s+and\s+/i)
+            : stripped.split(/\s+/);
+        var names = [];
+        segments.forEach(function (seg) {
+            var partTokens = seg.split(/\s+/)
+                .map(function (t) { return t.replace(/[^A-Za-z'\-]/g, ''); })
+                .filter(function (t) {
+                    if (!t) return false;
+                    if (!/^[A-Z][a-zA-Z'\-]*$/.test(t)) return false;
+                    if (t.length < 2) return false;
+                    if (STOPLIST.test(t)) return false;
+                    return true;
+                });
+            if (partTokens.length) names.push(partTokens.join(' '));
+        });
+        // Dedupe preserving order, case-insensitive.
+        var seen = {}; var out = [];
+        names.forEach(function (n) {
+            var k = n.toLowerCase();
+            if (!seen[k]) { seen[k] = 1; out.push(n); }
+        });
+        if (hasSelf) out.push('self');
+        // Plausibility: at least 2 distinct entries.
+        return out.length >= 2 ? out : null;
+    }
+
+    function areaResponseSatisfied(state, area) {
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            return normalizedFields(area).every(function (field) {
+                var fieldCov = state.field_coverage[fieldKey(field)];
+                return !!(fieldCov && fieldCov.response_received && fieldCov.complete);
+            });
+        }
+        var cov = state.coverage[area.id];
+        if (!cov.response_received) return false;
+        if (area.id === '2.4') {
+            // Spec M6: collect all dimensions' rating+justification pairs.
+            // Prefer the structured dim_cursor (one increment per captured
+            // pair via the format-agnostic parser); fall back to the legacy
+            // raw-digit count for compatibility with older transcripts /
+            // forceCoverAll() paths.
+            var dims24as = (area.fields || []).filter(function (f) {
+                return f.kind === 'rating_with_justification';
+            });
+            var need = dims24as.length || 5;
+            return (cov.sub_signals.dim_cursor || 0) >= need
+                || (cov.sub_signals.ratings_count || 0) >= need;
+        }
+        if (area.id === '2.2') {
+            if (!cov.sub_signals.has_roster) return false;
+            // After the roster is captured we walk member-by-member and then
+            // ask the equity question (the schema's depth_probe). Until both
+            // are done the section isn't satisfied — without this the engine
+            // would (a) fire shouldProbe with the equity prompt right after
+            // the roster turn and (b) skip every teammate's contribution row.
+            var rosterPretty22 = (state.roster || []).filter(function (n) { return n !== 'self'; });
+            if (!rosterPretty22.length) return false;  // no usable roster → keep asking, not "graceful pass"
+            var walked22 = (cov.sub_signals.members_walked || []).length;
+            return walked22 >= rosterPretty22.length && !!cov.sub_signals.equity_asked;
+        }
+        // Sections with multiple labeled `shortform` sub-fields (e.g. 2.3
+        // worked/challenge/improvement) need at least N substantive
+        // student turns before we can claim coverage. A single answer
+        // doesn't fill 3 fields. Without this, the bot moves on after
+        // one or two answers and the third sub-field renders as
+        // "(not captured)".
+        var shortformCount = 0;
+        (area.fields || []).forEach(function (f) {
+            if (f.kind === 'shortform') shortformCount++;
+        });
+        if (shortformCount >= 2) {
+            var turns = cov.sub_signals.substantive_turns || 0;
+            return turns >= shortformCount;
+        }
+        return true;
+    }
+
+    function shouldProbe(state, area, lastMsg) {
+        var cov = state.coverage[area.id];
+        if (cov.probe_used) return false;
+        if (!cov.response_received) return false;
+        if (areaResponseSatisfied(state, area) === false) return false;
+        // P0-2: a clear "no friction / smooth / nothing to add" reply is a
+        // complete answer even though it's short — don't probe it into
+        // manufacturing a problem that isn't there.
+        if (SMOOTH_NO_FRICTION.test(lastMsg || '')) return false;
+        // Probe if the most recent answer was thin and the area still has only
+        // the opening response. We use word count as a proxy for shallowness.
+        var threshold = (state.schema.shallow_word_threshold) || 25;
+        var wc = (lastMsg || '').split(/\s+/).filter(Boolean).length;
+        return wc > 0 && wc < threshold;
+    }
+
+    function allCovered(state) {
+        var sections = state.schema.sections;
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            for (var fsi = 0; fsi < sections.length; fsi++) {
+                if (!areaResponseSatisfied(state, sections[fsi])) return false;
+            }
+            return true;
+        }
+        for (var k = 0; k < sections.length; k++) {
+            var s = sections[k];
+            var cov = state.coverage[s.id];
+            if (!cov.response_received) return false;
+            if (!areaResponseSatisfied(state, s)) return false;
+        }
+        return true;
+    }
+
+    function countRemaining(state) {
+        var sections = state.schema.sections;
+        var c = 0;
+        if (schemaUsesFieldFlow(state.schema) && state.field_coverage) {
+            for (var fsi = 0; fsi < sections.length; fsi++) {
+                normalizedFields(sections[fsi]).forEach(function (field) {
+                    var fieldCov = state.field_coverage[fieldKey(field)];
+                    if (!fieldCov || !fieldCov.complete) c++;
+                });
+            }
+            return c;
+        }
+        for (var k = 0; k < sections.length; k++) {
+            var s = sections[k];
+            if (!state.coverage[s.id].response_received || !areaResponseSatisfied(state, s)) c++;
+        }
+        return c;
+    }
+
+    function startsWithPrefix(s, prefix) {
+        return (s || '').slice(0, prefix.length) === prefix;
+    }
+
+    // Heuristic: does this bot reply look like the closing-feedback question?
+    // We compare against the schema's closing.feedback_prompt by extracting
+    // a few salient phrases (the longest distinctive substring) and checking
+    // if displayed contains it. Falls back to keyword overlap.
+    function looksLikeClosingFeedback(displayed, closingPrompt) {
+        if (!displayed || !closingPrompt) return false;
+        var d = displayed.toLowerCase();
+        // Pull a salient phrase from the closing prompt — first 40 chars after
+        // any leading "Last thing —" or "Final question:"-style preamble.
+        var key = closingPrompt.toLowerCase().replace(/^[^a-z]+/, '');
+        // Try increasingly long substrings of the key as fingerprints.
+        // ADDITIVE ONLY — hci271 and logged transcripts still use the OLD
+        // wording, so OLD candidates must never be removed, only added to.
+        var candidates = [
+            // OLD (CMPM 80H INDIVIDUAL, pre-P0-4) + hci271.
+            'surface more honest reflection than filling out the pdf',
+            'work better next week',
+            'more honest reflection',
+            'filling out the pdf',
+            // OLD locked wording actually ends "...next time?", not "next
+            // week" — the candidate above predates that; keep both so any
+            // OLD-wording transcript is still detected.
+            'work better next time',
+            // NEW (P0-4) wording, CMPM 80H only.
+            'compare to writing your reflection on your own', // INDIVIDUAL
+            'talking through your team',                      // GROUP
+            'process this way work for you',                  // GROUP (2nd anchor)
+        ];
+        for (var k = 0; k < candidates.length; k++) {
+            if (d.indexOf(candidates[k]) !== -1) return true;
+        }
+        // Fallback: the schema's exact phrase (truncated to 30 chars).
+        if (key.length >= 20 && d.indexOf(key.slice(0, 30)) !== -1) return true;
+        return false;
+    }
+
+    // Force-mark every section as covered. Used when the engine needs to
+    // synthetically conclude the conversation (e.g. after the bot has asked
+    // the closing-feedback question).
+    function forceCoverAll(state) {
+        var sections = state.schema.sections;
+        if (state.field_coverage) {
+            sections.forEach(function (section) {
+                normalizedFields(section).forEach(function (field) {
+                    var fieldCov = state.field_coverage[fieldKey(field)];
+                    if (!fieldCov) return;
+                    fieldCov.asked = true;
+                    fieldCov.response_received = true;
+                    fieldCov.complete = true;
+                });
+            });
+        }
+        for (var k = 0; k < sections.length; k++) {
+            var s = sections[k];
+            var cov = state.coverage[s.id];
+            cov.opened = true;
+            cov.response_received = true;
+            if (s.id === '2.4') {
+                var dims24fc = (s.fields || []).filter(function (f) {
+                    return f.kind === 'rating_with_justification';
+                });
+                var need24fc = dims24fc.length || 5;
+                cov.sub_signals.ratings_count = Math.max(cov.sub_signals.ratings_count || 0, need24fc);
+                cov.sub_signals.dim_cursor = Math.max(cov.sub_signals.dim_cursor || 0, need24fc);
+            }
+            if (s.id === '2.2') {
+                cov.sub_signals.has_roster = true;
+                // After force-cover, _area_response_satisfied now requires
+                // the per-member walk + equity_asked too — fill those so a
+                // forced close still satisfies 2.2.
+                var rosterPrettyFC = (state.roster || []).filter(function (n) { return n !== 'self'; });
+                cov.sub_signals.members_walked = (cov.sub_signals.members_walked || []).slice();
+                while (cov.sub_signals.members_walked.length < rosterPrettyFC.length) {
+                    cov.sub_signals.members_walked.push(rosterPrettyFC[cov.sub_signals.members_walked.length].toLowerCase());
+                }
+                cov.sub_signals.equity_asked = true;
+            }
+        }
+        state.current_area_index = sections.length;
+        state.field_cursor = Math.max(0, normalizedFields(sections[sections.length - 1]).length - 1);
+        state.awaiting_anything_else = false;
+    }
+
+    // Detect a "natural advance" header emitted by the LLM. Returns the
+    // largest forward area index (1-based) the LLM is plausibly moving to,
+    // or the engine's current index if no forward advance is detected.
+    function detectForwardAdvance(state, displayed) {
+        var n = state.schema.sections.length;
+        var current = state.current_area_index;
+        var headerRe = /Area\s+(\d+)\s+of\s+(\d+)\s+[—\-]\s+([^.\n]+?)\s*\./gi;
+        var m;
+        var bestForward = current;
+        while ((m = headerRe.exec(displayed)) !== null) {
+            var idx = parseInt(m[1], 10);
+            var total = parseInt(m[2], 10);
+            if (total !== n) continue;
+            if (idx <= current) continue;
+            if (idx > n) continue;
+            var schemaTitle = state.schema.sections[idx - 1].title;
+            var emittedTitle = (m[3] || '').trim();
+            var lhs = schemaTitle.toLowerCase().slice(0, 8);
+            var rhs = emittedTitle.toLowerCase().slice(0, 8);
+            if (lhs === rhs && idx > bestForward) bestForward = idx;
+        }
+        return bestForward;
+    }
+
+    // Remove any "Area X of N — Title" header from `text` whose index does NOT
+    // match the engine's current area. Tolerates either ASCII hyphen or em-dash.
+    function stripWrongSectionHeaders(text, currentIdx, totalN, currentTitle) {
+        if (!text) return text;
+        var headerRe = /Area\s+(\d+)\s+of\s+(\d+)\s+[—\-]\s+([^.\n]+?)\s*\./gi;
+        return text.replace(headerRe, function (match, idx, total, title) {
+            var idxN = parseInt(idx, 10);
+            var totalNum = parseInt(total, 10);
+            if (idxN === currentIdx && totalNum === totalN) {
+                return match;  // matches engine — keep
+            }
+            // Out-of-order or wrong-N — drop entirely (strip trailing ws too).
+            return '';
+        }).replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // ─── directive builders ──────────────────────────────────────────────
+
+    function dirFieldQuestion(state, area, field, isProbe, isOpening) {
+        var fields = normalizedFields(area);
+        var fieldIndex = Math.max(0, fields.findIndex(function (candidate) {
+            return candidate.id === field.id;
+        }));
+        var kindGuidance = {
+            shortform: 'Invite one concise, focused response.',
+            longform: 'Invite a fuller response with the detail the student thinks matters.',
+            rating_with_justification: 'Ask for a rating and a brief reason in the same response.',
+            table: 'Ask for the rows or list items needed for this field in one response.',
+        }[field.kind] || 'Invite one focused response.';
+        var directiveKind = isProbe ? 'field_probe' : (isOpening ? 'field_opening' : 'field_question');
+        var studentQuestion = studentQuestionForField(field);
+        var lines = [
+            '[DIRECTIVE FOR THIS TURN — FIELD ' + (fieldIndex + 1) + ' OF ' + fields.length + ']',
+            isOpening
+                ? 'Briefly greet the student and say you will walk through the reflection one question at a time.'
+                : 'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair), then ask the question.',
+            'CURRENT CANONICAL FIELD LABEL: "' + field.label + '"',
+            isProbe
+                ? 'Ask ONLY this field. Rephrase it more concretely without changing its meaning.'
+                : 'REQUIRED STUDENT QUESTION — ask this exact question verbatim: "' + studentQuestion + '"',
+            'Do NOT ask, mention, preview, or combine any other field in this section.',
+            kindGuidance,
+        ];
+        if (isProbe) {
+            lines.push('This is the one allowed same-field follow-up. Rephrase the current label more concretely or ask for one specific example. Do NOT switch fields and do NOT probe this field again after the student replies.');
+        }
+        lines.push('Use exactly one question. Under 350 characters. Output only what you would say to the student.');
+        return {
+            kind: directiveKind,
+            section_id: area.id,
+            field_id: field.id,
+            field_label: field.label,
+            field_kind: field.kind,
+            student_question: studentQuestion,
+            response_phase: isProbe ? 'probe' : 'primary',
+            text: withRoster(state, lines).join('\n'),
+        };
+    }
+
+    function dirOpening(state, area) {
+        var schema = state.schema;
+        var partsBlurb = (typeof schema.parts_blurb === 'string' && schema.parts_blurb.trim())
+            ? schema.parts_blurb.trim()
+            : 'from this week\'s template';
+        return {
+            kind: 'opening',
+            text: [
+                '[DIRECTIVE FOR THIS TURN]',
+                'This is the OPENING turn.',
+                '1. Greet the student briefly.',
+                '2. Tell them: "I\'ll walk you through ' + schema.sections.length + ' reflection areas ' + partsBlurb + '. You can ask to revise an earlier answer at any time, and you\'ll get a downloadable artifact at the end."',
+                '3. Then ask the opening question for Area 1: ' + area.title + '. Use this question or rephrase tightly: "' + area.opening_prompt + '"',
+                'Do NOT include the "Area 1 of ' + schema.sections.length + ' — ' + area.title + '." prefix yourself — engine will prepend it.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with that opening question.',
+            ].join('\n'),
+        };
+    }
+
+    function dirOpenArea(state, area, i, n) {
+        return {
+            kind: 'open_area',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You just finished the previous area. Now open Area ' + i + ' of ' + n + ': ' + area.title + '.',
+                'Ask this opening question (rephrase tightly if needed, but keep the substance): "' + area.opening_prompt + '"',
+                'Do NOT include the "Area ' + i + ' of ' + n + ' — ' + area.title + '." prefix — engine will prepend it.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with the opening question. A pure ack ("Got it, sounds like we\'ve captured that.") strands the student and breaks the flow — always pivot into the next area\'s question.',
+            ]).join('\n'),
+        };
+    }
+
+    function dirProbe(state, area) {
+        return {
+            kind: 'probe',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'The student\'s answer was thin. Probe ONCE for specificity. Use the area\'s probe text or rephrase: "' + (area.depth_probe || 'Can you anchor that in a specific moment, example, or piece of evidence?') + '"',
+                'After this probe, regardless of the student\'s response, the engine will move on. Do not probe again.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the probe question.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST contain the probe question. Do not end on an ack alone — always ask.',
+            ]).join('\n'),
+        };
+    }
+
+    function dirAnythingElse(state, area) {
+        // Rotate the wrap-up phrasing by turn index so a re-asked wrap-up (when
+        // the student gives a non-advancing reply) is never verbatim-identical.
+        var wrapVariants = [
+            'Anything else on ' + area.topic + ' before we move on?',
+            'Anything you\'d add on ' + area.topic + ', or are you good to move on?',
+            'Is there more on ' + area.topic + ', or shall we continue?',
+        ];
+        var wrapQ = wrapVariants[(state.turns_in_current_area || 0) % wrapVariants.length];
+        return {
+            kind: 'anything_else',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'The student has answered the area substantively. Now ask a brief wrap-up question, e.g.: "' + wrapQ + '"',
+                'If you asked a wrap-up question last turn, do NOT repeat it verbatim — reword it so it does not feel canned.',
+                'Do NOT advance to the next area in this message — engine handles that on the next turn based on the student\'s reply.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the wrap-up question. Under 350 characters.',
+                'REQUIRED: your reply MUST end with that wrap-up question. Acknowledgement-only replies (e.g. "Thanks, I\'ve captured that.") leave the student stranded — the chat stalls until they type "what next?". Always include the question.',
+            ]).join('\n'),
+        };
+    }
+
+    function dirContinueArea(state, area, i, n) {
+        return {
+            kind: 'continue',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You are still on Area ' + i + ' of ' + n + ': ' + area.title + '. Continue gathering substantive content for this area.',
+                'Already-asked opening question (do NOT re-ask verbatim — the student has heard it): "' + area.opening_prompt + '"',
+                'Pick a different angle: a sub-field that hasn\'t been answered yet, a concrete example, a counter-example, an improvement, or evidence the student hasn\'t given. ONE question only.',
+                'STRICT: do NOT repeat, paraphrase, restate, or echo the opening question above — it is already in the transcript. Asking a new angle means asking something genuinely different, not the opening question with new wording.',
+                'STRICT: emit EXACTLY ONE question mark ("?") in your reply. Two or more topics ending in "?" is forbidden — pick one.',
+                'Begin with ONE allowlisted acknowledgement (Got it / Okay / Mm / Noted / Fair — no quoting the student), then the question.',
+                'Do NOT advance to the next area.',
+                'REQUIRED: your reply MUST contain a question (one ?). Acknowledgement-only replies stall the chat and force the student to type "what next?" — never end on an ack alone.',
+                'Under 350 characters.',
+            ]).join('\n'),
+        };
+    }
+
+    // 2.2 helper: ask about the next un-walked teammate. Drives the
+    // member-by-member contribution capture so the exported roster table
+    // isn't all "(not captured)" rows.
+    function dirRosterWalk(state, area, nextMember, remainingAfter) {
+        var tail = remainingAfter > 0
+            ? 'After this teammate you still have ' + remainingAfter + ' more to walk through before the equity question.'
+            : 'This is the last teammate before the equity question.';
+        return {
+            kind: 'roster_walk',
+            target_member: nextMember,
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You captured the roster. Now walk through teammates ONE AT A TIME — this turn is about exactly ONE teammate: ' + nextMember + '.',
+                'Phrasing: "What did ' + nextMember + ' primarily contribute this week?" (rephrase tightly if needed, but the name "' + nextMember + '" must appear verbatim).',
+                'Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the single question about ' + nextMember + '.',
+                'Do NOT bundle multiple teammates. Do NOT ask the equity question yet. Do NOT advance to the next area.',
+                tail,
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with a question asking about ' + nextMember + '.',
+            ]).join('\n'),
+        };
+    }
+
+    // 2.2 helper: after every roster member has been walked, ask the
+    // equity question once. The "if not, what would you change?" trailer
+    // is intentionally NOT bundled — the prompt says to probe in the
+    // following turn only if the student answers no.
+    function dirAskEquity(state, area) {
+        return {
+            kind: 'ask_equity',
+            text: withRoster(state, [
+                '[DIRECTIVE FOR THIS TURN]',
+                'Every teammate contribution is captured. Now ask the equity question — ONE question only.',
+                'Phrasing: "Was the distribution of work equitable this week?" (rephrase tightly if needed).',
+                'Do NOT bundle "and if not what would you change?" — if they answer no, you can probe in a later turn.',
+                'Brief acknowledgement of the previous answer (one of the allowlisted forms only) + the equity question.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with the equity question.',
+            ]).join('\n'),
+        };
+    }
+
+    // 2.4 helper: ask for ONE dimension's rating + justification together in
+    // a single turn. Previously the engine had no per-dim state and the LLM
+    // would split each dim into two turns (justification first, then rating
+    // — or vice versa). When the student gave a leading rating + reason
+    // ("5. We were all on the same page...") in one turn, the LLM would
+    // still re-ask the rating, the student would drift one dim ahead, and
+    // ratings could get paired with the wrong dim's justification.
+    // Combining the ask into one turn lets the engine commit both halves
+    // from the student's single reply (any format — see the parser in
+    // applyStudentResponseToCoverage's 2.4 branch).
+    function dirRateAndJustify(state, area, dimField, dimIdx, totalDims) {
+        var dimLabel = dimField.dimension || dimField.label || dimField.id;
+        var dimNum = dimIdx + 1;
+        var cov = state.coverage[area.id];
+        var ratings = (cov && cov.sub_signals && cov.sub_signals.dim_ratings) || {};
+        var dims = (area.fields || []).filter(function (f) { return f.kind === 'rating_with_justification'; });
+        var doneLines = [];
+        for (var d = 0; d < dimIdx; d++) {
+            var df = dims[d];
+            var r = ratings[df.id];
+            if (r) doneLines.push('  [done] Dim ' + (d + 1) + ' "' + (df.dimension || df.label || df.id) + '" → ' + r.rating);
+        }
+        var prevBlock = doneLines.length ? '[ALREADY CAPTURED]\n' + doneLines.join('\n') : '';
+        return {
+            kind: 'rate_and_justify',
+            target_dim: dimField.id,
+            text: [
+                '[DIRECTIVE FOR THIS TURN]',
+                'You are on Area 2.4, dimension ' + dimNum + ' of ' + totalDims + ': "' + dimLabel + '"',
+                prevBlock,
+                'Ask the student for BOTH a 1-5 rating AND a brief justification in ONE question, one turn. Do NOT split rating and justification into two separate turns — that causes the student to drift one dimension ahead.',
+                'Phrasing example: "For dimension ' + dimNum + ' — \'' + dimLabel + '\' — what 1-5 rating would you give it, and briefly why?"',
+                'The student may answer in ANY format — "5. because...", "I\'d give a 4 because...", "five — we...", "because of X, rate 3". The engine parses any 1-5 number in any position as the rating and captures the rest as justification. Just acknowledge and move on to the next dimension.',
+                'Brief acknowledgement of the previous dimension\'s answer (one of the allowlisted forms only) + the rate-and-justify question.',
+                'One question only. Under 350 characters.',
+                'REQUIRED: your reply MUST end with a single question asking for both rating and justification.',
+            ].filter(function (s) { return s !== ''; }).join('\n'),
+        };
+    }
+
+    // Prepend a [ROSTER] block to a directive's body lines if the engine has
+    // a frozen roster. The bot must reference these names verbatim — this
+    // shuts down the Lewis→Louise drift seen in production transcripts.
+    function withRoster(state, lines) {
+        if (!state.roster || !state.roster.length) return lines;
+        var pretty = state.roster.filter(function (n) { return n !== 'self'; });
+        var hasSelf = state.roster.indexOf('self') !== -1;
+        var rosterStr = pretty.join(', ') + (hasSelf ? ' (plus the student themselves)' : '');
+        var rosterBlock = [
+            '[ROSTER — frozen, use exactly these spellings]',
+            rosterStr,
+            'When referring to teammates, use these EXACT names. Do not substitute similar-sounding names. Do not invent pronouns the student didn\'t state. If unsure of a teammate\'s gender, refer to them by name only.',
+            '',
+        ];
+        return rosterBlock.concat(lines);
+    }
+
+    function dirClose(state) {
+        return {
+            kind: 'close',
+            text: [
+                '[DIRECTIVE FOR THIS TURN]',
+                'All ' + state.schema.sections.length + ' areas have been covered. Wrap up by asking ONE question: "' + (state.schema.closing && state.schema.closing.feedback_prompt ? state.schema.closing.feedback_prompt : CLOSING_FEEDBACK_FALLBACK) + '"',
+                'The engine handles closing internally — you do not need to signal completion. Just ask the closing question and wait for the student\'s answer.',
+                'REQUIRED: your reply MUST end with that closing question. The student needs the chance to answer it before the chat completes.',
+                'Under 350 characters.',
+            ].join('\n'),
+        };
+    }
+
+    function dirFinalAck(state) {
+        return {
+            kind: 'final_ack',
+            text: [
+                '[DIRECTIVE FOR THIS TURN]',
+                'The student just answered the closing-feedback question. Your reply MUST be a single short acknowledgement (≤ 1 sentence, no question, no section header).',
+                'The engine will mark the conversation complete internally after this turn — do not emit any sentinel or end marker.',
+                'Examples: "Thanks, noted." / "Got it, that\'s helpful — appreciate the time."',
+            ].join('\n'),
+        };
+    }
+
+    function dirPostEnd(state) {
+        var n = state.schema.sections.length;
+        return {
+            kind: 'post_end',
+            text: [
+                '[DIRECTIVE FOR THIS TURN — POST-END]',
+                'All ' + n + ' reflection areas are already captured and the structured download is available to the student. They are still chatting because they may want to revise an earlier answer, add a clarification, or ask a question about the reflection.',
+                'Respond conversationally and briefly (≤ 350 characters).',
+                'Do NOT re-open completed sections. Do NOT emit a section header (no "Area X of N — Title."). Do NOT emit any control sentinel or end marker. Do NOT explain course methods or readings — refuse and redirect.',
+                'If the student asks where the download is: tell them the "Download my reflection" button is in the chat footer below.',
+                'If the student revises a teammate name, role, rating, open question, or commitment: acknowledge briefly ("Got it — updating to <X>.") so the new wording lands in the transcript and is picked up when they re-download.',
+            ].join('\n'),
+        };
+    }
+
+    // Append a deterministic forward-moving question if the LLM's reply
+    // dropped it. Only fires for directive kinds that require a question.
+    // Skips final_ack (intentionally ack-only) and post_end (free-form).
+    function ensureForwardQuestion(state, displayed, directiveKind, area, n, i) {
+        if (!directiveKind) return displayed;
+        if (directiveKind === 'final_ack' || directiveKind === 'post_end') return displayed;
+        // Quick check — if any '?' or '？' is present we accept the reply.
+        if (/[?？]/.test(displayed)) return displayed;
+        var q = '';
+        if (directiveKind === 'field_opening' || directiveKind === 'field_question' || directiveKind === 'field_probe') {
+            var field = currentField(state);
+            q = field ? field.label : '';
+        } else if (directiveKind === 'opening' || directiveKind === 'open_area' || directiveKind === 'continue') {
+            q = area && area.opening_prompt ? area.opening_prompt : '';
+        } else if (directiveKind === 'anything_else') {
+            var topic = (area && (area.topic || area.title)) || 'this area';
+            q = 'Anything else on ' + topic + ' before we move on?';
+        } else if (directiveKind === 'probe') {
+            q = (area && area.depth_probe) ||
+                'Can you anchor that in a specific moment, example, or piece of evidence?';
+        } else if (directiveKind === 'close') {
+            q = (state.schema.closing && state.schema.closing.feedback_prompt) ||
+                CLOSING_FEEDBACK_FALLBACK;
+        }
+        if (!q) return displayed;
+        // If the reply is empty or near-empty, just emit the question. Else
+        // append after a separator so the ack reads naturally.
+        var trimmed = (displayed || '').trim();
+        if (!trimmed) return q;
+        return trimmed + ' ' + q;
+    }
+
+    function mkBefore(opts) {
+        return {
+            shortCircuit: !!opts.shortCircuit,
+            syntheticResponse: opts.syntheticResponse || '',
+            directive: opts.directive || null,
+            ended: !!opts.ended,
+            responseAttribution: opts.responseAttribution || null,
+        };
+    }
+
+    function extractSectionAnswer(section, transcript) {
+        // Build a list of (turn_index, section_number) markers by scanning
+        // every bot turn for "Area X of N — Title" — anywhere in the text,
+        // not just at the start. Then capture all student turns between this
+        // section's marker and the next section's marker.
+        var markerRe = /Area\s+(\d+)\s+of\s+(\d+)\s+[—\-]\s+([^.\n]+?)\s*\./gi;
+        var markers = [];
+        for (var i = 0; i < transcript.length; i++) {
+            var t = transcript[i];
+            if (t.role !== 'assistant') continue;
+            markerRe.lastIndex = 0;
+            var m;
+            while ((m = markerRe.exec(t.text)) !== null) {
+                markers.push({ turn: i, sectionNum: parseInt(m[1], 10), title: (m[3] || '').trim() });
+            }
+        }
+        // Find this section's index in the schema (1-based).
+        var sectionNum = section.id;
+        // The markers carry "Area X of N" where X is the schema position
+        // (1-based ordinal), not section.id. Map by position.
+        // Caller passes section objects in schema order — find index by id.
+        // We need the schema ordinal. Walk transcript to find first marker
+        // with a matching title (loose, first 8 chars).
+        var titleKey = section.title.toLowerCase().slice(0, 12);
+        var startTurn = -1;
+        var endTurn = transcript.length;
+        for (var k = 0; k < markers.length; k++) {
+            var mk = markers[k];
+            var mkKey = mk.title.toLowerCase().slice(0, 12);
+            if (mkKey === titleKey) {
+                startTurn = mk.turn;
+                // Find the next marker with a different title.
+                for (var j = k + 1; j < markers.length; j++) {
+                    var nextKey = markers[j].title.toLowerCase().slice(0, 12);
+                    if (nextKey !== titleKey) { endTurn = markers[j].turn; break; }
+                }
+                break;
+            }
+        }
+        if (startTurn === -1) return '';
+        var captured = [];
+        for (var p = startTurn + 1; p < endTurn; p++) {
+            if (transcript[p].role === 'user') captured.push(transcript[p].text);
+        }
+        return captured.join('\n\n');
+    }
+
+    function escapeRegex(s) { return (s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    // ─── exports ──────────────────────────────────────────────────────────
+
+    if (typeof module !== 'undefined' && module.exports) {
+        module.exports = leaiFormMode;
+    }
+    global.leaiFormMode = leaiFormMode;
+
+})(typeof window !== 'undefined' ? window : globalThis);

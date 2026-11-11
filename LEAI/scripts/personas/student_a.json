@@ -1,0 +1,31 @@
+{
+  "name": "Student A — engaged, gold path (Team 1)",
+  "notes": "TEAM survey. Walks through Parts 2.1, 2.2, 2.3, 2.4, 3.1, 3.2 with concrete moments, names, and 1-5 ratings. Designed to be the gold reference transcript that the bot SHOULD be able to drive cleanly under the form-mode engine.",
+  "team_number": 1,
+  "team_id": 6,
+  "turns": [
+    "Hey, I'm on Team 1. Ready to walk through Week 6.",
+    "We had a partial shared understanding — Monday standup was 25 minutes and we left thinking we agreed, but by Tuesday afternoon I realized two of us were doing duplicative coding while the other two were already affinity-clustering. We had to redo about an hour of Marco's work on Wednesday morning.",
+    "We adapted on Wednesday morning by adding a 15-minute mid-week sync and writing every task on a shared board with a single-owner rule. Right call — it cost 15 minutes total and saved us probably 4 hours of duplicated work later in the week.",
+    "Roster: me (call me A), Marco, Devi, Yusuf — four people on Team 1.",
+    "I drove the user-interview synthesis — coded 60 of our 180 stickies and wrote first-pass cluster labels.",
+    "Marco transcribed the bulk of the raw interview notes and was the team's 'so what' challenger during clustering. He kept asking 'so what?' on every observation and that single phrase forced us to filter out about 40% of our stickies.",
+    "Devi led the affinity wall physically and started the first three clusters. Strong start, but for the first 45 minutes she was moving too fast for the rest of us to read. Once we asked her to slow down, the clusters got more honest.",
+    "Yusuf focused on the literature side — read Braun and Clarke and the NN/g pitfalls article and brought specific terminology to our debrief. Less hands-on synthesis but raised the methodological bar.",
+    "Distribution was mostly equitable but Yusuf did less hands-on synthesis. If I could change one thing I'd have asked him to drive one cluster end-to-end so he gets the same hands-on reps as the rest of us.",
+    "What worked: the Wednesday 15-minute sync. Specifically we ended each one by saying one sentence about what we'd do before lunch, and that one-sentence rule killed the ambiguity that ate Tuesday.",
+    "What broke down: a Tuesday afternoon Slack thread on whether to merge two clusters. Four people typed past each other for 40 minutes, no decision, two of us walked away thinking we'd merged and two thinking we hadn't. Wednesday morning we were working from two different versions of the wall.",
+    "Improvement next week: any decision that takes more than five Slack messages becomes a 5-minute synchronous call. Measurable — I can count Slack threads on Friday.",
+    "Ready for ratings.",
+    "Justification first: by Wednesday we had a clear shared goal but Monday we did not. Net I'd give it a 3.",
+    "Justification: everyone got airtime, but Yusuf's methodological contributions felt slightly undervalued in the moment because they didn't translate to sticky counts. 4.",
+    "Justification: the Slack-thread incident proves we still resolve disagreements by attrition rather than constructively. Rest of the week was fine. 3.",
+    "Justification: we hit our internal Friday deadline for the affinity wall photo and the cluster doc. 5.",
+    "Justification: confident about the synthesis but uncertain whether our clusters point to one coherent design direction or three. 4.",
+    "Our biggest open question is whether the three insight clusters we landed on — trust, error recovery, and self-paced exploration — actually map to one coherent user need or whether we're seeing three different user types and need to segment.",
+    "It's the bottleneck because if they're one need we converge fast; if they're three we have to choose, and that choice has weeks of consequences for our design direction.",
+    "Next week's commitment: by Wednesday we will have either (a) a single user-need statement that absorbs all three clusters or (b) an explicit segmentation rationale that picks one cluster as primary. Observable signal: the statement is in our Notion doc and all four of us have signed off on it in writing.",
+    "I think we're done. Anything else you need?",
+    "Honestly this surfaced way more honest reflection than the PDF would have, especially the team-dynamics part. PDF I'd skim. Improvement: maybe show me a small 'section 4 of 6' indicator so I know how much is left."
+  ]
+}

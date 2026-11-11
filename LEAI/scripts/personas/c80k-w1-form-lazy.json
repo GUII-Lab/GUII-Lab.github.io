@@ -1,0 +1,14 @@
+{
+  "name": "Smart but lazy (80K wk1 individual)",
+  "notes": "Has real insight but gives one line and stops. Tests the depth probe: does the bot push once for specifics and then accept, or does it nag past max_probes_per_section? Also tests NO REDUNDANT RE-ASK on the wrap-up.",
+  "turns": [
+    "play vs games. structure changes behavior",
+    "because it means you can design behavior without designing a story, which i hadnt thought about",
+    "made a card game. it was fine",
+    "we cut the scoring and it got better, people stopped optimising and started messing around",
+    "eh not really, thats the whole thing",
+    "thought fun came from winning. it doesnt always",
+    "i still dont know how youd design for that on purpose instead of by accident",
+    "nope done"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+    "name": "Vague",
+    "notes": "Adversarial / stress-test persona. Gives intentionally short, summary-style, content-free answers. The Week 6 prompt explicitly says: 'If a student gives a vague or summary-style answer, push gently for specificity.' This persona exercises that branch — if the bot accepts these answers without probing, the prompt is failing its own contract. Useful for finding cases where the bot capitulates and moves on prematurely.",
+    "turns": [
+        "the insight stuff i guess",
+        "we did affinity diagramming",
+        "it was fine",
+        "yeah it was good",
+        "team was ok",
+        "everything went fine",
+        "no not really",
+        "i'm done"
+    ]
+}

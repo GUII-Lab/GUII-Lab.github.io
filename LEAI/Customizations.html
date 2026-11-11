@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEAI Customizations</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="leai-tailwind-config.js?v=v0.3.0"></script>
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-font-size-3&amp;response-export=consent-color">
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+
+        .page-header {
+            padding: 20px 28px 16px;
+            border-bottom: 1px solid var(--surface-mid);
+            background: var(--surface-card);
+            flex-shrink: 0;
+        }
+        .page-header h1 {
+            font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em;
+            color: var(--text); line-height: 1.2; margin-bottom: 4px;
+        }
+        .page-header p { color: var(--text-variant); font-size: 0.82rem; line-height: 1.5; }
+
+        .cb-scroll { flex: 1; overflow-y: auto; padding: 24px 28px 48px; }
+        .cb-card {
+            max-width: 720px; background: var(--surface-card);
+            border: 1px solid var(--surface-mid); border-radius: var(--radius-md);
+            padding: 22px 24px; margin-bottom: 20px;
+        }
+        .cb-card h2 {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--muted); margin-bottom: 14px;
+        }
+        .cb-field { margin-bottom: 18px; }
+        .cb-field:last-child { margin-bottom: 0; }
+        .cb-field > label {
+            display: block; font-size: 0.85rem; font-weight: 600;
+            color: var(--text); margin-bottom: 6px;
+        }
+        .cb-hint { font-size: 0.76rem; color: var(--muted); line-height: 1.5; margin-top: 4px; }
+
+        input.cb-input {
+            width: 100%; padding: 10px 12px; border: 1px solid var(--surface-mid);
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.88rem;
+            color: var(--text); background: var(--surface);
+        }
+        input.cb-input:focus { outline: none; border-color: var(--primary); }
+        .cb-text-meta {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 6px;
+        }
+        .cb-link-btn {
+            background: none; border: none; color: var(--primary); cursor: pointer;
+            font-family: inherit; font-size: 0.78rem; padding: 0; font-weight: 600;
+        }
+        .cb-link-btn:hover { text-decoration: underline; }
+        .cb-count { font-size: 0.74rem; color: var(--muted); }
+        .cb-count.over { color: #dc2626; font-weight: 600; }
+
+        /* Live preview — mirrors the AI message tag students see in chat. */
+        .cb-preview-frame {
+            border: 1px dashed var(--surface-mid); border-radius: var(--radius-sm);
+            background: repeating-linear-gradient(45deg, var(--surface), var(--surface) 10px, var(--surface-card) 10px, var(--surface-card) 20px);
+            padding: 16px;
+        }
+        .cbp-meta { display: flex; align-items: center; gap: 8px; }
+        .cbp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+        .cbp-label {
+            font-size: 0.66rem; font-weight: 700; color: var(--primary);
+            text-transform: uppercase; letter-spacing: 0.09em;
+        }
+        .cbp-time { font-size: 0.66rem; color: var(--muted); }
+        .cbp-body {
+            padding-left: 28px; margin-left: 4px; margin-top: 6px;
+            border-left: 1px solid rgba(169,180,183,0.35);
+            font-size: 0.9rem; color: var(--text); line-height: 1.5;
+        }
+
+        .cb-actions { display: flex; align-items: center; gap: 14px; }
+        #cb-save-msg, #exp-save-msg { font-size: 0.82rem; }
+        #cb-save-msg.ok, #exp-save-msg.ok { color: var(--primary); }
+        #cb-save-msg.err, #exp-save-msg.err { color: #dc2626; }
+
+        /* Experimental settings modal — reached only via the unlabeled gear in
+           the sidebar header. Reuses the cb-card look inside an overlay. */
+        .exp-overlay {
+            display: none; position: fixed; inset: 0; z-index: 200;
+            background: rgba(15, 23, 26, 0.55);
+            align-items: center; justify-content: center; padding: 24px;
+        }
+        .exp-overlay.open { display: flex; }
+        .exp-panel {
+            width: 100%; max-width: 520px; background: var(--surface-card);
+            border: 1px solid var(--surface-mid); border-radius: var(--radius-md);
+            padding: 22px 24px; box-shadow: 0 18px 48px rgba(0,0,0,0.25);
+            max-height: calc(100vh - 48px); overflow-y: auto; box-sizing: border-box;
+        }
+        .exp-panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .exp-panel-header h2 {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.07em; color: var(--muted);
+        }
+        .exp-close {
+            background: none; border: none; cursor: pointer; color: var(--muted);
+            padding: 4px; line-height: 0; border-radius: 4px;
+        }
+        .exp-close:hover { color: var(--text); background: var(--surface-low); }
+        .exp-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+        #login-screen, .app-main, .exp-panel { --muted: #52636e; }
+    </style>
+</head>
+<body>
+
+<div id="login-screen">
+    <div class="login-card">
+        <div class="login-logo">LEAI</div>
+        <h1>Customizations</h1>
+        <p>Enter your course ID and dashboard password to customize the AI assistant for your class.</p>
+        <p style="margin-top:8px;font-size:0.82rem"><a href="instructor-guide.html" style="color:var(--primary)">View Instructor Guide &rarr;</a></p>
+        <label style="margin-top:14px">Course ID</label>
+        <input type="text" id="login-course-id" placeholder="Enter course ID" oninput="this.value=this.value.toLowerCase()" />
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Dashboard password" />
+        <button class="btn btn-primary" id="login-btn">Sign In</button>
+        <div id="login-msg"></div>
+        <p class="login-help">Need help? Contact your course administrator.</p>
+    </div>
+</div>
+
+<!-- App -->
+<div id="app">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand">
+                <span class="sidebar-logo">LEAI</span>
+                <span class="sidebar-course-id" id="sidebar-course-id"></span>
+            </div>
+            <!-- Deliberately unlabeled: opens the experimental-settings panel.
+                 Not linked from anywhere else — obscurity by design. -->
+            <button class="sidebar-toggle" id="exp-settings-btn" aria-label="Settings">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51h.09a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+            <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="sidebar-nav">
+            <a href="PromptDesigner.html" class="sidebar-item" id="nav-prompt-designer" title="Prompt Designer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                <span class="sidebar-label">Prompt Designer</span>
+            </a>
+            <a href="FeedbackAnalyzer.html" class="sidebar-item" id="nav-feedback-analyzer" title="Feedback Analyzer">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                <span class="sidebar-label">Feedback Analyzer</span>
+            </a>
+            <a href="FeedbackChat.html" class="sidebar-item" id="nav-feedback-chat" title="Feedback Chat">
+                <span class="material-symbols-outlined">forum</span>
+                <span class="sidebar-label">Feedback Chat</span>
+            </a>
+            <a href="CourseBanner.html" class="sidebar-item" id="nav-course-banner" title="Course Banner">
+                <span class="material-symbols-outlined">campaign</span>
+                <span class="sidebar-label">Course Banner</span>
+            </a>
+            <a href="Customizations.html" class="sidebar-item" id="nav-customizations" title="Customizations">
+                <span class="material-symbols-outlined">tune</span>
+                <span class="sidebar-label">Customizations</span>
+            </a>
+            <a href="instructor-guide.html" class="sidebar-item" title="Instructor Guide">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span class="sidebar-label">Instructor Guide</span>
+            </a>
+        </div>
+        <div class="sidebar-footer">
+            <div class="sidebar-version" data-leai-version></div>
+            <button class="sidebar-item" id="sidebar-signout" title="Sign Out">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                <span class="sidebar-label">Sign Out</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="app-main" style="overflow:hidden;display:flex;flex-direction:column">
+        <div id="mobile-topbar">
+            <button id="hamburger-btn" aria-label="Open menu">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+                </svg>
+            </button>
+            <span class="mobile-brand">LEAI</span>
+            <span style="width:20px"></span>
+        </div>
+        <div id="sidebar-scrim"></div>
+
+        <div class="page-header">
+            <h1>Customizations</h1>
+            <p>Customize how the AI assistant appears to students in your course. Settings travel with the course &mdash; every survey shares them.</p>
+        </div>
+
+        <div class="cb-scroll">
+            <!-- Bot name -->
+            <div class="cb-card">
+                <h2>Assistant name</h2>
+                <div class="cb-field">
+                    <label for="cb-bot-name">Name on AI messages</label>
+                    <input type="text" class="cb-input" id="cb-bot-name" maxlength="100"
+                           placeholder="LEAI" autocomplete="off" />
+                    <div class="cb-text-meta">
+                        <button type="button" class="cb-link-btn" id="cb-reset-default">Reset to LEAI</button>
+                        <span class="cb-count" id="cb-count">0 / 100</span>
+                    </div>
+                    <p class="cb-hint">Replaces the <strong>LEAI</strong> tag shown beside each AI message in the student chat. Leave blank to keep the default. Shown in uppercase, like the rest of the chat tag.</p>
+                </div>
+            </div>
+
+            <!-- Point to a human -->
+            <div class="cb-card">
+                <h2>Point to a human</h2>
+                <div class="cb-field">
+                    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                        <input type="checkbox" id="cb-referral-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                        <span>Let the AI point struggling students to a person</span>
+                    </label>
+                    <p class="cb-hint">When a student sounds stuck, lost, or overwhelmed, the AI adds one line telling them they can reach a person, then returns to the survey. It says it once per conversation, never troubleshoots, and never promises outcomes.</p>
+                </div>
+                <div class="cb-field">
+                    <label for="cb-referral-text">Where to send them</label>
+                    <input type="text" class="cb-input" id="cb-referral-text" maxlength="200"
+                           placeholder="your instructor or TA during their office hours" autocomplete="off" />
+                    <div class="cb-text-meta">
+                        <button type="button" class="cb-link-btn" id="cb-referral-reset">Reset to default</button>
+                        <span class="cb-count" id="cb-referral-count">0 / 200</span>
+                    </div>
+                    <p class="cb-hint">Completes the sentence the AI says: <em id="cb-referral-preview">&ldquo;&hellip;you can reach your instructor or TA during their office hours.&rdquo;</em> Leave blank for the default. The AI adds no names, times, or rooms beyond this wording.</p>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="cb-card">
+                <h2>Student preview</h2>
+                <div class="cb-preview-frame">
+                    <div class="cbp-meta">
+                        <div class="cbp-dot"></div>
+                        <span class="cbp-label" id="cb-preview-label">LEAI</span>
+                        <span class="cbp-time">04:37 PM</span>
+                    </div>
+                    <div class="cbp-body">Hi! Let&rsquo;s walk through your reflection. How did your week go?</div>
+                </div>
+            </div>
+
+            <div class="cb-card cb-actions">
+                <button class="btn btn-primary" id="cb-save-btn">Save</button>
+                <span id="cb-save-msg"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Experimental settings — opened only by the unlabeled gear in the sidebar
+     header. Saves independently of the main panel's Save button. -->
+<div class="exp-overlay" id="exp-overlay">
+    <div class="exp-panel" role="dialog" aria-modal="true" aria-labelledby="exp-panel-title">
+        <div class="exp-panel-header">
+            <h2 id="exp-panel-title">Experimental</h2>
+            <button class="exp-close" id="exp-close-btn" aria-label="Close">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+            </button>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-identity-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Cross-week tracking: link one student's sessions across weekly surveys</span>
+            </label>
+            <p class="cb-hint">Groups sessions that come from the same device so the Feedback Analyzer can show a student's arc across the course (as <strong>S1, S2, &hellip;</strong> labels &mdash; never names). Uses a browser-stored key plus a device fingerprint, disclosed in the survey Terms of Use and Privacy Policy. Grouping is device-based and approximate: a student who switches devices appears as two entries, and shared lab computers are kept apart automatically.</p>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-completion-certificate-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Completion certificates: let students unlock a certificate after one response</span>
+            </label>
+            <p class="cb-hint">Students can download a PDF with a verification code after at least one response is saved in that survey session. You can validate the code for the exact survey in Feedback Analyzer without seeing which conversation it belongs to.</p>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-parsed-document-enabled" style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Parsed survey documents: let students download their reflection</span>
+            </label>
+            <p class="cb-hint">Controls the existing Word download in structured surveys. This setting is independent of completion certificates.</p>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-response-export-enabled" disabled style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Allow student response export</span>
+            </label>
+            <p class="cb-hint">Allow instructors to download selected conversations as CSV files in a ZIP.</p>
+            <p class="cb-hint" id="cb-response-export-status" role="status"></p>
+        </div>
+        <div class="cb-field">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:0">
+                <input type="checkbox" id="cb-debug-enabled" disabled style="accent-color:var(--primary);width:16px;height:16px;flex-shrink:0" />
+                <span>Researcher debug: show recorded state under each AI reply</span>
+            </label>
+            <p class="cb-hint">Records each turn's stage and decisions for this course. Visible in chat only after instructor sign-in; ordinary students do not see debug. Missing earlier records are not reconstructed.</p>
+            <p class="cb-hint" id="cb-debug-msg" role="status" aria-live="polite">Loading debug settings…</p>
+        </div>
+        <div class="exp-actions">
+            <button class="btn btn-primary" id="exp-save-btn">Save</button>
+            <span id="exp-save-msg"></span>
+        </div>
+    </div>
+</div>
+
+<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=2"></script>
+<script src="leai-response-export.js?v=3-consent-color"></script>
+<script src="leai-debug.js?v=ulia-debug-5"></script>
+<script src="leai-version.js"></script>
+<script>
+(function () {
+    var session = null;
+    let debugSettings = null;
+    let responseExportSettings = null;
+    var DEFAULT_BOT_NAME = 'LEAI';
+    var DEFAULT_REFERRAL_TEXT = 'your instructor or TA during their office hours';
+
+    var el = function (id) { return document.getElementById(id); };
+
+    // ===== LOGIN =====
+    el('login-btn').addEventListener('click', function () {
+        var courseId = el('login-course-id').value.trim();
+        var password = el('login-password').value;
+        if (!courseId || !password) { showLoginMsg('Enter course ID and password.'); return; }
+        this.disabled = true;
+        fetch(API + '/verify_course_password/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ course_id: courseId, password: password })
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            if (data.valid) {
+                session = { courseId: courseId, courseName: data.course_name, debug_token:data.debug_token, debug_token_expires_at:data.debug_token_expires_at, response_export_token:data.response_export_token, response_export_token_expires_at:data.response_export_token_expires_at };
+                saveSession(session);
+                enterApp();
+            } else {
+                var e = data.error || '';
+                showLoginMsg(e === 'Course not found'
+                    ? 'Course ID not found. Double-check or create it in Prompt Designer.'
+                    : (e === 'Incorrect password' ? 'Incorrect password. Please try again.'
+                    : 'Sign-in failed. Check your Course ID and password.'));
+            }
+        })
+        .catch(function () { showLoginMsg('Network error.'); })
+        .finally(function () { el('login-btn').disabled = false; });
+    });
+
+    el('login-password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') el('login-btn').click();
+    });
+
+    function showLoginMsg(text) {
+        var m = el('login-msg');
+        m.className = 'msg msg-error';
+        m.textContent = text;
+    }
+
+    function enterApp() {
+        el('login-screen').style.display = 'none';
+        el('app').style.display = 'flex';
+        initSidebar('nav-customizations', function () {
+            session = null;
+            el('login-password').value = '';
+            el('login-msg').textContent = '';
+        });
+        loadCustomization();
+        loadDebugSettings();
+        responseExportSettings = leaiResponseExport.mountGear(API, session, el('cb-response-export-enabled'), el('cb-response-export-status'));
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var stored = getSession();
+        if (stored && stored.courseId) { session = stored; enterApp(); }
+    });
+
+    // ===== EXPERIMENTAL SETTINGS (gear) =====
+    // Unlabeled gear in the sidebar header opens this panel; it is not linked
+    // or mentioned anywhere else in the UI. Saves independently of the main
+    // Save button via the backend's partial-patch semantics, so the two
+    // panels can never clobber each other's fields.
+    function setExpOpen(open) {
+        el('exp-overlay').classList.toggle('open', open);
+    }
+    el('exp-settings-btn').addEventListener('click', function () { setExpOpen(true); });
+    el('exp-close-btn').addEventListener('click', function () { setExpOpen(false); });
+    el('exp-overlay').addEventListener('click', function (e) {
+        if (e.target === el('exp-overlay')) setExpOpen(false);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') setExpOpen(false);
+    });
+
+    function showDebugSetting(data) {
+        el('cb-debug-enabled').checked = data.enabled;
+        el('cb-debug-msg').textContent = data.enabled ? 'Debug ON · new turns are recorded.' : 'Debug OFF.';
+    }
+
+    async function loadDebugSettings() {
+        debugSettings = null;
+        el('cb-debug-enabled').checked = false;
+        el('cb-debug-enabled').disabled = true;
+        if (!window.leaiDebug || !leaiDebug.getAuth(session.courseId)) {
+            el('cb-debug-msg').textContent = 'Debug is unavailable with this course login. Sign in again if debug has been enabled for your course.';
+            return;
+        }
+        const client = leaiDebug.createSettingsClient(API, session.courseId);
+        try {
+            showDebugSetting(await client.load());
+            debugSettings = client;
+            el('cb-debug-enabled').disabled = false;
+        } catch (error) { el('cb-debug-msg').textContent = error.message; }
+    }
+
+    el('exp-save-btn').addEventListener('click', async function () {
+        const btn = this;
+        const saveDebug = debugSettings && !el('cb-debug-enabled').disabled;
+        const debugEnabled = el('cb-debug-enabled').checked;
+        btn.disabled = true;
+        el('cb-debug-enabled').disabled = true;
+        const msg = el('exp-save-msg');
+        msg.className = '';
+        msg.textContent = 'Saving…';
+        let otherSaved = false;
+        try {
+        const response = await fetch(API + '/update_course_customization/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                course_id: session.courseId,
+                identity_tracking_enabled: el('cb-identity-enabled').checked,
+                completion_certificate_enabled: el('cb-completion-certificate-enabled').checked,
+                parsed_document_download_enabled: el('cb-parsed-document-enabled').checked
+            })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Save failed.');
+        el('cb-identity-enabled').checked = !!data.identity_tracking_enabled;
+        el('cb-completion-certificate-enabled').checked = !!data.completion_certificate_enabled;
+        el('cb-parsed-document-enabled').checked = !!data.parsed_document_download_enabled;
+        otherSaved = true;
+        if (responseExportSettings) await responseExportSettings.save();
+        if (saveDebug) showDebugSetting(await debugSettings.save(debugEnabled));
+        msg.className = 'ok'; msg.textContent = 'Saved.';
+        } catch (error) {
+            if (otherSaved) {
+                msg.className = 'err'; msg.textContent = 'Some settings saved. Check response export and debug below. ' + error.message;
+                await loadDebugSettings();
+            } else { msg.className = 'err'; msg.textContent = error.message || 'Network error.'; }
+        } finally { btn.disabled = false; el('cb-debug-enabled').disabled = !debugSettings; }
+    });
+
+    // ===== FORM <-> PREVIEW =====
+    function refresh() {
+        var v = el('cb-bot-name').value;
+        var n = v.length;
+        var c = el('cb-count');
+        c.textContent = n + ' / 100';
+        c.classList.toggle('over', n > 100);
+        el('cb-preview-label').textContent = v.trim() || DEFAULT_BOT_NAME;
+    }
+
+    el('cb-bot-name').addEventListener('input', refresh);
+    el('cb-reset-default').addEventListener('click', function () {
+        el('cb-bot-name').value = '';
+        refresh();
+        el('cb-bot-name').focus();
+    });
+
+    function refreshReferral() {
+        var on = el('cb-referral-enabled').checked;
+        var input = el('cb-referral-text');
+        input.disabled = !on;
+        input.style.opacity = on ? '' : '0.5';
+        var v = input.value;
+        var c = el('cb-referral-count');
+        c.textContent = v.length + ' / 200';
+        c.classList.toggle('over', v.length > 200);
+        el('cb-referral-preview').textContent =
+            '“…you can reach ' + (v.trim() || DEFAULT_REFERRAL_TEXT) + '.”';
+    }
+
+    el('cb-referral-enabled').addEventListener('change', refreshReferral);
+    el('cb-referral-text').addEventListener('input', refreshReferral);
+    el('cb-referral-reset').addEventListener('click', function () {
+        el('cb-referral-text').value = '';
+        refreshReferral();
+        el('cb-referral-text').focus();
+    });
+
+    // ===== LOAD / SAVE =====
+    function loadCustomization() {
+        setSaveMsg('', '');
+        fetch(API + '/get_course_customization/?course_id=' + encodeURIComponent(session.courseId))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d && d.default_bot_name) DEFAULT_BOT_NAME = d.default_bot_name;
+                el('cb-bot-name').value = (d && d.bot_display_name_raw) || '';
+                if (d && d.default_referral_text) DEFAULT_REFERRAL_TEXT = d.default_referral_text;
+                el('cb-referral-enabled').checked = !!(d && d.referral_enabled);
+                el('cb-referral-text').value = (d && d.referral_text_raw) || '';
+                el('cb-referral-text').placeholder = DEFAULT_REFERRAL_TEXT;
+                el('cb-identity-enabled').checked = !!(d && d.identity_tracking_enabled);
+                el('cb-completion-certificate-enabled').checked = !!(d && d.completion_certificate_enabled);
+                el('cb-parsed-document-enabled').checked = !!(d && d.parsed_document_download_enabled);
+                refresh();
+                refreshReferral();
+            })
+            .catch(function () { setSaveMsg('Could not load customization settings.', 'err'); refresh(); refreshReferral(); });
+    }
+
+    el('cb-save-btn').addEventListener('click', function () {
+        var payload = {
+            course_id: session.courseId,
+            bot_display_name: el('cb-bot-name').value,
+            referral_enabled: el('cb-referral-enabled').checked,
+            referral_text: el('cb-referral-text').value
+        };
+        this.disabled = true;
+        setSaveMsg('Saving…', '');
+        fetch(API + '/update_course_customization/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+            if (res.ok) {
+                el('cb-bot-name').value = res.j.bot_display_name_raw || '';
+                el('cb-referral-enabled').checked = !!res.j.referral_enabled;
+                el('cb-referral-text').value = res.j.referral_text_raw || '';
+                refresh();
+                refreshReferral();
+                setSaveMsg('Saved.', 'ok');
+            } else {
+                setSaveMsg(res.j.error || 'Save failed.', 'err');
+            }
+        })
+        .catch(function () { setSaveMsg('Network error.', 'err'); })
+        .finally(function () { el('cb-save-btn').disabled = false; });
+    });
+
+    function setSaveMsg(text, kind) {
+        var m = el('cb-save-msg');
+        m.textContent = text;
+        m.className = kind || '';
+    }
+})();
+</script>
+</body>
+</html>

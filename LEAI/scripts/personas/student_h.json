@@ -1,0 +1,24 @@
+{
+  "name": "Student H — revises mid-flow (Team 2, FORM survey)",
+  "notes": "FORM survey. Answers each section, then revises an earlier answer using the 'actually scratch that' / 'let me revise' phrasing. Tests the prompt's revision-handling rule: 'treat the revision as the canonical answer for the structured download. Acknowledge briefly (got it — using that instead) and continue.' Revisions hit 1.1 (key concept) and 1.3b (what surprised me) — the structured download must reflect the LATEST values.",
+  "team_number": 2,
+  "turns": [
+    "Team 2 here. Let's go.",
+    "The thing that stuck was thematic analysis from the Braun & Clarke paper — specifically the idea that themes don't 'emerge' from data, you actively construct them. That reframes the whole synthesis.",
+    "It anchors in our Wednesday session — when our cluster labels kept shifting, I realized we weren't discovering them, we were authoring them.",
+    "Wait — actually scratch that. Let me revise: the concept that stuck was the observation-vs-insight distinction. Magy's example of 'clicked back' vs 'lost trust' was the actual unlock for me. Thematic analysis was useful but not the headline.",
+    "Concrete: one of our stickies said 'user returned to homepage 3 times'. A teammate asked 'so what?' and that question became our team's filter for the week.",
+    "Move on.",
+    "Method: affinity diagramming on 180 stickies. Three hours Wednesday afternoon.",
+    "Practice vs theory: messier than the lecture suggested. We hit the 'cluster by topic' pitfall for the first hour and the 'one person dominates' pitfall right alongside it. Once we rebalanced and forced behavioral grouping, the clusters got better.",
+    "Move on.",
+    "Before: I thought affinity diagramming was grouping similar quotes — basically a fancy spreadsheet exercise.",
+    "I was surprised by how much the lecture's NN/g pitfall list mapped to our actual session. We hit four of the five they named.",
+    "Hmm — let me revise that surprise. The bigger surprise was actually the *physical* act of moving stickies — having to defend where you put it on the wall, the way that forces argument that a spreadsheet would skip. The NN/g mapping was confirmation; the physicality was the real surprise.",
+    "Still uncertain: when to stop clustering. Three rounds in, I genuinely could not tell whether round three was insight or just fatigue.",
+    "Move on.",
+    "Connection: I'm rewriting my interview questions to lean behavioral. Half my prompts become 'walk me through the last time you did X' instead of 'what do you think about X'. That's the say-vs-do gap.",
+    "Smallest concrete change: by Friday next week, every interview question I write goes through a 'is this attitudinal or behavioral?' check.",
+    "I'm done. Useful — being able to revise mid-flow felt natural and the bot rolled with it cleanly. Confirm my revisions stuck for the download?"
+  ]
+}

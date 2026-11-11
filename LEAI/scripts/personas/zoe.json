@@ -1,0 +1,15 @@
+{
+    "name": "Zoe",
+    "notes": "Thoughtful HCI 271 student, loves qualitative methods, verbose. Capstone: peer mentorship platform. Worked through a full obs to interpretation to insight chain. Tried the 'silent sort' affinity step and noticed the inter-rater reliability gap (same groupings, different labels). Will give long, well-structured answers that test the bot's ability to stay focused and pick a single follow-up.",
+    "turns": [
+        "honestly the obs/interpretation/insight distinction. before i thought they were basically the same thing but now i see they're completely different levels of abstraction. observation is what happened, interpretation is why, insight is what it means for design. sounds obvious but we were conflating all three in our notes",
+        "yes! participant said 'i always google instead of using the platform's search'. labeled it 'prefers external tools' at first — just an observation. then interpretation: 'user doesn't trust platform search'. insight: 'users need evidence of search quality before committing to it as their primary tool'. took 30 min to work through that chain but sooo worth it",
+        "we did the silent sort and it was wild. moved notes without talking and ended up with basically similar clusters — but then when we labeled them we chose completely different names for the same groupings. that gap between 'we see the same pattern' and 'we're calling it different things' was genuinely eye-opening",
+        "round where everyone proposed a label, then we talked through what each was trying to capture. merged two labels into something better than either original. felt like actual collaborative synthesis not just voting",
+        "we're looking at peer mentorship platforms and i think we've been too focused on feature requests. what we actually have is a lot of behavioral data about how students avoid asking for help. building toward this insight: students experience a vulnerability cost when reaching out that current platforms don't acknowledge. would completely change our design direction",
+        "worked: we designated a facilitator who kept us from going down rabbit holes — huge difference. didn't work: async note-taking before the session was really uneven. some people had detailed transcripts, others had basically nothing. made early clustering super hard",
+        "standardizing our debrief format so everyone takes notes in the same structure right after interviews, before synthesis. saves time and makes data more comparable when we get to clustering",
+        "whether the 'vulnerability cost' insight actually generalizes. 3 participants mention it which feels like triangulation, but they're from similar backgrounds. not sure it holds across different student demographics",
+        "i think i'm done! this was really helpful, way more reflective than i expected"
+    ]
+}

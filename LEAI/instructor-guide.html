@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/png" href="/favicon.png">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LEAI Instructor Guide</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f7f8fc;
+    }
+
+    /* ── Layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      flex-shrink: 0;
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 32px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      font-size: 14px;
+    }
+    .sidebar-logo {
+      padding: 0 24px 24px;
+      border-bottom: 1px solid #334155;
+      margin-bottom: 16px;
+    }
+    .sidebar-logo .tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #60a5fa;
+    }
+    .sidebar-logo h1 { font-size: 18px; font-weight: 700; color: #f1f5f9; margin-top: 4px; }
+    .sidebar-logo p { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+
+    .sidebar-section { padding: 8px 24px 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #475569; margin-top: 8px; }
+    .sidebar a {
+      display: block;
+      padding: 7px 24px;
+      color: #94a3b8;
+      text-decoration: none;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+      font-size: 13.5px;
+    }
+    .sidebar a:hover { color: #f1f5f9; background: #334155; border-left-color: #60a5fa; }
+    .sidebar a.active { color: #f1f5f9; border-left-color: #3b82f6; background: #1e3a5f; }
+
+    /* Main */
+    .main { flex: 1; min-width: 0; max-width: 860px; padding: 48px 56px; }
+
+    /* Headings */
+    h1.page-title { font-size: 32px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+    .page-subtitle { font-size: 16px; color: #64748b; margin-bottom: 40px; }
+
+    h2.section-heading {
+      font-size: 22px; font-weight: 700; color: #0f172a;
+      margin: 56px 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex; align-items: center; gap: 10px;
+    }
+
+    h3.sub-heading {
+      font-size: 17px; font-weight: 600; color: #1e293b;
+      margin: 32px 0 12px;
+    }
+
+    /* Steps */
+    .steps { counter-reset: step; margin: 20px 0; }
+    .step {
+      display: flex; gap: 16px; margin-bottom: 20px;
+    }
+    .step-num {
+      counter-increment: step;
+      min-width: 32px; height: 32px;
+      border-radius: 50%;
+      background: #3b82f6; color: white;
+      font-size: 14px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-num::before { content: counter(step); }
+    .step-body { flex: 1; }
+    .step-body strong { font-weight: 600; color: #0f172a; }
+    .step-body p { color: #475569; margin-top: 4px; font-size: 15px; }
+
+    /* Screenshots */
+    .screenshot-wrap {
+      margin: 24px 0;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+    }
+    .screenshot-wrap .caption {
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #64748b;
+    }
+    .screenshot-wrap img { width: 100%; display: block; }
+    .annotation-canvas { position: relative; }
+    .screenshot-marker {
+      position: absolute;
+      z-index: 1;
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 10px 6px 7px;
+      border-radius: 999px;
+      background: #2563eb; color: white;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, .32);
+      font-size: 12px; font-weight: 700; line-height: 1.2;
+    }
+    .screenshot-marker b {
+      display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center;
+      border-radius: 50%; background: white; color: #2563eb; font-size: 12px;
+    }
+    .screenshot-marker::after {
+      content: ''; position: absolute; left: 50%; bottom: -10px;
+      width: 0; height: 0; transform: translateX(-50%);
+      border-left: 9px solid transparent; border-right: 9px solid transparent;
+      border-top: 10px solid #2563eb;
+    }
+    .certificate-panel-marker { right: 6%; top: 46%; }
+    .verify-paste-marker { left: 18%; top: 19%; }
+    .verify-result-marker { right: 7%; top: 53%; }
+
+    /* Tips, warnings, info */
+    .callout {
+      border-radius: 8px; padding: 16px 20px; margin: 20px 0;
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 15px;
+    }
+    .callout-label {
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 4px; margin-top: 3px; white-space: nowrap;
+    }
+    .callout.tip { background: #f0fdf4; border: 1px solid #86efac; }
+    .callout.tip .callout-label { background: #dcfce7; color: #166534; }
+    .callout.warn { background: #fffbeb; border: 1px solid #fcd34d; }
+    .callout.warn .callout-label { background: #fef9c3; color: #713f12; }
+    .callout.info { background: #eff6ff; border: 1px solid #93c5fd; }
+    .callout.info .callout-label { background: #dbeafe; color: #1e40af; }
+    .callout p { color: #374151; line-height: 1.6; }
+    .callout strong { color: #111827; }
+
+    /* Badge preview */
+    .badge-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    }
+    .badge-open   { background: #dcfce7; color: #15803d; }
+    .badge-closed { background: #fee2e2; color: #b91c1c; }
+    .badge-expired{ background: #fef9c3; color: #854d0e; }
+    .badge-sched  { background: #ede9fe; color: #6d28d9; }
+
+    /* Table of contents card */
+    .toc-card {
+      background: white; border-radius: 12px; padding: 28px 32px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+      margin-bottom: 40px;
+    }
+    .toc-card h2 { font-size: 16px; color: #64748b; font-weight: 600; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+    .toc-link { color: #2563eb; text-decoration: none; font-size: 14px; padding: 3px 0; display: block; }
+    .toc-link:hover { text-decoration: underline; }
+
+    /* Section divider */
+    .divider { border: none; border-top: 1px solid #e2e8f0; margin: 48px 0; }
+
+    /* Inline code */
+    code { background: #f1f5f9; border-radius: 4px; padding: 2px 6px; font-size: 13px; font-family: 'SF Mono', Consolas, monospace; color: #0f172a; }
+
+    /* FAQ style */
+    .faq-item { margin-bottom: 20px; }
+    .faq-q { font-weight: 600; color: #0f172a; margin-bottom: 6px; }
+    .faq-a { color: #475569; font-size: 15px; }
+
+    @media (max-width: 900px) {
+      .sidebar { display: none; }
+      .main { width: 100%; max-width: 100%; padding: 32px 24px; overflow-x: hidden; }
+      .toc-grid { grid-template-columns: 1fr; }
+      .main, .main * { overflow-wrap: anywhere; }
+      .screenshot-wrap { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar Navigation -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="tag">LEAI</div>
+      <h1>Instructor Guide</h1>
+      <p>Learning Experience AI</p>
+    </div>
+    <div class="sidebar-section">Getting Started</div>
+    <a href="#quick-start">Quick Start</a>
+    <a href="#overview">What is LEAI?</a>
+    <a href="#two-tools">The Two Tools</a>
+    <a href="#login">Logging In</a>
+
+    <div class="sidebar-section">Prompt Designer</div>
+    <a href="#create-survey">Creating a Survey</a>
+    <a href="#templates">Using Templates</a>
+    <a href="#survey-settings">Survey Settings</a>
+    <a href="#status-badges">Reading Status Badges</a>
+    <a href="#close-reopen">Closing &amp; Reopening</a>
+    <a href="#edit-survey">Editing a Survey</a>
+    <a href="#duplicate-survey">Duplicating a Survey</a>
+
+    <div class="sidebar-section">Analyzing Feedback</div>
+    <a href="#analyzer-login">Logging In</a>
+    <a href="#analyzer-dashboard">The Dashboard</a>
+    <a href="#scope-filtering">Filtering by Scope</a>
+    <a href="#traditional-analysis">Traditional Analysis (N-grams)</a>
+    <a href="#ai-quicktake">Instructor Insights</a>
+    <a href="#student-responses">Student Responses</a>
+    <a href="#feedback-chat">Feedback Chat</a>
+    <a href="#chat-system-prompt">Customising the AI Prompt</a>
+
+    <div class="sidebar-section">Student Experience</div>
+    <a href="#student-chat">The Chat Interface</a>
+    <a href="#completion-credit">Completion Credit</a>
+    <a href="#consent-flow">Consent &amp; Anonymity Notice</a>
+    <a href="#inactive-states">Closed &amp; Expired Surveys</a>
+
+    <div class="sidebar-section">Reference</div>
+    <a href="#faq">Common Questions</a>
+    <a href="#glossary">Glossary</a>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main">
+
+    <p class="page-subtitle" style="font-size:12px;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:.08em;">LEAI · Instructor Documentation</p>
+    <h1 class="page-title">LEAI Instructor Guide</h1>
+    <p class="page-subtitle">A step-by-step manual for creating surveys, reviewing student feedback, and understanding what your students see — no technical background required.</p>
+
+    <!-- Table of Contents -->
+    <div class="toc-card">
+      <h2>Contents</h2>
+      <div class="toc-grid">
+        <a href="#quick-start" class="toc-link">Quick Start</a>
+        <a href="#overview" class="toc-link">1. What is LEAI?</a>
+        <a href="#login" class="toc-link">2. Logging In</a>
+        <a href="#create-survey" class="toc-link">3. Creating a Survey</a>
+        <a href="#templates" class="toc-link">4. Using Templates</a>
+        <a href="#survey-settings" class="toc-link">5. Survey Settings</a>
+        <a href="#status-badges" class="toc-link">6. Reading Status Badges</a>
+        <a href="#close-reopen" class="toc-link">7. Closing &amp; Reopening</a>
+        <a href="#edit-survey" class="toc-link">8. Editing a Survey</a>
+        <a href="#duplicate-survey" class="toc-link">9. Duplicating a Survey</a>
+        <a href="#in-group" class="toc-link">In-Group Feedback Mode</a>
+        <a href="#analyzer-dashboard" class="toc-link">10. The Analyzer Dashboard</a>
+        <a href="#scope-filtering" class="toc-link">11. Filtering by Scope</a>
+        <a href="#traditional-analysis" class="toc-link">12. Traditional Analysis (N-grams)</a>
+        <a href="#ai-quicktake" class="toc-link">13. Instructor Insights</a>
+        <a href="#student-responses" class="toc-link">14. Student Responses</a>
+        <a href="#feedback-chat" class="toc-link">15. Feedback Chat</a>
+        <a href="#chat-system-prompt" class="toc-link">16. Customising the AI Prompt</a>
+        <a href="#student-chat" class="toc-link">17. The Student Chat Interface</a>
+        <a href="#completion-credit" class="toc-link">18. Completion Credit</a>
+        <a href="#consent-flow" class="toc-link">19. Consent &amp; Anonymity Notice</a>
+        <a href="#inactive-states" class="toc-link">20. Closed &amp; Expired Surveys</a>
+        <a href="#pdf-ingest" class="toc-link">21. Importing PDF Reflections</a>
+        <a href="#faq" class="toc-link">22. Common Questions</a>
+      </div>
+    </div>
+
+    <!-- ═══════════════ QUICK START ═══════════════ -->
+    <h2 class="section-heading" id="quick-start">Quick Start</h2>
+
+    <p>If you want to run a feedback session today, follow these five steps. The rest of this guide covers each step in detail.</p>
+
+    <!-- Step 1 -->
+    <div style="display:flex;gap:20px;margin:32px 0 8px;align-items:flex-start;">
+      <div style="min-width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">1</div>
+      <div style="flex:1;">
+        <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:6px;">Log in to the Prompt Designer</div>
+        <p style="color:#475569;margin:0 0 12px;">Open the Prompt Designer page and enter your course ID and password. This is where you will create and manage all your surveys.</p>
+        <a href="PromptDesigner.html" target="_blank" style="display:inline-block;padding:7px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:13px;font-weight:600;text-decoration:none;">Open Prompt Designer &rarr;</a>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="margin-left:60px;">
+      <img src="guide-assets/qs-step1-login.png" alt="Prompt Designer login screen">
+      <div class="caption">Enter your course ID and dashboard password, then click Sign In.</div>
+    </div>
+
+    <!-- Step 2 -->
+    <div style="display:flex;gap:20px;margin:32px 0 8px;align-items:flex-start;">
+      <div style="min-width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">2</div>
+      <div style="flex:1;">
+        <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:6px;">Create a survey</div>
+        <p style="color:#475569;margin:0 0 12px;">Click one of the template buttons — <em>Weekly Check-in</em> is a good starting point. Give it a label (e.g. "Week 3 Check-in") and click <strong>Create Survey &amp; Get Link</strong>.</p>
+        <a href="PromptDesigner.html" target="_blank" style="display:inline-block;padding:7px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:13px;font-weight:600;text-decoration:none;">Open Prompt Designer &rarr;</a>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="margin-left:60px;">
+      <img src="guide-assets/test-f7-template.png" alt="Prompt Designer with Weekly template filled in">
+      <div class="caption">Clicking a template fills in the survey name and prompt automatically. You can edit any field before creating.</div>
+    </div>
+
+    <!-- Step 3 -->
+    <div style="display:flex;gap:20px;margin:32px 0 8px;align-items:flex-start;">
+      <div style="min-width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">3</div>
+      <div style="flex:1;">
+        <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:6px;">Copy the link and share it</div>
+        <p style="color:#475569;margin:0 0 12px;">Your new survey appears in the list on the right. Click <strong>Copy</strong> next to its link, then paste it into Canvas, a class slide, or an email. Students do not need an account — they just open the link.</p>
+        <a href="PromptDesigner.html" target="_blank" style="display:inline-block;padding:7px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:13px;font-weight:600;text-decoration:none;">Open Prompt Designer &rarr;</a>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="margin-left:60px;">
+      <img src="guide-assets/qs-step3-copy-link.png" alt="Survey list with Copy buttons visible">
+      <div class="caption">Each survey card shows its shareable link and a Copy button. The colored badge shows its current status.</div>
+    </div>
+
+    <!-- Step 4 -->
+    <div style="display:flex;gap:20px;margin:32px 0 8px;align-items:flex-start;">
+      <div style="min-width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">4</div>
+      <div style="flex:1;">
+        <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:6px;">Students complete the survey</div>
+        <p style="color:#475569;margin:0;">Students open the link on any device — phone, tablet, or laptop. They have a short conversation with the AI (typically 5–10 minutes). No login, no app, no account required. When the class period ends, go back to the Prompt Designer and click <strong>Close</strong> on the survey to stop new responses.</p>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="margin-left:60px;">
+      <img src="guide-assets/test-f16-chat-loaded.png" alt="Student chat interface">
+      <div class="caption">What students see when they open the link. The AI greets them and asks a question based on your prompt.</div>
+    </div>
+
+    <!-- Step 5 -->
+    <div style="display:flex;gap:20px;margin:32px 0 8px;align-items:flex-start;">
+      <div style="min-width:40px;height:40px;border-radius:50%;background:#3b82f6;color:white;font-size:17px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;">5</div>
+      <div style="flex:1;">
+        <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:6px;">Review results in the Feedback Analyzer</div>
+        <p style="color:#475569;margin:0 0 12px;">Open the Feedback Analyzer page and log in with the same course ID and password. Click <strong>View</strong> next to your survey to read student conversations. Use the <strong>CSV</strong> button to download a spreadsheet of all responses.</p>
+        <a href="FeedbackAnalyzer.html" target="_blank" style="display:inline-block;padding:7px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;color:#1d4ed8;font-size:13px;font-weight:600;text-decoration:none;">Open Feedback Analyzer &rarr;</a>
+      </div>
+    </div>
+    <div class="screenshot-wrap" style="margin-left:60px;">
+      <img src="guide-assets/test-f13-f14-analyzer2.png" alt="Feedback Analyzer dashboard">
+      <div class="caption">The Feedback Analyzer shows total responses, average conversation depth, and a per-survey breakdown. Click CSV to download.</div>
+    </div>
+
+    <hr class="divider">
+    <!-- ═══════════════ OVERVIEW ═══════════════ -->
+    <h2 class="section-heading" id="overview">What is LEAI?</h2>
+
+    <p>LEAI (Learning Experience AI) is a set of tools that lets you collect richer feedback from your students using AI-powered conversations. Instead of a static form, students have a short dialogue with an AI — it gently asks follow-up questions and encourages reflection. You then review the results in a dashboard.</p>
+
+    <div class="callout info">
+      <span class="callout-label">Note</span>
+      <p><strong>No AI expertise needed.</strong> You don't need to know how AI works to use these tools. Think of it like setting up a Google Form, except the form can ask follow-up questions on your behalf.</p>
+    </div>
+
+    <h2 class="section-heading" id="two-tools">The Two Tools</h2>
+
+    <p>LEAI has two pages you will use as an instructor:</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0;">
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;">
+                <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">Prompt Designer</div>
+        <p style="font-size:14px;color:#64748b;">Where you create and manage feedback surveys. Set the topic, choose settings, and share a link with students.</p>
+      </div>
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;">
+                <div style="font-weight:700;color:#0f172a;margin-bottom:6px;">Feedback Analyzer</div>
+        <p style="font-size:14px;color:#64748b;">Where you see student responses. View conversation summaries, participation counts, and download raw data.</p>
+      </div>
+    </div>
+
+    <!-- ═══════════════ LOGIN ═══════════════ -->
+    <h2 class="section-heading" id="login">Logging In</h2>
+
+    <p>Both tools use the same course ID and password that was set up for your course. You will need these two pieces of information:</p>
+    <ul style="margin:12px 0 12px 20px;color:#475569;">
+      <li><strong>Course ID</strong> — a short code like <code>cm115-sp26</code></li>
+      <li><strong>Dashboard password</strong> — chosen when your course was created</li>
+    </ul>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Keep your password safe.</strong> Anyone with your course ID and password can see student responses. Don't share it publicly.</p>
+    </div>
+
+    <!-- ═══════════════ PROMPT DESIGNER ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="create-survey">Creating a Survey (Prompt Designer)</h2>
+
+    <p>Open the <strong>Prompt Designer</strong> page. After logging in you will see the main dashboard. The left panel is where you build new surveys; the right panel shows all existing surveys for your course.</p>
+
+    <h3 class="sub-heading" id="templates">Using Templates</h3>
+
+    <p>If you're not sure what to write, start with a template. Four pre-built templates cover the most common use cases.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Find the template buttons</strong><p>Near the top of the left panel, you'll see four blue buttons: <em>Weekly Check-in</em>, <em>Midterm Reflection</em>, <em>Project Debrief</em>, and <em>Exit Ticket</em>.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a template</strong><p>Click any template button. The survey name and instructions fields will fill in automatically with a ready-to-use prompt you can edit or use as-is.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Customize if needed</strong><p>Read the pre-filled text. Change anything that doesn't fit your course. For example, swap "the project" for the actual project name.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f7-template.png" alt="Template buttons and pre-filled survey form">
+      <div class="caption">After clicking "Weekly Check-in", the survey name and bot fields fill in automatically. The hints beneath Bot Name and Bot Role explain what each field does — students see the bot name in their chat window.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/pd-dashboard-empty.png" alt="Prompt Designer form showing Bot Name and Bot Role fields with hint text">
+      <div class="caption">The Bot Persona section on an empty form. "Bot Name" is what students see in chat. "Bot Role" shapes the AI's tone — for example, "friendly teaching assistant" produces warmer, more conversational responses than "feedback bot".</div>
+    </div>
+
+    <h3 class="sub-heading" id="survey-settings">Survey Settings</h3>
+
+    <p>Below the main prompt area is a <strong>Survey Settings</strong> panel. You can expand it by clicking the heading. These settings control how and when students can participate.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Anonymity</strong><p>All LEAI surveys are <strong>anonymous</strong>. No name, email, or student ID is collected &mdash; sessions appear as "Anonymous Student 1, 2…" in the Feedback Analyzer.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Opens At / Expires At</strong><p>Set a date range for when the survey is active. Students who visit before the open date, or after the expiry date, will see a polite message instead of the chat. Leave blank to use the default expiry of 14 days from creation.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f8-settings-panel.png" alt="Survey settings panel expanded">
+      <div class="caption">The Survey Settings panel. Click the heading to expand it. All fields are optional — you can create a survey with just a name and prompt.</div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Not sure about settings?</strong> Leave them at their defaults. You can always edit them later using the Edit button on the survey card.</p>
+    </div>
+
+    <h3 class="sub-heading" id="status-badges">Reading Status Badges</h3>
+
+    <p>Each survey card in the right panel shows a colored badge telling you its current status at a glance.</p>
+
+    <div class="badge-row">
+      <span class="badge badge-open">● Open</span>
+      <span class="badge badge-closed">● Closed</span>
+      <span class="badge badge-expired">● Expired</span>
+      <span class="badge badge-sched">● Scheduled</span>
+    </div>
+
+    <ul style="margin:12px 0 16px 20px;color:#475569;font-size:15px;">
+      <li><strong>Open</strong> — students can access and submit responses right now</li>
+      <li><strong>Closed</strong> — you manually closed it; students see a "closed" message</li>
+      <li><strong>Expired</strong> — the expiry date has passed; no new responses accepted</li>
+      <li><strong>Scheduled</strong> — the open date is in the future; not yet visible to students</li>
+    </ul>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f1-f2-survey-list.png" alt="Survey list showing status badges and expiry dates">
+      <div class="caption">Survey cards in the Prompt Designer. Each card shows the status badge, expiry date, and action buttons.</div>
+    </div>
+
+    <h3 class="sub-heading" id="close-reopen">Closing &amp; Reopening a Survey</h3>
+
+    <p>You can manually close a survey at any time — for example, when a class session ends. You can also reopen it later.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>To close a survey</strong><p>Find the survey card and click the <strong>Close</strong> button. The badge will immediately change to <em>Closed</em>. Students who visit the link will see a message saying the survey is closed.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f3-close-button.png" alt="Survey card with Close button highlighted">
+      <div class="caption">Click the Close button on any Open survey to stop accepting responses immediately.</div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>To reopen a survey</strong><p>On a closed survey card, click the <strong>Reopen</strong> button. The survey becomes Open again, and the expiry date is automatically extended by 14 days from today.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f4-reopen.png" alt="Survey card showing Reopen button">
+      <div class="caption">After clicking Reopen, the badge changes back to Open and a new expiry date is set 14 days from now.</div>
+    </div>
+
+    <h3 class="sub-heading" id="edit-survey">Editing a Survey</h3>
+
+    <p>You can change a survey's label, week number, instructions, and date range after it has been created.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Edit</strong><p>Click the <strong>Edit</strong> button on any survey card. A panel slides open with the current values already filled in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Make your changes</strong><p>Update any fields you want. You can change the label, instructions, week number, or date range.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Save</strong><p>Click the <strong>Save Changes</strong> button. The survey card updates immediately to reflect the new values.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f11-edit-modal.png" alt="Edit survey panel open with fields populated">
+      <div class="caption">The Edit panel opens with the survey's current values. Change what you need, then click Save Changes.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f11-edit-saved.png" alt="Survey list updated after saving edits">
+      <div class="caption">After saving, the survey card updates instantly — no page refresh needed.</div>
+    </div>
+
+    <h3 class="sub-heading" id="duplicate-survey">Duplicating a Survey</h3>
+
+    <p>If you want to reuse a survey from a previous week, use the Duplicate button instead of retyping everything.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click Duplicate</strong><p>Click the <strong>Duplicate</strong> button on any survey card. A copy is created with the same prompt and settings, but a fresh link and Open status.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Edit the copy</strong><p>The new survey appears in the list. Use the <strong>Edit</strong> button to update its label, week number, or instructions before sharing the new link with students.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f12-duplicate.png" alt="Survey list with a newly duplicated entry">
+      <div class="caption">After clicking Duplicate, a new survey card appears at the bottom of the list. The copy is immediately Open and ready to use.</div>
+    </div>
+
+    <!-- ═══════════════ IN-GROUP FEEDBACK MODE ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="in-group">In-Group Feedback Mode</h2>
+
+    <p>
+      <strong>In-Group Feedback</strong> is a second mode inside the Prompt Designer, built for courses with
+      group assignments or group projects. Instead of asking about the course overall, the bot asks each team
+      how <em>their own team</em> is going — collaboration, workload, friction, what's working — so you can
+      spot team issues early enough to step in.
+    </p>
+
+    <p>
+      It lives alongside General Course Feedback, not in place of it. You switch between the two with the tabs
+      at the top of the Prompt Designer. A green badge next to the page title (<code>&bull; IN-GROUP MODE</code>)
+      is always visible in this mode so you know which world you're designing in.
+    </p>
+
+    <h3 class="sub-heading">Design values</h3>
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>You never enter student names.</strong> You configure team counts and sizes only. Students pick their own team from a dropdown when they respond.</li>
+      <li><strong>Anonymous to you, always.</strong> Results are team-level. You see which team said what, never which student on that team said what.</li>
+      <li><strong>Teammates stay anonymous too.</strong> If a student flags a specific teammate, the bot refers to them as Teammate A, B, or C &mdash; never by a real name.</li>
+      <li><strong>Small-team warning.</strong> With 2 or fewer members, teammate-level comments can be traceable. The setup UI warns you if any team is that small.</li>
+    </ul>
+
+    <h3 class="sub-heading">Setting up your teams (once per course)</h3>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Switch to In-Group mode</strong><p>In Prompt Designer, click the <strong>In-Group Feedback</strong> tab at the top of the page. The tabs and active badge change to a forest-green accent so you can see at a glance which mode you're in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Fill in the "Your Teams" card</strong><p>Enter <em>how many teams</em>, <em>default team size</em>, and what label students see (Team / Group / Lab Group / Project Group). A grid of team-size inputs appears below, pre-filled with the default.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Adjust individual teams only where needed</strong><p>If one team has a different size (say Team 7 has 3 members instead of 4), change just that one input &mdash; it highlights so you can see at a glance which sizes are exceptions.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Save the configuration</strong><p>Click <strong>Save configuration</strong>. The setup form collapses to a summary row showing the count, average size, and a colored dot. This is your <em>team configuration</em>.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Multiple team configurations per course</h3>
+
+    <p>
+      Some courses re-group students mid-quarter &mdash; for example, lab teams for the first month, then
+      project teams for the rest. You can keep both in the same course:
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Add a new configuration</strong><p>Click <strong>+ Another</strong> on the summary row, or <strong>+ New team configuration</strong> in the tab strip. A fresh setup form appears.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Name it clearly</strong><p>Give it a recognizable name like "Lab Teams" or "Final Project Teams" so you know which is which when you create a survey.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Each configuration gets its own color</strong><p>The first configuration is green, the second purple, then amber, teal, rose, indigo, brown, slate, then cycling back at the ninth. The color follows that configuration everywhere &mdash; the tab, the summary row, the survey builder banner, the student pre-chat screens, and the analyzer grid &mdash; so you always know which team set a survey is tied to.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Clicking a sub-tab switches focus everywhere</strong><p>When you click a team configuration sub-tab (e.g. <em>Lab Teams</em>), the entire In-Group surface follows: the <em>Your Teams</em> card, the survey builder's <em>Creating a survey for: &hellip;</em> banner, and the primary Create button all flip to that configuration's color. There's nothing else to click &mdash; switching sub-tabs is how you switch which teams the next survey targets.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Creating an in-group survey</h3>
+
+    <p>
+      Below the Your Teams card is the <strong>In-Group Survey</strong> builder. It looks similar to the general
+      builder but asks a different set of questions.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Pick the target configuration</strong><p>If you have more than one configuration, a dropdown lets you choose which one applies. A colored banner at the top of the builder (<em>Creating a survey for: Lab Teams</em>) reminds you at all times which teams this survey targets.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Fill in the basics</strong><p>Week number, survey label, bot name, what the team is currently working on (e.g. "Midterm Group Project &mdash; Game Prototype").</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Pick the dynamics questions</strong><p>Pre-checked questions cover collaboration, workload fairness, what's working, and whether there's any concern worth flagging. Uncheck anything that doesn't fit.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Create &amp; share the link</strong><p>Click <strong>Create Survey &amp; Get Link</strong>. A shareable link appears. Send it to students through whichever channel you already use (Canvas announcement, email, Slack).</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">Managing your in-group surveys</h3>
+
+    <p>
+      The right-hand card in the In-Group tab, <strong>Your In-Group Surveys</strong>, lists every
+      in-group survey you've created for this course. Each row mirrors what the General survey list
+      gives you, and a small colored badge on the left shows which team configuration the survey
+      targets &mdash; so at a glance you know whether a row belongs to your Lab Teams, Final Project
+      Teams, or another grouping.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open or copy the link</strong><p>Click the arrow to open the survey in a new tab, or <strong>Copy</strong> to drop the link on your clipboard for sharing.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Close a survey when the window is over</strong><p><strong>Close</strong> stops students from submitting new responses without deleting what they already said. Reopen whenever you want.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Duplicate for a repeat check-in</strong><p><strong>Duplicate</strong> clones the survey (and takes a fresh team snapshot from the current team configuration) so you can run the same check-in next week without retyping.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Edit the label, week, activity, or dates</strong><p><strong>Edit</strong> opens a modal to update the shown-to-students label, week number, activity context, and open/expire dates. Prompt wording stays locked after creation &mdash; if you need a bigger rewrite, Duplicate first so past responses stay anchored to their original prompt.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Delete permanently</strong><p><strong>Delete</strong> removes the survey, its team snapshot, all anonymous session assignments, and the stored conversation log. The shareable link stops working. Deletion is irreversible &mdash; the confirm dialog makes this explicit.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Export or import a JSON bundle</strong><p><strong>Export</strong> downloads every in-group survey for this course (plus its team snapshots and anonymous session assignments) as a single JSON file. <strong>Import</strong> reads such a file back. Duplicates (same survey id) are skipped on import. Useful for moving data between browsers or archiving a pilot.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">What students see</h3>
+    <ol style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li>A short <strong>anonymity notice</strong> (one screen, one click) explaining that their feedback is team-level only and that teammates will be referred to as Teammate A, B, or C. The screen wears the same color as the team configuration the survey targets.</li>
+      <li>A <strong>team picker</strong> &mdash; a dropdown listing the teams you configured. They pick their team and click Continue. A small <em>I don&rsquo;t see my team</em> link gives them a safe escape if the roster doesn't match.</li>
+      <li>The <strong>chat</strong> opens. A thin color strip at the top reads <em>Configuration Name &middot; Team N &middot; Anonymous</em>. The bot greets the student by team name ("You're sharing as a member of Team 3&hellip;") and asks the dynamics questions you configured.</li>
+      <li>If the student flags someone specific, the bot assigns that person a letter (<strong>"I&rsquo;ll refer to that person as Teammate A"</strong>) and stays with the letter label for the rest of the conversation &mdash; you never see real teammate names in the conversation log.</li>
+    </ol>
+
+    <h3 class="sub-heading">Reading in-group results</h3>
+
+    <p>
+      Open <strong>Feedback Analyzer</strong>. In-group surveys appear as colored chips at the top of the page
+      (above the regular scope bar). Each chip's color matches its team configuration, so you can see which
+      lab/project teams you're looking at without reading the label.
+    </p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click an in-group chip</strong><p>The regular analyzer view collapses and a team grid appears. One card per team, top-bordered in the configuration's color, showing <em>X of Y responded</em>, a short auto-summary of common themes surfaced from student messages, and a <em>View conversations</em> button (disabled on teams with no responses).</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Drill into a team</strong><p>Click <strong>View conversations</strong> on any team with responses. You see the anonymous conversations from that team &mdash; "Anonymous response 1, 2, 3&hellip;" &mdash; with the bot's turns and student's turns clearly labelled, and the bot's letter-label references (<em>Teammate A</em>, <em>Teammate B</em>) preserved. No student identities anywhere in the UI.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Back to general analysis</strong><p>Click <strong>&larr; Back to General Analysis</strong> at the top of the in-group view to return to the regular dashboard. The regular scope chips and analysis sections come back unchanged.</p></div></div>
+    </div>
+
+    <h3 class="sub-heading">When a student drops, joins, or switches teams</h3>
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>A student drops.</strong> Edit the size for that team in the Your Teams card. Future surveys use the new size. Past surveys keep the sizes they were created with &mdash; a small footnote in the analyzer makes that clear.</li>
+      <li><strong>A student switches teams.</strong> You do nothing. Next time they open a survey link, they pick their new team in the dropdown.</li>
+      <li><strong>Restructuring teams mid-quarter.</strong> Add a second configuration ("Final Project Teams") instead of editing the existing one. Past surveys stay attached to the original configuration; new surveys target the new one.</li>
+    </ul>
+
+    <!-- ═══════════════ FEEDBACK ANALYZER ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="analyzer-login">Analyzing Feedback</h2>
+
+    <p>The <strong>Feedback Analyzer</strong> is your central dashboard for understanding what students are saying. It offers three layers of analysis — each designed so you can go as shallow or as deep as you need:</p>
+
+    <ul style="margin:12px 0 20px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Traditional Analysis</strong> — deterministic word-frequency bars you can verify yourself (no AI involved)</li>
+      <li><strong>Instructor Insights</strong> — a one-click summary with citations so you can trace every claim back to a student response</li>
+      <li><strong>Feedback Chat</strong> — a full chat interface where you ask free-form questions about your data and the AI answers with evidence</li>
+    </ul>
+
+    <p>Open the <strong>Feedback Analyzer</strong> from the sidebar (or navigate directly) and log in with your course ID and dashboard password — the same credentials you use for the Prompt Designer.</p>
+
+    <!-- ── Dashboard ── -->
+    <h3 class="sub-heading" id="analyzer-dashboard">The Dashboard</h3>
+
+    <p>After logging in you see the full dashboard for your course. It has four sections stacked top to bottom:</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scope chips</strong><p>A row of buttons at the top: <strong>Entire Course</strong> plus one chip per weekly survey. Click any chip to filter everything on the page to that scope.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Stats row</strong><p>Cards showing: total <strong>Responses</strong>, <strong>Participation</strong> percentage, <strong>Avg Words</strong> per response, and a <strong>Responses / Week</strong> sparkline so you can spot drop-offs at a glance. A <strong>Nudged</strong> card joins them once the AI has pointed at least one student toward a person — see <a href="#student-responses">Student Responses</a>.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Traditional Analysis</strong><p>Horizontal bar chart of the most frequent terms in student feedback. Toggle between Unigram, Bigram, and Trigram. Click any bar to see the exact responses that contain that term.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Instructor Insights &amp; Student Responses</strong><p>Below the bars you'll find the AI-generated summary (if you've triggered one) and the full list of student responses in collapsible cards.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-dashboard.png" alt="Feedback Analyzer dashboard showing scope chips, stats row with 45 responses and 100% participation, and horizontal n-gram bar chart">
+      <div class="caption">The Analyzer dashboard in <strong>Entire Course</strong> scope. Scope chips across the top, four stat cards, and the Traditional Analysis bar chart showing bigrams by frequency.</div>
+    </div>
+
+    <!-- ── Scope Filtering ── -->
+    <h3 class="sub-heading" id="scope-filtering">Filtering by Scope</h3>
+
+    <p>The scope chips at the top of the dashboard control what data appears everywhere on the page — stats, n-gram bars, Instructor Insights, and response list all update instantly when you select a different scope.</p>
+
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Entire Course</strong> — shows every student response across all weeks. The Keyness toggle is disabled because there is no reference subset to compare against.</li>
+      <li><strong>Week N</strong> — shows only responses from that week's survey. The Keyness toggle becomes active, letting you see which terms are <em>statistically distinctive</em> for that week compared to the full course.</li>
+    </ul>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Use scope to spot weekly shifts.</strong> Click through Week 1 → Week 2 → Week 3 and watch the n-gram bars change. Terms that appear only in later weeks often signal emerging issues worth addressing.</p>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-scope-week.png" alt="Analyzer filtered to Week 1 Check-in showing 15 responses, 33% participation, and week-specific n-gram bars">
+      <div class="caption">The dashboard filtered to <strong>Week 1 Check-in</strong>. Stats, n-gram bars, and all other sections update to show only that week's data. Note the Keyness toggle is now available in the bar chart controls.</div>
+    </div>
+
+    <!-- ── Traditional Analysis ── -->
+    <h3 class="sub-heading" id="traditional-analysis">Traditional Analysis (N-grams)</h3>
+
+    <p>The Traditional Analysis panel shows you what students are talking about using pure word-frequency counting — <strong>no AI is involved</strong>, so the results are completely deterministic and reproducible.</p>
+
+    <p><strong>Three term-length modes:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Unigram</strong> — single words (e.g. "game", "confusing", "help")</li>
+      <li><strong>Bigram</strong> — two-word pairs (e.g. "group project", "office hours") — the default view</li>
+      <li><strong>Trigram</strong> — three-word phrases (e.g. "too much group")</li>
+    </ul>
+
+    <p><strong>Two ranking modes:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.8;">
+      <li><strong>Freq</strong> — raw count: how many times the term appears</li>
+      <li><strong>Keyness</strong> — <em>(only available when a weekly scope is selected)</em> — ranks terms by how statistically over-represented they are in the selected week compared to the full course. Uses a log-likelihood formula. A high keyness score means the term is distinctively associated with that week's feedback.</li>
+    </ul>
+
+    <p><strong>Clicking a bar</strong> expands it to show every student response that contains that term, with the keyword highlighted in gold. Each match card shows a response ID (R1, R2, etc.) and the week label so you can cross-reference it with the full response list below.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-ngram-clickthrough.png" alt="N-gram bar chart with 'game design' bar expanded, showing two matching student responses with the keyword highlighted in gold">
+      <div class="caption">Clicking a bar reveals matching responses. Here the <strong>game design</strong> bigram is expanded, showing the two student responses that contain it with keywords highlighted.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-keyness.png" alt="N-gram bar chart in Keyness ranking mode showing statistically distinctive terms for Week 1">
+      <div class="caption">Switching to <strong>Keyness</strong> ranking (available when a weekly scope is selected) reorders terms by how statistically distinctive they are for that week compared to the full course.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Note</span>
+      <p><strong>Common English words are filtered out.</strong> The n-gram analysis automatically removes stopwords like "the", "is", "and", "I", etc. so the bars show meaningful content words only.</p>
+    </div>
+
+    <!-- ── Instructor Insights ── -->
+    <h3 class="sub-heading" id="ai-quicktake">Instructor Insights</h3>
+
+    <p><strong>Instructor Insights</strong> gives you a concise, citation-backed summary of the feedback in the current scope. Unlike the traditional analysis, this <strong>does use AI</strong> — but every claim includes numbered citations so you can verify it against the original student responses, and each claim shows how many students back it so a single voice is never dressed up as a class-wide theme.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "Generate insights"</strong><p>The summary is generated on demand — it won't run automatically. You'll see a shimmer animation while the AI processes the responses (typically 10–20 seconds).</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the themes under "What students are saying"</strong><p>The AI returns a set of themed bullet points (typically eight to fifteen) covering recurring praise, concerns, and suggestions. Each bullet is a single claim, tinted by sentiment — green for positive, red for negative, amber for mixed — with a small sentiment legend above the list.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Check how many students back each claim</strong><p>Every bullet carries a <strong>"N students"</strong> count. The AI cites <em>every</em> response that genuinely supports a claim, not just two or three examples, so the count reflects real weight — and two opposing bullets read as the two sides of a disagreement, sized by how many students are on each. Click the count to expand the underlying citation pills.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Scan the "Mentioned by one student" group</strong><p>Points only a single student raised are split into their own group below the themes, flagged <em>"individual signal, not yet a class-wide theme."</em> They're kept rather than hidden — so a small class loses nothing — but a lone, vivid remark can no longer masquerade as a shared pattern. This is the safeguard against summaries over-generalising from one example.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click a pill to read the source</strong><p>Expanding a claim's count reveals its numbered citation pills. Click any pill to see the underlying student response in a popover — the quoted text, the student's week, and the R-id. The same pill number always points to the same source, so if <strong>[4]</strong> appears in two different bullets it refers to the same student.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand "N sources" for the full list</strong><p>Click the <strong>▾ N sources</strong> toggle below the bullets to reveal a drawer with every cited response in order — each card shows <strong>[n] R-id · Week X</strong> followed by the response text. Clicking a pill briefly highlights its matching card so you can find it quickly.</p></div></div>
+    </div>
+
+    <div class="callout warn">
+      <span class="callout-label">Important</span>
+      <p><strong>Minimum 5 responses required; 20+ recommended.</strong> The summary will not generate below 5 responses. The "Mentioned by one student" group keeps a single voice from reading as a shared theme, but it can't manufacture consensus that isn't there — between 5 and 20 responses even the grouped themes rest on a thin sample, so treat low-N output as indicative, not conclusive. Switch to "Entire Course" scope if a single week doesn't meet the recommended threshold.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">How citation numbers work</span>
+      <p>Pill numbers (<strong>[1] [2] [3] …</strong>) are <strong>local to each AI response</strong> and assigned in first-appearance order, like footnotes in a paper. They are <em>not</em> the same as R-ids. <strong>R-ids</strong> (R1, R2, R3 …) are the stable class-wise identifiers you'll see in the sources drawer and in the Student Responses section below — they let you trace a citation back to a specific student across the whole course.</p>
+    </div>
+
+    <p>The summary is <strong>cached on the server</strong> — once generated, it reloads instantly on future visits. A second AI pass quietly checks each citation against its source text and drops any it can't support, so the per-claim counts you see are conservative. Click <strong>Regenerate</strong> to create a fresh summary (for example, after new responses come in). Click <strong>Show prompt</strong> to see the exact instruction sent to the AI.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-quicktake.png" alt="Instructor Insights panel showing themed bullet points, each with a count of how many students back it and inline citation pills">
+      <div class="caption">The Instructor Insights panel for the full course. Each bullet states one theme and shows how many students back it; click the count to reveal its citation pills, and points only one student raised appear in a separate "Mentioned by one student" group.</div>
+    </div>
+
+    <!-- ── Student Responses ── -->
+    <h3 class="sub-heading" id="student-responses">Student Responses</h3>
+
+    <p>The <strong>Student Responses</strong> section appears at the bottom of the dashboard. Each student's feedback session is shown as a collapsible card labelled with an <strong>R-id</strong> — <strong>R1, R2, R3 …</strong> — the same identifiers Instructor Insights cites. R-ids are assigned class-wide and stay stable across scopes, so the R5 card here is the same R5 you'll see referenced in the Instructor Insights sources drawer.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Collapsed by default</strong><p>Each card shows the R-id, the week, and a message count. This gives you a quick sense of participation before diving in.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click to expand</strong><p>Click any card to reveal that student's full messages. Each message is labelled <strong>STUDENT</strong> so the source is clear.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Cross-reference with Instructor Insights</strong><p>When an Instructor Insights bullet cites a source as <strong>R12</strong>, scroll to the R12 card here to read that student's full conversation. This is useful when you want to understand the context behind a specific data point in the AI summary.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Expand All / Collapse All</strong><p>Use the button at the top-right of the section to open every card at once for a full read-through.</p></div></div>
+    </div>
+
+    <h4 class="sub-heading">Students the AI pointed toward a person</h4>
+
+    <p>If you turned on <strong>Point to a human</strong> in Customizations, the AI can suggest — once per conversation, and only when a student says they are stuck, lost, behind, or not keeping up — that they bring it up with you or a TA. Those conversations are marked so you can find them:</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Nudged chip</strong><p>A flag chip on the collapsed card. A legend above the list explains the icon. Both appear only once at least one student has been nudged, so nothing changes for courses that leave the setting off.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Flag in the conversation</strong><p>Expand the card and a small flag sits next to the one AI reply that made the suggestion, so you can read what the student said just before it.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Nudged only filter</strong><p>Narrows the list to those conversations. Your choice is remembered between visits, so switch it back to <strong>All responses</strong> when you are done.</p></div></div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">What the chip does and doesn't tell you</span>
+      <p>The chip records that the AI made the suggestion, not that it was right, and not whether the student acted on it. Read the conversation before drawing conclusions. Conversations from before this feature shipped carry no chip even if a student was pointed to a person at the time.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Privacy note</span>
+      <p>R-ids are <strong>anonymous by design</strong> — they identify a unique student session for cross-referencing, but they do not reveal who the student is. If your survey is configured as anonymous (the default for the Weekly Check-in template), the R-id is the only identifier shown anywhere in the dashboard.</p>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Looking for a specific theme?</strong> Use your browser's Find (Cmd+F / Ctrl+F) while all cards are expanded to search across all student messages at once.</p>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/analyzer-responses.png" alt="Student Responses section with several cards expanded showing individual student messages labelled STUDENT">
+      <div class="caption">The Student Responses section with cards expanded. Each card shows the student label and their messages. Use <strong>Expand All</strong> to open every card at once.</div>
+    </div>
+
+    <!-- ── Feedback Chat ── -->
+    <hr class="divider">
+    <h3 class="sub-heading" id="feedback-chat">Feedback Chat</h3>
+
+    <p>For deeper exploration, open the <strong>Feedback Chat</strong> page from the sidebar. This is a full chat workspace where you can ask free-form questions about your survey data and the AI responds with evidence-backed answers.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-new-session.png" alt="Feedback Chat empty state with New Chat button, session sidebar, and quick-prompt suggestions">
+      <div class="caption">A fresh Feedback Chat session. The sidebar lists saved sessions, and quick-prompt suggestions help you get started.</div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Click "+ New Chat"</strong><p>This creates a new chat session scoped to your entire course. Quick-prompt suggestions appear to help you get started — click one or type your own question.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Ask a question</strong><p>Type a question like "What are students struggling with?" or "Group the responses into clusters" and press Enter. The AI reads all student responses in scope and answers with inline numbered citations.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Read the cited response</strong><p>Each AI answer uses the <strong>same citation format as Instructor Insights</strong>: numbered pills in first-appearance order and an expandable <strong>N sources</strong> drawer where each card shows <strong>[n] R-id · Week X</strong>. As in Instructor Insights, citations are verified against the source text behind the scenes and unsupported ones are dropped. Click a pill to read the source text.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Continue the conversation</strong><p>Ask follow-up questions in the same session. The AI remembers the context from earlier messages, so you can drill deeper ("Tell me more about the grading complaints") without repeating yourself.</p></div></div>
+    </div>
+
+    <p><strong>Sessions are persistent.</strong> Chat sessions are saved on the server and appear in the left sidebar. You can switch between sessions, rename them, export a session as Markdown, or delete sessions you no longer need. The session title is automatically generated from your first message.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-markdown-citations.png" alt="Feedback Chat showing a multi-turn conversation with markdown-formatted AI responses containing bold headings, bullet lists, and numbered citation pills">
+      <div class="caption">A chat conversation in progress. The AI response uses <strong>bold headings</strong>, bullet lists, and numbered citation pills. Hover a pill to see which student response it refers to.</div>
+    </div>
+
+    <div class="callout tip">
+      <span class="callout-label">Tip</span>
+      <p><strong>Use the "Ask a follow-up" link.</strong> After reviewing Instructor Insights, click <strong>Ask a follow-up →</strong> to open a new chat session with the summary pasted in as the first AI message — pills and the sources drawer all carry over. You can then ask follow-ups like <em>"Tell me more about [4]"</em> or <em>"Which weeks do the grading complaints cluster in?"</em> without re-pasting the analysis.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Response time</span>
+      <p><strong>Bigger questions take longer.</strong> When you scope a chat to multiple surveys or ask a broad question across a full course, the AI has more student responses to read and cite. A shimmer placeholder appears under your message while it works — typically a few seconds for a single survey, up to a minute or two for the largest course-wide questions. You can leave the tab and come back; the answer is saved to the session as soon as it's ready. If something goes wrong on the server, the placeholder is replaced with a clear error message instead of leaving you waiting indefinitely.</p>
+    </div>
+
+    <!-- ── System Prompt ── -->
+    <h3 class="sub-heading" id="chat-system-prompt">Customising the AI Prompt</h3>
+
+    <p>The Feedback Chat gives you full control over the AI's behaviour. Click the <strong>System Prompt</strong> button below the text input to open the prompt editor.</p>
+
+    <div class="steps">
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Open the prompt editor</strong><p>Click the small <strong>System Prompt</strong> button beneath the message input. A popup appears with the current system prompt in an editable text field.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Edit the prompt</strong><p>Change the instructions to focus the AI on a specific area — for example, add "Focus only on responses related to grading" or "Respond in bullet points only." Changes apply to future messages in this session.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Restore default</strong><p>Click <strong>Restore default</strong> in the popup to reset to the standard LEAI prompt at any time.</p></div></div>
+      <div class="step"><div class="step-num"></div><div class="step-body"><strong>Replay last turn</strong><p>Click <strong>Replay last turn</strong> to re-send your last question with the updated prompt. This lets you quickly compare how different prompts change the AI's response.</p></div></div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/chat-system-prompt-modal.png" alt="System Prompt popup modal showing an editable text area with the current AI instructions, plus Restore default, Replay last turn, and Done buttons">
+      <div class="caption">The System Prompt popup. Edit the instructions, click <strong>Done</strong> to save, or use <strong>Restore default</strong> to reset. <strong>Replay last turn</strong> re-sends your last question with the updated prompt.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Note</span>
+      <p><strong>Prompt changes are per-session.</strong> Each chat session stores its own system prompt override. Creating a new session always starts with the default prompt. This means you can experiment freely without affecting other sessions.</p>
+    </div>
+
+
+    <!-- ═══════════════ STUDENT EXPERIENCE ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="student-chat">What Students See</h2>
+
+    <p>When you share a survey link with students, they land on a simple chat page. Understanding what they see helps you explain the activity and troubleshoot issues.</p>
+
+    <h3 class="sub-heading">The Chat Interface</h3>
+
+    <p>The student sees a minimal chat window. The AI opens with a greeting question based on your prompt. Students type their response and press <strong>Send</strong>. The conversation continues naturally for a few turns.</p>
+
+    <p>The header of the chat page makes the anonymity guarantee visible at all times: a green <strong>ANONYMOUS</strong> badge sits next to the survey title, and the subtitle reads "Your responses are anonymous." Two small buttons &mdash; <strong>Terms</strong> and <strong>Privacy</strong> &mdash; in the top-right let students open the legal documents in a new tab at any point during the session.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/feedback-header-anonymity.png" alt="Student chat interface showing the ANONYMOUS badge in the header, the Your responses are anonymous subtitle, and the Terms Privacy buttons in the top-right">
+      <div class="caption">The student chat page. Note the green <strong>ANONYMOUS</strong> badge next to the title, the "Your responses are anonymous" subtitle underneath, and the <strong>Terms</strong> / <strong>Privacy</strong> links at the top-right, which open the legal documents in a new tab at any time during the session.</div>
+    </div>
+
+    <h3 class="sub-heading" id="completion-credit">How Completion Certificates Work</h3>
+
+    <p>If you offer completion credit, students download a PDF from their LEAI conversation and submit it where you tell them to. The PDF has one verification code. Your job is simply to check that code for the matching survey.</p>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Receive the student's certificate.</strong><p>Use the submission process you already use for your course. The certificate contains a code; it does not contain the student's LEAI answers or identity.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Open the matching week in Feedback Analyzer.</strong><p>Expand <strong>Verify completion certificates</strong>. If a week has more than one survey, choose the exact survey before checking codes.</p></div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body"><strong>Paste the code and read the result.</strong><p><strong>Valid</strong> means LEAI issued that certificate for this survey. <strong>Not Found</strong> means the code does not belong to the selected survey. You can check several codes at once.</p></div>
+      </div>
+    </div>
+
+    <div class="screenshot-wrap" style="max-width:560px">
+      <div class="annotation-canvas">
+        <img src="guide-assets/completion-certificate.png" alt="Completion certificate with a prominent verification code panel">
+        <span class="screenshot-marker certificate-panel-marker"><b>1</b> Find this code on the PDF</span>
+      </div>
+      <div class="caption"><strong>What matters:</strong> the verification code. The formal design helps students keep the file intact, but the code check in LEAI is what establishes whether it was issued.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <div class="annotation-canvas">
+        <img src="guide-assets/completion-certificate-verification.png" alt="Feedback Analyzer verification panel showing one valid code and one not found code">
+        <span class="screenshot-marker verify-paste-marker"><b>2</b> Paste one or more codes</span>
+        <span class="screenshot-marker verify-result-marker"><b>3</b> Read the status here</span>
+      </div>
+      <div class="caption"><strong>What to look for:</strong> select the correct week, paste the codes, and check the <strong>Status</strong> column. This example shows one valid code and one code that does not belong to this survey.</div>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">Privacy boundary</span>
+      <p>A valid result confirms that LEAI issued a certificate after saving at least one response. It does not identify the student, reveal their responses, prove every section was completed, or show which anonymous conversation produced the code. You can recheck a code later; verification does not consume it.</p>
+    </div>
+
+    <h3 class="sub-heading" id="consent-flow">Consent &amp; Anonymity Notice</h3>
+
+    <p>The first time a student opens a feedback link in a browser session, they are shown a small <strong>consent dialog</strong> before the chat begins. This is how LEAI records informed consent in a way that meets industry best practice for a research-adjacent tool &mdash; without being scary or bureaucratic.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/feedback-consent-modal.png" alt="The consent dialog students see on first load, showing an anonymity intro, a required checkbox with Terms of Use and Privacy Policy links, and an optional research consent checkbox">
+      <div class="caption">The consent dialog. Students must check the required box (which contains inline links to the Terms of Use and Privacy Policy, opening in a new tab) to continue. The optional research consent box is separate.</div>
+    </div>
+
+    <p><strong>What the dialog says, in plain terms:</strong></p>
+    <ul style="margin:12px 0 16px 22px;color:#475569;font-size:15px;line-height:1.6;">
+      <li>LEAI is an <strong>anonymous</strong> mid-course feedback tool. It does not ask for a name, email, student ID, or login. It uses random technical codes to keep a conversation together and, when enabled, issue a completion certificate.</li>
+      <li>The purpose is to help <em>improve the course while it's still running</em>, not to wait for end-of-quarter evaluations when it is too late to help current students.</li>
+      <li>Instructors cannot use LEAI to connect a response to a named student. If the course offers completion credit, students can submit a certificate through Canvas without exposing their LEAI responses; the course's stated grading policy still applies.</li>
+      <li>There are two checkboxes. The first (<strong>required</strong>) records agreement to the Terms of Use and Privacy Policy &mdash; the document names are inline links that open the full text in a new browser tab. The second (<strong>optional</strong>) records research consent for that session: it is persisted to the backend as a per-message flag, so any future GUII Lab research analysis can be restricted to messages where the student opted in.</li>
+    </ul>
+
+    <p>The Terms of Use and the Privacy Policy live as their own standalone pages (<code>LEAI/legal/terms.html</code> and <code>LEAI/legal/privacy.html</code>). The canonical source of each document is the corresponding Word file (<code>LEAI-Terms-of-Use.docx</code> and <code>LEAI-Privacy-Policy.docx</code>) in the same folder &mdash; edit those when the policy needs to change. After editing, run <code>LEAI/legal/scripts/regenerate-md-from-docx.sh</code> to refresh the matching <code>terms.md</code> / <code>privacy.md</code> files that the live HTML pages render. The edits then appear on the hosted pages with no code change.</p>
+
+    <div class="callout info">
+      <span class="callout-label">How often will students see this?</span>
+      <p>The consent dialog appears <strong>once per browser session</strong>. If a student refreshes the page or follows a new survey link in the same tab, the dialog is skipped. Closing the tab and returning later is treated as a fresh session, so the dialog reappears &mdash; and the research consent checkbox resets, by design, so the student can freshly choose each time.</p>
+    </div>
+
+    <div class="callout info">
+      <span class="callout-label">What if a student wants to re-read the docs during the chat?</span>
+      <p>The <strong>Terms</strong> and <strong>Privacy</strong> buttons in the top-right of the header open the respective documents in a new browser tab at any point during the conversation. The full text of each document is a real page &mdash; students (and instructors) can bookmark it, share it, or even print it.</p>
+    </div>
+
+    <h3 class="sub-heading" id="bad-link">What If a Student Opens the Wrong Link?</h3>
+
+    <p>If a student navigates to the feedback page without a valid survey link (for example, if they bookmark the base URL instead of the survey-specific link), they will see a clear message rather than a broken or blank page.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/feedback-no-survey.png" alt="Empty state screen showing No survey loaded message">
+      <div class="caption">Students who open the feedback page without a survey link see this screen. They cannot browse other surveys — only the direct link shared by the instructor works.</div>
+    </div>
+
+    <h3 class="sub-heading" id="inactive-states">What Happens When a Survey Is Closed or Expired</h3>
+
+    <p>If a student tries to access a survey that is no longer active, they will see a clear message explaining why — they won't just get an error.</p>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f5-inactive-closed.png" alt="Inactive screen showing survey closed message">
+      <div class="caption">When a survey is manually closed, students see this screen with a lock icon and a clear explanation.</div>
+    </div>
+
+    <div class="screenshot-wrap">
+      <img src="guide-assets/test-f6-inactive-expired.png" alt="Inactive screen showing survey expired message">
+      <div class="caption">When a survey's expiry date has passed, students see this screen. The message gently explains the deadline.</div>
+    </div>
+
+    <div class="callout warn">
+      <span class="callout-label">Warning</span>
+      <p><strong>Students got a "closed" screen but the survey should be open?</strong> Go to the Prompt Designer, find the survey, and check the Opens At and Expires At dates. If the expiry date is in the past, click Reopen to reset it.</p>
+    </div>
+
+    <!-- ═══════════════ PDF REFLECTION INGEST ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="pdf-ingest">Importing PDF Reflections</h2>
+
+    <div class="callout warn">
+      <span class="callout-label">Scope</span>
+      <p><strong>Individual Structured Reflection only.</strong> Team/In-Group PDF upload is not supported.</p>
+    </div>
+
+    <p>Use this workflow when students submit the individual reflection as a PDF in Canvas. Known template instructions, submission guidelines, and raw conversation transcripts are removed automatically before review.</p>
+
+    <h3 class="sub-heading" id="pdf-ingest-flow">Canvas to Feedback Analyzer</h3>
+    <ol class="bullet-list">
+      <li>Download the students' text-based PDF submissions from the Canvas assignment. Keep filenames that identify the student.</li>
+      <li>In Feedback Analyzer, select <strong>Structured Reflection</strong> and the exact grading week. Open <strong>Upload PDF reflections</strong>, add the batch, and resolve only the attribution issues.</li>
+      <li>Resolve every file under <strong>Needs attention</strong>. Clean files stay collapsed and are available if you want to spot-check one.</li>
+      <li>At the final check, confirm the destination, response count, student count, skipped files, and any re-upload decisions. Commit, then verify the newest row under <strong>Recent PDF uploads</strong>.</li>
+    </ol>
+
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-stage.png" alt="PDF upload drawer for a fictional Week 2 Structured Reflection showing staged files, unique-student count, and one attribution issue">
+      <figcaption class="caption">Before processing, verify the selected survey and week and resolve any attribution issues.</figcaption>
+    </figure>
+
+    <p><strong>Needs attention</strong> tells you what to do: supply or explicitly omit a missing answer, inspect and accept or edit an unusually long answer, or remove other PDF content before continuing.</p>
+
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-review.png" alt="Review screen with one fictional Needs attention file expanded, a specific reason and action visible, and the Looks good group collapsed">
+      <figcaption class="caption">Resolve every open Needs attention item; clean mappings remain collapsed.</figcaption>
+    </figure>
+
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-commit.png" alt="Final PDF import check for a fictional Week 2 survey showing the destination, response and student totals, skipped and unresolved counts, and Keep existing selected for a re-upload">
+      <figcaption class="caption">Commit only after the destination and included counts match the Canvas batch.</figcaption>
+    </figure>
+
+    <figure class="screenshot-wrap">
+      <img src="guide-assets/pdf-ingest-after-commit.png" alt="Feedback Analyzer showing PDF badges, the newest fictional Recent PDF uploads row, PDF source controls, and the Revert button">
+      <figcaption class="caption">Use the newest Recent PDF uploads row as the audit record and Revert entry point.</figcaption>
+    </figure>
+
+    <details>
+      <summary><strong>If something goes wrong or you are re-uploading</strong></summary>
+      <ul class="bullet-list">
+        <li><strong>Unreadable PDF:</strong> re-export it from Word or Pages as a text-based PDF. Scanned images and password-protected PDFs cannot be read.</li>
+        <li><strong>Large batch:</strong> the limit is 60 PDFs, 10&nbsp;MB per file, and 50&nbsp;MB total.</li>
+        <li><strong>Re-upload:</strong> Keep existing is always selected first. Choose Add or Replace only for that student when needed.</li>
+        <li><strong>Wrong week or wrong batch:</strong> open Recent PDF uploads, choose Revert, and confirm the named batch and counts. The audit manifest remains after the responses are removed.</li>
+        <li><strong>Interrupted review:</strong> typed corrections auto-save for seven days. The original PDF file is not retained; only committed answers are stored.</li>
+        <li><strong>Bulk fill:</strong> use the collapsed bulk-fill tool only when the same intentionally shared text belongs in several empty sections. It never overwrites existing text.</li>
+      </ul>
+    </details>
+
+    <!-- ═══════════════ FAQ ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="faq">Common Questions</h2>
+
+    <div class="faq-item">
+      <div class="faq-q">Can students see each other's responses?</div>
+      <div class="faq-a">No. Each student's conversation is private. Only you can view responses through the Feedback Analyzer.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">How long does a typical student session take?</div>
+      <div class="faq-a">Most students finish in 3–8 minutes. The AI doesn't require a minimum number of messages, but it will gently encourage a bit of depth if a student responds very briefly.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I reuse a survey from a previous quarter?</div>
+      <div class="faq-a">Yes. Use the Duplicate button to create a fresh copy with a new link. Then edit the label and dates before sharing.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">A student says the link isn't working. What should I check?</div>
+      <div class="faq-a">Go to the Prompt Designer and find the survey. Check that the status badge is <span class="badge badge-open" style="font-size:12px;">Open</span>. If it says Closed or Expired, use the Reopen button. Also confirm the Opens At date is not in the future.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Do students need to create an account?</div>
+      <div class="faq-a">No. Students just open the link. No login, no account, no app to install.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">Can I edit the survey after students have already started responding?</div>
+      <div class="faq-a">You can edit the label, dates, and week number at any time. Editing the prompt (the actual AI instructions) will only affect conversations that start after the edit — existing conversations are not changed.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">What does "Avg. Turns = 1" mean?</div>
+      <div class="faq-a">It means most students sent one message and the AI replied once. This often indicates students answered very briefly. You might adjust your prompt to ask a more open-ended question, or tell students in class that you're looking for a few exchanges.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">I ran the AI analysis, then refreshed the page and it's gone. What happened?</div>
+      <div class="faq-a">Analysis results are saved automatically in your browser when you run them. They will reload the next time you open that survey's detail view — as long as you're using the same browser and haven't cleared browser data. If the results are missing, just click Run Analysis again.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q">How do I read individual student responses?</div>
+      <div class="faq-a">Open the Survey Detail view (click View → on any survey row). Scroll to the Student Responses section at the bottom. Each card represents one student's session. Click a card to expand it and read the full conversation. Use Expand All to open every conversation at once.</div>
+    </div>
+
+    <!-- ═══════════════ GLOSSARY ═══════════════ -->
+    <hr class="divider">
+    <h2 class="section-heading" id="glossary">Glossary</h2>
+
+    <table style="width:100%;border-collapse:collapse;font-size:15px;margin:16px 0;">
+      <thead>
+        <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+          <th style="text-align:left;padding:10px 14px;color:#64748b;font-weight:600;">Term</th>
+          <th style="text-align:left;padding:10px 14px;color:#64748b;font-weight:600;">Plain-language definition</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #e2e8f0;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Survey</td>
+          <td style="padding:10px 14px;color:#475569;">An AI-powered feedback session you create and share with students</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Prompt</td>
+          <td style="padding:10px 14px;color:#475569;">The instructions you write telling the AI what topic to discuss with students</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Turn</td>
+          <td style="padding:10px 14px;color:#475569;">One student message plus one AI reply = one turn</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Session</td>
+          <td style="padding:10px 14px;color:#475569;">One student's complete conversation with the AI on a particular survey</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Response</td>
+          <td style="padding:10px 14px;color:#475569;">A student who submitted at least one message (counted once per survey)</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">AI Analysis</td>
+          <td style="padding:10px 14px;color:#475569;">An AI-generated summary of themes and friction points from student conversations, available in the Survey Detail view</td>
+        </tr>
+        <tr style="border-bottom:1px solid #e2e8f0;background:#fafafa;">
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">CSV</td>
+          <td style="padding:10px 14px;color:#475569;">A spreadsheet file format that opens in Excel, Google Sheets, or Numbers</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;font-weight:600;color:#0f172a;">Course ID</td>
+          <td style="padding:10px 14px;color:#475569;">A short code identifying your course, used to log in to both LEAI tools</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div style="margin-top:56px;padding:24px 0;border-top:1px solid #e2e8f0;font-size:13px;color:#94a3b8;">
+      LEAI — Learning Experience AI &nbsp;·&nbsp; GUII Lab, UC Santa Cruz &nbsp;·&nbsp; For support, contact your course technology team.
+      <div style="margin-top:6px;font-size:11px;letter-spacing:0.04em;text-transform:uppercase;" data-leai-version></div>
+    </div>
+
+  </main>
+</div>
+
+<script src="leai-version.js"></script>
+<script>
+  // Highlight active sidebar link based on scroll position
+  const sections = document.querySelectorAll('[id]');
+  const links = document.querySelectorAll('.sidebar a');
+
+  function updateActive() {
+    let current = '';
+    sections.forEach(s => {
+      if (window.scrollY >= s.offsetTop - 80) current = s.id;
+    });
+    links.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+    });
+  }
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+</script>
+</body>
+</html>

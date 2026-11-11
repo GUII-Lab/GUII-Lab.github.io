@@ -1,0 +1,28 @@
+{
+  "name": "Student B — vague / lazy (Team 1)",
+  "notes": "TEAM survey, adversarial vagueness. Gives one-line summary answers across all 6 sections. The TEAM prompt explicitly says 'when the student says something vague (\\\"communication was hard\\\"), push for the moment'. This persona stress-tests that probe rule. If the bot accepts these answers without probing, the prompt is failing its own contract. Also tests refusal to default-to-5 on ratings.",
+  "team_number": 1,
+  "team_id": 6,
+  "turns": [
+    "team 1, hey",
+    "yeah we had a plan",
+    "we just adapted",
+    "team is me, marco, devi, yusuf",
+    "marco did notes",
+    "devi did stickies",
+    "yusuf did reading",
+    "i did synthesis",
+    "yeah it was equitable",
+    "communication was hard",
+    "we'll do better next week",
+    "5",
+    "5",
+    "5",
+    "5",
+    "5",
+    "we have lots of questions",
+    "we'll figure it out",
+    "i'm done",
+    "the bot was fine"
+  ]
+}
