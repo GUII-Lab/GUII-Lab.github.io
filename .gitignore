@@ -52,3 +52,4 @@ scripts/build-verify-report-*.py
 LEAI/mockups/
 LEAI/scripts
 HCI capston course resources
+/.*
