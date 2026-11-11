@@ -1,0 +1,129 @@
+/* Shared composer for the existing production student and Feedback Chat pages. */
+.leai-composer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    width: 100%;
+    max-width: 860px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--outline, #d7e0e3);
+    border-radius: 26px;
+    background: var(--surface-card, #fff);
+    box-shadow: 0 1px 3px rgba(22, 28, 31, 0.08);
+}
+.leai-composer:focus-within { border-color: var(--primary, #006493); }
+.leai-composer-writing { position: relative; min-width: 0; min-height: 0; }
+#messageInput.leai-composer-input,
+#chat-input.leai-composer-input {
+    display: block;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    max-height: min(256px, 30dvh);
+    margin: 0;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: 0;
+    outline: 0;
+    box-shadow: none;
+    background: transparent;
+    color: var(--text, #2a3437);
+    font: 400 16px/24px 'Inter', sans-serif;
+    resize: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--outline, #d7e0e3) transparent;
+    --composer-fade-top: 0px;
+    --composer-fade-bottom: 0px;
+    mask-image: linear-gradient(to bottom, transparent, #000 var(--composer-fade-top), #000 calc(100% - var(--composer-fade-bottom)), transparent);
+}
+.leai-composer.has-overflow .leai-composer-input,
+.leai-composer.is-expanded .leai-composer-input { padding-right: 52px !important; }
+.leai-composer-input[data-scroll-above="true"] { --composer-fade-top: 12px !important; }
+.leai-composer-input[data-scroll-below="true"] { --composer-fade-bottom: 12px !important; }
+.leai-composer-actions { display: flex; flex: 0 0 auto; min-height: 44px; align-items: center; justify-content: flex-end; gap: 6px; }
+.leai-composer button.leai-composer-expand,
+.leai-composer #micButton,
+.leai-composer #sendMessage,
+.leai-composer #send-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    line-height: 1;
+    cursor: pointer;
+}
+.leai-composer button.leai-composer-expand { position: absolute; top: 0; right: 0; background: transparent; color: var(--text-variant, #566164); }
+.leai-composer button.leai-composer-expand[hidden] { display: none; }
+.leai-composer #micButton { background: transparent; color: var(--text, #2a3437); }
+.leai-composer #micButton:hover:not(:disabled):not(.is-recording),
+.leai-composer .leai-composer-expand:hover { background: var(--surface-low, #f0f4f6); }
+.leai-composer #micButton.is-recording { background: #c0392b; color: #fff; }
+.leai-composer #sendMessage,
+.leai-composer #send-btn { background: var(--primary, #006493); color: #fff; }
+.leai-composer #sendMessage:hover:not(:disabled),
+.leai-composer #send-btn:hover:not(:disabled) { background: var(--primary-dim, #005881); }
+.leai-composer #sendMessage:disabled,
+.leai-composer #send-btn:disabled { background: var(--primary, #006493); color: #fff; opacity: 0.4; cursor: not-allowed; }
+.leai-composer button:focus-visible,
+.leai-revise-dismiss:focus-visible { outline: 2px solid var(--primary, #006493); outline-offset: 2px; }
+.leai-composer button svg { width: 22px; height: 22px; }
+.leai-composer-notice { margin: 8px 0 0; color: var(--muted, #727d80); font: 400 12px/18px 'Inter', sans-serif; text-align: center; }
+.leai-composer-region { min-width: 0; max-width: 860px; }
+
+dialog.leai-composer-dialog {
+    position: fixed;
+    inset: 0;
+    width: min(832px, calc(100vw - 48px));
+    height: min(680px, 80dvh);
+    max-width: none;
+    max-height: none;
+    margin: auto;
+    padding: 16px;
+    border: 1px solid var(--outline, #d7e0e3);
+    border-radius: 28px;
+    background: var(--surface-card, #fff);
+    color: var(--text, #2a3437);
+}
+dialog.leai-composer-dialog[open] { display: flex; flex-direction: column; min-height: 0; }
+dialog.leai-composer-dialog::backdrop { background: rgba(22, 28, 31, 0.16); backdrop-filter: blur(3px); }
+.leai-composer.is-expanded { flex: 1; min-height: 0; overflow: hidden; }
+.leai-composer.is-expanded .leai-composer-writing { flex: 1; display: flex; }
+.leai-composer.is-expanded #messageInput,
+.leai-composer.is-expanded #chat-input { flex: 1; height: 100%; max-height: none; }
+.leai-composer-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Keep the existing production title, links and progress in normal flow. */
+#chat-app > .chat-header { height: auto; min-height: 0; flex-wrap: wrap; gap: 12px; }
+#chat-app .chat-header-left { flex: 1 1 300px; min-width: 0; max-width: 100%; }
+#chat-app .chat-header-title-block { flex: 1; min-width: 0; }
+#chat-app .chat-header-right { display: flex; flex-wrap: wrap; max-width: 100%; gap: 8px; }
+#chat-app #formmode-progress { flex-shrink: 0; position: relative; line-height: 1.5; }
+#chat-app .leai-revise-hint { position: relative; padding: 8px 48px 8px 10px; }
+#chat-app .leai-revise-hint .revise-hint-icon { display: none; }
+#chat-app .leai-revise-dismiss { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.leai-revise-dismiss svg { width: 18px; height: 18px; }
+
+@media (max-width: 767px) {
+    #chat-app > .chat-header { flex-direction: column; align-items: stretch; }
+    #chat-app .chat-header-left { flex-basis: auto; width: 100%; }
+    #chat-app .chat-header-right { width: 100%; justify-content: flex-end; }
+}
+@media (max-width: 639px) {
+    #messageInput.leai-composer-input,
+    #chat-input.leai-composer-input { max-height: min(160px, 22dvh); }
+    dialog.leai-composer-dialog { inset: 0; margin: 0; width: 100%; height: 100dvh; border: 0; border-radius: 0; padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+    .leai-composer.is-expanded #messageInput,
+    .leai-composer.is-expanded #chat-input { max-height: none; }
+}

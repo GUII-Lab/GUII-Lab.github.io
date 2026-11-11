@@ -792,6 +792,8 @@
         }
         .leai-course-banner .lcb-close:hover { background: rgba(183,121,31,.15); }
     </style>
+    <link rel="stylesheet" href="leai-chat-composer.css?v=hp370-1">
+    <script src="leai-chat-composer.js?v=hp370-1" defer></script>
 </head>
 
 <body>
@@ -3702,11 +3704,7 @@
             });
         })();
 
-        // Auto-resize textarea
-        $('#messageInput').on('input', function () {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        });
+        // Shared production composer owns auto-height and internal scrolling.
 
         function getAIresponse(transcription) {
             if (orchestratedClient) { sendOrchestratedMessage(transcription); return; }
