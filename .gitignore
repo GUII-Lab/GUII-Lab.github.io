@@ -6,6 +6,7 @@ CLAUDE.md
 .playwright-mcp/
 .superpowers/
 superpowers/
+/.codex/
 
 # OS files
 .DS_Store
@@ -44,6 +45,7 @@ review-screenshots/
 .trellis/
 .web-verify/
 e2e-screenshots/
+.context/
 
 # Per-topic verification artifacts (canonical scripts/build-verify-report.py
 # stays tracked; scoped builders and generated HTML reports do not).
@@ -51,4 +53,10 @@ verification-report-*.html
 scripts/build-verify-report-*.py
 LEAI/mockups/
 LEAI/scripts
+/LEAI/docs/
 HCI capston course resources
+/.web-verify
+/.web-verify
+/docs
+/.impeccable
+/.web-verify
