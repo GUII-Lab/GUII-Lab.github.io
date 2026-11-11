@@ -96,7 +96,7 @@ test('response links encode and validate response detail state in the fragment',
 
     assert.equal(
         leaiProgress.buildResponseHash(record),
-        '#response=1&mode=form&week=2&session=w2-a'
+        '#response=1&mode=form&week=2&session=w2-a&survey=20'
     );
     assert.deepEqual(
         leaiProgress.parseResponseHash('#response=1&mode=form&week=2&session=w2-a'),
@@ -110,6 +110,13 @@ test('response links encode and validate response detail state in the fragment',
         leaiProgress.parseResponseHash('#response=1&mode=form&week=2'),
         null
     );
+});
+
+test('new response links retain exact survey identity while older links stay readable', () => {
+    const record = {mode:'form',week:2,sessionId:'repeated',surveyId:20};
+    assert.deepEqual(leaiProgress.parseResponseHash(leaiProgress.buildResponseHash(record)),
+        {mode:'form',week:2,sessionId:'repeated',surveyId:'20'});
+    assert.equal(leaiProgress.parseResponseHash('#response=1&mode=form&week=2&session=repeated&survey=bad'),null);
 });
 
 test('response identifiers stay stable when a rendered subset filters earlier responses', () => {
@@ -157,7 +164,7 @@ test('response href opens the analyzer with response state in its fragment', () 
 
     assert.equal(
         leaiProgress.buildResponseHref(record),
-        'FeedbackAnalyzer.html#response=1&mode=form&week=2&session=w2-a'
+        'FeedbackAnalyzer.html#response=1&mode=form&week=2&session=w2-a&survey=20'
     );
 });
 

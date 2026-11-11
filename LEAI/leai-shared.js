@@ -23,6 +23,56 @@ function clearSession() {
 }
 
 // ===== UI HELPERS =====
+// A compact request state shared by instructor data surfaces.
+const leaiLoadState = {
+    createGuard() {
+        let active = null;
+        return {
+            cancel() { if (active) active.abort(); active = null; },
+            begin(relevant) {
+                this.cancel();
+                const controller = new AbortController();
+                active = controller;
+                return {signal: controller.signal,
+                    current: () => active === controller && !controller.signal.aborted && (!relevant || relevant())};
+            },
+        };
+    },
+    render(container, message, retry) {
+        container.replaceChildren();
+        container.setAttribute('aria-busy', retry ? 'false' : 'true');
+        const state = document.createElement('div');
+        state.className = 'leai-load-state' + (retry ? ' leai-load-state-error' : '');
+        state.setAttribute('role', retry ? 'alert' : 'status');
+        if (!retry) {
+            const spinner = document.createElement('span');
+            spinner.className = 'leai-load-spinner';
+            spinner.setAttribute('aria-hidden', 'true');
+            state.appendChild(spinner);
+        }
+        const label = document.createElement('span');
+        label.textContent = message;
+        state.appendChild(label);
+        if (retry) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-secondary';
+            button.textContent = 'Retry';
+            button.addEventListener('click', retry);
+            state.appendChild(button);
+        }
+        container.appendChild(state);
+    },
+    clear(container) {
+        container.replaceChildren();
+        container.setAttribute('aria-busy', 'false');
+    },
+    json(response) {
+        if (!response.ok) throw new Error('Request failed');
+        return response.json();
+    },
+};
+
 function setMsg(elId, text, type) {
     var el = document.getElementById(elId);
     el.className = 'msg msg-' + type;
@@ -387,6 +437,14 @@ var leaiAnalysis = {
             var sids = Object.keys(s.sessions).sort();
             sids.forEach(function(sid) {
                 var msgs = s.sessions[sid];
+                if (s.response_summaries && s.response_summaries[sid]) {
+                    const summary = s.response_summaries[sid];
+                    responses.push({rid: 'R' + counter++, week_rid: summary.week_rid,
+                        display_rid: scopeKind === 'week' ? summary.week_rid : summary.course_rid,
+                        survey_id: s.gpt_id, session_id: sid, week_number: s.week_number || 0,
+                        text: summary.text || '', word_count: summary.word_count});
+                    return;
+                }
                 var studentMsgs = msgs.filter(function(m) {
                     return m.sent_by === 'user-message' || m.sent_by === 'user';
                 }).map(function(m) { return m.content; });
@@ -660,16 +718,17 @@ var leaiChat = {
         });
     },
 
-    getQuickTake: function(courseId, scopeKey) {
+    getQuickTake: function(courseId, scopeKey, opts) {
         return leaiChat._fetch(
             '/leai_quicktake/?course_id=' + encodeURIComponent(courseId) +
             '&scope_key=' + encodeURIComponent(scopeKey),
-            { _allow404: true },
+            { _allow404: true, signal: opts && opts.signal },
         );
     },
-    generateQuickTake: function(courseId, scopeKey, scope) {
+    generateQuickTake: function(courseId, scopeKey, scope, opts) {
         return leaiChat._fetch('/leai_quicktake/generate/', {
             method: 'POST',
+            signal: opts && opts.signal,
             body: JSON.stringify({
                 course_id: courseId,
                 scope_key: scopeKey,
@@ -678,46 +737,44 @@ var leaiChat = {
         });
     },
     pollQuickTake: function(courseId, scopeKey, opts) {
-        // Poll getQuickTake until status is ready/failed, then resolve/reject.
-        // opts: { intervalMs=2000, timeoutMs=300000, onTick(qt) }
         opts = opts || {};
-        var intervalMs = opts.intervalMs || 2000;
-        var timeoutMs = opts.timeoutMs || 300000;
-        var onTick = typeof opts.onTick === 'function' ? opts.onTick : null;
-        var startedAt = Date.now();
+        const intervalMs = opts.intervalMs || 2000;
+        const timeoutMs = opts.timeoutMs || 300000;
+        const signal = opts.signal;
+        const startedAt = Date.now();
         return new Promise(function (resolve, reject) {
+            let timer = null;
+            let settled = false;
+            const finish = (error, value) => {
+                if (settled) return;
+                settled = true;
+                if (timer != null) clearTimeout(timer);
+                if (signal) signal.removeEventListener('abort', abort);
+                if (error) reject(error); else resolve(value);
+            };
+            const abort = () => finish(new DOMException('Insights read cancelled', 'AbortError'));
+            if (signal && signal.aborted) { abort(); return; }
+            if (signal) signal.addEventListener('abort', abort, {once: true});
+            const schedule = () => {
+                if (!settled) timer = setTimeout(tick, intervalMs);
+            };
             function tick() {
-                leaiChat.getQuickTake(courseId, scopeKey)
+                if (settled) return;
+                leaiChat.getQuickTake(courseId, scopeKey, {signal})
                     .then(function (qt) {
-                        if (!qt) {
-                            // 404: the row vanished (e.g. deleted). Treat as failure.
-                            reject(new Error('QuickTake job not found'));
-                            return;
+                        if (settled) return;
+                        if (!qt) { finish(new Error('QuickTake job not found')); return; }
+                        if (typeof opts.onTick === 'function') {
+                            try { opts.onTick(qt); } catch (_) {}
                         }
-                        if (onTick) {
-                            try { onTick(qt); } catch (_) {}
-                        }
-                        if (qt.status === 'ready') {
-                            resolve(qt);
-                            return;
-                        }
-                        if (qt.status === 'failed') {
-                            reject(new Error(qt.error || 'Generation failed'));
-                            return;
-                        }
-                        if (Date.now() - startedAt > timeoutMs) {
-                            reject(new Error('Generation timed out'));
-                            return;
-                        }
-                        setTimeout(tick, intervalMs);
-                    })
-                    .catch(function (err) {
-                        if (Date.now() - startedAt > timeoutMs) {
-                            reject(err);
-                            return;
-                        }
-                        // Transient fetch error: retry on next tick.
-                        setTimeout(tick, intervalMs);
+                        if (qt.status === 'ready') { finish(null, qt); return; }
+                        if (qt.status === 'failed') { finish(new Error(qt.error || 'Generation failed')); return; }
+                        if (Date.now() - startedAt > timeoutMs) { finish(new Error('Generation timed out')); return; }
+                        schedule();
+                    }).catch(function (error) {
+                        if (settled) return;
+                        if (error.name === 'AbortError' || Date.now() - startedAt > timeoutMs) finish(error);
+                        else schedule();
                     });
             }
             tick();

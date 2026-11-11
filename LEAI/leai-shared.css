@@ -1,6 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 /* ===== STITCH DESIGN TOKENS ===== */
+.leai-load-state { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 24px 16px; color: var(--text-variant); font-size: 16px; }
+.leai-load-state-error { color: var(--error); }
+.leai-load-spinner { display: inline-block; width: 20px; height: 20px; flex: 0 0 20px; border: 2px solid var(--surface-highest); border-top-color: var(--primary); border-radius: 50%; animation: leai-load-spin .8s linear infinite; }
+#analyzer-load-state > .leai-load-state { min-height: clamp(320px, 50vh, 520px); flex-direction: column; }
+#chat-messages > .leai-load-state { flex: 1; flex-direction: column; }
+#analyzer-load-state .leai-load-spinner,
+#chat-messages > .leai-load-state .leai-load-spinner { width: 64px; height: 64px; flex: 0 0 64px; border-width: 5px; }
+@keyframes leai-load-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .leai-load-spinner { animation: none; } }
+
 :root {
     --primary:          #006493;
     --primary-dim:      #005881;

@@ -107,6 +107,7 @@
         params.set('mode', record.mode);
         params.set('week', String(record.week));
         params.set('session', record.sessionId);
+        if (record.surveyId != null) params.set('survey', String(record.surveyId));
         return '#' + params.toString();
     }
 
@@ -125,7 +126,9 @@
             !Number.isInteger(week) || week < 1 || !sessionId) {
             return null;
         }
-        return { mode: mode, week: week, sessionId: sessionId };
+        const surveyId = params.get('survey');
+        if (surveyId != null && !/^[1-9][0-9]*$/.test(surveyId)) return null;
+        return { mode: mode, week: week, sessionId: sessionId, ...(surveyId == null ? {} : {surveyId: surveyId}) };
     }
 
     function indexBySessionId(records) {

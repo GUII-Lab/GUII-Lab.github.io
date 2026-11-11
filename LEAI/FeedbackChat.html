@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-readability-3">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-readability-3&amp;loading=hp364">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -451,6 +451,8 @@
             </div>
         </div>
 
+        <div id="chat-data-load-state"></div>
+
         <!-- Chat workspace -->
         <div class="chat-workspace">
             <!-- Session list (left) -->
@@ -567,7 +569,8 @@
 <!-- Markdown rendering for assistant messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=v0.3.0&amp;chat-dictation=1&amp;font-size=4"></script>
+<script src="leai-shared.js?v=v0.3.0&amp;chat-dictation=1&amp;font-size=4&amp;loading=hp364"></script>
+<script src="leai-response-pages.js?v=20261111-priority1"></script>
 <script src="leai-version.js"></script>
 <script>
 (function () {
@@ -593,6 +596,9 @@
     // feedback_messages_by_course returns: { gpt_id, name, mode, week_number,
     // survey_label, session_count, ... }.
     var allSurveys = [];
+    let chatReadClient = null;
+    let chatEntryRequest = 0;
+    let responseIndexPending = null;
 
     // Scope picker draft state, only meaningful while the modal is open.
     // pickerMode is the active mode tab ('all'|'general'|'group'|'form').
@@ -704,11 +710,22 @@
     }
 
     function enterApp() {
+        chatEntryRequest++;
+        chatReadClient?.destroy();
+        chatReadClient = leaiResponsePages.client(API, session);
+        responseIndexPending = null;
+        surveysIndexLoaded = false;
+        allSurveys = [];
         document.getElementById('login-screen').style.display = 'none';
         document.getElementById('app').style.display = 'flex';
         initChatDictation();
         initSidebar('nav-feedback-chat', function () {
             disposeChatDictation();
+            chatEntryRequest++;
+            sessionLoadRequest++;
+            chatReadClient?.destroy();
+            chatReadClient = null;
+            responseIndexPending = null;
             session = null;
             sessions = [];
             activeSessionId = null;
@@ -718,29 +735,40 @@
             document.getElementById('login-password').value = '';
             document.getElementById('login-msg').textContent = '';
         });
-        loadResponsesIndex().finally(function () { handleDeepLink(); });
+        loadResponsesIndex();
+        // Chat contents do not wait for the independent scope-picker index.
+        handleDeepLink();
     }
 
-    // Fetch the course's feedback list. Used to populate the scope picker
-    // (allSurveys) and as a fallback rid map for any code path that needs
-    // a course-wide lookup. The authoritative rid map for citation popovers
-    // is the session's own `data.corpus`, set in loadSession() below — the
-    // backend computes it with the session's exact scope, so it always
-    // agrees with the rids the assistant emitted.
+    // Load only survey metadata for the scope picker, independently of the
+    // selected conversation. Citation R labels come from that session's
+    // authoritative data.corpus, computed with its exact backend scope.
     function loadResponsesIndex() {
-        return fetch(API + '/feedback_messages_by_course/?course_id=' + encodeURIComponent(session.courseId))
-            .then(function (r) { return r.json(); })
-            .then(function (surveys) {
-                if (!Array.isArray(surveys)) return;
-                allSurveys = surveys;
-                // Fallback course-wide map. Overwritten per-session in loadSession.
-                var idx = leaiAnalysis.buildResponseIndex(surveys, 'course', null);
-                responsesByRid = {};
-                idx.forEach(function (r) { responsesByRid[r.rid] = r; });
-                responsesLoaded = true;
-            })
-            .catch(function () { /* drawer just stays collapsed without sources */ });
+        if (responseIndexPending) return responseIndexPending;
+        const client = chatReadClient;
+        const loadState = document.getElementById('chat-data-load-state');
+        leaiLoadState.clear(loadState);
+        const promise = client.surveys().then(function (data) {
+            if (client !== chatReadClient) return false;
+            if (!Array.isArray(data.surveys)) throw new Error('Invalid survey data');
+            allSurveys = data.surveys;
+            surveysIndexLoaded = true;
+            if (activeSessionData) {
+                const label = document.querySelector('#chat-scope-bar .scope-chip-label');
+                if (label) label.textContent = describeScope(activeSessionData.scope);
+            }
+            leaiLoadState.clear(loadState);
+            return true;
+        }).catch(function (error) {
+            if (client !== chatReadClient || error.name === 'AbortError') return false;
+            leaiLoadState.render(loadState, 'Couldn’t load surveys. Please try again.', loadResponsesIndex);
+            return false;
+        }).finally(function () { if (client === chatReadClient) responseIndexPending = null; });
+        responseIndexPending = promise;
+        return promise;
     }
+
+    let surveysIndexLoaded = false;
 
     // Replace the rid lookup with the session's authoritative corpus from
     // the backend. This eliminates the scope-mismatch bug where a week-
@@ -842,8 +870,15 @@
 
     // ===== SESSION LIST =====
     function loadSessions(selectId) {
-        leaiChat.listSessions(session.courseId)
+        const entry = chatEntryRequest;
+        const list = document.getElementById('sessions-list');
+        leaiLoadState.render(list, 'Loading chats…');
+        if (!activeSessionId) leaiLoadState.render(document.getElementById('chat-messages'), 'Loading chats…');
+        return leaiChat.listSessions(session.courseId)
             .then(function (data) {
+                if (entry !== chatEntryRequest) return;
+                if (!Array.isArray(data.sessions)) throw new Error('Invalid chat list');
+                list.setAttribute('aria-busy', 'false');
                 sessions = data.sessions || [];
                 renderSessionList();
                 document.getElementById('sessions-footer').textContent =
@@ -859,7 +894,11 @@
                 }
             })
             .catch(function () {
-                showNoSession();
+                if (entry !== chatEntryRequest) return;
+                leaiLoadState.render(list, 'Couldn’t load chats. Please try again.', function () { loadSessions(selectId); });
+                if (!activeSessionId) {
+                    leaiLoadState.render(document.getElementById('chat-messages'), 'Couldn’t load chats. Please try again.', function () { loadSessions(selectId); });
+                }
             });
     }
 
@@ -907,7 +946,9 @@
     }
 
     // ===== SESSION SELECTION =====
+    let sessionLoadRequest = 0;
     function selectSession(sessionId) {
+        const request = ++sessionLoadRequest;
         disposeChatDictation();
         initChatDictation();
         activeSessionId = sessionId;
@@ -920,39 +961,35 @@
         });
 
         // Show loading state
-        document.getElementById('chat-header').style.display = 'block';
-        document.getElementById('chat-input-area').style.display = 'block';
+        document.getElementById('chat-header').style.display = 'none';
+        document.getElementById('chat-input-area').style.display = 'none';
+        activeSessionData = null;
         var msgContainer = document.getElementById('chat-messages');
-        msgContainer.textContent = '';
-        var loadingDiv = document.createElement('div');
-        loadingDiv.style.cssText = 'padding:40px;display:flex;flex-direction:column;gap:8px;align-items:center';
-        var s1 = document.createElement('div'); s1.className = 'shimmer-line'; s1.style.width = '60%';
-        var s2 = document.createElement('div'); s2.className = 'shimmer-line'; s2.style.width = '80%';
-        var s3 = document.createElement('div'); s3.className = 'shimmer-line'; s3.style.width = '40%';
-        loadingDiv.appendChild(s1); loadingDiv.appendChild(s2); loadingDiv.appendChild(s3);
-        msgContainer.appendChild(loadingDiv);
+        leaiLoadState.render(msgContainer, 'Loading conversation…');
 
         // Close mobile session panel
         document.getElementById('chat-sessions').classList.remove('mobile-open');
 
         leaiChat.getSession(sessionId)
             .then(function (data) {
+                if (request !== sessionLoadRequest || activeSessionId !== sessionId) return;
+                msgContainer.setAttribute('aria-busy', 'false');
                 activeSessionData = data;
                 adoptSessionCorpus(data);
                 renderChatHeader(data);
                 renderMessages(data.messages || []);
                 renderSystemPromptEditor(data);
+                document.getElementById('chat-header').style.display = 'block';
+                document.getElementById('chat-input-area').style.display = 'block';
             })
             .catch(function () {
-                msgContainer.textContent = '';
-                var errDiv = document.createElement('div');
-                errDiv.className = 'chat-error-toast';
-                errDiv.textContent = 'Failed to load session.';
-                msgContainer.appendChild(errDiv);
+                if (request !== sessionLoadRequest || activeSessionId !== sessionId) return;
+                leaiLoadState.render(msgContainer, 'Couldn’t load conversation. Please try again.', function () { selectSession(sessionId); });
             });
     }
 
     function showNoSession() {
+        sessionLoadRequest++;
         disposeChatDictation();
         activeSessionId = null;
         activeSessionData = null;
@@ -960,6 +997,7 @@
         document.getElementById('chat-input-area').style.display = 'none';
         var msgContainer = document.getElementById('chat-messages');
         msgContainer.textContent = '';
+        msgContainer.setAttribute('aria-busy', 'false');
         msgContainer.appendChild(createEmptyState());
     }
 
@@ -1414,8 +1452,10 @@
     }
 
     function loadSessionsQuiet() {
+        const entry = chatEntryRequest;
         leaiChat.listSessions(session.courseId)
             .then(function (data) {
+                if (entry !== chatEntryRequest) return;
                 sessions = data.sessions || [];
                 renderSessionList();
                 document.getElementById('sessions-footer').textContent =
@@ -1606,16 +1646,19 @@
         // If the initial fetch hadn't completed (or quietly failed), kick it
         // again so the modal isn't perpetually empty. We open the modal
         // immediately with a loading state so the click feels responsive.
-        if (!allSurveys.length) {
+        if (!surveysIndexLoaded) {
             document.getElementById('scope-modal').classList.add('visible');
             var listEl = document.getElementById('scope-picker-list');
-            listEl.textContent = '';
-            var loading = document.createElement('div');
-            loading.className = 'scope-picker-empty';
-            loading.textContent = 'Loading surveys…';
-            listEl.appendChild(loading);
-            loadResponsesIndex().finally(function () {
+            leaiLoadState.render(listEl, 'Loading surveys…');
+            const reader = chatReadClient;
+            loadResponsesIndex().then(function (loaded) {
+                if (reader !== chatReadClient) return;
                 if (!document.getElementById('scope-modal').classList.contains('visible')) return;
+                if (!loaded) {
+                    leaiLoadState.render(listEl, 'Couldn’t load surveys. Please try again.', function () { openScopePicker(scope, target); });
+                    return;
+                }
+                listEl.setAttribute('aria-busy', 'false');
                 // Re-run with freshly populated allSurveys.
                 openScopePicker(scope, target);
             });

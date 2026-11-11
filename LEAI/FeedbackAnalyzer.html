@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="leai-tailwind-config.js?v=v0.3.0"></script>
-    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-section-questions-20261027&amp;response-export=consent-color">
+    <link rel="stylesheet" href="leai-shared.css?v=v0.3.0-section-questions-20261027&amp;response-export=consent-color&amp;loading=hp364">
     <style>
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
@@ -740,6 +740,8 @@
 
             <div class="analyzer-display-tools" id="analyzer-text-size-host" aria-label="Display settings"></div>
 
+            <div id="analyzer-load-state"></div>
+            <div id="analyzer-data-content" hidden>
             <!-- Mode tabs -->
             <div class="mode-tabs" role="tablist" aria-label="Survey mode">
                 <button class="mode-tab active" role="tab" data-mode="form" aria-selected="true">Individual Reflections</button>
@@ -901,6 +903,7 @@
                     <div id="response-detail-card"></div>
                 </div>
             </div>
+            </div><!-- /#analyzer-data-content -->
         </div>
     </div>
 </div>
@@ -908,9 +911,10 @@
 <!-- Markdown rendering for in-group drill-down bot messages (same pipeline as feedback.html). -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.5/dist/purify.min.js"></script>
-<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=4"></script>
+<script src="leai-shared.js?v=ulia-debug-1&amp;font-size=4&amp;loading=hp364&amp;response-pages=20261111-1"></script>
 <script src="leai-response-export.js?v=3-consent-color"></script>
-<script src="leai-progress.js?v=20260809-3"></script>
+<script src="leai-response-pages.js?v=20261111-1"></script>
+<script src="leai-progress.js?v=20260809-3&amp;response-pages=20261111-1"></script>
 <script src="leai-completion.js?v=v0.3.0"></script>
 <script src="leai-pdf-ingest.js?v=v0.3.0"></script>
 <script src="leai-version.js"></script>
@@ -1080,7 +1084,42 @@
     var ngramVisibleCount = 10;
     var activePinnedTerm = null;
 
+    const insightsGuard = leaiLoadState.createGuard();
+    const groupInsightsGuard = leaiLoadState.createGuard();
+    function insightsTicket(container) {
+        const courseId = session && session.courseId;
+        const key = scopeKey();
+        const ticket = insightsGuard.begin(() => session && session.courseId === courseId && scopeKey() === key && container.isConnected);
+        container._insightsTicket = ticket;
+        return ticket;
+    }
     let responseExportControl = null;
+    let responseDataClient = null;
+    let responsePager = null;
+    let responseObserver = null;
+    let responseLoadGeneration = 0;
+    let analysisLoaded = new Set();
+    let analysisPending = new Map();
+    let responseCardSerial = 0;
+
+    function ensureAnalysis(surveys) {
+        const ids = surveys.map(survey => survey.gpt_id).filter(id => !analysisLoaded.has(String(id)));
+        if (!ids.length) return Promise.resolve();
+        const key = ids.slice().sort((a, b) => a - b).join(',');
+        if (analysisPending.has(key)) return analysisPending.get(key);
+        const client = responseDataClient;
+        const mode = surveys[0].mode === 'group' || surveys[0].mode === 'form' ? surveys[0].mode : 'general';
+        const promise = client.corpus({mode, survey_ids: key}).then(data => {
+            if (responseDataClient !== client) return;
+            data.results.forEach(row => {
+                const survey = allSurveys.find(survey => String(survey.gpt_id) === String(row.survey_id));
+                if (survey && survey.response_summaries[row.session_id]) survey.response_summaries[row.session_id].text = row.text;
+            });
+            ids.forEach(id => analysisLoaded.add(String(id)));
+        }).finally(() => { if (responseDataClient === client) analysisPending.delete(key); });
+        analysisPending.set(key, promise);
+        return promise;
+    }
 
     // ===== LOGIN =====
     document.getElementById('login-btn').addEventListener('click', function () {
@@ -1130,6 +1169,14 @@
         initSidebar('nav-feedback-analyzer', function () {
             responseExportControl?.destroy();
             responseExportControl = null;
+            insightsGuard.cancel(); groupInsightsGuard.cancel();
+            responseLoadGeneration++;
+            responseDataClient?.destroy();
+            responsePager?.destroy();
+            responseObserver?.disconnect();
+            responseDataClient = null;
+            analysisLoaded.clear();
+            analysisPending.clear();
             session = null;
             allSurveys = [];
             // Preserve the existing text-size control on the sign-in screen.
@@ -1166,36 +1213,48 @@
     }
 
     function loadData() {
+        insightsGuard.cancel(); groupInsightsGuard.cancel();
+        const generation = ++responseLoadGeneration;
+        const loadState = document.getElementById('analyzer-load-state');
+        const content = document.getElementById('analyzer-data-content');
+        responseDataClient?.destroy();
+        responsePager?.destroy();
+        responseObserver?.disconnect();
+        analysisLoaded = new Set();
+        analysisPending = new Map();
+        responseDataClient = leaiResponsePages.client(API, session);
+        const client = responseDataClient;
+        content.hidden = true;
+        leaiLoadState.render(loadState, 'Loading feedback…');
         const courseParam = encodeURIComponent(session.courseId);
-        Promise.all([
-            fetch(API + '/feedback_messages_by_course/?course_id=' + courseParam)
-                .then(function (r) { return r.json(); }),
-            fetch(API + '/get_course_customization/?course_id=' + courseParam)
-                .then(function (r) { return r.json(); })
-                .catch(function () { return null; })
-        ])
-        .then(function (results) {
-            allSurveys = Array.isArray(results[0]) ? results[0] : [];
+        return Promise.all([
+            client.bootstrap(),
+            fetch(API + '/get_course_customization/?course_id=' + courseParam).then(leaiLoadState.json)
+        ]).then(function (results) {
+            if (generation !== responseLoadGeneration) return;
+            allSurveys = results[0];
             const customizationSettings = leaiCompletion.courseDownloadSettings(results[1]);
             identityTrackingEnabled = !!(results[1] && results[1].identity_tracking_enabled);
             completionCertificatesEnabled = customizationSettings.completion_certificate_enabled === true;
-            responseRecordBySessionId = leaiProgress.indexBySessionId(
-                leaiProgress.buildResponseRecords(allSurveys)
-            );
-            loadInGroupSurveys();
+            responseRecordBySessionId = leaiProgress.indexBySessionId(leaiProgress.buildResponseRecords(allSurveys));
             refreshProgressTabVisibility();
-
-            const groupSurveys = identityTrackingEnabled
-                ? allSurveys.filter(isGroupSurvey)
-                : [];
-            return Promise.all(groupSurveys.map(ensureSurveyTeamData))
-                .then(function () {
-                    refreshProgressTabVisibility();
-                    if (requestedResponseDetail) renderRequestedResponseDetail();
-                    else applyMode(currentMode);
-                });
-        })
-        .catch(function () { loadInGroupSurveys(); });
+            content.hidden = false;
+            if (requestedResponseDetail) renderRequestedResponseDetail();
+            else applyMode(currentMode);
+            leaiLoadState.clear(loadState);
+            // Team chips/progress are independent of first-page readiness.
+            loadInGroupSurveys();
+            const groupSurveys = identityTrackingEnabled ? allSurveys.filter(isGroupSurvey) : [];
+            Promise.all(groupSurveys.map(ensureSurveyTeamData)).then(function () {
+                if (generation !== responseLoadGeneration) return;
+                refreshProgressTabVisibility();
+                if (currentMode === 'group-progress') renderGroupProgress();
+            }).catch(function () { /* The team UI owns its retry state. */ });
+        }).catch(function (error) {
+            if (generation !== responseLoadGeneration || error.name === 'AbortError') return;
+            const message = error.status === 401 ? 'Sign in to this course again to load feedback.' : 'Couldn’t load feedback. Please try again.';
+            leaiLoadState.render(loadState, message, loadData);
+        });
     }
 
     // ===== SCOPE KEY =====
@@ -2012,7 +2071,7 @@
         // Avg words
         var totalWords = 0;
         currentResponses.forEach(function (r) {
-            totalWords += r.text.split(/\s+/).filter(Boolean).length;
+            totalWords += r.word_count == null ? r.text.split(/\s+/).filter(Boolean).length : r.word_count;
         });
         var avgWords = totalResponses > 0 ? Math.round(totalWords / totalResponses) : 0;
 
@@ -2138,9 +2197,14 @@
     });
 
     // ===== N-GRAM RENDERING =====
+    document.getElementById('traditional-analysis-section').addEventListener('toggle', function () {
+        if (this.open) renderNgrams();
+    });
+
     function renderNgrams() {
         var chart = document.getElementById('ngram-chart');
         chart.textContent = '';
+        if (responseDataClient && !document.getElementById('traditional-analysis-section').open) return;
 
         if (!currentResponses.length) {
             var noData = document.createElement('div');
@@ -2150,6 +2214,25 @@
             return;
         }
 
+        if (responseDataClient) {
+            const needed = currentSort === 'keyness' ? activeSurveys() : scopedSurveys();
+            if (needed.some(survey => !analysisLoaded.has(String(survey.gpt_id)))) {
+                chart.textContent = 'Loading analysis…';
+                const selection = scopeKey() + ':' + currentSort + ':' + currentNgramN;
+                const client = responseDataClient;
+                ensureAnalysis(needed).then(() => {
+                    if (client === responseDataClient && selection === scopeKey() + ':' + currentSort + ':' + currentNgramN) renderNgrams();
+                }).catch(error => {
+                    if (client !== responseDataClient || selection !== scopeKey() + ':' + currentSort + ':' + currentNgramN) return;
+                    chart.textContent = error.message;
+                    const retry = document.createElement('button');
+                    retry.type = 'button'; retry.className = 'btn btn-outline'; retry.textContent = 'Retry analysis';
+                    retry.addEventListener('click', renderNgrams); chart.appendChild(retry);
+                });
+                return;
+            }
+            currentResponses = leaiAnalysis.buildResponseIndex(scopedSurveys(), currentScope.kind === 'course' ? 'course' : 'week', currentScope.weekNumber);
+        }
         var ngrams = leaiAnalysis.computeNgrams(currentResponses, currentNgramN);
 
         if (currentSort === 'keyness' && currentScope.kind === 'week') {
@@ -2333,6 +2416,7 @@
     // ===== AI QUICK TAKE =====
     function renderQuickTake() {
         var container = document.getElementById('quick-take-container');
+        const ticket = insightsTicket(container);
         container._teamEvidenceToken = null;
         container.textContent = '';
 
@@ -2354,23 +2438,24 @@
         }
 
         var sk = scopeKey();
-        leaiChat.getQuickTake(session.courseId, sk)
+        leaiChat.getQuickTake(session.courseId, sk, {signal: ticket.signal})
             .then(function (qt) {
+                if (!ticket.current()) return;
                 if (!qt) {
                     renderQuickTakeCTA(container);
                     return;
                 }
                 if (qt.status === 'pending' || qt.status === 'running') {
                     renderQuickTakeShimmer(container);
-                    attachQuickTakePoll(container, sk);
+                    attachQuickTakePoll(container, sk, ticket);
                 } else if (qt.status === 'failed') {
                     renderQuickTakeErrorCard(container, qt.error || 'Generation failed');
                 } else {
-                    renderQuickTakeLoaded(container, qt);
+                    renderQuickTakeLoaded(container, qt, {isCurrent: ticket.current});
                 }
             })
-            .catch(function () {
-                renderQuickTakeCTA(container);
+            .catch(function (error) {
+                if (ticket.current() && error.name !== 'AbortError') renderQuickTakeCTA(container);
             });
     }
 
@@ -2378,7 +2463,10 @@
     function quickTakeSourceMessages(source) {
         if (!source || !source.session_id || source.survey_id == null) return [];
         const survey = allSurveys.find(s => String(s.gpt_id) === String(source.survey_id));
-        return survey && survey.sessions ? (survey.sessions[source.session_id] || []) : [];
+        const cached = typeof responseDataClient !== 'undefined' && responseDataClient && responseDataClient.peek(source);
+        if (cached) return cached.messages;
+        const messages = survey && survey.sessions ? (survey.sessions[source.session_id] || []) : [];
+        return messages.some(message => message.summary_only) ? [] : messages;
     }
 
     function appendCitedText(target, text, quote) {
@@ -2422,7 +2510,9 @@
         transcript.tabIndex = 0;
         transcript.setAttribute('aria-label', 'Conversation messages');
         let citedRow = null;
-        const messages = quickTakeSourceMessages(source);
+        function renderTranscript(messages) {
+        transcript.textContent = '';
+        citedRow = null;
         if (messages.length) {
             messages.forEach(m => {
                 const student = isStudentMsg(m);
@@ -2458,7 +2548,25 @@
             missingQuote.textContent = 'The saved excerpt could not be matched verbatim in this conversation.';
             pop.appendChild(missingQuote);
         }
+        }
         pop.appendChild(transcript);
+        const messages = quickTakeSourceMessages(source);
+        if (messages.length || !(typeof responseDataClient !== 'undefined' && responseDataClient) || !source || source.survey_id == null || !source.session_id) {
+            renderTranscript(messages);
+        } else {
+            transcript.textContent = 'Loading conversation…';
+            const load = () => responseDataClient.detail(source).then(data => {
+                if (!pop.isConnected) return;
+                renderTranscript(data.messages);
+                if (citedRow) transcript.scrollTop = citedRow.offsetTop - transcript.offsetTop;
+            }).catch(error => {
+                if (!pop.isConnected || error.name === 'AbortError') return;
+                transcript.textContent = error.message;
+                const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn btn-outline'; retry.textContent = 'Retry conversation';
+                retry.addEventListener('click', load); transcript.appendChild(retry);
+            });
+            load();
+        }
         document.body.appendChild(pop);
         positionCitationPopover(pop, anchor);
         const dismiss = function (restoreFocus) {
@@ -2661,13 +2769,13 @@
         });
     }
 
-    function attachQuickTakePoll(container, sk) {
-        leaiChat.pollQuickTake(session.courseId, sk, { intervalMs: 2000, timeoutMs: 300000 })
+    function attachQuickTakePoll(container, sk, ticket) {
+        ticket = ticket || insightsTicket(container);
+        return leaiChat.pollQuickTake(session.courseId, sk, { intervalMs: 2000, timeoutMs: 300000, signal: ticket.signal })
             .then(function (qt) {
-                renderQuickTakeLoaded(container, qt);
-            })
-            .catch(function (err) {
-                renderQuickTakeErrorCard(container, err.message || 'Unknown error');
+                if (ticket.current()) renderQuickTakeLoaded(container, qt, {isCurrent: ticket.current});
+            }).catch(function (error) {
+                if (ticket.current() && error.name !== 'AbortError') renderQuickTakeErrorCard(container, error.message || 'Unknown error');
             });
     }
 
@@ -2762,6 +2870,8 @@
     }
 
     function generateQuickTake(container) {
+        const ticket = insightsTicket(container);
+        const courseId = session.courseId;
         renderQuickTakeShimmer(container);
 
         var sk = scopeKey();
@@ -2771,18 +2881,21 @@
         // other modes.
         var scope = { kind: 'custom', survey_ids: activeSurveyIds() };
 
-        leaiChat.generateQuickTake(session.courseId, sk, scope)
+        leaiChat.generateQuickTake(courseId, sk, scope, {signal: ticket.signal})
             .then(function () {
+                if (!ticket.current()) return;
                 // 202 accepted: worker is running. Poll until ready or failed.
-                return leaiChat.pollQuickTake(session.courseId, sk, {
+                return leaiChat.pollQuickTake(courseId, sk, {
                     intervalMs: 2000,
                     timeoutMs: 300000,
+                    signal: ticket.signal,
                 });
             })
             .then(function (qt) {
-                renderQuickTakeLoaded(container, qt);
+                if (ticket.current() && qt) renderQuickTakeLoaded(container, qt, {isCurrent: ticket.current});
             })
             .catch(function (err) {
+                if (!ticket.current() || err.name === 'AbortError') return;
                 renderQuickTakeErrorCard(container, err.message || 'Unknown error');
             });
     }
@@ -2839,6 +2952,7 @@
     function renderQuickTakeLoaded(container, qt, opts) {
         container.textContent = '';
         opts = opts || {};
+        if (opts.isCurrent && !opts.isCurrent()) return;
         if (qt.team_health && qt.team_health.length && !opts.teamEvidenceReady) {
             const sourceRows = opts.sourceCorpus || currentResponses;
             const surveyIds = new Set(sourceRows.map(source => String(source.survey_id)));
@@ -2847,7 +2961,7 @@
             container._teamEvidenceToken = token;
             container.textContent = 'Loading team evidence…';
             Promise.all(surveys.map(survey => ensureSurveyTeamData(survey).then(data => data.pending || data))).then(() => {
-                if (container._teamEvidenceToken !== token || !container.isConnected) return;
+                if (container._teamEvidenceToken !== token || !container.isConnected || opts.isCurrent && !opts.isCurrent()) return;
                 renderQuickTakeLoaded(container, qt, Object.assign({}, opts, {teamEvidenceReady: true}));
             });
             return;
@@ -2855,10 +2969,11 @@
         var currentCount = (opts.currentCount != null)
             ? opts.currentCount : currentResponses.length;
         var onRegenerate = opts.onRegenerate || function () {
+            if (opts.isCurrent && !opts.isCurrent()) return;
             var sk = scopeKey();
             leaiChat.deleteQuickTake(session.courseId, sk)
-                .then(function () { generateQuickTake(container); })
-                .catch(function () { generateQuickTake(container); });
+                .then(function () { if (!opts.isCurrent || opts.isCurrent()) generateQuickTake(container); })
+                .catch(function () { if (!opts.isCurrent || opts.isCurrent()) generateQuickTake(container); });
         };
 
         // Drop only citations the verification pass explicitly judged
@@ -3408,14 +3523,43 @@
             qt.sources.forEach(function (src) {
                 if (src && src.rid && !seen[src.rid]) ordered.push(src);
             });
+            const loadSources = [];
             ordered.forEach(function (src, i) {
                 var localIdx = (src.rid && pillAssignment.ridToPill[src.rid]) || (i + 1);
-                sourcesList.appendChild(leaiAnalysis.renderSourceCard(localIdx, src));
+                let card = leaiAnalysis.renderSourceCard(localIdx, src);
+                sourcesList.appendChild(card);
+                let pending = false;
+                let loaded = false;
+                const load = () => {
+                    if (src.text || loaded || pending || !responseDataClient || src.survey_id == null || !src.session_id) return;
+                    pending = true;
+                    const client = responseDataClient;
+                    card.textContent = 'Loading response…';
+                    client.detail(src).then(data => {
+                        if (!card.isConnected || client !== responseDataClient) return;
+                        const rows = leaiAnalysis.buildResponseIndex([{
+                            gpt_id: src.survey_id, week_number: src.week_number,
+                            sessions: {[src.session_id]: data.messages},
+                            structured_sessions: data.structured ? {[src.session_id]: data.structured} : {}
+                        }], 'week', src.week_number);
+                        src.text = rows.length ? rows[0].text : '';
+                        const replacement = leaiAnalysis.renderSourceCard(localIdx, src);
+                        card.replaceWith(replacement); card = replacement; loaded = true;
+                    }).catch(error => {
+                        if (!card.isConnected || client !== responseDataClient || error.name === 'AbortError') return;
+                        card.textContent = error.message;
+                        const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn btn-outline';
+                        retry.textContent = error.status === 409 ? 'Reload feedback' : 'Retry response';
+                        retry.addEventListener('click', () => error.status === 409 ? loadData() : load()); card.appendChild(retry);
+                    }).finally(() => { pending = false; });
+                };
+                loadSources.push(load);
             });
 
             sourcesToggle.addEventListener('click', function () {
                 var visible = sourcesList.style.display !== 'none';
                 sourcesList.style.display = visible ? 'none' : 'block';
+                if (!visible) loadSources.forEach(load => load());
                 sourcesToggle.textContent = (visible ? '\u25b8 ' : '\u25be ') + qt.sources.length + ' source' + (qt.sources.length !== 1 ? 's' : '');
             });
             sourcesToggle.addEventListener('keydown', function (e) {
@@ -3676,15 +3820,20 @@
         bar.appendChild(filter);
     }
 
-    function renderStudentResponses() {
+    function renderStudentResponses(options) {
+        options = options || {};
+        responsePager?.destroy();
+        responseObserver?.disconnect();
+        document.getElementById('response-page-controls')?.remove();
         responseExportControl?.update();
         var list = document.getElementById('student-responses-list');
         list.textContent = '';
         renderStudentResponsesToolbar();
-        document.getElementById('expand-all-btn').textContent = 'Expand All';
+        document.getElementById('expand-all-btn').textContent = 'Expand loaded';
 
         var modeSurveys = activeSurveys();
         const modeResponseRecords = leaiProgress.buildResponseRecords(modeSurveys);
+        const recordsByPair = new Map(modeResponseRecords.map(record => [String(record.surveyId) + ':' + record.sessionId, record]));
         var scopeSurveys = currentScope.kind === 'course'
             ? modeSurveys
             : modeSurveys.filter(function (s) { return s.week_number === currentScope.weekNumber; });
@@ -3716,24 +3865,26 @@
                 // Apply source filter: drop sessions that have nothing matching
                 // the current source toggle (Chat-only / PDF-only). 'all' keeps
                 // everything.
-                if (pdfSourceFilter !== 'all') {
+                if (!options.target && pdfSourceFilter !== 'all') {
                     var keep = msgs.some(messageMatchesSourceFilter);
                     if (!keep) return;
                 }
                 // "Nudged only": narrow to the students the assistant pointed
                 // toward a human. Applied after the source filter so the two
                 // compose.
-                if (nudgedOnlyFilter && !sessionWasNudged(msgs)) return;
+                if (!options.target && nudgedOnlyFilter && !sessionWasNudged(msgs)) return;
                 var ident = sessionIdentity(s, sid);
                 // S-chip drill-down: keep only the clicked student's sessions.
-                if (studentOnlyFilter && (!ident || ident.label !== studentOnlyFilter)) return;
+                if (!options.target && studentOnlyFilter && (!ident || ident.label !== studentOnlyFilter)) return;
                 entries.push({
                     sessionId: sid,
-                    responseRecord: modeResponseRecords.find(r => String(r.surveyId) === String(s.id || s.gpt_id) && r.sessionId === sid) || null,
+                    responseRecord: recordsByPair.get(String(s.id || s.gpt_id) + ':' + sid) || null,
                     // Anonymous estimate with confidence; null for untracked
                     // sessions (for example, before tracking was enabled).
                     identity: ident,
                     msgs: msgs,
+                    survey: s,
+                    summary: s.response_summaries && s.response_summaries[sid],
                     structured: (s.structured_sessions || {})[sid] || null,
                     weekNumber: s.week_number,
                     surveyLabel: s.survey_label || ('Week ' + s.week_number),
@@ -3751,13 +3902,6 @@
             });
         });
 
-        // Kick off team-data fetches for surveys whose team info isn't cached
-        // yet, then redraw once they resolve so the chips appear.
-        if (surveysNeedingTeamFetch.length) {
-            Promise.all(surveysNeedingTeamFetch.map(ensureSurveyTeamData))
-                .then(function () { renderStudentResponses(); });
-        }
-
         if (!entries.length) {
             var empty = document.createElement('p');
             empty.className = 'no-data';
@@ -3768,7 +3912,8 @@
             return;
         }
 
-        entries.forEach(function (entry, idx) {
+        function appendCards(batch) {
+        batch.forEach(function (entry, idx) {
             var msgs = entry.msgs;
             var studentMsgs = msgs.filter(isStudentMsg);
 
@@ -3812,10 +3957,11 @@
             // "0 messages" since fields are role-mapped to assistant. Show the
             // field count instead.
             if (sessionHasPdfMessage(msgs)) {
-                var fieldCount = msgs.filter(function (m) { return m && m.source === 'pdf'; }).length;
+                var fieldCount = entry.summary ? entry.summary.pdf_count : msgs.filter(function (m) { return m && m.source === 'pdf'; }).length;
                 meta.textContent = weekTag + 'uploaded \u00b7 ' + fieldCount + ' field' + (fieldCount !== 1 ? 's' : '');
             } else {
-                meta.textContent = weekTag + studentMsgs.length + ' message' + (studentMsgs.length !== 1 ? 's' : '');
+                const studentCount = entry.summary ? entry.summary.student_count : studentMsgs.length;
+                meta.textContent = weekTag + studentCount + ' message' + (studentCount !== 1 ? 's' : '');
             }
 
             var chevron = document.createElement('span');
@@ -3859,6 +4005,14 @@
                 teamEl.textContent = entry.teamLabel;
                 header.appendChild(teamEl);
             }
+            if (!entry.teamLabel && leaiProgress.needsTeamData(entry.survey)) {
+                ensureSurveyTeamData(entry.survey).then(data => data.pending || data).then(data => {
+                    const label = data.teamBySessionId && data.teamBySessionId[entry.sessionId];
+                    if (!label || !card.isConnected || header.querySelector('.student-card-team')) return;
+                    const team = document.createElement('span'); team.className = 'student-card-team'; team.textContent = label;
+                    header.appendChild(team);
+                }).catch(() => {});
+            }
             // A/B banner-exposure chip — only present when the course is
             // running a split (backend omits the key otherwise).
             if (entry.bannerExposure === true || entry.bannerExposure === false) {
@@ -3887,6 +4041,10 @@
             var body = document.createElement('div');
             body.className = 'student-card-body';
 
+            body.id = 'response-body-' + (++responseCardSerial);
+            let bodyReady = false;
+            let bodyPending = null;
+            function populateBody(msgs) {
             if (entry.structured) {
                 const documentRows = [];
                 Object.entries(entry.structured.slots || {}).forEach(function (pair) {
@@ -3920,7 +4078,7 @@
             // Detection is signature-based (engine "Area N of N — " prefix in
             // any AI message), so no survey-mode flag is needed.
             if (window.leaiInsights && leaiInsights.isFormSession(msgs)) {
-                body.appendChild(buildInsightsPanel(entry.sessionId, msgs));
+                body.appendChild(buildInsightsPanel(entry.sessionId, msgs, entry.survey.form_schema_id));
             }
 
             if (!msgs.length) {
@@ -3973,6 +4131,32 @@
                 });
             }
 
+            }
+            function loadBody() {
+                if (bodyReady) return Promise.resolve();
+                if (bodyPending) return bodyPending;
+                body.textContent = 'Loading conversation…';
+                body.setAttribute('aria-busy', 'true');
+                const request = responseDataClient
+                    ? responseDataClient.detail({survey_id: entry.survey.gpt_id, session_id: entry.sessionId})
+                    : Promise.resolve({messages: entry.msgs, structured: entry.structured});
+                bodyPending = request.then(data => {
+                    if (!card.isConnected) return;
+                    entry.structured = data.structured;
+                    body.textContent = '';
+                    populateBody(data.messages);
+                    bodyReady = true;
+                }).catch(error => {
+                    if (!card.isConnected || error.name === 'AbortError') return;
+                    body.textContent = error.message;
+                    const retry = document.createElement('button');
+                    retry.type = 'button'; retry.className = 'btn btn-outline'; retry.textContent = 'Retry conversation';
+                    retry.addEventListener('click', () => loadBody()); body.appendChild(retry);
+                }).finally(() => { bodyPending = null; body.removeAttribute('aria-busy'); });
+                return bodyPending;
+            }
+            card._loadResponseBody = loadBody;
+
             // Toggle open + pin header to the top of the viewport when
             // expanding, so the conversation always grows downward from the
             // clicked header. Without this, browser scroll-anchoring can pick
@@ -3981,6 +4165,8 @@
             function toggleCard() {
                 var wasOpen = card.classList.contains('open');
                 card.classList.toggle('open');
+                header.setAttribute('aria-expanded', String(!wasOpen));
+                if (!wasOpen) loadBody();
                 if (!wasOpen) {
                     // Defer to after layout so the now-visible body is measured.
                     requestAnimationFrame(function () {
@@ -3990,6 +4176,9 @@
             }
             header.addEventListener('click', toggleCard);
             header.setAttribute('tabindex', '0');
+            header.setAttribute('role', 'button');
+            header.setAttribute('aria-expanded', 'false');
+            header.setAttribute('aria-controls', body.id);
             header.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCard(); }
             });
@@ -3998,6 +4187,45 @@
             card.appendChild(body);
             list.appendChild(card);
         });
+        }
+        if (options.target) {
+            const target = entries.find(entry => String(entry.survey.gpt_id) === String(options.target.surveyId) && entry.sessionId === options.target.sessionId);
+            if (target) appendCards([target]);
+            return Promise.resolve();
+        }
+        const controls = document.createElement('div');
+        controls.id = 'response-page-controls';
+        controls.style.cssText = 'display:flex;align-items:center;gap:16px;padding:16px 0;flex-wrap:wrap';
+        const status = document.createElement('span'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
+        const more = document.createElement('button'); more.type = 'button'; more.className = 'btn btn-outline'; more.textContent = 'Load more';
+        const sentinel = document.createElement('div'); sentinel.setAttribute('aria-hidden', 'true'); sentinel.style.height = '1px';
+        controls.append(status, more, sentinel); list.after(controls);
+        const byPair = new Map(entries.map(entry => [String(entry.survey.gpt_id) + ':' + entry.sessionId, entry]));
+        const client = responseDataClient;
+        responsePager = leaiResponsePages.pager((params, signal) => client.page(params, signal), state => {
+            if (!controls.isConnected || client !== responseDataClient) return;
+            appendCards(state.added.map(row => byPair.get(leaiResponsePages.key(row))).filter(Boolean));
+            status.textContent = state.error ? state.error.message : state.loading ? 'Loading responses…' :
+                state.rows.length + ' of ' + (state.total == null ? entries.length : state.total) + ' responses loaded';
+            more.hidden = !state.hasMore && !state.error;
+            more.dataset.reload = String(!!state.error && [400, 409].includes(state.error.status));
+            more.disabled = state.loading || state.error && state.error.status === 401;
+            more.textContent = more.dataset.reload === 'true' ? 'Reload feedback' : state.error ? 'Retry loading' : 'Load more';
+            if (!state.loading && !state.error && !state.hasMore) responseObserver?.disconnect();
+            // Rearm after each batch; no duplicate requests and no automatic error retries.
+            if (state.hasMore && !state.loading && !state.error && responseObserver) {
+                responseObserver.unobserve(sentinel); responseObserver.observe(sentinel);
+            }
+        });
+        const pager = responsePager;
+        more.addEventListener('click', () => more.dataset.reload === 'true' ? loadData() : pager.loadMore());
+        if (typeof IntersectionObserver !== 'undefined') {
+            responseObserver = new IntersectionObserver(entries => {
+                if (entries.some(entry => entry.isIntersecting) && !more.disabled && more.textContent === 'Load more') pager.loadMore();
+            }, {rootMargin: '160px'});
+        }
+        return pager.reset({mode: currentMode, survey_ids: scopeSurveys.map(survey => survey.gpt_id).join(','),
+            source: pdfSourceFilter, nudged_only: String(nudgedOnlyFilter), student: studentOnlyFilter || '', limit: '25'});
     }
 
     // ===== F5/F6: PER-SUBMISSION INSIGHTS REPORT + TTS =====
@@ -4058,9 +4286,11 @@
         return INSIGHTS_SCHEMA_FALLBACK;
     }
 
-    function buildInsightsPanel(sessionId, msgs) {
+    function buildInsightsPanel(sessionId, msgs, schemaId) {
         var panel = document.createElement('div');
         panel.className = 'insights-panel';
+        panel._responseMessages = msgs;
+        panel._responseSchemaId = schemaId || INSIGHTS_SCHEMA_FALLBACK;
 
         var header = document.createElement('div');
         header.className = 'insights-panel-header';
@@ -4143,7 +4373,7 @@
 
         renderInsightsShimmer(body);
 
-        leaiInsights.generateReport(resolveSchemaIdForSession(sessionId), msgs, {
+        leaiInsights.generateReport(panel._responseSchemaId || resolveSchemaIdForSession(sessionId), msgs, {
             sessionId: sessionId,
             force: !!force,
             // Lets the brief close on what this student was struggling with
@@ -4201,7 +4431,7 @@
         regenBtn.setAttribute('tabindex', '0');
         regenBtn.addEventListener('click', function (ev) {
             ev.stopPropagation();
-            triggerInsightsGeneration(panel, body, actions, sessionId, getMsgsForSession(sessionId), true);
+            triggerInsightsGeneration(panel, body, actions, sessionId, panel._responseMessages, true);
         });
         actions.appendChild(regenBtn);
 
@@ -4268,7 +4498,10 @@
     function getMsgsForSession(sessionId) {
         for (var i = 0; i < allSurveys.length; i++) {
             var sessions = allSurveys[i].sessions || {};
-            if (sessions[sessionId]) return sessions[sessionId];
+            if (sessions[sessionId]) {
+                const cached = responseDataClient && responseDataClient.peek({survey_id: allSurveys[i].gpt_id, session_id: sessionId});
+                return cached ? cached.messages : sessions[sessionId].filter(message => !message.summary_only);
+            }
         }
         return [];
     }
@@ -4299,9 +4532,10 @@
         var allOpen = Array.from(cards).every(function (c) { return c.classList.contains('open'); });
         cards.forEach(function (c) {
             if (allOpen) { c.classList.remove('open'); }
-            else { c.classList.add('open'); }
+            else { c.classList.add('open'); c._loadResponseBody?.(); }
+            c.querySelector('.student-card-header').setAttribute('aria-expanded', String(!allOpen));
         });
-        this.textContent = allOpen ? 'Expand All' : 'Collapse All';
+        this.textContent = allOpen ? 'Expand loaded' : 'Collapse loaded';
     });
 
     // ===== VERIFY COMPLETION CODES =====
@@ -4775,6 +5009,8 @@
     // The scope is the single in-group survey; the backend tags each
     // response with its team, so team_health + actions populate.
     function renderInGroupInsights(survey, chatLog, container) {
+        const courseId = session.courseId;
+        const ticket = groupInsightsGuard.begin(() => session && session.courseId === courseId && currentMode === 'group' && String(activeInGroupSurveyId) === String(survey.id) && container.isConnected);
         container.textContent = '';
 
         var head = document.createElement('div');
@@ -4815,6 +5051,7 @@
         var opts = {
             currentCount: currentCount,
             sourceCorpus: sourceCorpus,
+            isCurrent: ticket.current,
             hideFollowUp: true,
             onRegenerate: function () {
                 leaiChat.deleteQuickTake(session.courseId, sk)
@@ -4823,20 +5060,24 @@
         };
 
         function genInGroup() {
+            if (!ticket.current()) return;
             renderQuickTakeShimmer(panel);
             leaiChat.generateQuickTake(session.courseId, sk,
-                { kind: 'custom', survey_ids: [survey.id] })
+                { kind: 'custom', survey_ids: [survey.id] }, {signal: ticket.signal})
                 .then(function () {
+                    if (!ticket.current()) return;
                     return leaiChat.pollQuickTake(session.courseId, sk,
-                        { intervalMs: 2000, timeoutMs: 300000 });
+                        { intervalMs: 2000, timeoutMs: 300000, signal: ticket.signal });
                 })
-                .then(function (qt) { renderQuickTakeLoaded(panel, qt, opts); })
+                .then(function (qt) { if (ticket.current() && qt) renderQuickTakeLoaded(panel, qt, opts); })
                 .catch(function (err) {
+                    if (!ticket.current() || err.name === 'AbortError') return;
                     renderQuickTakeErrorCard(panel, err.message || 'Unknown error');
                 });
         }
 
         function renderCTA() {
+            if (!ticket.current()) return;
             panel.textContent = '';
             var cta = document.createElement('div');
             cta.className = 'quick-take-cta';
@@ -4855,22 +5096,23 @@
             panel.appendChild(cta);
         }
 
-        leaiChat.getQuickTake(session.courseId, sk)
+        leaiChat.getQuickTake(courseId, sk, {signal: ticket.signal})
             .then(function (qt) {
+                if (!ticket.current()) return;
                 if (!qt) { renderCTA(); return; }
                 if (qt.status === 'pending' || qt.status === 'running') {
                     renderQuickTakeShimmer(panel);
                     leaiChat.pollQuickTake(session.courseId, sk,
-                        { intervalMs: 2000, timeoutMs: 300000 })
-                        .then(function (q2) { renderQuickTakeLoaded(panel, q2, opts); })
-                        .catch(function (e) { renderQuickTakeErrorCard(panel, e.message || 'Error'); });
+                        { intervalMs: 2000, timeoutMs: 300000, signal: ticket.signal })
+                        .then(function (q2) { if (ticket.current()) renderQuickTakeLoaded(panel, q2, opts); })
+                        .catch(function (e) { if (ticket.current() && e.name !== 'AbortError') renderQuickTakeErrorCard(panel, e.message || 'Error'); });
                 } else if (qt.status === 'failed') {
                     renderQuickTakeErrorCard(panel, qt.error || 'Generation failed');
                 } else {
                     renderQuickTakeLoaded(panel, qt, opts);
                 }
             })
-            .catch(function () { renderCTA(); });
+            .catch(function () { if (ticket.current()) renderCTA(); });
     }
 
     function summarizeTeamMessages(chatLog, sessionIds) {
@@ -4962,6 +5204,7 @@
     }
 
     function exitInGroupAnalysis() {
+        groupInsightsGuard.cancel();
         activeInGroupSurveyId = null;
         renderInGroupChips();
         document.getElementById('ingroup-analysis-section').classList.remove('visible');
@@ -5275,10 +5518,10 @@
             });
     }
 
-    function renderRequestedResponseDetail() {
+    async function renderRequestedResponseDetail() {
         const request = requestedResponseDetail;
         if (!request) { applyMode(currentMode); return; }
-        const record = responseRecordBySessionId[request.sessionId];
+        const record = leaiProgress.buildResponseRecords(allSurveys).find(record => record.sessionId === request.sessionId && record.mode === request.mode && record.week === request.week && (request.surveyId == null || String(record.surveyId) === request.surveyId));
         const detailPanel = document.getElementById('mode-panel-response-detail');
         const detailCard = document.getElementById('response-detail-card');
         detailCard.textContent = '';
@@ -5295,6 +5538,8 @@
         currentScope = { kind: 'week', weekNumber: record.week };
         renderScopeChips();
         onScopeChange();
+        await renderStudentResponses({target: record});
+        if (requestedResponseDetail !== request) return;
         const card = Array.from(document.querySelectorAll('.student-card')).find(function (candidate) {
             return candidate.getAttribute('data-session-id') === record.sessionId;
         });
@@ -5307,6 +5552,8 @@
         if (card) {
             card.classList.add('open');
             detailCard.appendChild(card);
+            card.querySelector('.student-card-header').setAttribute('aria-expanded', 'true');
+            card._loadResponseBody?.();
         } else {
             const missing = document.createElement('p');
             missing.className = 'no-data';
@@ -5315,8 +5562,21 @@
         }
     }
 
+    window.addEventListener('hashchange', function () {
+        const previous = requestedResponseDetail;
+        requestedResponseDetail = leaiProgress.parseResponseHash(window.location.hash);
+        if (session && allSurveys.length && requestedResponseDetail) renderRequestedResponseDetail();
+        else if (session && allSurveys.length && previous) {
+            document.querySelector('.mode-tabs').style.display = '';
+            document.getElementById('mode-panel-response-detail').style.display = 'none';
+            applyMode(previous.mode);
+            goToWeekScope(previous.week);
+        }
+    });
+
     document.getElementById('response-detail-back').addEventListener('click', function () {
-        const record = requestedResponseDetail && responseRecordBySessionId[requestedResponseDetail.sessionId];
+        const request = requestedResponseDetail;
+        const record = request && leaiProgress.buildResponseRecords(allSurveys).find(record => record.sessionId === request.sessionId && record.mode === request.mode && record.week === request.week && (request.surveyId == null || String(record.surveyId) === request.surveyId));
         requestedResponseDetail = null;
         history.replaceState(null, '', window.location.pathname + window.location.search);
         document.querySelector('.mode-tabs').style.display = '';
@@ -5333,6 +5593,7 @@
 
     // ===== MODE TAB SWITCHING =====
     function applyMode(mode) {
+        insightsGuard.cancel(); groupInsightsGuard.cancel();
         if (mode !== 'general' && mode !== 'group' && mode !== 'form' && mode !== 'students' && mode !== 'group-progress') mode = 'form';
         if (!modeIsAvailable(mode)) mode = 'form';
         currentMode = mode;
