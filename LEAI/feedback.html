@@ -1828,7 +1828,7 @@
             }
         }
 
-        function initGpt(gpt) {
+        function initGpt(gpt, resumedMessages) {
             gptConfig = gpt;
             window.sessionData.selectedGPT = gpt.name;
             window.sessionData.selectedGPTId = gpt.id;
@@ -1869,6 +1869,11 @@
             // fetch fails (network error, survey id mismatch, etc.).
             var resumeCid = window.sessionData && window.sessionData.resumeCid;
             renderResumeCopyChip();
+            if (resumedMessages && resumedMessages.length) {
+                replayResumedConversation(resumedMessages);
+                if (!chatLocked) $('#sendMessage').prop('disabled', false);
+                return;
+            }
             if (resumeCid && gpt.id && typeof leaiSession !== 'undefined') {
                 leaiSession.resume(gpt.id, resumeCid).then(function (data) {
                     if (data && data.messages && data.messages.length) {
@@ -1928,32 +1933,21 @@
         }
 
         function renderLegacyTranscript(messages) {
-            // Historical messages have no server orchestration state. Display
-            // them without reconstructing progress or enabling writes under the
-            // same identity. In particular, never run the legacy intro/persist path.
-            chatLocked = true;
-            chatHistory = [];
-            $('#transcription').empty();
-            messages.forEach(function (m) {
-                const role = normalizeRestoredMessageRole(m.sent_by || m.role);
-                chatHistory.push(attributedChatTurn(role, m.content, m));
-                appendMessage(role === 'user' ? 'user-message' : 'ai-message', m.content, {
-                    skipPersist: true, timestamp: m.created_at, referred: !!m.referred,
-                });
+            // Continue a pre-orchestration conversation with its original client
+            // flow. Do not invent server execution state or rewrite its history.
+            orchestratedClient = null;
+            orchestrationDebugPanel = null;
+            formMode.schema = Object.assign({}, formMode.schema, {
+                schema_id: formMode.schemaId,
+                version: gptConfig.form_schema && gptConfig.form_schema.version,
+                week: gptConfig.week_number,
+                sections: formMode.schema.sections.map(function (section) {
+                    const legacy = Object.assign({}, section);
+                    delete legacy.answer_source;
+                    return legacy;
+                }),
             });
-            setInputBusy(true);
-            $('.chat-footer .input-area, .chat-footer .leai-revise-hint').hide();
-            const error = document.getElementById('orchestration-error');
-            if (error) error.remove();
-            let note = document.getElementById('legacy-transcript-note');
-            if (!note) {
-                note = document.createElement('p');
-                note.id = 'legacy-transcript-note';
-                note.setAttribute('role', 'status');
-                document.querySelector('.chat-footer-inner').prepend(note);
-            }
-            note.textContent = 'Saved conversation · Read only. Your original messages are preserved.';
-            transcriptionDiv.scrollTo({top: 0, behavior: 'instant'});
+            initGpt(gptConfig, messages);
         }
 
         async function recoverLegacyTranscript(error) {
@@ -1975,7 +1969,7 @@
         function startOrchestratedChat() {
             setInputBusy(true);
             renderResumeCopyChip();
-            return orchestratedClient.start({terms_consent:true, research_consent:getResearchConsent()}).then(applyOrchestratedPayload).catch(recoverLegacyTranscript).finally(function () { setInputBusy(!orchestratedClient.getState() || chatLocked); });
+            return orchestratedClient.start({terms_consent:true, research_consent:getResearchConsent()}).then(applyOrchestratedPayload).catch(recoverLegacyTranscript).finally(function () { setInputBusy((orchestratedClient && !orchestratedClient.getState()) || chatLocked); });
         }
 
         function sendOrchestratedMessage(providedText) {

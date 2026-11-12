@@ -62,11 +62,11 @@ const server = http.createServer((req, res) => {
                         await page.locator('#consent-required').check();
                         await page.locator('#consent-continue-btn').click();
                         if (scenario === 'legacy') {
-                            await expect(page.locator('#legacy-transcript-note')).toContainText('Read only');
+                            await expect(page.locator('.strip-action-certificate')).toBeEnabled();
                             await expect(page.locator('#transcription > article')).toHaveCount(28);
-                            await expect(page.locator('#messageInput')).toBeDisabled();
-                            await expect(page.locator('.chat-footer .input-area')).toBeHidden();
-                            await expect(page.locator('.leai-revise-hint')).toBeHidden();
+                            await expect(page.locator('#messageInput')).toBeEnabled();
+                            await expect(page.locator('.chat-footer .input-area')).toBeVisible();
+                            await expect(page.locator('#legacy-transcript-note')).toHaveCount(0);
                             assert.deepEqual(await page.locator('#transcription .msg-ai-text, #transcription .msg-student-text').allTextContents().then(v=>v.map(x=>x.trim())), messages.map(m=>m.content.trim()));
                             await page.screenshot({path:path.join(out,`${name}-${width}-top.png`)});
                             await page.locator('#transcription').hover();
@@ -79,7 +79,8 @@ const server = http.createServer((req, res) => {
                             await page.screenshot({path:path.join(out,`${name}-${width}-bottom.png`)});
                             await page.reload();
                             await expect(page.locator('#transcription > article')).toHaveCount(28);
-                            await expect(page.locator('#legacy-transcript-note')).toBeVisible();
+                            await expect(page.locator('.strip-action-certificate')).toBeEnabled();
+                            await expect(page.locator('#messageInput')).toBeEnabled();
                             await expect(page.locator('#orchestration-error')).toHaveCount(0);
                         } else if (scenario === 'normal') {
                             await expect(page.locator('#messageInput')).toBeEnabled();
