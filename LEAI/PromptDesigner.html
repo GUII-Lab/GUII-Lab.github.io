@@ -716,8 +716,8 @@ When the conversation has organically reached a natural close — i.e. the stude
                                     </div>
                                 </div>
                                 <div style="margin-top:14px">
-                                    <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
-                                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey. The engine walks every section in order and won't let the conversation close until each one is covered. Useful for graded team-process reflections."></span>
+                                    <label>Coverage template <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
+                                        <span class="info-icon" tabindex="0" data-tooltip="Bind a template to this in-group survey. The engine walks every section in order and won't let the conversation close until each one is covered. Useful for graded team-process reflections."></span>
                                     </label>
                                     <select id="ig-schema-select">
                                         <option value="">(none — free-form chat)</option>
@@ -768,7 +768,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <div class="card" id="form-survey-card">
                             <div class="card-title">New Structured-Reflection Survey</div>
 
-                            <div class="builder-note">Pick a checked-in schema and write the bot's voice — the engine walks every section in order. Schemas are managed in the database; instructors don't author them in-app yet.</div>
+                            <div class="builder-note">Pick an available template and write the bot's voice — the engine walks every section in order. Templates are managed in the database; instructors don't author them in-app yet.</div>
 
                             <div class="builder-section">
                                 <div class="builder-section-title">Survey Details</div>
@@ -785,11 +785,11 @@ When the conversation has organically reached a natural close — i.e. the stude
                             </div>
 
                             <div class="builder-section">
-                                <div class="builder-section-title">Schema</div>
-                                <label>FormSchema
-                                    <span class="info-icon" tabindex="0" data-tooltip="Pick a checked-in schema. The schema defines the sections, prompts, probes, and field types the engine walks through. Schemas are managed in the database; instructors don't author them in-app yet."></span>
+                                <div class="builder-section-title">Template</div>
+                                <label>Template
+                                    <span class="info-icon" tabindex="0" data-tooltip="Pick an available template. The template defines the sections, prompts, probes, and field types the engine walks through. Templates are managed in the database; instructors don't author them in-app yet."></span>
                                 </label>
-                                <select id="form-schema-select"><option value="">Select a schema…</option></select>
+                                <select id="form-schema-select"><option value="">Select a template…</option></select>
                                 <div id="form-schema-preview" style="margin-top:8px;padding:10px 12px;background:var(--surface-low,#f4f5f6);border:1px solid var(--surface-mid,#e2e6ea);border-radius:6px;font-size:1rem;color:var(--text-variant);display:none">
                                 </div>
                             </div>
@@ -877,7 +877,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <option value="pseudonymous">Pseudonymous</option>
                     </select>
                     <div id="edit-schema-row" style="display:none;margin-bottom:12px">
-                        <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(form-mode surveys must keep one bound)</span></label>
+                        <label>Coverage template <span style="font-weight:400;color:var(--muted)">(form-mode surveys must keep one bound)</span></label>
                         <select id="edit-schema"></select>
                     </div>
                     <label>Opens At</label>
@@ -915,8 +915,8 @@ When the conversation has organically reached a natural close — i.e. the stude
                         <option value="identified">Identified (names allowed)</option>
                         <option value="pseudonymous">Pseudonymous</option>
                     </select>
-                    <label>Coverage schema <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
-                        <span class="info-icon" tabindex="0" data-tooltip="Bind a FormSchema to this in-group survey so the engine walks every section in order and the student's download is the structured artifact instead of a raw transcript. Leave unbound for free-form chat."></span>
+                    <label>Coverage template <span style="font-weight:400;color:var(--muted)">(optional — enforces section coverage like form mode)</span>
+                        <span class="info-icon" tabindex="0" data-tooltip="Bind a template to this in-group survey so the engine walks every section in order and the student's download is the structured artifact instead of a raw transcript. Leave unbound for free-form chat."></span>
                     </label>
                     <select id="ig-edit-schema" style="margin-bottom:12px">
                         <option value="">(none — free-form chat)</option>
@@ -1205,7 +1205,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 var stale = document.createElement('option');
                 stale.value = currentSchemaId;
                 stale.textContent = isEtcDemoCourse()
-                    ? 'Current survey schema (unavailable in demo list)'
+                    ? 'Current survey template (unavailable in demo list)'
                     : currentSchemaId + ' (inactive or missing)';
                 sel.appendChild(stale);
             }
@@ -1897,7 +1897,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         // glance whether the survey produces a structured download or a
         // free-form transcript. "(none)" is the common pitfall that produces
         // a raw transcript on "Save draft (.docx)".
-        metaParts.push('Schema: ' + (s.form_schema_id || '(none)'));
+        metaParts.push('Template: ' + (s.form_schema_id || '(none)'));
         meta.textContent = metaParts.join(' \u00b7 ');
 
         // Link box with open + copy
@@ -2494,7 +2494,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         clearChildren(sel);
         var loadingOpt = document.createElement('option');
         loadingOpt.value = '';
-        loadingOpt.textContent = 'Loading schemas…';
+        loadingOpt.textContent = 'Loading templates…';
         loadingOpt.disabled = true;
         sel.appendChild(loadingOpt);
 
@@ -2505,10 +2505,10 @@ When the conversation has organically reached a natural close — i.e. the stude
                 if (activeCourse !== course) return;
                 _formSchemas = visibleFormSchemas(rows);
                 clearChildren(sel);
-                sel.appendChild(new Option('Select a schema…', ''));
+                sel.appendChild(new Option('Select a template…', ''));
                 if (!_formSchemas.length) {
                     var none = document.createElement('option');
-                    none.textContent = 'No schemas available';
+                    none.textContent = 'No templates available';
                     none.value = '';
                     none.disabled = true;
                     sel.appendChild(none);
@@ -2526,7 +2526,7 @@ When the conversation has organically reached a natural close — i.e. the stude
                 clearChildren(sel);
                 var err = document.createElement('option');
                 err.value = '';
-                err.textContent = 'Failed to load schemas';
+                err.textContent = 'Failed to load templates';
                 err.disabled = true;
                 sel.appendChild(err);
             });
@@ -2600,7 +2600,7 @@ When the conversation has organically reached a natural close — i.e. the stude
         var msgId = 'form-survey-msg';
 
         if (!label)        { setMsg(msgId, 'Survey label is required.', 'error'); return; }
-        if (!schemaId)     { setMsg(msgId, 'Pick a schema.', 'error'); return; }
+        if (!schemaId)     { setMsg(msgId, 'Pick a template.', 'error'); return; }
         if (!instructions) { setMsg(msgId, 'Instructions (system prompt) are required.', 'error'); return; }
 
         this.disabled = true;

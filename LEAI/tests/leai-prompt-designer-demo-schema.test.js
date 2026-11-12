@@ -84,7 +84,7 @@ async function openDesigner(t, { courseName = 'ETC Demo · Fall 2026', rows = re
         assert.deepEqual(errors, [], 'No application page errors');
     });
     await page.goto(origin + '/LEAI/PromptDesigner.html', { waitUntil: 'networkidle0', timeout: 45000 });
-    await page.waitForFunction(() => document.querySelector('#form-schema-select option')?.textContent === 'Select a schema…');
+    await page.waitForFunction(() => document.querySelector('#form-schema-select option')?.textContent === 'Select a template…');
     return { page, detailRequests };
 }
 
@@ -100,7 +100,7 @@ const options = (page, selector) => page.$$eval(selector + ' option', nodes => n
 test('ETC demo starts unselected, hides private schema choices, and requires an explicit selection', { timeout: 60000 }, async t => {
     const { page, detailRequests } = await openDesigner(t);
     assert.deepEqual(await options(page, '#form-schema-select'), [
-        { value: '', label: 'Select a schema…' }, { value: demoId, label: 'ETC Demo — Class discussion' },
+        { value: '', label: 'Select a template…' }, { value: demoId, label: 'ETC Demo — Class discussion' },
     ]);
     assert.equal(await page.$eval('#form-schema-select', node => node.value), '');
     assert.equal(await page.$eval('#form-schema-preview', node => getComputedStyle(node).display), 'none');
@@ -110,7 +110,7 @@ test('ETC demo starts unselected, hides private schema choices, and requires an 
     await capture(page, '1440px — neutral default with no schema preview', 'default-1440');
     await page.type('#form-survey-label', 'Demo reflection');
     await page.click('#form-create-btn');
-    assert.match(await page.$eval('#form-survey-msg', node => node.textContent), /Pick a schema/);
+    assert.match(await page.$eval('#form-survey-msg', node => node.textContent), /Pick a template/);
     await page.click('#form-schema-select');
     await page.keyboard.press('Escape');
     await page.select('#form-schema-select', demoId);
@@ -137,7 +137,7 @@ test('ETC demo starts unselected, hides private schema choices, and requires an 
     assert.deepEqual((await options(page, '#ig-schema-select')).map(option => option.value), ['', demoId]);
 });
 
-test('other courses retain registry labels and IDs but also start with Select a schema', async t => {
+test('other courses retain registry labels and IDs but also start with Select a template', async t => {
     const { page } = await openDesigner(t, { courseName: 'Training Sandbox' });
     assert.deepEqual((await options(page, '#form-schema-select')).map(option => option.value), ['', ...registry.map(row => row.schema_id)]);
     assert.match((await options(page, '#form-schema-select'))[1].label, /Private course A/);
