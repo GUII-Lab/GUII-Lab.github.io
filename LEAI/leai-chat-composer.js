@@ -65,7 +65,7 @@
             if (disposed) return;
             if (!dialog.open) {
                 input.style.height = 'auto';
-                input.style.height = Math.max(48, input.scrollHeight) + 'px';
+                input.style.height = Math.max(44, input.value ? input.scrollHeight : 44) + 'px';
             }
             const overflow = !!input.value.trim() && input.scrollHeight > input.clientHeight + 1;
             host.classList.toggle('has-overflow', overflow);

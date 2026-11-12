@@ -792,8 +792,8 @@
         }
         .leai-course-banner .lcb-close:hover { background: rgba(183,121,31,.15); }
     </style>
-    <link rel="stylesheet" href="leai-chat-composer.css?v=hp370-1">
-    <script src="leai-chat-composer.js?v=hp370-1" defer></script>
+    <link rel="stylesheet" href="leai-chat-composer.css?v=hp370-2">
+    <script src="leai-chat-composer.js?v=hp370-2" defer></script>
 </head>
 
 <body>
@@ -1125,6 +1125,20 @@
         function createDownloadStripUi(options) {
             var footer = options && options.footer;
             if (!footer) return null;
+            var disclosure = document.createElement('details');
+            disclosure.className = 'leai-download-disclosure';
+            disclosure.open = true;
+            disclosure.hidden = true;
+            var summary = document.createElement('summary');
+            summary.textContent = 'Reflection downloads';
+            disclosure.appendChild(summary);
+            // Only the first edit collapses the introduction. Manual reopening
+            // stays under the student's control, including with a touch keyboard.
+            footer.addEventListener('input', function collapseIntroduction(event) {
+                if (!event.target.matches('#messageInput') || disclosure.hidden) return;
+                disclosure.open = false;
+                footer.removeEventListener('input', collapseIntroduction);
+            });
             var strip = document.createElement('div');
             strip.id = options.id;
             strip.className = 'ig-download-strip collapsed';
@@ -1172,9 +1186,12 @@
             note.setAttribute('aria-live', 'polite');
             strip.appendChild(note);
 
-            footer.appendChild(strip);
+            disclosure.appendChild(strip);
+            footer.appendChild(disclosure);
             return {
                 strip: strip,
+                disclosure: disclosure,
+                summary: summary,
                 celebrateEl: celebrate,
                 statusEl: status,
                 actionsEl: actions,
@@ -1200,7 +1217,14 @@
             if (!stripUi || !state) return;
             var config = options || {};
             stripUi.strip.hidden = !state.showStrip;
+            stripUi.disclosure.hidden = !state.showStrip;
             if (!state.showStrip) return;
+            stripUi.summary.textContent = (!state.showDocument && state.showCertificate
+                ? 'Completion certificate' : 'Reflection downloads') + (state.certificate.enabled ? ' · ready' : '');
+            // A newly unlocked certificate must be discoverable even if the
+            // student previously tucked the panel away.
+            if (state.certificate.enabled && !stripUi.certificateWasEnabled) stripUi.disclosure.open = true;
+            stripUi.certificateWasEnabled = state.certificate.enabled;
 
             var statusLead = 'Reflection in progress';
             var statusTail = ' · save what you have so far';
@@ -1612,7 +1636,10 @@
             });
             if (orchestratedClient && !currentMainStripComplete()) { state.certificateEnabled = false; state.documentEnabled = false; if (state.certificate) state.certificate.enabled = false; if (state.document) { state.document.enabled = false; state.document.label = 'Finish the reflection to download'; } if (state.certificate) state.certificate.label = 'Finish the reflection for a certificate'; }
             if (!state.showStrip) {
-                if (_mainStripUi && _mainStripUi.strip) _mainStripUi.strip.hidden = true;
+                if (_mainStripUi && _mainStripUi.strip) {
+                    _mainStripUi.strip.hidden = true;
+                    _mainStripUi.disclosure.hidden = true;
+                }
                 return;
             }
             if (!_mainStripUi) {

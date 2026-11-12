@@ -9,9 +9,10 @@ const root = path.resolve(__dirname, '..');
 // Reuse installed browser tooling only; the React app is not a build input.
 const tooling = createRequire(path.join(root, '../LEAI/package.json'));
 const {chromium, firefox, webkit, expect} = tooling('@playwright/test');
-const out = path.join(root, '.web-verify/production-composer-hp370');
-fs.mkdirSync(out, {recursive:true});
 const arg = name => process.argv.find(item => item.startsWith('--' + name + '='))?.split('=')[1];
+const out = path.resolve(root, arg('out') || '.web-verify/production-compact-chat-20261111');
+fs.mkdirSync(out, {recursive:true});
+const certificates = arg('certificates') !== 'false';
 const engines = arg('browser') ? [arg('browser')] : ['chromium', 'firefox', 'webkit'];
 const surfaces = arg('surface') ? [arg('surface')] : ['student', 'group', 'group-orchestrated', 'feedback'];
 const widths = arg('width') ? [Number(arg('width'))] : [390, 820, 1022, 1440];
@@ -54,12 +55,13 @@ async function fixtures(context, base, surface) {
             const headers = {'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET,POST,PATCH,OPTIONS','Content-Type':'application/json'};
             if (request.method() === 'OPTIONS') return route.fulfill({status:204,headers});
             let json;
-            if (pathname.endsWith('/get_feedback_gpt_by_public_id/')) json = {id:101,public_id:surveyId,name:'Weekly reflection',survey_label:'Weekly reflection with a longer course title',is_active:true,mode:surface.startsWith('group') ? 'group' : 'form',instructions:'Ask one reflection question.',identity_tracking_enabled:false,completion_certificate_enabled:false,parsed_document_download_enabled:false,
+            if (pathname.endsWith('/get_feedback_gpt_by_public_id/')) json = {id:101,public_id:surveyId,name:'Weekly reflection',survey_label:'Weekly reflection with a longer course title',is_active:true,mode:surface.startsWith('group') ? 'group' : 'form',instructions:'Ask one reflection question.',identity_tracking_enabled:false,completion_certificate_enabled:certificates,parsed_document_download_enabled:false,
                 ...(surface.startsWith('group') ? {team_snapshot:{name:'Course teams',color:'forest',label_prefix:'Team',teams:[{id:1,number:1,display_name:'Example team'}]}} : {}),
                 ...(surface !== 'group' ? {form_schema_id:'synthetic-composer',form_schema:{schema_id:'synthetic-composer',body:schema}} : {})};
             else if (pathname.endsWith('/form_orchestration/session/')) json = state;
             else if (pathname.endsWith('/form_orchestration/turn/')) {
                 const data = request.postDataJSON(); submitted.push(data.text);
+                state.review_ready=true; state.progress.complete=true;
                 state.version++;state.messages.push({sequence:++seq,sent_by:'user-message',content:data.text,form_field_id:'P1',created_at:stamp});
                 state.messages.push({sequence:++seq,sent_by:'ai-message',content:'Thank you. Is there anything else you would like to add?',form_field_id:'P1',created_at:stamp}); json = state;
             }
@@ -126,6 +128,42 @@ async function capture(page, name) {
                         const tip = page.getByRole('note',{name:'Revision tip'});
                         await expect(page.locator('.leai-composer-notice').first()).toBeVisible();
                         await expect(expand).toBeHidden();
+                        const compact = async () => {
+                            const rects = await page.locator('.leai-composer').evaluate(el => {
+                                const box = node => { const r=node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width,height:r.height}; };
+                                return {host:box(el),input:box(el.querySelector('textarea')),send:box(el.querySelector('#sendMessage, #send-btn')),mic:el.querySelector('#micButton') ? box(el.querySelector('#micButton')) : null};
+                            });
+                            assert.ok(rects.host.height <= 64, 'Empty/short composer is a single compact row');
+                            assert.ok(Math.abs(rects.input.y-rects.send.y)<=2, 'Input and send share a row');
+                            assert.ok(rects.input.x+rects.input.width<=rects.send.x,'Input does not overlap send');
+                            if(rects.mic) assert.ok(rects.input.x+rects.input.width<=rects.mic.x,'Input does not overlap mic');
+                        };
+                        await compact();
+                        if(engine==='chromium' && [390,1440].includes(width)) await capture(page,label+'-empty');
+                        const disclosure = page.locator('.leai-download-disclosure');
+                        if (surface !== 'feedback' && certificates) {
+                            await expect(disclosure).toBeVisible();
+                            await expect(disclosure).toHaveAttribute('open','');
+                            await expect(disclosure.locator('.strip-action-certificate')).toBeDisabled();
+                            if(engine==='chromium' && [390,1440].includes(width)) await capture(page,label+'-first-open');
+                            await disclosure.locator('summary').click();
+                            await expect(disclosure).not.toHaveAttribute('open');
+                            await disclosure.locator('summary').focus();
+                            await page.keyboard.press('Enter');
+                            await expect(disclosure).toHaveAttribute('open','');
+                        } else await expect(disclosure).toHaveCount(0);
+                        await input.fill('Short thought.');
+                        await compact();
+                        if(surface !== 'feedback' && certificates) {
+                            await expect(disclosure).not.toHaveAttribute('open');
+                            await disclosure.locator('summary').click();
+                            await input.fill('I can reopen the panel while writing.');
+                            await expect(disclosure).toHaveAttribute('open','');
+                            await disclosure.locator('summary').click();
+                        }
+                        await input.fill('Short thought.');
+                        await compact();
+                        if(engine==='chromium' && [390,1440].includes(width)) await capture(page,label+'-single-row');
                         await input.fill('One line.\nA second line.');
                         await expect(expand).toBeHidden();
                         if (surface !== 'feedback') {
@@ -176,10 +214,18 @@ async function capture(page, name) {
                         await expect(dialog).not.toBeVisible();
                         await expect.poll(()=>fixture.submitted.length).toBe(before+1);
                         await expect(input).toHaveValue(''); await expect(expand).toBeHidden();
+                        await compact();
+                        if(surface!=='feedback' && certificates) {
+                            await expect(disclosure.locator('.strip-action-certificate')).toBeEnabled();
+                            await expect(disclosure).toHaveAttribute('open','');
+                            await expect(disclosure.locator('summary')).toContainText('ready');
+                            await disclosure.locator('summary').click();
+                            await expect(disclosure).not.toHaveAttribute('open');
+                        }
                         if(surface!=='feedback') await expect(tip).toBeHidden();
                         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'No page horizontal overflow');
                         assert.deepEqual(fixture.errors,[],'No page errors');assert.deepEqual(fixture.unexpected,[],'No unexpected API/provider requests');
-                        results.push({name:label,status:'PASS',checks:['short/empty hidden','overflow-only expand','internal scroll','draft/focus','full-screen mobile','send once','notice','tip dismissal','header/progress','no attachments','no horizontal overflow']});
+                        results.push({name:label,status:'PASS',checks:['single-row empty/short/reset','certificate first-open/manual toggle/first-edit collapse/unlock reopen','short/empty hidden','overflow-only expand','internal scroll','draft/focus','full-screen mobile','send once','notice','tip dismissal','header/progress','no attachments','no horizontal overflow']});
                         console.log('PASS ' + label);
                     } catch(error) { failed=true;await capture(page,label+'-FAIL');results.push({name:label,status:'FAIL',error:error.message,errors:fixture.errors,unexpected:fixture.unexpected});console.error('FAIL '+label+' '+error.message);throw error; }
                     finally { await context.close(); }

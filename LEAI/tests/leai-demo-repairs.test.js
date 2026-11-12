@@ -122,7 +122,7 @@ test('certificate hint matches the required completion gate before and after an 
     const ctx={document:{createElement:node,createTextNode:text=>({textContent:text})},setDownloadStripNote(){}};
     vm.createContext(ctx);vm.runInContext(fn,ctx);
     for(const persisted of [0,1]){
-        const ui={strip:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
+        const ui={strip:node(),disclosure:node(),summary:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
         const state={showStrip:true,showDocument:false,showCertificate:true,persistedStudentMessageCount:persisted,presentation:'normal',document:{visible:false,enabled:false},certificate:{visible:true,enabled:false,label:'Finish the reflection for a certificate'}};
         ctx.updateDownloadStripUi(ui,state,{certificateRequiresCompletion:true});
         const label=ui.statusEl.children.map(e=>e.textContent).join('');
@@ -130,7 +130,7 @@ test('certificate hint matches the required completion gate before and after an 
         assert.equal(ui.certificateBtn.disabled,true);
     }
     // Ordinary chat retains its existing first-response contract.
-    const legacy={strip:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
+    const legacy={strip:node(),disclosure:node(),summary:node(),statusEl:node(),documentBtn:node(),certificateBtn:node(),celebrateEl:node(),helpEl:node()};
     ctx.updateDownloadStripUi(legacy,{showStrip:true,showDocument:false,showCertificate:true,presentation:'normal',document:{visible:false,enabled:false},certificate:{visible:true,enabled:false}},{certificateRequiresCompletion:false});
     assert.match(legacy.statusEl.children.map(e=>e.textContent).join(''),/respond once/);
 });
