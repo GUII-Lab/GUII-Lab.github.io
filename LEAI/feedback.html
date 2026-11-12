@@ -1923,13 +1923,59 @@
             let note = document.getElementById('orchestration-error');
             if (!note) { note = document.createElement('p'); note.id = 'orchestration-error'; note.setAttribute('role','alert'); document.querySelector('.chat-footer-inner').appendChild(note); }
             note.textContent = error.message === 'engine_unavailable' ? 'This reflection is temporarily unavailable. Please try again later.'
+                : error.message === 'legacy_restore_failed' ? 'We could not load your saved conversation. Your existing messages have not been changed. Reload this page to try again.'
                 : error.message === 'invalid_text' ? 'Please shorten your response and send it again. Your text is still here.' : _mainStripNoteText;
+        }
+
+        function renderLegacyTranscript(messages) {
+            // Historical messages have no server orchestration state. Display
+            // them without reconstructing progress or enabling writes under the
+            // same identity. In particular, never run the legacy intro/persist path.
+            chatLocked = true;
+            chatHistory = [];
+            $('#transcription').empty();
+            messages.forEach(function (m) {
+                const role = normalizeRestoredMessageRole(m.sent_by || m.role);
+                chatHistory.push(attributedChatTurn(role, m.content, m));
+                appendMessage(role === 'user' ? 'user-message' : 'ai-message', m.content, {
+                    skipPersist: true, timestamp: m.created_at, referred: !!m.referred,
+                });
+            });
+            setInputBusy(true);
+            $('.chat-footer .input-area, .chat-footer .leai-revise-hint').hide();
+            const error = document.getElementById('orchestration-error');
+            if (error) error.remove();
+            let note = document.getElementById('legacy-transcript-note');
+            if (!note) {
+                note = document.createElement('p');
+                note.id = 'legacy-transcript-note';
+                note.setAttribute('role', 'status');
+                document.querySelector('.chat-footer-inner').prepend(note);
+            }
+            note.textContent = 'Saved conversation · Read only. Your original messages are preserved.';
+            transcriptionDiv.scrollTo({top: 0, behavior: 'instant'});
+        }
+
+        async function recoverLegacyTranscript(error) {
+            // Do not fall back for closed/archived sessions, stale turns, or
+            // transient failures. The server must explicitly identify old data.
+            if (error.status !== 409 || error.message !== 'existing_legacy_transcript') {
+                orchestrationError(error);
+                return;
+            }
+            try {
+                const data = await leaiSession.resume(gptConfig.id, window.sessionData.sessionID);
+                if (!data || !Array.isArray(data.messages) || !data.messages.length) throw new Error('empty_transcript');
+                renderLegacyTranscript(data.messages);
+            } catch (_) {
+                orchestrationError(new Error('legacy_restore_failed'));
+            }
         }
 
         function startOrchestratedChat() {
             setInputBusy(true);
             renderResumeCopyChip();
-            orchestratedClient.start({terms_consent:true, research_consent:getResearchConsent()}).then(applyOrchestratedPayload).catch(orchestrationError).finally(function () { setInputBusy(!orchestratedClient.getState() || chatLocked); });
+            return orchestratedClient.start({terms_consent:true, research_consent:getResearchConsent()}).then(applyOrchestratedPayload).catch(recoverLegacyTranscript).finally(function () { setInputBusy(!orchestratedClient.getState() || chatLocked); });
         }
 
         function sendOrchestratedMessage(providedText) {
