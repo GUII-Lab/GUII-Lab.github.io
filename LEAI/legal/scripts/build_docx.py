@@ -19,10 +19,55 @@ Usage:
 from pathlib import Path
 
 from docx import Document
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from docx.shared import Pt
 
 LEAI_VERSION = "v0.3.0"
 LEAI_UPDATED_HUMAN = "August 13, 2026"
+OPENAI_DATA_URL = "https://developers.openai.com/api/docs/guides/your-data"
+AI_PROCESSING_TEXT = (
+    "LEAI uses the OpenAI API to generate the conversational prompts you see. "
+    "Your conversation text and the system prompt your instructor wrote are sent "
+    "to OpenAI for processing so it can return a response. LEAI does not add your "
+    "name, institutional ID, or session code to these requests. Any personal "
+    "details you include in your messages are part of the text sent to OpenAI, "
+    "so please do not include identifying information."
+)
+OPENAI_TRAINING_TEXT = (
+    "According to OpenAI, data sent through its API is not used to train or "
+    "improve its models by default, unless the API customer explicitly opts in "
+    "to share that data. This is OpenAI's stated policy. It does not mean that "
+    "OpenAI does not receive, process, or retain API data. OpenAI also states "
+    "that it may retain API content for abuse monitoring and certain API "
+    "features, subject to its policies and applicable account settings. "
+    "See OpenAI's "
+)
+TERMS_API_TEXT = (
+    "LEAI uses the OpenAI API to generate these replies and sends your "
+    "conversation text and your instructor's system prompt to OpenAI for "
+    "processing. According to OpenAI, API data is not used to train or improve "
+    "its models by default unless the API customer explicitly opts in to share "
+    "it. OpenAI may retain API data as described in its "
+)
+
+
+def add_openai_data_link(paragraph):
+    """Add a clickable official source in Word and generated Markdown."""
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("r:id"), paragraph.part.relate_to(OPENAI_DATA_URL, RT.HYPERLINK, is_external=True))
+    run = OxmlElement("w:r")
+    properties = OxmlElement("w:rPr")
+    style = OxmlElement("w:rStyle")
+    style.set(qn("w:val"), "Hyperlink")
+    properties.append(style)
+    run.append(properties)
+    text = OxmlElement("w:t")
+    text.text = "API data controls documentation"
+    run.append(text)
+    link.append(run)
+    paragraph._p.append(link)
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +273,9 @@ def build_privacy_policy(out_path: Path) -> None:
         doc,
         ("The AI provider ", "bold"),
         "described in Section 7 receives the text of your conversation and the "
-        "system prompt your instructor wrote. It does not receive your name, your "
-        "session code, or your identifier.",
+        "system prompt your instructor wrote. LEAI does not add your name, "
+        "institutional ID, or session code to these requests, but any identifying "
+        "details you include in your messages are sent as part of the text.",
     )
     provider_access.paragraph_format.keep_together = True
     third_party_access = add_bullet(
@@ -274,17 +320,10 @@ def build_privacy_policy(out_path: Path) -> None:
 
     # ---- Section 7: AI processing -----------------------------------------
     doc.add_heading("7. AI processing", level=2)
-    add_para(
-        doc,
-        "Your messages are sent to a third-party large language model provider "
-        "(currently OpenAI) to generate the conversational prompts you see. The "
-        "provider processes the text to return a response. We do not send the "
-        "provider your name, your institutional ID, your session code, or any "
-        "other identifier — only the conversation text and the system prompt your "
-        "instructor wrote. Review the provider's own data-handling policies if you "
-        "want details on how it processes API traffic. We may switch providers in "
-        "the future; if we do, we will update this section.",
-    )
+    add_para(doc, AI_PROCESSING_TEXT)
+    provider_para = add_para(doc, OPENAI_TRAINING_TEXT)
+    add_openai_data_link(provider_para)
+    provider_para.add_run(". We may switch providers in the future; if we do, we will update this section.")
 
     # ---- Section 8: data retention ----------------------------------------
     doc.add_heading("8. Data retention", level=2)
@@ -488,6 +527,9 @@ def build_terms_of_use(out_path: Path) -> None:
 
     # ---- Section 5: AI-generated responses --------------------------------
     doc.add_heading("5. AI-generated responses", level=2)
+    provider_para = add_para(doc, TERMS_API_TEXT)
+    add_openai_data_link(provider_para)
+    provider_para.add_run(". See Section 7 of the LEAI Privacy Policy for more detail.")
     add_para(
         doc,
         "The replies you receive during the session come from a ",

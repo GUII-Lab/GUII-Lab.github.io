@@ -40,6 +40,8 @@ The GUII Lab reserves the right to remove any content that violates these rules.
 
 ## 5. AI-generated responses
 
+LEAI uses the OpenAI API to generate these replies and sends your conversation text and your instructor's system prompt to OpenAI for processing. According to OpenAI, API data is not used to train or improve its models by default unless the API customer explicitly opts in to share it. OpenAI may retain API data as described in its [API data controls documentation](https://developers.openai.com/api/docs/guides/your-data). See Section 7 of the LEAI Privacy Policy for more detail.
+
 The replies you receive during the session come from a **large language model**. They are conversational prompts designed to help you articulate your feedback — not authoritative statements from your instructor or the university. LEAI will not:
 
 - Grade you

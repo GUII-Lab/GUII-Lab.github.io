@@ -52,7 +52,7 @@ The whole point of LEAI is to streamline feedback to your instructor *while the 
 
 - **The GUII Lab research team** maintains the system and has access to the underlying database as needed to operate the service (fixing bugs, performing backups, and migrating data).
 
-- **The AI provider** described in Section 7 receives the text of your conversation and the system prompt your instructor wrote. It does not receive your name, your session code, or your identifier.
+- **The AI provider** described in Section 7 receives the text of your conversation and the system prompt your instructor wrote. LEAI does not add your name, institutional ID, or session code to these requests, but any identifying details you include in your messages are sent as part of the text.
 
 - **No other third parties.** We do not share, sell, or disclose your feedback to advertisers, data brokers, or any party outside the operational chain described above.
 
@@ -66,7 +66,9 @@ This consent is **per session**. Each time you start a new feedback session, the
 
 ## 7. AI processing
 
-Your messages are sent to a third-party large language model provider (currently OpenAI) to generate the conversational prompts you see. The provider processes the text to return a response. We do not send the provider your name, your institutional ID, your session code, or any other identifier — only the conversation text and the system prompt your instructor wrote. Review the provider's own data-handling policies if you want details on how it processes API traffic. We may switch providers in the future; if we do, we will update this section.
+LEAI uses the OpenAI API to generate the conversational prompts you see. Your conversation text and the system prompt your instructor wrote are sent to OpenAI for processing so it can return a response. LEAI does not add your name, institutional ID, or session code to these requests. Any personal details you include in your messages are part of the text sent to OpenAI, so please do not include identifying information.
+
+According to OpenAI, data sent through its API is not used to train or improve its models by default, unless the API customer explicitly opts in to share that data. This is OpenAI's stated policy. It does not mean that OpenAI does not receive, process, or retain API data. OpenAI also states that it may retain API content for abuse monitoring and certain API features, subject to its policies and applicable account settings. See OpenAI's [API data controls documentation](https://developers.openai.com/api/docs/guides/your-data). We may switch providers in the future; if we do, we will update this section.
 
 ## 8. Data retention
 
